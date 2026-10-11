@@ -6,15 +6,17 @@ fell back to weaker sources. Every call here goes through one client:
 - a token bucket per source under flock in <git-common-dir>/devkit/lit/, so all worktrees and processes together
   stay under each API's documented rate; a 429 sets a cooldown that every process honours;
 - a response cache in the same place, shared by all worktrees, for CACHE_DAYS (only 200 answers are cached);
-- free API keys from the environment when present (OPENALEX_API_KEY, S2_API_KEY); they never reach the cache key
-  or the output;
+- free API keys (OPENALEX_API_KEY, S2_API_KEY) from the environment, else from a private secrets file
+  (DEVKIT_SECRETS_FILE, default ~/.config/api-keys.env, mode 600), since subagents and Claude Code's Bash tool do not
+  source the shell profile; a key never reaches the cache key, the output or a log (#23);
 - backoff on 429/5xx (Retry-After when given), giving up on a source whose wait exceeds MAX_WAIT, so the others
-  still answer;
+  still answer; a cooldown is recorded for the keyed or the keyless pool, and only holds callers of that pool off;
 - a fallback chain (`--source auto`, the default): OpenAlex and S2, then Crossref, Europe PMC and arXiv in turn
   until n papers are in hand, with a note naming the fallbacks that answered;
 - compact output: one record per paper (title, year, venue, citations, ids, abstract snippet), capped;
-- `dev lit status`: each source's health from a live probe, failing when a default source is down, so a research
-  round never starts on the weaker fallbacks without knowing it (#8).
+- `dev lit status`: each source's health from a live probe; OK while at least one default source answers (partial
+  names the ones down), DEGRADED and exit 1 only when all are down, so a research round never starts on the weaker
+  fallbacks alone without knowing it (#8, #23).
 
 stdlib only: pyalex and semanticscholar each cover one API and retry in-process, which does not share a rate limit
 or a cache across processes, the part that failed.
@@ -27,6 +29,8 @@ import html
 import json
 import os
 import re
+import stat
+import sys
 import tempfile
 import time
 import urllib.error
@@ -66,35 +70,63 @@ DEFAULT_SOURCES = ("openalex", "s2")
 # Asked in order, after DEFAULT_SOURCES, only while fewer than n papers are in hand (`--source auto`, the CLI default).
 FALLBACK_SOURCES = ("crossref", "europepmc", "arxiv")
 THROTTLE_503 = {"europepmc"}  # sources whose 503 means "slow down"
+KEYS = {"openalex": "OPENALEX_API_KEY", "s2": "S2_API_KEY"}  # free keys raise a source above its shared pool
+SECRETS_FILE = "~/.config/api-keys.env"  # DEVKIT_SECRETS_FILE overrides
 
 Get = Callable[[str, dict[str, str]], tuple[int, dict[str, str], str]]  # (url, headers) -> (status, headers, body)
-
-
-def http_get(url: str, headers: dict[str, str], timeout: int = 30) -> tuple[int, dict[str, str], str]:
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*", **headers})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status, dict(r.headers), r.read(2_000_000).decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as e:
-        return e.code, dict(e.headers or {}), ""
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
-        return 0, {}, str(e)
 
 
 class SourceError(Exception):
     pass
 
 
+KEY_HEADERS = {"x-api-key"}  # request headers that carry a key
+
+
+class KeepKeysOnHost(urllib.request.HTTPRedirectHandler):
+    """A redirect to another host does not take the key header with it (urllib copies every header by default)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and urllib.parse.urlsplit(newurl).netloc != urllib.parse.urlsplit(req.full_url).netloc:
+            for store in (new.headers, new.unredirected_hdrs):
+                for name in [h for h in store if h.lower() in KEY_HEADERS]:
+                    del store[name]
+        return new
+
+
+OPENER = urllib.request.build_opener(KeepKeysOnHost)
+
+
+def http_get(url: str, headers: dict[str, str], timeout: int = 30) -> tuple[int, dict[str, str], str]:
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*", **headers})
+    try:
+        with OPENER.open(req, timeout=timeout) as r:
+            return r.status, dict(r.headers), r.read(2_000_000).decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        return e.code, dict(e.headers or {}), ""
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        return 0, {}, str(e)
+    except (ValueError, UnicodeEncodeError):  # a header or url urllib cannot send; its message may quote the key
+        raise SourceError("key contains non-ASCII characters (or a control character); fix the secrets file") from None
+
+
 # ---- rate limit: token bucket shared through a locked file ----
 
 
-def take(state: dict, now: float, rate: float, burst: float) -> tuple[dict, float]:
+def hold_field(keyed: bool) -> str:
+    """Where a cooldown is kept: a 429 to the keyless shared pool says nothing about a key's own limit, and back."""
+    return "until_key" if keyed else "until"
+
+
+def take(state: dict, now: float, rate: float, burst: float, keyed: bool = False) -> tuple[dict, float]:
     """One token from a bucket: (new state, seconds to wait first; 0 = granted now). Pure.
 
-    state = {"tokens": float, "t": last refill time, "until": cooldown end}. A refused call does not consume."""
+    state = {"tokens": float, "t": last refill time, "until"/"until_key": cooldown end of the keyless/keyed pool}. A
+    refused call does not consume. Only the caller's own pool's cooldown holds it off."""
     tokens = min(burst, state.get("tokens", burst) + max(0.0, now - state.get("t", now)) * rate)
     new = {**state, "tokens": tokens, "t": now}
-    cooldown = state.get("until", 0.0) - now
+    cooldown = state.get(hold_field(keyed), 0.0) - now
     if cooldown > 0:
         return new, cooldown
     if tokens >= 1:
@@ -126,27 +158,28 @@ class Bucket:
             finally:
                 fcntl.flock(lock, fcntl.LOCK_UN)
 
-    def acquire(self, source: str) -> None:
+    def acquire(self, source: str, keyed: bool = False) -> None:
         rate, burst = RATES[source]
         while True:
             with self._state() as data:
-                data[source], wait = take(data.get(source, {}), self.clock(), rate, burst)
+                data[source], wait = take(data.get(source, {}), self.clock(), rate, burst, keyed)
             if wait <= 0:
                 return
             if wait > MAX_WAIT:  # a cooldown from a spent budget: skip the source instead of asking again
                 raise SourceError(f"{source}: rate limited for another {wait:.0f}s (daily budget spent?); skipped")
             self.sleep(wait)
 
-    def held_off(self, source: str) -> float:
-        """Seconds of shared cooldown left on `source` (0 = none). Takes no token."""
+    def held_off(self, source: str, keyed: bool = False) -> float:
+        """Seconds of shared cooldown left on `source` for the keyed or keyless pool (0 = none). Takes no token."""
         with self._state() as data:
-            return max(0.0, data.get(source, {}).get("until", 0.0) - self.clock())
+            return max(0.0, data.get(source, {}).get(hold_field(keyed), 0.0) - self.clock())
 
-    def cooldown(self, source: str, seconds: float) -> None:
-        """Every process holds off `source` for `seconds` (a 429 told one of them to)."""
+    def cooldown(self, source: str, seconds: float, keyed: bool = False) -> None:
+        """Every process in the same pool (keyed or not) holds off `source` for `seconds` (a 429 told one to)."""
         with self._state() as data:
             st = data.setdefault(source, {})
-            st["until"] = max(st.get("until", 0.0), self.clock() + seconds)
+            f = hold_field(keyed)
+            st[f] = max(st.get(f, 0.0), self.clock() + seconds)
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -403,6 +436,68 @@ def get_urls(ident: str) -> list[tuple[str, str]]:
     raise ValueError(f"not a DOI, arXiv id, OpenAlex W-id or S2 paper id: {ident!r}")
 
 
+def parse_secrets(text: str) -> dict[str, str]:
+    """KEYS values from `KEY=value` or `export KEY=value` lines, as a shell reads them: a quoted value ends at its
+    closing quote, an unquoted one at ` #` (a comment). Every other line is ignored."""
+    out = {}
+    for line in text.splitlines():
+        line = re.sub(r"^export\s+", "", line.strip())
+        name, eq, value = line.partition("=")
+        value = value.strip()
+        if value[:1] in ("'", '"'):
+            end = value.find(value[0], 1)
+            value = value[1:end] if end > 0 else ""
+        else:
+            value = re.split(r"\s+#", value, maxsplit=1)[0].strip()
+        if eq and name.strip() in KEYS.values() and value:
+            out[name.strip()] = value
+    return out
+
+
+def secrets_path(env: dict[str, str]) -> Path:
+    return Path(env.get("DEVKIT_SECRETS_FILE") or SECRETS_FILE).expanduser()
+
+
+def read_secrets(path: Path) -> tuple[dict[str, str], str]:
+    """(keys in the file, problem). A missing file is no problem. Read only when it is a regular file (not a symlink
+    or a FIFO), owned by this user, and nobody else may access it; the checks are made on the open handle, so the file
+    cannot be swapped between check and read."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return {}, ""
+    except OSError as exc:
+        return {}, f"{path}: not read ({exc.strerror}; a symlink is refused)"
+    with os.fdopen(fd, "rb") as f:
+        st = os.fstat(f.fileno())
+        mode = st.st_mode & 0o777
+        if not stat.S_ISREG(st.st_mode):
+            return {}, f"{path} is not a regular file, so it is not read"
+        if st.st_uid != os.getuid():
+            return {}, f"{path} is owned by another user (uid {st.st_uid}), so it is not read"
+        if mode & 0o077:
+            return {}, f"{path} is readable by group or others (mode {mode:o}), so it is not read: chmod 600 {path}"
+        try:
+            return parse_secrets(f.read(65536).decode("utf-8-sig")), ""
+        except (OSError, UnicodeDecodeError) as exc:
+            return {}, f"{path}: unreadable ({type(exc).__name__})"
+
+
+def with_secrets(env: dict[str, str]) -> tuple[dict[str, str], str]:
+    """`env` with each unset key filled from the secrets file (read only when a key is unset), and its problem."""
+    if all(env.get(k) for k in KEYS.values()):
+        return dict(env), ""
+    found, problem = read_secrets(secrets_path(env))
+    return {**env, **{k: v for k, v in found.items() if not env.get(k)}}, problem
+
+
+def key_report(env: dict[str, str]) -> tuple[dict[str, str], str]:
+    """For `dev doctor`: each key's origin ("environment", "secrets file" or "missing"), never its value; a problem."""
+    found, problem = ({}, "") if all(env.get(k) for k in KEYS.values()) else read_secrets(secrets_path(env))
+    where = {k: "environment" if env.get(k) else "secrets file" if found.get(k) else "missing" for k in KEYS.values()}
+    return where, problem
+
+
 def with_key(source: str, url: str, env: dict[str, str]) -> tuple[str, dict[str, str]]:
     """The url and headers to send: API keys from env, added here so they never reach the cache key."""
     if source == "openalex" and (k := env.get("OPENALEX_API_KEY")):
@@ -436,11 +531,15 @@ class Client:
             if not live and self.clock() - rec["t"] < CACHE_DAYS * 86400:
                 return rec["body"]
         send, headers = with_key(source, url, self.env)
+        keyed = self.keyed(source)
         delay = 2.0
         status, body = 0, ""
         for attempt in range(tries):
-            self.bucket.acquire(source)
-            status, resp_headers, body = self.get(send, headers)
+            self.bucket.acquire(source, keyed)
+            try:
+                status, resp_headers, body = self.get(send, headers)
+            except SourceError as exc:
+                raise SourceError(f"{source}: {exc}") from None
             if status == 200:
                 _atomic_write(path, json.dumps({"t": self.clock(), "url": url, "body": body}))
                 return body
@@ -451,7 +550,7 @@ class Client:
             wait = _retry_after(resp_headers) or delay
             throttled = status == 429 or (status == 503 and source in THROTTLE_503)
             if throttled:
-                self.bucket.cooldown(source, wait)
+                self.bucket.cooldown(source, wait, keyed)
             if wait > MAX_WAIT:
                 raise SourceError(f"{source}: rate limited for {wait:.0f}s (daily budget spent?); skipped")
             if not throttled and attempt + 1 < tries:  # a 429's wait is the cooldown, which acquire() honours
@@ -459,14 +558,16 @@ class Client:
             delay *= 2
         raise SourceError(f"{source}: {'HTTP ' + str(status) if status else 'unreachable'} after {tries} tries")
 
+    def keyed(self, source: str) -> bool:
+        return bool(self.env.get(KEYS.get(source, "")))
+
     def status(self, sources: tuple[str, ...] = SOURCES) -> list["Health"]:
         """Each source's health now: a shared cooldown, else one live, uncached probe search (one try, through the
         shared bucket, so a 429 here also holds every other process off)."""
         out = []
         for src in sources:
-            key = {"openalex": "OPENALEX_API_KEY", "s2": "S2_API_KEY"}.get(src)
-            keyed = "" if key is None else (" (key)" if self.env.get(key) else " (no key: shared pool)")
-            if (left := self.bucket.held_off(src)) > 0:
+            keyed = "" if src not in KEYS else (" (key)" if self.keyed(src) else " (no key: shared pool)")
+            if (left := self.bucket.held_off(src, self.keyed(src))) > 0:
                 out.append(Health(src, False, f"rate limited for another {left:.0f}s{keyed}"))
                 continue
             try:
@@ -572,7 +673,10 @@ def _retry_after(headers: dict[str, str]) -> float:
 
 
 def client() -> Client:
-    return Client(state_dir("lit"))
+    env, problem = with_secrets(dict(os.environ))
+    if problem:
+        print(f"dev lit: {problem}", file=sys.stderr)
+    return Client(state_dir("lit"), env=env)
 
 
 def render(papers: list[Paper], notes: list[str], snippet: int = SNIPPET) -> str:
@@ -591,17 +695,29 @@ class Health:
     detail: str  # "ok" or why not (a cooldown, an HTTP status, unreachable), then "(key)" or "(no key: shared pool)"
 
 
-def degraded(health: list[Health]) -> list[str]:
-    """The default sources that are down: discovery leans on them, and the fallbacks are weaker (#8)."""
+def down(health: list[Health]) -> list[str]:
+    """The default sources that are down."""
     return [h.source for h in health if not h.ok and h.source in DEFAULT_SOURCES]
+
+
+def degraded(health: list[Health]) -> bool:
+    """No default source answers: discovery leans on them, and the fallbacks alone are weaker (#8). One working
+    major index is enough (#23)."""
+    defaults = [h for h in health if h.source in DEFAULT_SOURCES]
+    return bool(defaults) and not any(h.ok for h in defaults)
 
 
 def render_status(health: list[Health]) -> str:
     lines = [f"{h.source:<10} {'ok  ' if h.ok else 'DOWN'}  {h.detail}" for h in health]
-    if bad := degraded(health):
-        lines.append(f"discovery: DEGRADED ({', '.join(bad)} down): do not start a research round; wait and re-run")
+    answered = ", ".join(h.source for h in health if h.ok) or "none"
+    if degraded(health):
+        lines.append(
+            f"discovery: DEGRADED ({', '.join(down(health))} down): do not start a research round; wait and re-run"
+        )
+    elif bad := down(health):
+        lines.append(f"discovery: OK, partial ({', '.join(bad)} down; {answered} answered)")
     else:
-        lines.append(f"discovery: full ({', '.join(h.source for h in health if h.ok)} answered)")
+        lines.append(f"discovery: OK ({answered} answered)")
     return "\n".join(lines)
 
 
