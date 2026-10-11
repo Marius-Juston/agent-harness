@@ -10,6 +10,8 @@ fell back to weaker sources. Every call here goes through one client:
   or the output;
 - backoff on 429/5xx (Retry-After when given), giving up on a source whose wait exceeds MAX_WAIT, so the others
   still answer;
+- a fallback chain (`--source auto`, the default): OpenAlex and S2, then Crossref, Europe PMC and arXiv in turn
+  until n papers are in hand, with a note naming the fallbacks that answered;
 - compact output: one record per paper (title, year, venue, citations, ids, abstract snippet), capped.
 
 stdlib only: pyalex and semanticscholar each cover one API and retry in-process, which does not share a rate limit
@@ -43,16 +45,25 @@ SNIPPET = 240  # characters of abstract per record
 MAX_WAIT = 60.0  # seconds: a longer Retry-After (a spent daily budget) gives up on that source for this call
 TRIES = 4
 # Requests per second and burst, per source, for the whole machine. Below the documented limits on purpose: OpenAlex
-# allows 10/s, Crossref's polite pool 50/s (we use far less), arXiv asks for one request per 3 s, and Semantic
-# Scholar's shared unauthenticated pool throttles hard (1/s is its rate with a key).
+# allows 10/s, Crossref 1/s for searches in its public pool since 2026-07-21 (community.crossref.org/t/
+# refining-rest-api-limits-for-improved-stability-and-reliability/16137), arXiv asks for one request per 3 s, and
+# Semantic Scholar's shared unauthenticated pool throttles hard (1/s is its rate with a key). Europe PMC's REST page
+# (europepmc.org/RestfulWebService) states no number; its team confirmed the limit is per IP and a user quoted
+# 10/s or 500/min (groups.google.com/a/ebi.ac.uk/g/epmc-webservices/c/cZLnV1JhCj8, 2024-12), and it was seen
+# throttling after a few rapid requests with a 503 and no Retry-After (github.com/hherb/bmlibrarian_lite/issues/341),
+# so 1/s, burst 1, and its 503 counts as a 429.
 RATES: dict[str, tuple[float, float]] = {
     "openalex": (5.0, 5.0),
     "s2": (1.0, 1.0),
-    "crossref": (5.0, 5.0),
+    "crossref": (0.5, 1.0),
+    "europepmc": (1.0, 1.0),
     "arxiv": (1 / 3, 1.0),
 }
 SOURCES = tuple(RATES)
 DEFAULT_SOURCES = ("openalex", "s2")
+# Asked in order, after DEFAULT_SOURCES, only while fewer than n papers are in hand (`--source auto`, the CLI default).
+FALLBACK_SOURCES = ("crossref", "europepmc", "arxiv")
+THROTTLE_503 = {"europepmc"}  # sources whose 503 means "slow down"
 
 Get = Callable[[str, dict[str, str]], tuple[int, dict[str, str], str]]  # (url, headers) -> (status, headers, body)
 
@@ -279,7 +290,33 @@ def parse_arxiv(body: str) -> list[Paper]:
     return out
 
 
-PARSE = {"openalex": parse_openalex, "s2": parse_s2, "crossref": parse_crossref, "arxiv": parse_arxiv}
+def parse_europepmc(body: str) -> list[Paper]:
+    """Europe PMC search, resultType=core: PubMed (source MED), PMC and preprints (source PPR)."""
+    out = []
+    for r in (json.loads(body).get("resultList") or {}).get("result", []):
+        journal = ((r.get("journalInfo") or {}).get("journal") or {}).get("title") or r.get("journalTitle") or ""
+        year = str(r.get("pubYear") or "")
+        out.append(
+            Paper(
+                title=" ".join((r.get("title") or "").split()),
+                year=int(year) if year.isdigit() else None,
+                venue=journal or ("preprint" if r.get("source") == "PPR" else ""),
+                cites=r.get("citedByCount"),
+                ids={"doi": r.get("doi") or "", "pmid": r.get("pmid") or "", "pmcid": r.get("pmcid") or ""},
+                abstract=html.unescape(re.sub(r"<[^>]+>", " ", r.get("abstractText") or "")),
+                source="europepmc",
+            )
+        )
+    return out
+
+
+PARSE = {
+    "openalex": parse_openalex,
+    "s2": parse_s2,
+    "crossref": parse_crossref,
+    "europepmc": parse_europepmc,
+    "arxiv": parse_arxiv,
+}
 
 
 # ---- requests ----
@@ -318,6 +355,13 @@ def search_url(source: str, query: str, n: int, years: str = "") -> str:
             )
             filt = [f"from-pub-date:{lo}" if lo else "", f"until-pub-date:{hi}" if hi else ""]
             return url + ("&filter=" + ",".join(f for f in filt if f) if lo or hi else "")
+        case "europepmc":
+            if lo or hi:
+                q = urllib.parse.quote(f"{query} AND PUB_YEAR:[{lo or '*'} TO {hi or '*'}]", safe="")
+            return (
+                f"https://www.ebi.ac.uk/europepmc/webservices/rest/search?query={q}"
+                f"&format=json&resultType=core&pageSize={n}"
+            )
         case "arxiv":
             return f"https://export.arxiv.org/api/query?search_query=all:{q}&max_results={n}"
     raise ValueError(f"unknown source {source!r}; one of {', '.join(SOURCES)}")
@@ -397,36 +441,63 @@ class Client:
             if status not in (0, 429) and status < 500:
                 raise SourceError(f"{source}: HTTP {status}")
             wait = _retry_after(resp_headers) or delay
-            if status == 429:
+            throttled = status == 429 or (status == 503 and source in THROTTLE_503)
+            if throttled:
                 self.bucket.cooldown(source, wait)
             if wait > MAX_WAIT:
                 raise SourceError(f"{source}: rate limited for {wait:.0f}s (daily budget spent?); skipped")
-            if status != 429 and attempt + 1 < TRIES:  # a 429's wait is the cooldown, which acquire() honours
+            if not throttled and attempt + 1 < TRIES:  # a 429's wait is the cooldown, which acquire() honours
                 self.sleep(wait)
             delay *= 2
         raise SourceError(f"{source}: {'HTTP ' + str(status) if status else 'unreachable'} after {TRIES} tries")
 
-    def search(self, query: str, sources: tuple[str, ...] = DEFAULT_SOURCES, n: int = DEFAULT_N, years: str = ""):
-        """(papers merged across sources in rank order, alternating sources, at most n; notes on failed sources)."""
+    def search(
+        self,
+        query: str,
+        sources: tuple[str, ...] = DEFAULT_SOURCES,
+        n: int = DEFAULT_N,
+        years: str = "",
+        *,
+        fallback: tuple[str, ...] = (),
+    ):
+        """(papers merged across sources in rank order, alternating sources, at most n; notes on failed sources).
+
+        While fewer than n papers are in hand, each `fallback` source is asked in turn and its papers appended; a
+        note says which of them answered."""
         n = max(1, min(n, MAX_N))
         merged: dict[str, Paper] = {}
-        notes = []
-        ranked: list[list[Paper]] = []
-        for src in sources:
-            try:
-                papers = PARSE[src](self.fetch(src, search_url(src, query, n, years)))
-            except SourceError as exc:
-                notes.append(str(exc))
-                continue
-            except (ValueError, ET.ParseError) as exc:  # json.JSONDecodeError is a ValueError
-                notes.append(f"{src}: unreadable answer ({type(exc).__name__})")
-                continue
-            ranked.append([p for p in papers if p.title])
+        notes: list[str] = []
+        ranked = [r for src in sources if (r := self._ranked(src, query, n, years, notes)) is not None]
         for i in range(max(map(len, ranked), default=0)):
             for papers in ranked:
                 if i < len(papers):
                     _merge(merged, papers[i])
+        answered = []
+        for src in fallback:
+            if len(merged) >= n:
+                break
+            before = len(merged)
+            for p in self._ranked(src, query, n, years, notes) or []:
+                if len(merged) >= n:
+                    break
+                _merge(merged, p)
+            if len(merged) > before:
+                answered.append(f"{src} ({len(merged) - before})")
+        if answered:
+            notes.append("fallback: answered by " + ", ".join(answered))
         return list(merged.values())[:n], notes
+
+    def _ranked(self, src: str, query: str, n: int, years: str, notes: list[str]) -> list[Paper] | None:
+        """One source's papers in its rank order, or None (with a note) when it failed."""
+        try:
+            papers = PARSE[src](self.fetch(src, search_url(src, query, n, years)))
+        except SourceError as exc:
+            notes.append(str(exc))
+            return None
+        except (ValueError, ET.ParseError) as exc:  # json.JSONDecodeError is a ValueError
+            notes.append(f"{src}: unreadable answer ({type(exc).__name__})")
+            return None
+        return [p for p in papers if p.title]
 
     def lookup(self, ident: str) -> tuple[Paper | None, list[str]]:
         notes = []
@@ -482,10 +553,18 @@ def render(papers: list[Paper], notes: list[str], snippet: int = SNIPPET) -> str
     return "\n".join(lines)
 
 
+def plan(spec: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """--source to (sources, fallback): 'auto' (or empty) is DEFAULT_SOURCES, then FALLBACK_SOURCES until n papers;
+    an explicit list or 'all' asks exactly those."""
+    if spec.strip() in ("", "auto"):
+        return DEFAULT_SOURCES, FALLBACK_SOURCES
+    return parse_sources(spec), ()
+
+
 def parse_sources(spec: str) -> tuple[str, ...]:
     if spec == "all":
         return SOURCES
     out = tuple(s.strip() for s in spec.split(",") if s.strip())
     if bad := [s for s in out if s not in RATES]:
-        raise ValueError(f"unknown source(s) {', '.join(bad)}; use {', '.join(SOURCES)} or all")
+        raise ValueError(f"unknown source(s) {', '.join(bad)}; use {', '.join(SOURCES)}, all or auto")
     return out or DEFAULT_SOURCES

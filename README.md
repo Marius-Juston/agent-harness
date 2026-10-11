@@ -40,7 +40,7 @@ a project with `uvx copier update` (which also moves the devkit and plugin pins)
 
 ## Updating a project
 ```bash
-uvx copier check-update   # is a newer release out?
+uvx copier check-update   # is a newer release out? (`uv run dev doctor` warns too, for the template and plugins)
 uvx copier update         # three-way: your edits to template files are kept
 uv sync && uv run dev docs && uv run dev check
 ```

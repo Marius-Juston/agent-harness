@@ -6,9 +6,13 @@ generated references and the plugin installs; setup does those and doctor report
 """
 
 import json
+import re
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
+
+import yaml
 
 from devkit import config
 from devkit.paths import git, root
@@ -39,6 +43,58 @@ def _trusted() -> bool:
         return False
     paths = data.get("projects", {})
     return any(paths.get(str(p), {}).get("hasTrustDialogAccepted") for p in (root(), *root().parents))
+
+
+SEMVER = re.compile(r"v(\d+)\.(\d+)\.(\d+)")
+
+
+def latest_release(tags: list[str]) -> str | None:
+    """The highest plain `vX.Y.Z` tag; pre-releases and other names are not releases."""
+    found = [(tuple(map(int, m.groups())), t) for t in tags if (m := SEMVER.fullmatch(t))]
+    return max(found)[1] if found else None
+
+
+def _older(ref: str, latest: str) -> bool:
+    a, b = SEMVER.fullmatch(ref if ref.startswith("v") else f"v{ref}"), SEMVER.fullmatch(latest)
+    return bool(a and b) and tuple(map(int, a.groups())) < tuple(map(int, b.groups()))
+
+
+def repo_url(source: str) -> str:
+    """A Copier `_src_path` or a plugin marketplace source as something `git ls-remote` takes."""
+    source = source.removeprefix("gh:")
+    if re.fullmatch(r"[\w.-]+/[\w.-]+", source):
+        return f"https://github.com/{source}"
+    return source
+
+
+def remote_tags(url: str) -> list[str]:
+    ok, out = _ok(["git", "ls-remote", "--tags", "--refs", url])
+    return [line.rpartition("refs/tags/")[2] for line in out.splitlines()] if ok else []
+
+
+def staleness(
+    answers: dict, plugins: dict[str, str], installed: list[dict], project: Path, tags: Callable[[str], list[str]]
+) -> list[str]:
+    """Warnings for a project behind its harness: the Copier template (`.copier-answers.yml`), a plugin pinned to an
+    older release than the latest, or a plugin installed for this project older than its pin. An unreachable remote
+    gives no warning (doctor is not the place to fail on the network)."""
+    out = []
+    if (ref := answers.get("_commit")) and (src := answers.get("_src_path")):
+        latest = latest_release(tags(repo_url(src)))
+        if latest and _older(ref, latest):
+            out.append(f"template {ref} is behind {latest}  ->  uvx copier update, then uv sync")
+    for plugin, source in plugins.items():
+        repo, _, pin = source.partition("@")
+        if not pin:
+            continue
+        latest = latest_release(tags(repo_url(repo)))
+        if latest and _older(pin, latest):
+            out.append(f"plugin {plugin} pinned to {pin}, behind {latest}  ->  uvx copier update")
+        here = [p for p in installed if p.get("id") == plugin and p.get("projectPath") == str(project)]
+        if here and _older(str(here[0].get("version", "")), pin):
+            version = here[0]["version"]
+            out.append(f"plugin {plugin} installed {version}, pinned {pin}  ->  claude plugin update {plugin}")
+    return out
 
 
 def doctor() -> int:
@@ -76,6 +132,15 @@ def doctor() -> int:
     from devkit.workflow import POLLER, quota_reading
 
     report(quota_reading()[0] is not None, "quota reading under 30 min old (spawn guard enforces the cap)", POLLER)
+    answers_file = root() / ".copier-answers.yml"
+    answers = (yaml.safe_load(answers_file.read_text()) or {}) if answers_file.exists() else {}
+    ok, out = _ok(["claude", "plugin", "list", "--json"])
+    try:
+        installed = json.loads(out) if ok else []
+    except json.JSONDecodeError:
+        installed = []
+    for warning in staleness(answers, config.get().plugins, installed, root(), remote_tags):
+        print(f"WARN {warning}")
     print(f"\n{problems} thing(s) to fix" if problems else "\nall good")
     return 1 if problems else 0
 

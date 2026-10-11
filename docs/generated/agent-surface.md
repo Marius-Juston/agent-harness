@@ -73,7 +73,7 @@
 | `pr` | worker: push the gated branch, open the PR, move the item to review |
 | `integrate` | lead: re-gate a PR merged onto main in a throwaway worktree, then merge it |
 | `cite-check` | resolve every source in research notes; flag dead links and title mismatches |
-| `lit` | literature search shared by all agents: rate-limited, cached, compact (OpenAlex, S2, Crossref, arXiv) |
+| `lit` | literature search shared by all agents: rate-limited, cached, compact (OpenAlex, S2, Crossref, Europe PMC, arXiv) |
 | `lit search` | papers for a query: title, year, venue, cites, ids, abstract snippet |
 | `lit get` | one paper by DOI, arXiv id, OpenAlex W-id or S2 id, with a longer abstract |
 | `research` | research notes: new |

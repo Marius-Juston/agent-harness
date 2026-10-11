@@ -387,3 +387,163 @@ def test_unreadable_answer_is_a_note(tmp_path):
     net = FakeNet({OA: [(200, {}, "<html>oops</html>")], AX: [(200, {}, "not xml")]})
     papers, notes = make(tmp_path, net).search("q", ("openalex", "arxiv"))
     assert papers == [] and len(notes) == 2
+
+
+# ---- fallback chain and Europe PMC (#116) ----
+
+EP = "https://www.ebi.ac.uk/europepmc/"
+SPENT = [(429, {"Retry-After": "86400"}, "")]  # a spent daily budget
+
+
+def ep_body(n: int = 2) -> str:
+    results: list[dict] = [
+        {
+            "id": str(30000000 + i),
+            "source": "MED",
+            "pmid": str(30000000 + i),
+            "doi": f"10.9/ep{i}",
+            "title": f"Europe PMC paper {i}.",
+            "pubYear": "2019",
+            "journalInfo": {"journal": {"title": "Memory & Cognition"}},
+            "citedByCount": 4,
+            "abstractText": "<b><i>Objective:</i></b> Testing &amp; memory.",
+        }
+        for i in range(n)
+    ]
+    results.append({"id": "PPR1", "source": "PPR", "title": "A preprint", "pubYear": "2024"})
+    return json.dumps({"hitCount": n + 1, "resultList": {"result": results}})
+
+
+def cr_body(n: int) -> str:
+    items = [
+        {"DOI": f"10.8/cr{i}", "title": [f"Crossref paper {i}"], "issued": {"date-parts": [[2018]]}} for i in range(n)
+    ]
+    return json.dumps({"message": {"items": items}})
+
+
+def test_parse_europepmc():
+    p, pre = lit.parse_europepmc(ep_body(1))
+    assert (p.title, p.year, p.venue, p.cites, p.source) == (
+        "Europe PMC paper 0.",
+        2019,
+        "Memory & Cognition",
+        4,
+        "europepmc",
+    )
+    assert (p.ids["doi"], p.ids["pmid"]) == ("10.9/ep0", "30000000")
+    assert " ".join(p.abstract.split()) == "Objective: Testing & memory."
+    assert (pre.title, pre.venue, pre.year, pre.ids.get("doi")) == ("A preprint", "preprint", 2024, "")
+
+
+def test_europepmc_url_and_years():
+    url = lit.search_url("europepmc", "retrieval practice", 5)
+    assert url.startswith(EP + "webservices/rest/search?query=retrieval%20practice&")
+    assert "format=json" in url and "resultType=core" in url and "pageSize=5" in url
+    assert "%20AND%20PUB_YEAR%3A%5B2015%20TO%20%2A%5D&" in lit.search_url("europepmc", "q", 5, "2015-")
+    assert "PUB_YEAR%3A%5B%2A%20TO%202020%5D&" in lit.search_url("europepmc", "q", 5, "-2020")
+    assert "PUB_YEAR%3A%5B2019%20TO%202019%5D&" in lit.search_url("europepmc", "q", 5, "2019")
+
+
+def test_source_accepts_europepmc_and_its_rate_is_below_the_documented_limit():
+    assert lit.parse_sources("europepmc") == ("europepmc",)
+    assert "europepmc" in lit.parse_sources("all")
+    rate, burst = lit.RATES["europepmc"]
+    assert rate < 10 and rate * 60 < 500  # 10/s or 500/min per IP: see the comment on RATES
+    assert burst <= 2
+    # regression: Crossref cut searches to 1/s (public pool) on 2026-07-21; this client sent up to 5/s
+    assert lit.RATES["crossref"][0] < 1 and lit.RATES["crossref"][1] <= 1
+
+
+def test_plan_auto_falls_back_but_an_explicit_list_does_not():
+    assert lit.plan("auto") == (lit.DEFAULT_SOURCES, lit.FALLBACK_SOURCES)
+    assert lit.plan("") == (lit.DEFAULT_SOURCES, lit.FALLBACK_SOURCES)
+    assert lit.plan("s2,europepmc") == (("s2", "europepmc"), ())
+    assert lit.plan("all") == (lit.SOURCES, ())
+    assert lit.FALLBACK_SOURCES == ("crossref", "europepmc", "arxiv")
+
+
+def test_rate_limited_primaries_fall_back_in_order_until_n(tmp_path):
+    clock = Clock()
+    net = FakeNet({OA: SPENT, S2: SPENT, CR: [(200, {}, cr_body(2))], EP: [(200, {}, ep_body(3))]})
+    papers, notes = make(tmp_path, net, clock=clock).search("q", n=4, fallback=lit.FALLBACK_SOURCES)
+    assert [p.source for p in papers] == ["crossref", "crossref", "europepmc", "europepmc"]
+    assert not [u for u, _ in net.calls if u.startswith(AX)]  # had n results before arXiv's turn
+    assert any(n.startswith("openalex") and "skipped" in n for n in notes)
+    assert any(n.startswith("s2") and "skipped" in n for n in notes)
+    assert "fallback: answered by crossref (2), europepmc (2)" in notes
+    assert sum(clock.slept) < lit.MAX_WAIT + 2
+
+
+def test_europepmc_503_is_a_throttle_every_process_honours(tmp_path):
+    clock = Clock()
+    net = FakeNet({EP: [(503, {}, ""), (200, {}, ep_body(1))]})
+    papers, notes = make(tmp_path, net, clock=clock).search("q", ("europepmc",))
+    assert len(papers) == 2 and notes == []
+    assert "until" in json.loads((tmp_path / "buckets.json").read_text())["europepmc"]  # shared cooldown
+    assert sum(clock.slept) >= 2  # waited out the cooldown in acquire(), not a blind retry
+    # a 503 from a source that does not use it for throttling is retried, not a shared cooldown
+    make(tmp_path, FakeNet({CR: [(503, {}, ""), (200, {}, cr_body(1))]}), clock=clock).search("q", ("crossref",))
+    assert "until" not in json.loads((tmp_path / "buckets.json").read_text()).get("crossref", {})
+
+
+def test_fallback_is_not_used_when_primaries_have_n(tmp_path):
+    net = FakeNet({OA: [(200, {}, oa_body(3))], S2: [(200, {}, s2_body([]))]})
+    papers, notes = make(tmp_path, net).search("q", n=3, fallback=lit.FALLBACK_SOURCES)
+    assert len(papers) == 3 and notes == []
+    assert {u.split("/")[2] for u, _ in net.calls} == {"api.openalex.org", "api.semanticscholar.org"}
+
+
+def test_every_source_failing_reports_each(tmp_path):
+    empty_feed = "<feed xmlns='http://www.w3.org/2005/Atom'/>"
+    net = FakeNet({OA: SPENT, S2: SPENT, CR: SPENT, EP: [(400, {}, "")], AX: [(200, {}, empty_feed)]})
+    papers, notes = make(tmp_path, net).search("q", fallback=lit.FALLBACK_SOURCES)
+    assert papers == []
+    assert [n.split(":")[0] for n in notes] == ["openalex", "s2", "crossref", "europepmc"]
+
+
+def test_fallback_against_a_local_fake_server(tmp_path):
+    """Over real HTTP: OpenAlex and S2 answer 429 with a day-long Retry-After, Crossref is down, Europe PMC and arXiv
+    answer. The search returns Europe PMC's and arXiv's papers and says which sources answered."""
+    atom = (
+        '<feed xmlns="http://www.w3.org/2005/Atom"><entry><id>http://arxiv.org/abs/2305.00001v1</id>'
+        "<title>An arXiv paper</title><published>2023-05-01T00:00:00Z</published><summary>S.</summary></entry></feed>"
+    )
+    routes = {
+        "api.openalex.org": (429, b""),
+        "api.semanticscholar.org": (429, b""),
+        "api.crossref.org": (500, b""),
+        "www.ebi.ac.uk": (200, ep_body(2).encode()),
+        "export.arxiv.org": (200, atom.encode()),
+    }
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            status, body = routes[self.path.split("/")[1]]
+            self.send_response(status)
+            if status == 429:
+                self.send_header("Retry-After", "86400")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}/"
+
+    def local(url: str, headers: dict) -> tuple[int, dict, str]:  # https://host/path -> http://127.0.0.1:port/host/path
+        return lit.http_get(base + url.split("://", 1)[1], headers, timeout=5)
+
+    clock = Clock()
+    try:
+        papers, notes = lit.Client(tmp_path, get=local, clock=clock, sleep=clock.sleep, env={}).search(
+            "q", n=5, fallback=lit.FALLBACK_SOURCES
+        )
+    finally:
+        server.shutdown()
+    assert [p.source for p in papers] == ["europepmc"] * 3 + ["arxiv"]
+    assert "fallback: answered by europepmc (3), arxiv (1)" in notes
+    assert any(n.startswith("crossref: HTTP 500") for n in notes)
+    assert "note: fallback: answered by europepmc (3), arxiv (1)" in lit.render(papers, notes)
