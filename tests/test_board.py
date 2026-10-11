@@ -153,6 +153,7 @@ def test_sync_blocks_on_unknown_and_unblocks_on_closed(monkeypatch):
     issues = [mk(1, ["status:ready"], "## Blocked by\n#999"), mk(2, ["status:blocked"], "## Blocked by\n#7")]
     moved = []
     monkeypatch.setattr(board, "fetch", lambda *a, **k: issues)
+    monkeypatch.setattr(board, "get", lambda n: issues[n - 1])
     monkeypatch.setattr(board, "closed_numbers", lambda: {7})
     monkeypatch.setattr(board, "set_status", lambda n, s: moved.append((n, s)))
     assert board.sync() == ["#1 -> blocked", "#2 -> ready"]
