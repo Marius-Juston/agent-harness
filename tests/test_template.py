@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from copier import run_copy
+from copier import run_copy, run_update
 
 from devkit import config
 from devkit.paths import root
@@ -102,3 +102,29 @@ def test_a_rendered_project_passes_its_own_gate(tmp_path):
         [str(ROOT / "scripts/render_check.sh"), str(tmp_path / "proj")], capture_output=True, text=True, check=False
     )
     assert out.returncode == 0 and "RESULT: passed" in out.stdout, (out.stdout + out.stderr)[-3000:]
+
+
+def test_the_project_carries_the_research_api_keys_setup(rendered):
+    setup_md = (rendered / "docs/SETUP.md").read_text()
+    assert "## Research API keys" in setup_md
+    for must in ("~/.config/api-keys.env", "read -rsp", "chmod 600", "~/.bashrc", "OPENALEX_API_KEY", "S2_API_KEY"):
+        assert must in setup_md
+    assert "docs/SETUP.md#research-api-keys" in (rendered / "README.md").read_text()
+    # one text: this repository's own setup page is the template's, so the two never drift apart
+    assert (ROOT / "docs/SETUP.md").read_text() == (ROOT / "template/docs/SETUP.md").read_text()
+    assert "docs/SETUP.md#research-api-keys" in (ROOT / "README.md").read_text()
+
+
+def test_copier_update_brings_the_research_api_keys_setup_to_an_existing_project(tmp_path):
+    """A project made from v0.1.2 (before docs/SETUP.md existed) gets it through `copier update`."""
+    dest = tmp_path / "old"
+    data = {"project_name": "demo-project", "description": "A demo."}
+    run_copy(str(ROOT), dest, data=data, defaults=True, vcs_ref="v0.1.2", unsafe=False, quiet=True)
+    assert not (dest / "docs/SETUP.md").exists()
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=dest, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=dest, check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "from v0.1.2"], cwd=dest, check=True)
+    run_update(dest, data=data, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
+    assert "## Research API keys" in (dest / "docs/SETUP.md").read_text()
+    assert "docs/SETUP.md#research-api-keys" in (dest / "README.md").read_text()

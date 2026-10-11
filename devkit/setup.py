@@ -6,6 +6,7 @@ generated references and the plugin installs; setup does those and doctor report
 """
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -14,7 +15,7 @@ from pathlib import Path
 
 import yaml
 
-from devkit import config
+from devkit import config, lit
 from devkit.paths import git, root
 
 TOOLS = {
@@ -97,6 +98,22 @@ def staleness(
     return out
 
 
+KEYS_DOC = "docs/SETUP.md, section 'Research API keys'"
+
+
+def key_lines(where: dict[str, str], problem: str) -> list[tuple[bool | None, str, str]]:
+    """Doctor lines for the research API keys: (ok, what, fix); None = a warning. Names and origins, never values."""
+    out: list[tuple[bool | None, str, str]] = [
+        (True, f"{name} found ({origin})", "")
+        if origin != "missing"
+        else (None, f"{name} missing (dev lit uses the shared, rate-limited pool)", KEYS_DOC)
+        for name, origin in where.items()
+    ]
+    if problem:
+        out.append((False, "research API keys file", f"{problem}; see {KEYS_DOC}"))
+    return out
+
+
 def doctor() -> int:
     problems = 0
 
@@ -129,6 +146,11 @@ def doctor() -> int:
         "workspace trusted by Claude Code (else headless agents ignore the project allowlist)",
         "run `claude` here once interactively and accept the trust dialog",
     )
+    for ok, what, fix in key_lines(*lit.key_report(dict(os.environ))):
+        if ok is None:
+            print(f"WARN {what}  ->  {fix}")
+        else:
+            report(ok, what, fix)
     from devkit.workflow import POLLER, quota_reading
 
     report(quota_reading()[0] is not None, "quota reading under 30 min old (spawn guard enforces the cap)", POLLER)

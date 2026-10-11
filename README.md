@@ -32,6 +32,14 @@ The plugin alone, in any project:
 Its agents and skills are namespaced: `harness-ops:builder`, `/harness-ops:lead`. Most hooks call `uv run dev`, so
 the plugin is meant for projects made from the template.
 
+## Research API keys
+`uv run dev lit` (the shared literature search) works without keys, but OpenAlex's and Semantic Scholar's shared
+pools throttle parallel researchers hard and degrade discovery. Get both free keys, store them in
+`~/.config/api-keys.env` (mode 600, outside any repository) with `read -rsp` so they are never echoed, kept in shell
+history or pasted into a Claude chat, and source that file from `~/.bashrc`. `dev lit` also reads the file itself,
+since subagents do not source the profile. The steps: [docs/SETUP.md](docs/SETUP.md#research-api-keys), which every
+project made from the template carries too; `uv run dev doctor` reports each key as found or missing.
+
 ## Configuration
 What differs between projects lives in the project: `[tool.devkit]` in its pyproject.toml (the keys and defaults
 are in [devkit/config.py](devkit/config.py)), word budgets in `.devkit/ratchets.toml`, the area-label map in

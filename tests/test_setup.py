@@ -1,11 +1,13 @@
-"""`dev doctor` warns when the Copier template, the plugin pin or the installed plugin is behind the latest release."""
+"""`dev doctor` warns when the Copier template, the plugin pin or the installed plugin is behind the latest release,
+and names each research API key as found or missing, never its value."""
 
+import os
 from pathlib import Path
 
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import setup
+from devkit import lit, setup
 
 SRC = "https://github.com/Marius-Juston/agent-harness"
 PIN = {"harness-ops@agent-harness": "Marius-Juston/agent-harness@v0.1.1", "astral@astral-sh": "astral-sh/x"}
@@ -67,3 +69,25 @@ def test_unreachable_remote_or_no_answers_never_warns():
     answers = {"_commit": "v0.1.0", "_src_path": "gh:Marius-Juston/agent-harness"}
     assert setup.staleness(answers, PIN, [], HERE, lambda url: []) == []
     assert setup.staleness({}, {}, [], HERE, tags("v9.9.9")) == []
+
+
+def test_doctor_names_each_key_found_or_missing_never_its_value_and_points_to_the_docs():
+    lines = setup.key_lines({"OPENALEX_API_KEY": "secrets file", "S2_API_KEY": "missing"}, "")
+    assert lines[0] == (True, "OPENALEX_API_KEY found (secrets file)", "")
+    assert lines[1][0] is None and "S2_API_KEY missing" in lines[1][1] and "Research API keys" in lines[1][2]
+    bad = setup.key_lines({"OPENALEX_API_KEY": "missing", "S2_API_KEY": "missing"}, "f is readable by group")
+    assert bad[-1][0] is False and "Research API keys" in bad[-1][2]
+
+
+def test_doctor_prints_key_origins_but_not_values(tmp_path, monkeypatch, capsys):
+    p = tmp_path / "keys"
+    p.write_text("export S2_API_KEY=fake-s2-000\n")
+    p.chmod(0o600)
+    monkeypatch.setenv("DEVKIT_SECRETS_FILE", str(p))
+    monkeypatch.setenv("OPENALEX_API_KEY", "fake-oa-000")
+    monkeypatch.delenv("S2_API_KEY", raising=False)
+    for line in setup.key_lines(*lit.key_report(dict(os.environ))):
+        print(line)
+    out = capsys.readouterr().out
+    assert "OPENALEX_API_KEY found (environment)" in out and "S2_API_KEY found (secrets file)" in out
+    assert "fake-" not in out
