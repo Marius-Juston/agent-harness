@@ -242,16 +242,18 @@ def test_check_links_checks_anchors_and_reference_links(monkeypatch, tmp_path):
 @pytest.fixture
 def net(monkeypatch, tmp_path):
     """Fake network: url -> (status, body), or a list of them answered in turn; counts calls. Cache in tmp_path."""
-    answers: dict[str, tuple[int, str] | list[tuple[int, str]]] = {}
+    answers: dict[str, tuple | list[tuple]] = {}
     calls: list[str] = []
+    slept: list[float] = []
 
     def fake_get(url, timeout=20):
         calls.append(url)
         answer = answers.get(url, (200, ""))
-        return (answer.pop(0) if len(answer) > 1 else answer[0]) if isinstance(answer, list) else answer
+        status, *rest = (answer.pop(0) if len(answer) > 1 else answer[0]) if isinstance(answer, list) else answer
+        return (status, *rest) if len(rest) == 2 else (status, {}, rest[0])  # (status, body) or with headers
 
     monkeypatch.setattr(citecheck, "_get", fake_get)
-    monkeypatch.setattr(citecheck, "RETRY_DELAY", 0)
+    monkeypatch.setattr(citecheck, "SLEEP", slept.append)
     monkeypatch.delenv("CI", raising=False)
     monkeypatch.setattr(citecheck, "state_dir", lambda *p: tmp_path)
     return answers, calls, tmp_path
