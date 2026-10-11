@@ -1,0 +1,39 @@
+# The board catches up without an agent: every 3 hours (and on demand) blockers are re-synced, so items whose
+# blockers closed move to ready, and claims with no comment for 6 h are labelled `stale` with a comment.
+# One scheduled job, not per-event triggers: Actions minutes are the binding limit on a private repository (every
+# job bills at least a minute). Status moves on PR open and merge happen locally in `dev pr` and `dev integrate`.
+# All logic is `uv run dev board event` (devkit's board.event, from the pinned agent-harness).
+name: board
+on:
+  schedule:
+    - cron: "41 */3 * * *"
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "stale threshold in hours (the sweep)"
+        type: number
+        default: 6
+permissions: {}
+concurrency:
+  group: board # one board writer at a time; a queued run waits instead of racing on labels
+  cancel-in-progress: false
+jobs:
+  board:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }} # only main's code ever holds issues:write
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: false # a cache written here could be read by other workflows (cache poisoning)
+      - run: uv sync --locked
+      - name: sync blockers, then sweep stale claims
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uv run dev board event

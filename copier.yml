@@ -1,0 +1,39 @@
+# Copier template of a repository run with agent-harness. `copier copy gh:Marius-Juston/agent-harness <dir>` makes
+# one; `copier update` brings a project to a newer release (three-way: local edits are kept); `copier check-update`
+# says whether one exists. Releases are git tags (vX.Y.Z); each pins the devkit and the plugin to the same tag.
+_min_copier_version: "9.4"
+_subdirectory: template
+_answers_file: .copier-answers.yml
+
+project_name:
+  type: str
+  help: Project name (a Python distribution name, e.g. my-project)
+  default: my-project
+  validator: >-
+    {% if not project_name or project_name.strip("._-") != project_name
+       or project_name.replace("-", "").replace("_", "").replace(".", "").isalnum() is false %}
+    letters, digits, '.', '_' and '-' only, starting and ending with a letter or digit
+    {% endif %}
+
+description:
+  type: str
+  help: One sentence on what the project is for
+  default: A project worked on by many Claude Code agents.
+
+python_version:
+  type: str
+  help: Minimum Python version
+  default: "3.13"
+  choices: ["3.13", "3.14"]
+
+harness_ref:
+  type: str
+  help: The agent-harness release (git tag) the devkit and the harness-ops plugin are pinned to
+  default: v0.1.0
+
+# For testing a harness checkout before release (its CI does): install the devkit from this local path instead of
+# the tag. Never asked; pass it with --data harness_path=/abs/path.
+harness_path:
+  type: str
+  default: ""
+  when: false

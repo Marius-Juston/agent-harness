@@ -1,0 +1,104 @@
+"""The Copier template renders a project whose files are well formed, pinned to this release, and free of Jinja.
+The full proof (uv sync and the rendered project's own gate) is scripts/render_check.sh, which CI runs; the slow
+test below runs it too."""
+
+import json
+import re
+import subprocess
+import tomllib
+from pathlib import Path
+
+import pytest
+import yaml
+from copier import run_copy
+
+from devkit import config
+from devkit.paths import root
+
+ROOT = root()
+
+
+def version() -> str:
+    return tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+
+
+@pytest.fixture(scope="module")
+def rendered(tmp_path_factory) -> Path:
+    dest = tmp_path_factory.mktemp("rendered") / "proj"
+    run_copy(
+        str(ROOT),
+        dest,
+        data={"project_name": "demo-project", "description": "A demo."},
+        defaults=True,
+        vcs_ref="HEAD",
+        unsafe=False,
+        quiet=True,
+    )
+    return dest
+
+
+def test_one_version_everywhere():
+    plugin = json.loads((ROOT / "plugins/harness-ops/.claude-plugin/plugin.json").read_text())
+    copier = yaml.safe_load((ROOT / "copier.yml").read_text())
+    assert plugin["version"] == version()
+    assert copier["harness_ref"]["default"] == f"v{version()}"
+
+
+def test_the_template_needs_no_trust():
+    copier = yaml.safe_load((ROOT / "copier.yml").read_text())
+    assert not {"_tasks", "_migrations", "_jinja_extensions"} & set(copier)  # `copier copy` runs without --trust
+
+
+def test_no_jinja_is_left_in_the_rendered_project(rendered):
+    files = [p for p in rendered.rglob("*") if p.is_file()]
+    assert len(files) > 15
+    for p in files:
+        text = p.read_text(encoding="utf-8")
+        assert not re.search(r"(?<!\$)\{\{|\{%", text), p  # `${{ }}` is a GitHub Actions expression
+        assert not p.name.endswith(".jinja"), p
+
+
+def test_the_project_pins_the_devkit_and_the_plugin_to_this_release(rendered):
+    py = tomllib.loads((rendered / "pyproject.toml").read_text())
+    tag = f"v{version()}"
+    assert py["project"]["name"] == "demo-project"
+    assert py["tool"]["uv"]["sources"]["agent-harness"] == {
+        "git": "https://github.com/Marius-Juston/agent-harness",
+        "tag": tag,
+    }
+    cfg = config.parse(py["tool"]["devkit"])  # the rendered config is valid for this devkit
+    assert cfg.plugins["harness-ops@agent-harness"] == f"Marius-Juston/agent-harness@{tag}"
+    settings = json.loads((rendered / ".claude/settings.json").read_text())
+    assert settings["enabledPlugins"]["harness-ops@agent-harness"] is True
+    source = settings["extraKnownMarketplaces"]["agent-harness"]["source"]
+    assert source == {"source": "github", "repo": "Marius-Juston/agent-harness", "ref": tag}
+
+
+def test_the_answers_file_supports_copier_update(rendered):
+    answers = yaml.safe_load((rendered / ".copier-answers.yml").read_text())
+    assert answers["project_name"] == "demo-project" and answers["_commit"] and "_src_path" in answers
+    assert "harness_path" not in answers  # a test-only override never sticks to a project
+
+
+def test_the_rendered_files_parse(rendered):
+    for p in rendered.rglob("*.json"):
+        json.loads(p.read_text())
+    for p in [*rendered.rglob("*.yml"), *rendered.rglob("*.yaml")]:
+        yaml.safe_load(p.read_text())
+    for p in rendered.rglob("*.toml"):
+        tomllib.loads(p.read_text())
+
+
+def test_the_project_carries_no_copy_of_the_plugin_or_the_devkit(rendered):
+    """One source of truth: agents, skills and hooks come from the plugin, the gate from the pinned package."""
+    assert not (rendered / "devkit").exists()
+    assert not list(rendered.glob(".claude/agents/*.md")) and not list(rendered.glob(".claude/skills/*/SKILL.md"))
+    assert "hooks" not in json.loads((rendered / ".claude/settings.json").read_text())
+
+
+@pytest.mark.slow
+def test_a_rendered_project_passes_its_own_gate(tmp_path):
+    out = subprocess.run(
+        [str(ROOT / "scripts/render_check.sh"), str(tmp_path / "proj")], capture_output=True, text=True, check=False
+    )
+    assert out.returncode == 0 and "RESULT: passed" in out.stdout, (out.stdout + out.stderr)[-3000:]

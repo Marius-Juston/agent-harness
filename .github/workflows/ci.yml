@@ -1,0 +1,46 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+# Actions are pinned to commit hashes and checkout keeps no token: the gate's zizmor stage enforces both.
+jobs:
+  check:
+    # This repository's own gate: devkit, plugin and template tests, scrub test, budgets, lint.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with: { enable-cache: true }
+      - run: uv sync --locked
+      - name: gate (same command agents run)
+        run: uv run dev check --no-cache
+  template:
+    # A fresh project from this commit's template, with this commit's devkit, must pass its own gate.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with: { enable-cache: true }
+      - name: render the template, uv sync, uv run dev check
+        run: scripts/render_check.sh "$RUNNER_TEMP/rendered-project"
+  plugin:
+    # The marketplace and the plugin load: Claude Code's own validator, warnings as errors.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { persist-credentials: false }
+      - name: claude plugin validate --strict
+        run: |
+          npx --yes @anthropic-ai/claude-code@2.1.296 plugin validate --strict .
+          npx --yes @anthropic-ai/claude-code@2.1.296 plugin validate --strict ./plugins/harness-ops

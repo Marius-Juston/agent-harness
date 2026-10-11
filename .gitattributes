@@ -1,0 +1,10 @@
+* text=auto eol=lf
+# Append-mostly files: keep both sides' lines on merge (parallel agents add sections, never rewrite others').
+docs/research/*.md merge=union
+docs/research/_scratch/**/*.md merge=union
+docs/log/*.md merge=union
+docs/questions/OPEN_QUESTIONS.md merge=union
+# Generated: never merge by hand, regenerate (`uv run dev docs`).
+docs/generated/** linguist-generated=true -diff
+docs/research/INDEX.md linguist-generated=true
+uv.lock linguist-generated=true -diff

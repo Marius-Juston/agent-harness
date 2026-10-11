@@ -1,0 +1,54 @@
+{
+  "description": "agent-harness guards: uv only, no pushes to main, no secrets, outlines for long reads, ruff at edit time, resource gates before spawns, worktrees beside the repository, orientation at session start",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/session_brief.sh", "timeout": 45 }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/guard_bash.py", "timeout": 10 }]
+      },
+      {
+        "matcher": "Bash|Read",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/read_guard.py", "timeout": 10 }]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/edit_guard.py", "timeout": 10 }]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/spawn_guard.sh",
+            "timeout": 330,
+            "statusMessage": "Checking quota and free memory before spawning"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/lint_after_edit.py", "timeout": 30 }
+        ]
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/worktree_create.sh", "timeout": 120 }
+        ]
+      }
+    ]
+  },
+  "modules": ["./register.tsx"]
+}

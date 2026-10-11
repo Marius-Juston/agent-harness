@@ -1,0 +1,30 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+.mypy_cache/
+dist/
+build/
+*.egg-info/
+
+# Secrets and machine-local Claude Code state
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
+
+# Scratch: per worktree, never shared
+.scratch/
+research_notes/
+reports/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+.playwright-mcp/

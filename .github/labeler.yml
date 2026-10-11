@@ -1,0 +1,34 @@
+# This repository's own path -> area map (the template ships the map a project starts with). `uv run dev pr` and
+# `uv run dev board new` read it; only the shape `label: [changed-files: [any-glob-to-any-file: [globs]]]` is accepted.
+area:devkit:
+  - changed-files:
+      - any-glob-to-any-file:
+          - devkit/**
+          - pyproject.toml
+          - uv.lock
+area:plugin:
+  - changed-files:
+      - any-glob-to-any-file:
+          - plugins/**
+          - .claude-plugin/**
+area:template:
+  - changed-files:
+      - any-glob-to-any-file:
+          - template/**
+          - copier.yml
+area:ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+          - .devkit/**
+          - .pre-commit-config.yaml
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/**
+          - README.md
+          - CLAUDE.md
+area:tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - tests/**

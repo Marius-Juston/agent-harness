@@ -1,0 +1,9 @@
+{
+  "name": "harness-ops",
+  "version": "0.1.0",
+  "description": "Agents (builder, tester, researcher, research-auditor, reviewer), skills (lead, research, harness), guard hooks, and a status band (gate, agent worktrees, free memory, quota) with /ops, for repositories run with agent-harness",
+  "types": "./types/index.d.ts",
+  "author": { "name": "Marius Juston" },
+  "repository": "https://github.com/Marius-Juston/agent-harness",
+  "license": "MIT"
+}

@@ -1,0 +1,52 @@
+# Slow or network-bound checks that do not belong in the per-PR gate.
+name: maintenance
+on:
+  schedule:
+    - cron: "17 6 * * 1" # weekly, Monday 06:17 UTC
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: maintenance
+  cancel-in-progress: false
+jobs:
+  external-links:
+    # The gate checks internal links offline; this catches external links that rot between cite-checks. It keeps
+    # one open issue titled "Broken links" (type:bug) current, and closes it when a run is clean.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { persist-credentials: false }
+      - id: lychee
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0 (lychee v0.24.2)
+        with:
+          # 429 is rate limiting, not rot. GitHub links use the job token (higher rate limit).
+          args: >-
+            --no-progress --max-retries 3 --timeout 30 --accept '200..=299,429'
+            './docs/**/*.md' './*.md'
+          output: lychee/out.md
+          fail: false # the next step reports through the issue instead
+      - name: open, update or close the "Broken links" issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EXIT_CODE: ${{ steps.lychee.outputs.exit_code }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Broken links"
+          number=$(gh issue list --state open --label type:bug --search "in:title \"$title\"" --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          if [ "$EXIT_CODE" = "0" ]; then
+            if [ -n "$number" ]; then gh issue close "$number" --comment "Clean link check: $RUN_URL"; fi
+            exit 0
+          fi
+          { cat lychee/out.md; printf '\n\nFound by %s\n' "$RUN_URL"; } > body.md
+          if [ -n "$number" ]; then
+            gh issue edit "$number" --body-file body.md
+          else
+            gh issue create --title "$title" --label type:bug --body-file body.md
+          fi

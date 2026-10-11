@@ -1,0 +1,12 @@
+{
+  "name": "agent-harness",
+  "owner": { "name": "Marius Juston" },
+  "description": "Claude Code plugins of agent-harness: a multi-agent harness for repositories",
+  "plugins": [
+    {
+      "name": "harness-ops",
+      "source": "./plugins/harness-ops",
+      "description": "Agents, skills, guard hooks and a status band for repositories run with agent-harness"
+    }
+  ]
+}

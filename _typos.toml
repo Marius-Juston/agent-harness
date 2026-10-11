@@ -1,0 +1,2 @@
+# Proper names that typos misreads (report-only hook, see .pre-commit-config.yaml).
+[default.extend-words]

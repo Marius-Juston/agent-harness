@@ -1,0 +1,390 @@
+"""Ratchet, doc-link and cite-check robustness. No test touches the network: `citecheck._get` is mocked."""
+
+import json
+import threading
+from pathlib import Path
+
+import pytest
+from hypothesis import given
+from hypothesis import strategies as st
+
+from devkit import checks, citecheck, config
+
+OWNER = "Marius-Juston"
+AGENT = ".claude/agents/builder.md"
+
+
+@pytest.fixture(autouse=True)
+def default_config(monkeypatch):
+    """Tests here build a project tree under tmp_path: they read it with the template's defaults (`.claude`)."""
+    monkeypatch.setattr(config, "get", lambda: config.Config())
+
+
+def ratchets(words=None, defaults=None, raises=None) -> dict:
+    return {"words": words or {}, "defaults": defaults or {"agent": 600}, "raise": raises or []}
+
+
+def raise_(key, to, who=OWNER) -> dict:
+    return {"key": key, "to": to, "reason": "r", "approved_by": who}
+
+
+# --- ratchet ---------------------------------------------------------------------------------------------------------
+
+
+def test_new_per_file_entry_above_main_default_needs_a_raise():
+    problems = checks.ratchet_raises(ratchets(words={AGENT: 5000}), ratchets(), [AGENT], OWNER)
+    assert len(problems) == 1 and "600 -> 5000" in problems[0] and AGENT in problems[0]
+
+
+def test_lowering_or_keeping_budgets_is_free():
+    old = ratchets(words={AGENT: 700})
+    assert checks.ratchet_raises(ratchets(words={AGENT: 650}), old, [AGENT], OWNER) == []
+    assert checks.ratchet_raises(ratchets(words={AGENT: 600}), ratchets(), [AGENT], OWNER) == []
+    assert checks.ratchet_raises(old, old, [AGENT], OWNER) == []
+
+
+def test_default_raise_needs_a_raise_for_the_default_key():
+    cur = ratchets(defaults={"agent": 900})
+    assert checks.ratchet_raises(cur, ratchets(), [AGENT], OWNER)
+    cur["raise"] = [raise_("defaults.agent", 900)]
+    assert checks.ratchet_raises(cur, ratchets(), [AGENT], OWNER) == []
+
+
+def test_owner_approved_raise_is_capped_at_its_to_value():
+    key = f"words.{AGENT}"
+    ok = ratchets(words={AGENT: 800}, raises=[raise_(key, 800)])
+    assert checks.ratchet_raises(ok, ratchets(), [AGENT], OWNER) == []
+    over = ratchets(words={AGENT: 5000}, raises=[raise_(key, 800)])
+    (problem,) = checks.ratchet_raises(over, ratchets(), [AGENT], OWNER)
+    assert "above its [[raise]] to = 800" in problem
+
+
+@pytest.mark.parametrize("who", ["owner", "", "someone-else", "Marius-Juston ", "marius juston", None])
+def test_raise_approved_by_anyone_but_the_owner_login_is_refused(who):
+    cur = ratchets(words={AGENT: 800}, raises=[raise_(f"words.{AGENT}", 800, who)])
+    problems = checks.ratchet_raises(cur, ratchets(), [AGENT], OWNER)
+    assert any("not the repository owner" in p for p in problems)
+    assert any("without an owner-approved" in p for p in problems)
+
+
+def test_owner_login_matches_case_insensitively_and_unknown_owner_approves_nothing():
+    cur = ratchets(words={AGENT: 800}, raises=[raise_(f"words.{AGENT}", 800, "marius-juston")])
+    assert checks.ratchet_raises(cur, ratchets(), [AGENT], OWNER) == []
+    assert checks.ratchet_raises(cur, ratchets(), [AGENT], None)
+
+
+def test_a_key_absent_on_main_is_a_raise():
+    old = {"words": {}, "defaults": {}, "raise": []}
+    cur = ratchets(defaults={"agent": 600, "hook": 100})
+    problems = checks.ratchet_raises(cur, old, [AGENT], OWNER)
+    assert any("defaults.agent raised None -> 600" in p for p in problems)
+    assert any("defaults.hook raised None -> 100" in p for p in problems)
+    cur["raise"] = [raise_("defaults.agent", 600), raise_("defaults.hook", 100)]
+    assert checks.ratchet_raises(cur, old, [AGENT], OWNER) == []
+    new_file = ".claude/agents/new.md"
+    assert checks.ratchet_raises(ratchets(words={new_file: 900}), old | {"defaults": {}}, [], OWNER)
+
+
+def test_raise_for_another_key_does_not_cover_a_file():
+    cur = ratchets(words={AGENT: 800}, raises=[raise_("defaults.agent", 800)])
+    assert checks.ratchet_raises(cur, ratchets(), [AGENT], OWNER)
+
+
+def test_a_raise_already_on_main_is_not_reused_for_a_higher_value():
+    key = f"words.{AGENT}"
+    old = ratchets(words={AGENT: 800}, raises=[raise_(key, 800, "owner")])
+    cur = ratchets(words={AGENT: 900}, raises=[raise_(key, 800, "owner")])
+    assert checks.ratchet_raises(cur, old, [AGENT], OWNER)
+
+
+@given(st.integers(1, 10_000), st.integers(1, 10_000), st.integers(1, 10_000))
+def test_ratchet_accepts_exactly_the_covered_raises(before, value, to):
+    cur = ratchets(words={AGENT: value}, raises=[raise_(f"words.{AGENT}", to)])
+    problems = checks.ratchet_raises(cur, ratchets(words={AGENT: before}), [AGENT], OWNER)
+    assert (problems == []) == (value <= before or value <= to)
+
+
+def test_repo_owner_from_origin(monkeypatch):
+    monkeypatch.setattr(checks, "git", lambda *a, **k: "git@github.com:Marius-Juston/agent-harness.git")
+    assert checks.repo_owner() == "Marius-Juston"
+    monkeypatch.setattr(checks, "git", lambda *a, **k: "https://example.com/x/y")
+    assert checks.repo_owner() is None
+
+
+def test_check_ratchets_against_base(monkeypatch, tmp_path):
+    (tmp_path / ".devkit").mkdir()
+    (tmp_path / ".devkit/ratchets.toml").write_text(f'[defaults]\nagent = 600\n[words]\n"{AGENT}" = 5000\n')
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    monkeypatch.setattr(checks, "measured_words", lambda: {AGENT: 1000})
+    monkeypatch.setattr(checks, "git", lambda *a, **k: "[defaults]\nagent = 600\n")
+    ran = checks.check_ratchets("abc123", owner=OWNER)
+    assert ran.checked == 1 and len(ran.problems) == 1 and "600 -> 5000" in ran.problems[0]
+    ran = checks.check_ratchets(None, owner=OWNER)
+    assert not ran.problems and ran.warnings  # no merge base: said out loud, not silently skipped
+
+
+def _tree(tmp_path, files: dict[str, str]) -> None:
+    for rel, text in files.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text)
+
+
+def test_measured_words_counts_initial_prompt(monkeypatch, tmp_path):
+    _tree(tmp_path, {AGENT: "---\nname: builder\ninitialPrompt: one two three\n---\nbody words\n"})
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    assert checks.measured_words()[AGENT] == 5
+
+
+def test_measured_words_follows_imports_but_not_code_emails_or_missing_files(monkeypatch, tmp_path):
+    claude = "rules @AGENTS.md and @docs/a.md. mail me@x.io `@docs/b.md`\n```\n@docs/b.md\n```\n@nope.md ~/@x\n"
+    _tree(
+        tmp_path,
+        {
+            "CLAUDE.md": claude,
+            "AGENTS.md": "four words of text\n",
+            "docs/a.md": "a @c.md\n",  # relative to docs/, the importing file's directory
+            "docs/c.md": "c @a.md @../CLAUDE.md\n",  # cycles are counted once
+            "docs/b.md": "never counted\n",
+        },
+    )
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    measured = checks.measured_words()
+    assert measured["CLAUDE.md"] == len(claude.split()) + 4 + 2 + 3
+    assert measured["AGENTS.md"] == 4
+
+
+def test_imports_stop_after_five_hops(monkeypatch, tmp_path):
+    _tree(tmp_path, {"CLAUDE.md": "@d1.md\n"} | {f"d{i}.md": f"w @d{i + 1}.md\n" for i in range(1, 8)})
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    assert checks.measured_words()["CLAUDE.md"] == 1 + 5 * 2  # d1..d5 load; d6 would be a sixth hop
+
+
+def test_skill_supporting_files_have_a_budget(monkeypatch, tmp_path):
+    _tree(
+        tmp_path,
+        {
+            ".claude/skills/s/SKILL.md": "---\nname: s\n---\nbody\n",
+            ".claude/skills/s/references/r.md": "one two three\n",
+            ".claude/skills/s/scripts/x.py": "print(1)\n",
+            ".claude/skills/t/SKILL.md": "---\nname: t\n---\nbody\n",
+            ".devkit/ratchets.toml": "[defaults]\nskill = 3\n",
+        },
+    )
+    (tmp_path / ".claude/skills/s/logo.png").write_bytes(b"\x89PNG\xff\xfe")
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    measured = checks.measured_words()
+    assert measured[".claude/skills/s/*"] == 4 and ".claude/skills/t/*" not in measured
+    ran = checks.check_ratchets(None, owner=OWNER)
+    assert ran.problems == [".claude/skills/s/*: 4 words > budget 3. Cut text, or ask the owner for a [[raise]]"]
+
+
+# --- check_links -----------------------------------------------------------------------------------------------------
+
+
+def test_inline_triple_backticks_do_not_hide_later_text():
+    text = "say ```x``` inline\n[a](missing.md)\n"
+    assert "missing.md" in checks.strip_fences(text)
+
+
+@pytest.mark.parametrize("fence", ["```", "~~~", "````", "  ```"])
+def test_fenced_blocks_at_line_start_are_removed(fence):
+    text = f"before\n{fence}python\n[a](gone.md)\n{fence.strip()}\nafter [b](kept.md)\n"
+    out = checks.strip_fences(text)
+    assert "gone.md" not in out and "kept.md" in out and out.count("\n") == text.count("\n")
+
+
+def test_a_shorter_or_other_fence_does_not_close():
+    out = checks.strip_fences("````\n```\n~~~\n[a](x.md)\n````\n[b](y.md)\n")
+    assert "x.md" not in out and "y.md" in out
+
+
+def test_slugs_follow_github():
+    assert checks.slug("Hello, World!") == "hello-world"
+    assert checks.slug("`dev check` and [links](x.md)") == "dev-check-and-links"
+    assert checks.anchors('# A\n## A\n## A\n<a name="Custom"></a>\n') == {"a", "a-1", "a-2", "custom"}
+
+
+def _repo(monkeypatch, tmp_path, files: dict[str, str]) -> None:
+    for name, body in files.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text(body)
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    monkeypatch.setattr(checks, "tracked", lambda *p: [tmp_path / n for n in sorted(files)])
+
+
+def test_footnote_definitions_are_not_reference_links():
+    assert checks.REF_DEF.findall("[^1]: Smith 2020, p. 4\n[ref]: docs/x.md\n") == ["docs/x.md"]
+
+
+def test_check_links_checks_anchors_and_reference_links(monkeypatch, tmp_path):
+    _repo(
+        monkeypatch,
+        tmp_path,
+        {
+            "a.md": "# Top\n## Next step\n[ok](#next-step) [bad](#nowhere) [x](b.md#real) [y](b.md#fake)\n"
+            "say ```x``` inline then [z](missing.md)\n[ref]: c.md\n```\n[hidden](gone.md) [h](#gone)\n```\n",
+            "b.md": "# Real\n```\n# Fake\n```\n",
+        },
+    )
+    ran = checks.check_links()
+    assert sorted(ran.problems) == [
+        "a.md: link to missing c.md",
+        "a.md: link to missing heading #fake in b.md",
+        "a.md: link to missing heading #nowhere in a.md",
+        "a.md: link to missing missing.md",
+    ]
+    assert ran.checked == 6
+
+
+# --- cite-check ------------------------------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def net(monkeypatch, tmp_path):
+    """Fake network: url -> (status, body), or a list of them answered in turn; counts calls. Cache in tmp_path."""
+    answers: dict[str, tuple[int, str] | list[tuple[int, str]]] = {}
+    calls: list[str] = []
+
+    def fake_get(url, timeout=20):
+        calls.append(url)
+        answer = answers.get(url, (200, ""))
+        return (answer.pop(0) if len(answer) > 1 else answer[0]) if isinstance(answer, list) else answer
+
+    monkeypatch.setattr(citecheck, "_get", fake_get)
+    monkeypatch.setattr(citecheck, "RETRY_DELAY", 0)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(citecheck, "state_dir", lambda *p: tmp_path)
+    return answers, calls, tmp_path
+
+
+def _note(tmp_path: Path, *urls: str) -> Path:
+    p = tmp_path / "note.md"
+    p.write_text("\n".join(f"- [source {i}]({u})" for i, u in enumerate(urls)) + "\n")
+    return p
+
+
+@pytest.mark.parametrize("status", [0, 429, 500, 503])
+def test_transient_errors_are_never_cached(net, status):
+    answers, calls, tmp = net
+    url = "https://example.org/page"
+    answers[url] = (status, "timed out" if status == 0 else "")
+    _, problems, _ = citecheck.check_notes([_note(tmp, url)])
+    assert len(problems) == 1
+    assert not (tmp / "cite-cache.json").exists()
+    answers[url] = (200, "")
+    _, problems, _ = citecheck.check_notes([_note(tmp, url)])
+    assert problems == [] and calls.count(url) == 3  # first run: one try + one retry
+    assert json.loads((tmp / "cite-cache.json").read_text())[url]["ok"] is True
+
+
+def test_transient_errors_are_notes_when_offline_ok(net):
+    answers, _, tmp = net
+    answers["https://example.org/p"] = (0, "timed out")
+    _, problems, notes = citecheck.check_notes([_note(tmp, "https://example.org/p")], offline_ok=True)
+    assert problems == [] and len(notes) == 1
+
+
+def test_a_transient_answer_is_retried_once(net):
+    answers, calls, tmp = net
+    url = "https://example.org/flaky"
+    answers[url] = [(503, ""), (200, "")]
+    _, problems, _ = citecheck.check_notes([_note(tmp, url)])
+    assert problems == [] and calls.count(url) == 2
+    assert json.loads((tmp / "cite-cache.json").read_text())[url]["ok"] is True
+
+
+def test_still_transient_after_retry_is_a_note_under_ci_and_a_problem_otherwise(net, monkeypatch):
+    answers, calls, tmp = net
+    url = "https://example.org/limited"
+    answers[url] = (429, "")
+    _, problems, notes = citecheck.check_notes([_note(tmp, url)])
+    assert len(problems) == 1 and notes == [] and calls.count(url) == 2
+    monkeypatch.setenv("CI", "true")
+    _, problems, notes = citecheck.check_notes([_note(tmp, url)])
+    assert problems == [] and len(notes) == 1
+
+
+def test_stale_ok_entries_from_older_versions_are_dropped_on_read(net):
+    answers, calls, tmp = net
+    old = {"t": 9e12, "ok": True}
+    cache = {
+        "https://a.org/x": {**old, "note": "HTTP 403: exists, content unverified"},
+        "https://github.com/a/b": {**old, "note": "GitHub rate limit: unchecked"},
+        "https://c.org/y": {**old},
+    }
+    (tmp / "cite-cache.json").write_text(json.dumps(cache))
+    answers["https://a.org/x"] = (403, "")
+    answers["https://api.github.com/repos/a/b"] = (200, '{"full_name": "a/b"}')
+    _, problems, notes = citecheck.check_notes([_note(tmp, *cache)])
+    assert problems == []
+    assert set(calls) == {"https://a.org/x", "https://api.github.com/repos/a/b"}  # c.org/y stays cached
+    assert "https://c.org/y" not in calls and any("unverified" in n for n in notes)
+
+
+def test_github_rate_limit_is_not_cached_as_ok(net):
+    answers, _, tmp = net
+    answers["https://api.github.com/repos/a/b"] = (403, "")
+    _, problems, _ = citecheck.check_notes([_note(tmp, "https://github.com/a/b")])
+    assert problems and "rate limit" in problems[0]
+    assert not (tmp / "cite-cache.json").exists()
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_paywall_is_unverified_not_ok(net, status):
+    answers, _, tmp = net
+    url = "https://www.sciencedirect.com/science/article/pii/S0000000000000000"
+    answers[url] = (status, "")
+    _, problems, notes = citecheck.check_notes([_note(tmp, url)])
+    assert problems == [] and len(notes) == 1 and "unverified" in notes[0]
+    rec = json.loads((tmp / "cite-cache.json").read_text())[url]
+    assert rec["ok"] is False and rec["unverified"] is True
+
+
+def test_definite_404_is_cached(net):
+    answers, calls, tmp = net
+    answers["https://example.org/gone"] = (404, "")
+    for _ in range(2):
+        _, problems, _ = citecheck.check_notes([_note(tmp, "https://example.org/gone")])
+        assert problems
+    assert calls.count("https://example.org/gone") == 1
+
+
+def test_save_cache_merges_and_survives_a_corrupt_file(tmp_path):
+    path = tmp_path / "cite-cache.json"
+    path.write_text("{not json")
+    citecheck.save_cache(path, {"a": {"t": 1}})
+    citecheck.save_cache(path, {"b": {"t": 2}})
+    assert json.loads(path.read_text()) == {"a": {"t": 1}, "b": {"t": 2}}
+    assert [p.name for p in tmp_path.iterdir() if p.suffix == ".tmp"] == []
+
+
+def _writer(path: str, i: int) -> None:
+    for j in range(20):
+        citecheck.save_cache(Path(path), {f"{i}-{j}": {"t": j}})
+
+
+def test_parallel_writers_and_readers_never_see_a_torn_cache(tmp_path):
+    path = tmp_path / "cite-cache.json"
+    citecheck.save_cache(path, {})
+    bad: list[str] = []
+    stop = threading.Event()
+
+    def read():
+        while not stop.is_set():
+            try:
+                json.loads(path.read_text())
+            except json.JSONDecodeError as exc:
+                bad.append(str(exc))
+
+    # flock is per open file, so threads contend for it exactly as separate processes would
+    writers = [threading.Thread(target=_writer, args=(str(path), i)) for i in range(6)]
+    for p in writers:
+        p.start()
+    reader = threading.Thread(target=read)
+    reader.start()
+    for p in writers:
+        p.join(30)
+    stop.set()
+    reader.join()
+    assert bad == []
+    assert len(json.loads(path.read_text())) == 6 * 20  # no writer lost another's entries
