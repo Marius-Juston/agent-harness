@@ -134,13 +134,16 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("--offline-ok", action="store_true")
     lt = sub.add_parser(
         "lit",
-        help="literature search shared by all agents: rate-limited, cached, compact (OpenAlex, S2, Crossref, arXiv)",
+        help="literature search shared by all agents: rate-limited, cached, compact (OpenAlex, S2, Crossref, Europe PMC, arXiv)",
     )
     ls = lt.add_subparsers(dest="sub", required=True)
     x = ls.add_parser("search", help="papers for a query: title, year, venue, cites, ids, abstract snippet")
     x.add_argument("query")
     x.add_argument(
-        "--source", default=",".join(lit.DEFAULT_SOURCES), help=f"comma list of {', '.join(lit.SOURCES)}, or all"
+        "--source",
+        default="auto",
+        help=f"comma list of {', '.join(lit.SOURCES)}, or all; auto (default) asks {', '.join(lit.DEFAULT_SOURCES)}, "
+        f"then {', '.join(lit.FALLBACK_SOURCES)} in turn until it has -n papers",
     )
     x.add_argument("-n", type=int, default=lit.DEFAULT_N, help=f"results (max {lit.MAX_N})")
     x.add_argument("--years", default="", help="2019, 2015-, -2020 or 2015-2020")
@@ -264,7 +267,8 @@ def run(a: argparse.Namespace) -> int:
 def run_lit(a: argparse.Namespace) -> int:
     try:
         if a.sub == "search":
-            papers, notes = lit.client().search(a.query, lit.parse_sources(a.source), a.n, a.years)
+            sources, fallback = lit.plan(a.source)
+            papers, notes = lit.client().search(a.query, sources, a.n, a.years, fallback=fallback)
         else:
             paper, notes = lit.client().lookup(a.id)
             papers = [paper] if paper else []
