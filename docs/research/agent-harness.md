@@ -2,6 +2,7 @@
 
 Status: v1 (2026-10-11), the evidence behind this repository's design.
 Labels: SOURCED = cited and fetched; VERIFIED = measured (in the earlier repositories named below, from their own transcripts and records, which are private); BELIEVED = judgment; ASSUMED = unchecked premise.
+Search coverage: not recorded (written before `uv run dev lit status` existed; the evidence is mostly the earlier repositories' own records).
 Companions: [../specs/multi-agent.md](../specs/multi-agent.md) (the protocol this note justifies).
 
 ## 0. Findings in one paragraph

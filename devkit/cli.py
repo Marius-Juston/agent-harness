@@ -14,6 +14,7 @@ NOTE_TEMPLATE = """# Research: {title}
 
 Status: v0 ({date}). Issue: #{issue}
 Labels: SOURCED = cited and fetched; VERIFIED = measured in this repo (script named); BELIEVED = judgment; ASSUMED = unchecked premise.
+Search coverage: (sources `uv run dev lit status` showed up, and any that were down, with the date)
 Companions: (closest notes from INDEX.md)
 
 ## 0. Findings in one paragraph
@@ -148,6 +149,10 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("-n", type=int, default=lit.DEFAULT_N, help=f"results (max {lit.MAX_N})")
     x.add_argument("--years", default="", help="2019, 2015-, -2020 or 2015-2020")
     x.add_argument("--snippet", type=int, default=lit.SNIPPET, help="abstract characters per paper (0 = none)")
+    ls.add_parser(
+        "status",
+        help="each source's health now (live probe); exits 1 when a default source is down: run before a research round",
+    )
     x = ls.add_parser("get", help="one paper by DOI, arXiv id, OpenAlex W-id or S2 id, with a longer abstract")
     x.add_argument("id")
     x.add_argument("--snippet", type=int, default=1200)
@@ -265,6 +270,10 @@ def run(a: argparse.Namespace) -> int:
 
 
 def run_lit(a: argparse.Namespace) -> int:
+    if a.sub == "status":
+        health = lit.client().status()
+        print(lit.render_status(health))
+        return 1 if lit.degraded(health) else 0
     try:
         if a.sub == "search":
             sources, fallback = lit.plan(a.source)
