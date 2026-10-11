@@ -296,7 +296,7 @@ def run_board(a: argparse.Namespace) -> int:
             workflow.heartbeat(a.number, a.message)
             print(f"#{a.number}: heartbeat posted")
         case "block":
-            board.release(a.number, f"Blocked: {a.reason}", status="blocked")
+            board.block(a.number, a.reason)
             print(f"#{a.number} -> blocked")
         case "release":
             board.release(a.number, a.reason)

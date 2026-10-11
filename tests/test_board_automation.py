@@ -167,6 +167,50 @@ def test_schedule_syncs_blockers_then_sweeps(fake):
     assert board.event("schedule", {}, NOW) == ["#2 -> ready", "#9 -> stale"]
 
 
+def test_sync_keeps_a_manual_block_after_its_blockers_close(fake):
+    """#5: a `board block --reason` outlives the declared blockers; only release or claim lifts it."""
+    fake.add(1, ["status:ready"], state="CLOSED")
+    fake.add(2, ["status:ready"], "## Blocked by\n#1")
+    board.block(2, "waiting on the owner's API key")
+    assert "status:blocked" in fake.names(2)
+    assert board.sync() == [] and board.event("schedule", {}, NOW) == []
+    assert "status:blocked" in fake.names(2)
+    board.release(2, "key arrived")
+    assert "status:ready" in fake.names(2) and board.sync() == []
+
+
+def test_sync_lifts_a_dependency_block_after_a_manual_block_was_released(fake):
+    fake.add(1, ["status:ready"])
+    fake.add(2, ["status:ready"], "## Blocked by\n#1")
+    board.block(2, "owner action")
+    board.release(2, "done")
+    assert board.sync() == ["#2 -> blocked"]  # #1 still open: an ordinary dependency block now
+    fake.issues[1].update(state="CLOSED", stateReason="COMPLETED")
+    assert board.sync() == ["#2 -> ready"]
+
+
+def test_sync_honours_a_legacy_block_comment(fake):
+    """Blocks written before the block marker existed: a release whose reason starts `Blocked:`."""
+    legacy = {"body": "<!-- devkit:release -->\nBlocked: owner action", "createdAt": at(1), "url": "x#issuecomment-1"}
+    fake.add(1, ["status:ready"], state="CLOSED")
+    fake.add(2, ["status:blocked"], "## Blocked by\n#1", comments=[legacy])
+    assert board.sync() == []
+
+
+@given(st.lists(st.sampled_from(["block", "release", "claim", "note"]), max_size=8))
+def test_only_a_latest_block_marker_is_a_manual_block(steps):
+    bodies = {
+        "block": f"<!-- devkit:release -->\n{board.BLOCK_MARK}\nBlocked: x",
+        "release": "<!-- devkit:release -->\nreleased",
+        "claim": "<!-- devkit:claim host=h agent=a branch=b id=t -->\nClaimed",
+        "note": "a plain comment",
+    }
+    comments = [{"body": bodies[s], "createdAt": at(1), "url": f"x#issuecomment-{k}"} for k, s in enumerate(steps)]
+    markers = [s for s in steps if s != "note"]
+    issue = board.Issue(2, "t", [], "", "OPEN", at(1), comments)
+    assert issue.manually_blocked == (bool(markers) and markers[-1] == "block")
+
+
 def test_unknown_event_is_an_error(fake):
     with pytest.raises(board.BoardError, match="no board automation"):
         board.event("pull_request", {})

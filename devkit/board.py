@@ -48,6 +48,7 @@ LABELS = {
 }
 AREA_COLOR = "c2e0c6"
 STALE_MARK = "<!-- devkit:stale -->"  # the sweep's own comment; it never counts as activity
+BLOCK_MARK = "<!-- devkit:block -->"  # `board block`: a manual block that sync never lifts
 CLAIM = re.compile(r"<!-- devkit:claim host=(\S+) agent=(\S+) branch=(\S*)(?: id=(\S+))? -->")
 RELEASE = re.compile(r"<!-- devkit:release(?: claim=(\S+))? -->")
 SECTIONS = ("Context", "DONE WHEN", "Owns", "Blocked by", "Refs", "Parent")
@@ -175,6 +176,17 @@ class Issue:
                     Claim(m.group(1), m.group(2), m.group(3), c.get("createdAt", ""), m.group(4), comment_id(c))
                 )
         return live
+
+    @property
+    def manually_blocked(self) -> bool:
+        """The latest claim or release is a `board block` (or a pre-marker release whose reason starts `Blocked:`)."""
+        for c in reversed(self.comments):
+            body = c.get("body", "")
+            if RELEASE.search(body):
+                return BLOCK_MARK in body or RELEASE.sub("", body).strip().startswith("Blocked:")
+            if CLAIM.search(body):
+                return False
+        return False
 
     def claim(self) -> Claim | None:
         """The earliest live claim, or None."""
@@ -469,8 +481,14 @@ def release(number: int, reason: str, status: str = "ready") -> None:
     set_status(number, status)
 
 
+def block(number: int, reason: str) -> None:
+    """Withdraw any claim and block with a reason; sync keeps it blocked until a release or claim."""
+    comment(number, f"{release_tag(get(number))}\n{BLOCK_MARK}\nBlocked: {reason}")
+    set_status(number, "blocked")
+
+
 def sync() -> list[str]:
-    """Blocked <-> ready from the declared blockers. Manual blocks (a reason comment, no open blocker) stay."""
+    """Blocked <-> ready from the declared blockers. Manual blocks (`board block`) stay until a release or claim."""
     issues, done = fetch(), closed_numbers()
     moved = []
     for i in issues:
@@ -478,7 +496,7 @@ def sync() -> list[str]:
         if i.status == "ready" and waiting:
             set_status(i.number, "blocked")
             moved.append(f"#{i.number} -> blocked")
-        elif i.status == "blocked" and i.blockers and not waiting:
+        elif i.status == "blocked" and i.blockers and not waiting and not get(i.number).manually_blocked:
             set_status(i.number, "ready")
             moved.append(f"#{i.number} -> ready")
     return moved
