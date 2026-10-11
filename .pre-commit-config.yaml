@@ -1,0 +1,39 @@
+# Run with prek (fast, reads this format): `uvx prek install` once per clone (`uv run dev setup` does it).
+# Fast checks only; the full gate is `uv run dev check`.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.51.1
+    hooks:
+      - id: typos
+        args: [--force-exclude]   # report only: never rewrite words (it 'fixed' deliberate test strings)
+  - repo: local
+    hooks:
+      - id: generated-docs
+        name: generated docs are current
+        entry: uv run --quiet dev docs
+        language: system
+        pass_filenames: false
+        files: ^(\.claude/|\.claude-plugin/|\.mcp\.json|\.devkit/|devkit/|plugins/|docs/research/|pyproject\.toml)
+      # the same tools the gate runs, pinned in uv.lock (dev group); only when their inputs change
+      - id: uv-lock-check
+        name: uv.lock matches pyproject.toml
+        entry: uv lock --check --offline
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock)$
+      - id: actionlint
+        name: actionlint (workflows)
+        entry: uv run --quiet actionlint -shellcheck= -pyflakes=
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+      - id: zizmor
+        name: zizmor (workflow security)
+        entry: uv run --quiet zizmor --offline --no-progress --format plain
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$

@@ -1,0 +1,48 @@
+[project]
+name = "{{ project_name }}"
+version = "0.0.1"
+description = "{{ description }}"
+readme = "README.md"
+requires-python = ">={{ python_version }}"
+dependencies = []
+
+[dependency-groups]
+# The harness: the `dev` command (gate, board, navigation, research checks) and the gate's pinned tools.
+dev = ["agent-harness"]
+
+[tool.uv]
+package = false
+default-groups = ["dev"]
+
+[tool.uv.sources]
+{%- if harness_path %}
+agent-harness = { path = "{{ harness_path }}", editable = true }
+{%- else %}
+agent-harness = { git = "https://github.com/Marius-Juston/agent-harness", tag = "{{ harness_ref }}" }
+{%- endif %}
+
+# What this project changes in the harness defaults (devkit/config.py in agent-harness lists every key).
+[tool.devkit]
+# The harness-ops plugin provides the agents and skills; set false once the project has its own in .claude/.
+surface_optional = true
+quota_cap = 95
+
+[tool.devkit.plugins]
+"harness-ops@agent-harness" = "Marius-Juston/agent-harness@{{ harness_ref }}"
+"astral@astral-sh" = "astral-sh/claude-code-plugins"
+
+[tool.ruff]
+line-length = 120
+target-version = "py{{ python_version | replace('.', '') }}"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers -p no:cacheprovider"
+markers = [
+    "slow: long-running tests (run with `uv run dev test --slow`)",
+    "live: needs network or a model; never in the default gate",
+]

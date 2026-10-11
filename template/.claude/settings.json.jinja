@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "12"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(uv run dev orient)",
+      "Bash(uv run dev status*)",
+      "Bash(uv run dev code *)",
+      "Bash(uv run dev board list*)",
+      "Bash(uv run dev board next*)",
+      "Bash(uv run dev board brief *)",
+      "Bash(uv run dev check*)",
+      "Bash(uv run dev test*)",
+      "Bash(uv run dev docs)",
+      "Bash(uv run dev cite-check*)",
+      "Bash(uv run dev lit *)",
+      "Bash(uv run dev doctor)",
+      "Bash(uv run dev agent-stats*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git worktree list*)",
+      "Bash(gh issue view*)",
+      "Bash(gh issue list*)",
+      "Bash(gh pr view*)",
+      "Bash(gh pr list*)",
+      "Bash(gh pr diff*)",
+      "Bash(free*)",
+      "Bash(nproc)",
+      "mcp__arxiv__search_papers",
+      "mcp__arxiv__get_abstract",
+      "mcp__arxiv__get_paper_outline",
+      "mcp__arxiv__read_paper_section",
+      "mcp__wikipedia__get_summary",
+      "mcp__wikipedia__summarize_article_for_query",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "WebFetch(domain:api.openalex.org)",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:export.arxiv.org)",
+      "WebFetch(domain:api.crossref.org)",
+      "WebFetch(domain:api.semanticscholar.org)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:code.claude.com)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Bash(pip install*)",
+      "Bash(git push origin main*)",
+      "Bash(git push --force*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "worktree": {
+    "baseRef": "head"
+  },
+  "bashOutputMaxChars": 20000,
+  "enabledPlugins": {
+    "harness-ops@agent-harness": true,
+    "astral@astral-sh": true
+  },
+  "extraKnownMarketplaces": {
+    "agent-harness": {
+      "source": {
+        "source": "github",
+        "repo": "Marius-Juston/agent-harness",
+        "ref": "{{ harness_ref }}"
+      }
+    },
+    "astral-sh": {
+      "source": {
+        "source": "github",
+        "repo": "astral-sh/claude-code-plugins"
+      }
+    }
+  },
+  "subagentPromptCacheTtl": "1h"
+}

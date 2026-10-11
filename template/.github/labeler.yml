@@ -1,0 +1,45 @@
+# One path -> area map. `uv run dev pr` labels a PR from its changed files and `uv run dev board new` labels an
+# issue from its --owns paths (devkit's board.area_globs); no Actions job runs, so labels cost no CI minutes.
+# It keeps actions/labeler's format so that action could read it unchanged; dev board accepts only the shape
+# `label: [changed-files: [any-glob-to-any-file: [globs]]]`, no `!` negation. `**` spans directories.
+area:harness:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .devkit/**
+          - .claude/**
+          - .github/**
+          - evals/**
+          - scripts/**
+          - CLAUDE.md
+          - AGENTS.md
+          - pyproject.toml
+          - uv.lock
+          - .pre-commit-config.yaml
+          - .mcp.json
+          - .worktreeinclude
+          - .gitattributes
+          - .gitignore
+          - .python-version
+          - .copier-answers.yml
+area:research:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/research/**
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/adr/**
+          - docs/specs/**
+          - docs/questions/**
+          - docs/generated/**
+          - docs/*.md
+          - README.md
+area:tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - tests/**
+area:product:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/**
+          - app/**

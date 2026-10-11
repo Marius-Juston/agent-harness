@@ -1,0 +1,27 @@
+# {{ project_name }}
+
+{{ description }}
+
+The repository is built to be worked on by many Claude Code agents at once, on one or several machines, with
+[agent-harness](https://github.com/Marius-Juston/agent-harness) ({{ harness_ref }}).
+
+## Quickstart
+```bash
+uv run dev setup      # git, uv sync, generated docs, git config, prek hooks, Claude Code plugins; then a doctor report
+uv run dev doctor     # what this machine still needs (tools, auth, MCP servers)
+claude                # the SessionStart hook prints the handoff, board and machine state
+```
+Prerequisites: git, [uv](https://docs.astral.sh/uv/), [gh](https://cli.github.com) (authenticated), jq, Node.js 20+
+(for the Playwright MCP server) and [Claude Code](https://code.claude.com/docs).
+
+## How work flows
+- **Board:** GitHub issues with status labels (`uv run dev board list`). Every item has a measurable DONE WHEN.
+- **Lead and workers:** the main session leads; subagents of the `harness-ops` plugin each take one issue in their
+  own worktree and hand back a gated PR. Only `uv run dev integrate` merges, after re-gating the merged tree.
+- **Gate:** `uv run dev check`: drift checks, word budgets, generated docs, lint and tests. CI runs the same command.
+
+## Updating the harness
+`uvx copier check-update` says whether a newer agent-harness release exists; `uvx copier update` applies it
+(three-way, so local edits are kept), including the pinned devkit and plugin versions. Then `uv sync`.
+
+What exists is generated, never hand-listed: [docs/generated/agent-surface.md](docs/generated/agent-surface.md).
