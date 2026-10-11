@@ -10,7 +10,8 @@ This resolves every link and, where an authoritative record exists, compares the
 - Any other http(s) link: answers with a status below 400.
 
 Results are cached per URL in the shared git dir for CACHE_DAYS, so re-checks and other worktrees cost nothing. Only
-definite answers are cached: a timeout, 5xx or 429 is retried next run. A 401/403 (paywall, bot wall) proves nothing
+definite answers are cached: a timeout, 5xx or 429 is retried once in the run (full jitter, or the server's
+Retry-After, through devkit.backoff) and again next run. A 401/403 (paywall, bot wall) proves nothing
 about the page, so it is reported as unverified, never as ok.
 """
 
@@ -20,6 +21,7 @@ import difflib
 import fcntl
 import json
 import os
+import random
 import re
 import tempfile
 import time
@@ -27,8 +29,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from pathlib import Path
 
+from devkit import backoff
 from devkit.paths import state_dir
 
 CACHE_DAYS = 14
@@ -44,15 +48,34 @@ TITLE_MIN_WORDS = 4
 MATCH_FLOOR = 0.55
 
 
-def _get(url: str, timeout: int = 20) -> tuple[int, str]:
+def _get(url: str, timeout: int = 20) -> tuple[int, dict[str, str], str]:
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status, r.read(400_000).decode("utf-8", errors="replace")
+            return r.status, dict(r.headers), r.read(400_000).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
-        return e.code, ""
+        return e.code, dict(e.headers or {}), ""
     except (urllib.error.URLError, TimeoutError, OSError) as e:
-        return 0, str(e)
+        return 0, {}, str(e)
+
+
+TRIES = 2  # one retry of a transient answer; the next run retries again
+MAX_WAIT = 30.0  # seconds: a longer Retry-After leaves the link unchecked for this run instead of stalling it
+SLEEP: Callable[[float], None] = time.sleep
+RNG = random.Random()
+
+
+def _fetch(url: str, timeout: int = 20, also: tuple[int, ...] = ()) -> tuple[int, str]:
+    """(status, body) of `url`, retried through devkit.backoff while the answer is transient (or in `also`)."""
+
+    def hint(res: tuple[int, dict[str, str], str]) -> float | None:
+        status, headers, _ = res
+        return backoff.hinted(headers, time.time()) if transient(status) or status in also else None
+
+    status, _, body = backoff.retry(
+        lambda: _get(url, timeout), hint, tries=TRIES, sleep=SLEEP, rng=RNG, max_wait=MAX_WAIT
+    )
+    return status, body
 
 
 def _norm(s: str) -> str:
@@ -78,7 +101,9 @@ def arxiv_titles(ids: list[str]) -> dict[str, str]:
     ns = {"a": "http://www.w3.org/2005/Atom"}
     for i in range(0, len(ids), 50):
         chunk = ids[i : i + 50]
-        status, body = _get("https://export.arxiv.org/api/query?max_results=50&id_list=" + ",".join(chunk), timeout=40)
+        status, body = _fetch(
+            "https://export.arxiv.org/api/query?max_results=50&id_list=" + ",".join(chunk), timeout=40
+        )
         if status != 200:
             raise RuntimeError(f"arXiv API answered {status or body}")
         for entry in ET.fromstring(body).findall("a:entry", ns):
@@ -91,21 +116,10 @@ def arxiv_titles(ids: list[str]) -> dict[str, str]:
     return titles
 
 
-RETRY_DELAY = 2.0  # seconds before the one retry of a transient answer
-
-
 def _check_one(url: str) -> dict:
-    """One check, retried once after RETRY_DELAY when the answer is transient (timeout, 5xx, 429)."""
-    res = _check_once(url)
-    if res.get("transient"):
-        time.sleep(RETRY_DELAY)
-        res = _check_once(url)
-    return res
-
-
-def _check_once(url: str) -> dict:
+    """One check; a transient answer (timeout, 5xx, 429, GitHub's 403 rate limit) is retried by _fetch."""
     if m := DOI.search(url):
-        status, body = _get(f"https://api.crossref.org/works/{urllib.parse.quote(m.group(1))}")
+        status, body = _fetch(f"https://api.crossref.org/works/{urllib.parse.quote(m.group(1))}")
         if status == 200:
             title = (json.loads(body)["message"].get("title") or [""])[0]
             return {"ok": True, "title": title}
@@ -113,7 +127,7 @@ def _check_once(url: str) -> dict:
             return {"ok": False, "transient": True, "why": f"Crossref {status or body[:80]}: not reachable now"}
         return {"ok": False, "why": f"DOI not found at Crossref ({status})"}
     if m := GITHUB.match(url):
-        status, body = _get(f"https://api.github.com/repos/{m.group(1)}/{m.group(2)}")
+        status, body = _fetch(f"https://api.github.com/repos/{m.group(1)}/{m.group(2)}", also=(403,))
         if status == 200:
             data = json.loads(body)
             return {"ok": True, "title": data.get("full_name", ""), "note": "ARCHIVED" if data.get("archived") else ""}
@@ -122,7 +136,7 @@ def _check_once(url: str) -> dict:
         if transient(status):
             return {"ok": False, "transient": True, "why": f"GitHub API {status or body[:80]}"}
         return {"ok": False, "why": f"GitHub repo not found ({status})"}
-    status, body = _get(url)
+    status, body = _fetch(url)
     if status in (401, 403, 999):  # paywalls and bot walls: the page may or may not exist
         return {"ok": False, "unverified": True, "why": f"HTTP {status}: unverified (cite a DOI or an open copy)"}
     if transient(status):

@@ -51,7 +51,12 @@ The harness is built from mechanisms measured on the agents of two earlier priva
 - Fabricated or mismatched references are a known failure of LLM writing. Repository B's lead found its first explanations wrong several times, so its rules require re-checking a root cause with data and labelling every claim.
 - *Design:* `uv run dev cite-check` resolves every arXiv id (batched [arXiv API](https://info.arxiv.org/help/api/index.html) query), DOI ([Crossref](https://www.crossref.org/documentation/retrieve-metadata/rest-api/)) and GitHub repository, and fails a link whose text does not match the record's title. The `research-auditor` re-fetches the sources behind the recommendation. The `research` skill runs rounds until saturation, with one researcher arguing against the leading answer.
 
-## 8. Recommendation
+## 8. Backoff against shared APIs (SOURCED; BELIEVED)
+- Retries without jitter re-collide: clients that failed together retry together. Of the schedules compared in [Exponential Backoff And Jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/) (AWS, 2015), "Full Jitter" (a random sleep over the whole capped exponential window) did the least work, and plain exponential backoff was "the clear loser"; jittered backoff "should be considered a standard approach for remote clients".
+- A server's own wait comes first. Retry-After is delay-seconds or an HTTP-date ([RFC 9110, 10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#name-retry-after)). GitHub answers a primary or secondary rate limit with 403 or 429 ([rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)) and asks clients to honour retry-after, else x-ratelimit-reset when x-ratelimit-remaining is 0, else to wait at least a minute and then exponentially longer ([best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)).
+- *Design (BELIEVED):* `devkit/backoff.py` serves `dev lit`, `dev cite-check` and the gh wrapper: full jitter (base 2 s, cap 60 s), a hint honoured as a lower bound plus a random 0-20 % so the waiters it releases do not wake together, and, in `dev lit`, a cooldown shared through the bucket file that doubles on each throttle within 10 minutes and resets on a 200. gh prints no headers, so its wait is 60 s plus jitter.
+
+## 9. Recommendation
 Adopted as built (BELIEVED, to be measured with `uv run dev agent-stats` and evals):
 - Word budgets: 600 per agent, 650 per skill, 600 for CLAUDE.md, only tightening.
 - Up to 12 concurrent subagents. The spawn guard holds builders and testers below 6 GB free memory and refuses all spawns at the quota cap (95 % weekly by default).

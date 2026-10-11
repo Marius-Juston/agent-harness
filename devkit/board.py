@@ -20,10 +20,12 @@ keeps the item waiting, where a person sees it, instead of letting it start earl
 import functools
 import json
 import os
+import random
 import re
 import secrets
 import socket
 import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -33,7 +35,7 @@ from typing import NamedTuple
 
 import yaml
 
-from devkit import config
+from devkit import backoff, config
 from devkit.paths import default_branch, git, root
 
 STATUSES = ("ready", "in-progress", "review", "blocked")
@@ -100,8 +102,33 @@ class BoardError(RuntimeError):
     pass
 
 
+# GitHub's secondary rate limits answer 403 or 429; its guidance is to wait at least a minute, then exponentially
+# longer (docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api). gh prints no headers, so
+# the wait is GH_FLOOR plus full jitter (devkit.backoff). A refused request did nothing, so a retry is safe.
+SECONDARY_LIMIT = re.compile(r"secondary rate limit|abuse detection|HTTP 429", re.I)
+GH_TRIES = 3
+GH_FLOOR, GH_BASE, GH_CAP = 60.0, 30.0, 240.0  # seconds
+GH_SLEEP = time.sleep
+GH_RNG = random.Random()
+
+
 def gh(*args: str, input: str | None = None) -> str:
-    out = subprocess.run(["gh", *args], cwd=root(), capture_output=True, text=True, input=input, check=False)
+    def hint(out: subprocess.CompletedProcess) -> float | None:
+        return 0.0 if out.returncode != 0 and SECONDARY_LIMIT.search(out.stderr + out.stdout) else None
+
+    out = backoff.retry(
+        lambda: subprocess.run(["gh", *args], cwd=root(), capture_output=True, text=True, input=input, check=False),
+        hint,
+        tries=GH_TRIES,
+        sleep=GH_SLEEP,
+        rng=GH_RNG,
+        base=GH_BASE,
+        cap=GH_CAP,
+        floor=GH_FLOOR,
+        on_wait=lambda w: print(
+            f"gh {' '.join(args[:2])}: GitHub secondary rate limit; retrying in {w:.0f}s", file=sys.stderr
+        ),
+    )
     if out.returncode != 0:
         raise BoardError(f"gh {' '.join(args[:3])}: {out.stderr.strip() or out.stdout.strip()}")
     return out.stdout

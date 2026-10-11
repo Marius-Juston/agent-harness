@@ -9,8 +9,11 @@ fell back to weaker sources. Every call here goes through one client:
 - free API keys (OPENALEX_API_KEY, S2_API_KEY) from the environment, else from a private secrets file
   (DEVKIT_SECRETS_FILE, default ~/.config/api-keys.env, mode 600), since subagents and Claude Code's Bash tool do not
   source the shell profile; a key never reaches the cache key, the output or a log (#23);
-- backoff on 429/5xx (Retry-After when given), giving up on a source whose wait exceeds MAX_WAIT, so the others
-  still answer; a cooldown is recorded for the keyed or the keyless pool, and only holds callers of that pool off;
+- backoff on 429/5xx through devkit.backoff (#25): Retry-After when given, else full jitter for a 5xx and, for a
+  throttle, a shared cooldown that doubles on each consecutive throttle and resets on a 200; each waiter wakes at a
+  random 0-20 % past a cooldown's end, so a shared cooldown does not release every process at once; a source whose
+  wait exceeds MAX_WAIT is skipped, so the others still answer; a cooldown is recorded for the keyed or the keyless
+  pool, and only holds callers of that pool off;
 - a fallback chain (`--source auto`, the default): OpenAlex and S2, then Crossref, Europe PMC and arXiv in turn
   until n papers are in hand, with a note naming the fallbacks that answered;
 - compact output: one record per paper (title, year, venue, citations, ids, abstract snippet), capped;
@@ -28,6 +31,7 @@ import hashlib
 import html
 import json
 import os
+import random
 import re
 import stat
 import sys
@@ -41,6 +45,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from devkit import backoff
 from devkit.paths import state_dir
 
 UA = "agent-harness-devkit-lit/0.1 (research tooling; mailto:noreply@example.invalid)"
@@ -119,6 +124,12 @@ def hold_field(keyed: bool) -> str:
     return "until_key" if keyed else "until"
 
 
+def streak_fields(keyed: bool) -> tuple[str, str]:
+    """(consecutive throttles, time of the last one) for the keyed or keyless pool."""
+    f = hold_field(keyed)
+    return f + "_streak", f + "_last"
+
+
 def take(state: dict, now: float, rate: float, burst: float, keyed: bool = False) -> tuple[dict, float]:
     """One token from a bucket: (new state, seconds to wait first; 0 = granted now). Pure.
 
@@ -142,6 +153,7 @@ class Bucket:
     dir: Path
     clock: Callable[[], float] = time.time
     sleep: Callable[[float], None] = time.sleep
+    rng: random.Random = field(default_factory=random.Random)
 
     @contextlib.contextmanager
     def _state(self):
@@ -162,12 +174,14 @@ class Bucket:
         rate, burst = RATES[source]
         while True:
             with self._state() as data:
-                data[source], wait = take(data.get(source, {}), self.clock(), rate, burst, keyed)
+                now = self.clock()
+                data[source], wait = take(data.get(source, {}), now, rate, burst, keyed)
+                held = data[source].get(hold_field(keyed), 0.0) > now
             if wait <= 0:
                 return
             if wait > MAX_WAIT:  # a cooldown from a spent budget: skip the source instead of asking again
                 raise SourceError(f"{source}: rate limited for another {wait:.0f}s (daily budget spent?); skipped")
-            self.sleep(wait)
+            self.sleep(backoff.spread(wait, self.rng) if held else wait)  # waiters on one cooldown wake apart
 
     def held_off(self, source: str, keyed: bool = False) -> float:
         """Seconds of shared cooldown left on `source` for the keyed or keyless pool (0 = none). Takes no token."""
@@ -180,6 +194,27 @@ class Bucket:
             st = data.setdefault(source, {})
             f = hold_field(keyed)
             st[f] = max(st.get(f, 0.0), self.clock() + seconds)
+
+    def throttled(self, source: str, hint: float, keyed: bool = False) -> float:
+        """A throttle answer: extend the pool's shared streak (a new one after backoff.WINDOW quiet) and hold every
+        caller of the pool off for the server's hint, else for the escalated cooldown. Returns the hold's seconds."""
+        n, last = streak_fields(keyed)
+        with self._state() as data:
+            st, now = data.setdefault(source, {}), self.clock()
+            st[n] = (st.get(n, 0) if now - st.get(last, now) <= backoff.WINDOW else 0) + 1
+            st[last] = now
+            seconds = hint or backoff.escalated(st[n])
+            f = hold_field(keyed)
+            st[f] = max(st.get(f, 0.0), now + seconds)
+            return seconds
+
+    def succeeded(self, source: str, keyed: bool = False) -> None:
+        """A 200 ends the pool's throttle streak: the next throttle starts again at backoff.BASE."""
+        n, last = streak_fields(keyed)
+        with self._state() as data:
+            if source in data:
+                data[source].pop(n, None)
+                data[source].pop(last, None)
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -514,10 +549,11 @@ class Client:
     clock: Callable[[], float] = time.time
     sleep: Callable[[float], None] = time.sleep
     env: dict[str, str] = field(default_factory=lambda: dict(os.environ))
+    rng: random.Random = field(default_factory=random.Random)
 
     def __post_init__(self) -> None:
         (self.dir / "cache").mkdir(parents=True, exist_ok=True)
-        self.bucket = Bucket(self.dir, self.clock, self.sleep)
+        self.bucket = Bucket(self.dir, self.clock, self.sleep, self.rng)
 
     def _cache_path(self, url: str) -> Path:
         return self.dir / "cache" / (hashlib.sha256(url.encode()).hexdigest()[:32] + ".json")
@@ -532,7 +568,6 @@ class Client:
                 return rec["body"]
         send, headers = with_key(source, url, self.env)
         keyed = self.keyed(source)
-        delay = 2.0
         status, body = 0, ""
         for attempt in range(tries):
             self.bucket.acquire(source, keyed)
@@ -541,21 +576,20 @@ class Client:
             except SourceError as exc:
                 raise SourceError(f"{source}: {exc}") from None
             if status == 200:
+                self.bucket.succeeded(source, keyed)
                 _atomic_write(path, json.dumps({"t": self.clock(), "url": url, "body": body}))
                 return body
             if status == 404:
                 raise SourceError(f"{source}: not found")
             if status not in (0, 429) and status < 500:
                 raise SourceError(f"{source}: HTTP {status}")
-            wait = _retry_after(resp_headers) or delay
+            hint = backoff.hinted(resp_headers, self.clock())
             throttled = status == 429 or (status == 503 and source in THROTTLE_503)
-            if throttled:
-                self.bucket.cooldown(source, wait, keyed)
-            if wait > MAX_WAIT:
-                raise SourceError(f"{source}: rate limited for {wait:.0f}s (daily budget spent?); skipped")
-            if not throttled and attempt + 1 < tries:  # a 429's wait is the cooldown, which acquire() honours
-                self.sleep(wait)
-            delay *= 2
+            held = self.bucket.throttled(source, hint, keyed) if throttled else hint
+            if held > MAX_WAIT:
+                raise SourceError(f"{source}: rate limited for {held:.0f}s (daily budget spent?); skipped")
+            if not throttled and attempt + 1 < tries:  # a throttle's wait is the cooldown, which acquire() honours
+                self.sleep(backoff.wait(attempt, hint, self.rng, cap=MAX_WAIT))
         raise SourceError(f"{source}: {'HTTP ' + str(status) if status else 'unreachable'} after {tries} tries")
 
     def keyed(self, source: str) -> bool:
@@ -662,14 +696,6 @@ def _merge(merged: dict[str, Paper], p: Paper) -> None:
 def _same_title(a: Paper, b: Paper) -> bool:
     ta, tb = (re.sub(r"[^a-z0-9]", "", x.title.lower()) for x in (a, b))
     return bool(ta) and ta == tb and (a.year is None or b.year is None or abs(a.year - b.year) <= 1)
-
-
-def _retry_after(headers: dict[str, str]) -> float:
-    for k, v in headers.items():
-        if k.lower() == "retry-after":
-            with contextlib.suppress(ValueError):
-                return max(0.0, float(v))
-    return 0.0
 
 
 def client() -> Client:
