@@ -133,3 +133,12 @@ def test_copier_update_brings_the_research_api_keys_setup_to_an_existing_project
     run_update(dest, data=data, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
     assert "## Research API keys" in (dest / "docs/SETUP.md").read_text()
     assert "docs/SETUP.md#research-api-keys" in (dest / "README.md").read_text()
+
+
+def test_the_project_carries_the_session_goal_prompt(rendered):
+    """A fresh lead session starts from one documented /goal prompt with a stop rule a /goal evaluator can check."""
+    session = (rendered / "docs/SESSION.md").read_text()
+    assert session.count("/goal You are the lead") == 2  # the default and the focused variant
+    for must in ("harness-ops:lead", "uv run dev board next", "uv run dev lit status", "Done when", "OPEN_QUESTIONS"):
+        assert must in session
+    assert "docs/SESSION.md" in (rendered / "README.md").read_text()
