@@ -112,6 +112,12 @@ BYPASSES = [
     "git rebase --exec='git push origin main' main",
     "grep -e KEY .env",
     "grep -f .env notes.txt",
+    # python fed on stdin or -c: its string literals are still scanned (issue #7)
+    "python3 - <<'EOF'\nimport os\nos.system('cat .env*')\nEOF",
+    "python3 - <<'EOF'\nprint(open('.env').read())\nEOF",
+    "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['git', 'push', 'origin', 'main'])\nEOF",
+    "python3 - <<'EOF'\nimport os\nos.system('(.*?); pip install x')\nEOF",
+    "python3 -c \"import os; os.system('cat .e*')\"",
 ]
 ALLOWED = [
     "uv add requests",
@@ -155,6 +161,12 @@ ALLOWED = [
     "git commit --message -n",
     "mkdir -p src/{a,b}",
     _nested("bash -c", "echo hi", 3),
+    # python source is not shell: a regex like (.*?) after a < is not a .env glob (issue #7)
+    "python3 - <<'EOF'\nimport re\nprint(re.findall(r'<a>(.*?)</a>', s))\nEOF",
+    "python3 - <<'EOF'\nimport re\nm = re.search(\"<td>(.*?)</td>\", s)\nEOF",
+    "python3 - <<'EOF'\nif a < len(xs): print('(.*?)')\nEOF",
+    "cat page.html | python3 -c \"import re,sys; print(re.findall(r'<b>(.*?)</b>', sys.stdin.read()))\"",
+    "python3 -c \"import re; print(re.sub(r'.*', '', 'x'))\"",
 ]
 
 
