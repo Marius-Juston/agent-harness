@@ -321,11 +321,15 @@ def long_opt(arg: str, name: str, shortest: int) -> bool:
     return len(arg) >= shortest and name.startswith(arg)
 
 
-def is_env(w: Word) -> bool:
+def is_env(w: Word, code: bool = False) -> bool:
+    """`code`: the word is from a Python string literal, where `.*` and `(.*?)` are regexes far more often than globs,
+    so a glob counts only if it spells the start of the name (`.e*`, `.env*`)."""
     if any(ch.isspace() for ch in w.value):  # prose (a commit or issue body), not a path
         return False
     name = base(re.split(r"[=:]", w.value)[-1])
     if w.glob:  # a glob reaches a dotfile only if its own name starts with "." (no dotglob)
+        if code and name[1:2] in ("", "*", "?", "["):
+            return False
         return name.startswith(".") and any(fnmatchcase(f, name) for f in (".env", ".env.local"))
     return name not in ENV_SAFE and (name == ".env" or name.startswith(".env."))
 
@@ -405,6 +409,7 @@ def unwrap(argv: list[str], assigns: list[str]) -> list[str]:
 class Checker:
     def __init__(self, cwd: str):
         self.cwd = cwd
+        self.in_python = 0  # > 0 while checking a Python string literal as a shell command
 
     def text(self, text: str, depth: int = 0) -> str | None:
         """Check a shell command string; return the reason it is blocked, or None."""
@@ -435,12 +440,16 @@ class Checker:
         for group in re.findall(r"\[([^\]]*)\]", src):  # list-form argv: ["pip", "install", "x"]
             parts = re.findall(r"'((?:[^'\\\n]|\\.)*)'|\"((?:[^\"\\\n]|\\.)*)\"", group)
             strings.append(" ".join(a or b for a, b in parts))
-        for s in strings:
-            if is_env(Word(s)):
-                return ENV
-            if why := self.text(s, depth + 1):
-                return why
-        return None
+        self.in_python += 1
+        try:
+            for s in strings:
+                if is_env(Word(s)):
+                    return ENV
+                if why := self.text(s, depth + 1):
+                    return why
+            return None
+        finally:
+            self.in_python -= 1
 
     def stdin_lang(self, c: Simple) -> str | None:
         """'sh' or 'py' when this command runs code read from stdin."""
@@ -472,7 +481,8 @@ class Checker:
             pattern = len(c.words) - len(argv) + k  # unwrap only strips words from the front
             paths = [w for j, w in enumerate(c.words) if j != pattern]
         env_ok = name in ENV_OK_CMDS or (name == "git" and "check-ignore" in argv[1:4])
-        if (any(is_env(w) for w in paths) and not env_ok) or any(is_env(Word(r)) for r in c.reads):
+        in_py = self.in_python > 0
+        if (any(is_env(w, in_py) for w in paths) and not env_ok) or any(is_env(Word(r), in_py) for r in c.reads):
             return ENV
         exported = argv[1:] if name in ("export", "declare", "typeset", "local", "readonly") else []
         if any(HOOK_VAR.match(a) or "hookspath" in a.lower() for a in exported + (assigns if not argv else [])):
