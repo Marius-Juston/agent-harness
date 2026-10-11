@@ -75,7 +75,7 @@
 | `cite-check` | resolve every source in research notes; flag dead links and title mismatches |
 | `lit` | literature search shared by all agents: rate-limited, cached, compact (OpenAlex, S2, Crossref, Europe PMC, arXiv) |
 | `lit search` | papers for a query: title, year, venue, cites, ids, abstract snippet |
-| `lit status` | each source's health now (live probe); exits 1 when a default source is down: run before a research round |
+| `lit status` | each source's health now (live probe); exits 1 only when every default source is down: run before a research round |
 | `lit get` | one paper by DOI, arXiv id, OpenAlex W-id or S2 id, with a longer abstract |
 | `research` | research notes: new |
 | `research new` | create <research_dir>/<slug>.md from the house template |

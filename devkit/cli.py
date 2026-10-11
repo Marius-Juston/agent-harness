@@ -151,7 +151,8 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("--snippet", type=int, default=lit.SNIPPET, help="abstract characters per paper (0 = none)")
     ls.add_parser(
         "status",
-        help="each source's health now (live probe); exits 1 when a default source is down: run before a research round",
+        help="each source's health now (live probe); exits 1 only when every default source is down: "
+        "run before a research round",
     )
     x = ls.add_parser("get", help="one paper by DOI, arXiv id, OpenAlex W-id or S2 id, with a longer abstract")
     x.add_argument("id")

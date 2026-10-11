@@ -16,14 +16,13 @@ off the screen and out of shell history, and `printf` is a shell builtin, so the
 Never paste a key into a Claude chat or a file in a repository.
 ```bash
 mkdir -p ~/.config && (umask 077 && touch ~/.config/api-keys.env) && chmod 600 ~/.config/api-keys.env
-read -rsp "OpenAlex key: " k && printf 'export OPENALEX_API_KEY=%s\n' "$k" >> ~/.config/api-keys.env; unset k; echo
-read -rsp "Semantic Scholar key: " k && printf 'export S2_API_KEY=%s\n' "$k" >> ~/.config/api-keys.env; unset k; echo
+read -rsp "OpenAlex key: " k && printf 'OPENALEX_API_KEY=%s\n' "$k" >> ~/.config/api-keys.env; unset k; echo
+read -rsp "Semantic Scholar key: " k && printf 'S2_API_KEY=%s\n' "$k" >> ~/.config/api-keys.env; unset k; echo
 ```
-Load it in every interactive shell with this line in `~/.bashrc` (or `~/.zshrc`):
-```bash
-[ -f ~/.config/api-keys.env ] && . ~/.config/api-keys.env
-```
-Subagents and Claude Code's Bash tool do not source the shell profile, so `dev lit` also reads the file itself when
-a key is not in its environment (`DEVKIT_SECRETS_FILE` names another file). It refuses a file that group or others
-can read, and it never prints, logs or caches a key. Check with `uv run dev doctor` (each key found or missing,
-never its value) and `uv run dev lit status` (`(key)` next to each keyed source).
+Do not export the keys in your shell profile (`~/.bashrc`, `~/.zshrc`, `~/.profile`), and do not source the file
+there: an exported key is in every agent's environment, where one `env` or `echo` puts it into a transcript.
+`uv run dev lit` reads the file itself, only for the keys its environment lacks (`DEVKIT_SECRETS_FILE` names
+another file). It reads only a regular file owned by you that nobody else can access (mode 600; never a symlink),
+and it never prints, logs or caches a key. Agents cannot read the file either: the plugin's Bash guard blocks it and
+the project settings deny `Read` on it. Check with `uv run dev doctor` (each key found or missing, never its value)
+and `uv run dev lit status` (`(key)` next to each keyed source).

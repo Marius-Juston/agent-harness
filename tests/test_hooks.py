@@ -38,6 +38,23 @@ BLOCKED = [
     "git commit -m wip --no-verify",
     "cat > f <<EOF\nx\nEOF\npip install y",  # a command after a heredoc is still a command
 ]
+# The research API keys file (#23): dev lit reads it itself, no agent ever needs its contents.
+SECRETS_READS = [
+    "cat ~/.config/api-keys.env",
+    "head -2 ~/.config/api-keys.env",
+    "grep S2 ~/.config/api-keys.env",
+    "sed -n p $HOME/.config/api-keys.env",
+    'cat "$DEVKIT_SECRETS_FILE"',
+    "tail ${DEVKIT_SECRETS_FILE}",
+    "cat < ~/.config/api-keys.env",
+    "source ~/.config/api-keys.env",
+    ". ~/.config/api-keys.env",
+    "cat ~/.config/api-*",
+    "cat ~/.config/*",
+    "bash -c 'cat ~/.config/api-keys.env'",
+    "python3 -c \"print(open('/x/.config/api-keys.env').read())\"",
+    "awk 1 /x/api-keys.env | head",
+]
 # Red-team findings: each of these got past an earlier, regex-based guard.
 BYPASSES = [
     # pip
@@ -177,6 +194,28 @@ def test_guard_bash_blocks(hook, cmd):
     assert "Blocked by project rule" in err
 
 
+@pytest.mark.parametrize("cmd", SECRETS_READS)
+def test_guard_bash_blocks_reading_the_api_keys_file(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}})
+    assert code == 2, cmd
+    assert "research API keys file" in err
+
+
+@pytest.mark.parametrize(
+    "cmd", ["ls -la ~/.config/api-keys.env", "stat -c %a ~/.config/api-keys.env", "uv run dev lit status", "ls ~/x/*"]
+)
+def test_guard_bash_allows_checking_the_api_keys_file_without_reading_it(hook, cmd):
+    code, _, _ = hook("guard_bash.py", {"tool_input": {"command": cmd}})
+    assert code == 0, cmd
+
+
+def test_guard_bash_blocks_the_file_dev_kit_secrets_names(monkeypatch):
+    monkeypatch.setenv("DEVKIT_SECRETS_FILE", "/srv/keys/research.keys")
+    assert GUARD.Checker("/").text("cat /srv/keys/research.keys") == GUARD.SECRETS
+    assert GUARD.Checker("/").text("grep x research.keys") == GUARD.SECRETS
+    assert GUARD.Checker("/").text("cat notes.md") is None
+
+
 @pytest.mark.parametrize("cmd", ALLOWED)
 def test_guard_bash_allows(hook, cmd):
     code, _, _ = hook("guard_bash.py", {"tool_input": {"command": cmd}})
@@ -197,7 +236,15 @@ GUARD = _guard_module()
 @given(st.text(alphabet=st.sampled_from(list("ab pi.env$()`'\"\\<>|;&#\n{}-=+*")), max_size=80))
 def test_guard_bash_never_crashes(cmd):
     why = GUARD.Checker("/nonexistent").text(cmd)
-    assert why is None or why in (GUARD.PIP, GUARD.ENV, GUARD.PKILL, GUARD.MAIN, GUARD.FORCE, GUARD.HOOKS)
+    assert why is None or why in (
+        GUARD.PIP,
+        GUARD.ENV,
+        GUARD.SECRETS,
+        GUARD.PKILL,
+        GUARD.MAIN,
+        GUARD.FORCE,
+        GUARD.HOOKS,
+    )
 
 
 @given(st.text(alphabet=st.characters(blacklist_characters="'\x00"), max_size=60))

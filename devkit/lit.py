@@ -29,6 +29,7 @@ import html
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 import time
@@ -75,19 +76,39 @@ SECRETS_FILE = "~/.config/api-keys.env"  # DEVKIT_SECRETS_FILE overrides
 Get = Callable[[str, dict[str, str]], tuple[int, dict[str, str], str]]  # (url, headers) -> (status, headers, body)
 
 
+class SourceError(Exception):
+    pass
+
+
+KEY_HEADERS = {"x-api-key"}  # request headers that carry a key
+
+
+class KeepKeysOnHost(urllib.request.HTTPRedirectHandler):
+    """A redirect to another host does not take the key header with it (urllib copies every header by default)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and urllib.parse.urlsplit(newurl).netloc != urllib.parse.urlsplit(req.full_url).netloc:
+            for store in (new.headers, new.unredirected_hdrs):
+                for name in [h for h in store if h.lower() in KEY_HEADERS]:
+                    del store[name]
+        return new
+
+
+OPENER = urllib.request.build_opener(KeepKeysOnHost)
+
+
 def http_get(url: str, headers: dict[str, str], timeout: int = 30) -> tuple[int, dict[str, str], str]:
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*", **headers})
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with OPENER.open(req, timeout=timeout) as r:
             return r.status, dict(r.headers), r.read(2_000_000).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers or {}), ""
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         return 0, {}, str(e)
-
-
-class SourceError(Exception):
-    pass
+    except (ValueError, UnicodeEncodeError):  # a header or url urllib cannot send; its message may quote the key
+        raise SourceError("key contains non-ASCII characters (or a control character); fix the secrets file") from None
 
 
 # ---- rate limit: token bucket shared through a locked file ----
@@ -416,13 +437,18 @@ def get_urls(ident: str) -> list[tuple[str, str]]:
 
 
 def parse_secrets(text: str) -> dict[str, str]:
-    """KEYS values from `KEY=value` or `export KEY=value` lines (quotes stripped); every other line is ignored."""
+    """KEYS values from `KEY=value` or `export KEY=value` lines, as a shell reads them: a quoted value ends at its
+    closing quote, an unquoted one at ` #` (a comment). Every other line is ignored."""
     out = {}
     for line in text.splitlines():
-        name, eq, value = line.strip().removeprefix("export ").strip().partition("=")
+        line = re.sub(r"^export\s+", "", line.strip())
+        name, eq, value = line.partition("=")
         value = value.strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
-            value = value[1:-1]
+        if value[:1] in ("'", '"'):
+            end = value.find(value[0], 1)
+            value = value[1:end] if end > 0 else ""
+        else:
+            value = re.split(r"\s+#", value, maxsplit=1)[0].strip()
         if eq and name.strip() in KEYS.values() and value:
             out[name.strip()] = value
     return out
@@ -433,19 +459,28 @@ def secrets_path(env: dict[str, str]) -> Path:
 
 
 def read_secrets(path: Path) -> tuple[dict[str, str], str]:
-    """(keys in the file, problem). A missing file is no problem; one group or others can access is not read."""
+    """(keys in the file, problem). A missing file is no problem. Read only when it is a regular file (not a symlink
+    or a FIFO), owned by this user, and nobody else may access it; the checks are made on the open handle, so the file
+    cannot be swapped between check and read."""
     try:
-        mode = path.stat().st_mode & 0o777
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     except FileNotFoundError:
         return {}, ""
     except OSError as exc:
-        return {}, f"{path}: {exc.strerror}"
-    if mode & 0o077:
-        return {}, f"{path} is readable by group or others (mode {mode:o}), so it is not read: chmod 600 {path}"
-    try:
-        return parse_secrets(path.read_text()), ""
-    except (OSError, UnicodeDecodeError) as exc:
-        return {}, f"{path}: unreadable ({type(exc).__name__})"
+        return {}, f"{path}: not read ({exc.strerror}; a symlink is refused)"
+    with os.fdopen(fd, "rb") as f:
+        st = os.fstat(f.fileno())
+        mode = st.st_mode & 0o777
+        if not stat.S_ISREG(st.st_mode):
+            return {}, f"{path} is not a regular file, so it is not read"
+        if st.st_uid != os.getuid():
+            return {}, f"{path} is owned by another user (uid {st.st_uid}), so it is not read"
+        if mode & 0o077:
+            return {}, f"{path} is readable by group or others (mode {mode:o}), so it is not read: chmod 600 {path}"
+        try:
+            return parse_secrets(f.read(65536).decode("utf-8-sig")), ""
+        except (OSError, UnicodeDecodeError) as exc:
+            return {}, f"{path}: unreadable ({type(exc).__name__})"
 
 
 def with_secrets(env: dict[str, str]) -> tuple[dict[str, str], str]:
@@ -501,7 +536,10 @@ class Client:
         status, body = 0, ""
         for attempt in range(tries):
             self.bucket.acquire(source, keyed)
-            status, resp_headers, body = self.get(send, headers)
+            try:
+                status, resp_headers, body = self.get(send, headers)
+            except SourceError as exc:
+                raise SourceError(f"{source}: {exc}") from None
             if status == 200:
                 _atomic_write(path, json.dumps({"t": self.clock(), "url": url, "body": body}))
                 return body

@@ -107,9 +107,14 @@ def test_a_rendered_project_passes_its_own_gate(tmp_path):
 def test_the_project_carries_the_research_api_keys_setup(rendered):
     setup_md = (rendered / "docs/SETUP.md").read_text()
     assert "## Research API keys" in setup_md
-    for must in ("~/.config/api-keys.env", "read -rsp", "chmod 600", "~/.bashrc", "OPENALEX_API_KEY", "S2_API_KEY"):
+    for must in ("~/.config/api-keys.env", "read -rsp", "chmod 600", "OPENALEX_API_KEY", "S2_API_KEY"):
         assert must in setup_md
     assert "docs/SETUP.md#research-api-keys" in (rendered / "README.md").read_text()
+    assert (
+        ". ~/.config/api-keys.env" not in setup_md and "Do not export the keys" in setup_md
+    )  # exported keys leak into every agent
+    deny = json.loads((rendered / ".claude/settings.json").read_text())["permissions"]["deny"]
+    assert "Read(~/.config/api-keys.env)" in deny
     # one text: this repository's own setup page is the template's, so the two never drift apart
     assert (ROOT / "docs/SETUP.md").read_text() == (ROOT / "template/docs/SETUP.md").read_text()
     assert "docs/SETUP.md#research-api-keys" in (ROOT / "README.md").read_text()

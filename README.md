@@ -34,11 +34,12 @@ the plugin is meant for projects made from the template.
 
 ## Research API keys
 `uv run dev lit` (the shared literature search) works without keys, but OpenAlex's and Semantic Scholar's shared
-pools throttle parallel researchers hard and degrade discovery. Get both free keys, store them in
-`~/.config/api-keys.env` (mode 600, outside any repository) with `read -rsp` so they are never echoed, kept in shell
-history or pasted into a Claude chat, and source that file from `~/.bashrc`. `dev lit` also reads the file itself,
-since subagents do not source the profile. The steps: [docs/SETUP.md](docs/SETUP.md#research-api-keys), which every
-project made from the template carries too; `uv run dev doctor` reports each key as found or missing.
+pools throttle parallel researchers hard and degrade discovery. Get both free keys and store them in
+`~/.config/api-keys.env` (mode 600, outside any repository) with `read -rsp`, so they are never echoed, kept in shell
+history or pasted into a Claude chat. Do not export them in your shell profile: an exported key sits in every
+agent's environment. `dev lit` reads the file itself, and the plugin's Bash guard and the project's `Read` deny rule
+keep agents from reading it. The steps: [docs/SETUP.md](docs/SETUP.md#research-api-keys), which every project made
+from the template carries too; `uv run dev doctor` reports each key as found or missing.
 
 ## Configuration
 What differs between projects lives in the project: `[tool.devkit]` in its pyproject.toml (the keys and defaults

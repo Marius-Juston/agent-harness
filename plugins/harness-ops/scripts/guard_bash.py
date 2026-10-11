@@ -20,6 +20,11 @@ from fnmatch import fnmatchcase
 PIP = "Python is managed with uv only: `uv add <pkg>` (or `uv add --dev`), `uv run ...`. Never pip."
 PKILL = '`pkill -f` matches the shell running it. Collect PIDs with `pgrep -f "[p]attern"` in one call, kill them in another.'
 ENV = "Never read secrets: .env stays unread. Commands that need it load it themselves."
+SECRETS = (
+    "Never read the research API keys file (~/.config/api-keys.env or $DEVKIT_SECRETS_FILE): `uv run dev lit` "
+    "loads it itself, and `uv run dev doctor` says whether each key is found, never its value."
+)
+SECRETS_NAME = "api-keys.env"
 MAIN = "Never push to main: push your issue branch and open a PR (`uv run dev pr <issue>`); the lead integrates."
 FORCE = "Force-push rewrites shared history. Use --force-with-lease on your own issue branch only, never on main."
 HOOKS = "--no-verify, -n, SKIP= and core.hooksPath skip the checks every agent is held to. Fix what the hook reports instead."
@@ -334,6 +339,22 @@ def is_env(w: Word, code: bool = False) -> bool:
     return name not in ENV_SAFE and (name == ".env" or name.startswith(".env."))
 
 
+def is_secrets(w: Word) -> bool:
+    """The research API keys file: its default name, $DEVKIT_SECRETS_FILE, or the path that variable names here."""
+    if any(ch.isspace() for ch in w.value):  # prose, not a path
+        return False
+    if "DEVKIT_SECRETS_FILE" in w.value and "$" in w.value:
+        return True
+    path = re.split(r"[=:]", w.value)[-1]
+    name = base(path)
+    if w.glob:  # `api-*`, `*.env`, or anything in ~/.config that would expand to it
+        literal = re.sub(r"[*?\[\]]", "", name)
+        near = path.rsplit("/", 1)[0].endswith(".config") if "/" in path else False
+        return fnmatchcase(SECRETS_NAME, name) and (len(literal) >= 3 or near)
+    custom = os.environ.get("DEVKIT_SECRETS_FILE", "")
+    return name == SECRETS_NAME or (bool(custom) and ((name == base(custom) and name != "") or path == custom))
+
+
 SKIP_VALUE = {
     "sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "-T", "--user", "--group"},
     "doas": {"-u", "-C"},
@@ -445,6 +466,8 @@ class Checker:
             for s in strings:
                 if is_env(Word(s)):
                     return ENV
+                if is_secrets(Word(s)):
+                    return SECRETS
                 if why := self.text(s, depth + 1):
                     return why
             return None
@@ -484,6 +507,8 @@ class Checker:
         in_py = self.in_python > 0
         if (any(is_env(w, in_py) for w in paths) and not env_ok) or any(is_env(Word(r), in_py) for r in c.reads):
             return ENV
+        if (any(is_secrets(w) for w in paths) and not env_ok) or any(is_secrets(Word(r)) for r in c.reads):
+            return SECRETS
         exported = argv[1:] if name in ("export", "declare", "typeset", "local", "readonly") else []
         if any(HOOK_VAR.match(a) or "hookspath" in a.lower() for a in exported + (assigns if not argv else [])):
             return HOOKS

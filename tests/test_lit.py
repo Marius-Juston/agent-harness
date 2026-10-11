@@ -6,6 +6,7 @@ import multiprocessing
 import os
 import threading
 import time
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -734,3 +735,152 @@ def test_key_report_names_origins_never_values(tmp_path):
     assert "fake" not in repr(where)
     where, _ = lit.key_report({"DEVKIT_SECRETS_FILE": str(tmp_path / "none")})
     assert set(where.values()) == {"missing"}
+
+
+def test_parse_secrets_reads_values_the_way_a_shell_does():
+    text = (
+        "\ufeffOPENALEX_API_KEY=fake-oa  # from openalex.org\n"  # a BOM, then an unquoted value and a comment
+        "export\tS2_API_KEY='fake-s2 x' # comment after the quotes\n"
+    )
+    assert lit.parse_secrets(text.removeprefix("\ufeff")) == {"OPENALEX_API_KEY": "fake-oa", "S2_API_KEY": "fake-s2 x"}
+    assert lit.parse_secrets('S2_API_KEY="fake#s2"  # c') == {"S2_API_KEY": "fake#s2"}
+    assert lit.parse_secrets("S2_API_KEY=fake#s2") == {"S2_API_KEY": "fake#s2"}  # no space: not a comment
+    assert lit.parse_secrets("S2_API_KEY='unterminated") == {}
+
+
+def test_a_secrets_file_with_a_byte_order_mark_is_read(tmp_path):
+    p = tmp_path / "k"
+    p.write_bytes("\ufeffOPENALEX_API_KEY=fake-oa\n".encode())
+    p.chmod(0o600)
+    assert lit.read_secrets(p) == ({"OPENALEX_API_KEY": "fake-oa"}, "")
+
+
+def test_a_fifo_is_refused_without_blocking(tmp_path):
+    p = tmp_path / "fifo"
+    os.mkfifo(p, 0o600)
+    found, problem = lit.read_secrets(p)
+    assert found == {} and "not a regular file" in problem
+
+
+def test_a_symlink_is_refused(tmp_path):
+    real = tmp_path / "real"
+    real.write_text("OPENALEX_API_KEY=fake-oa\n")
+    real.chmod(0o600)
+    (tmp_path / "link").symlink_to(real)
+    found, problem = lit.read_secrets(tmp_path / "link")
+    assert found == {} and "symlink" in problem and "fake-oa" not in problem
+
+
+def test_a_file_owned_by_another_user_is_refused(tmp_path, monkeypatch):
+    p = tmp_path / "k"
+    p.write_text("OPENALEX_API_KEY=fake-oa\n")
+    p.chmod(0o600)
+    monkeypatch.setattr(lit.os, "getuid", lambda: os.stat(p).st_uid + 1)
+    found, problem = lit.read_secrets(p)
+    assert found == {} and "another user" in problem
+
+
+def test_a_group_readable_file_is_refused_by_read_secrets(tmp_path):
+    p = tmp_path / "k"
+    p.write_text("OPENALEX_API_KEY=fake-oa\n")
+    p.chmod(0o640)
+    found, problem = lit.read_secrets(p)
+    assert found == {} and "mode 640" in problem
+
+
+@pytest.mark.parametrize("key", ["fake-\u043a\u043b\u044e\u0447-s2", "fake-s2\r\nX-Evil: 1"])
+def test_a_key_urllib_cannot_send_is_a_source_error_that_names_no_key(key):
+    with pytest.raises(lit.SourceError) as exc:
+        lit.http_get("http://127.0.0.1:9/x", {"x-api-key": key})
+    assert "non-ASCII" in str(exc.value) and key not in str(exc.value) and exc.value.__cause__ is None
+
+
+def test_a_bad_key_is_a_note_naming_the_source_not_the_key(tmp_path):
+    def get(url, headers):
+        return lit.http_get("http://127.0.0.1:9/x", headers)
+
+    papers, notes = make(tmp_path, get, env={"S2_API_KEY": "fake-\u00e9\u4e2d"}).search("q", ("s2",))
+    assert papers == [] and notes == [
+        "s2: key contains non-ASCII characters (or a control character); fix the secrets file"
+    ]
+
+
+def _redirect(src: str, dst: str):
+    req = urllib.request.Request(src, headers={"x-api-key": "fake-s2", "User-Agent": "ua"})
+    return lit.KeepKeysOnHost().redirect_request(req, None, 302, "Found", {}, dst)
+
+
+def test_the_key_header_does_not_follow_a_redirect_to_another_host():
+    other = _redirect("https://api.semanticscholar.org/graph/v1/x", "https://evil.example/y")
+    assert not any(h.lower() == "x-api-key" for h in [*other.headers, *other.unredirected_hdrs])
+    assert other.get_header("User-agent") == "ua"
+    same = _redirect("https://api.semanticscholar.org/graph/v1/x", "https://api.semanticscholar.org/graph/v1/z")
+    assert same.get_header("X-api-key") == "fake-s2"
+
+
+def test_the_key_header_is_dropped_on_a_live_cross_host_redirect():
+    """Two local servers: A redirects to B (another host:port); B records the headers it got."""
+    seen: list[dict] = []
+
+    class B(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append(dict(self.headers))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *a):
+            pass
+
+    b = http.server.ThreadingHTTPServer(("127.0.0.1", 0), B)
+
+    class A(B):
+        def do_GET(self):
+            self.send_response(302)
+            self.send_header("Location", f"http://localhost:{b.server_port}/z")
+            self.end_headers()
+
+    a = http.server.ThreadingHTTPServer(("127.0.0.1", 0), A)
+    for srv in (a, b):
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        status, _, _ = lit.http_get(f"http://127.0.0.1:{a.server_port}/x", {"x-api-key": "fake-s2"})
+    finally:
+        a.shutdown()
+        b.shutdown()
+    assert status == 200 and seen and not any(k.lower() == "x-api-key" for k in seen[0])
+
+
+def _raises_like_http_get(url, headers):
+    raise lit.SourceError("key contains non-ASCII characters (or a control character); fix the secrets file")
+
+
+@pytest.mark.parametrize(
+    "answers",
+    [
+        {OA: [(403, {}, "")], S2: [(401, {}, "")]},  # 4xx
+        {OA: [(500, {}, "")], S2: [(503, {}, "")]},  # 5xx
+        {OA: [(0, {}, "unreachable")], S2: [(429, {"Retry-After": "99999"}, "")]},  # unreachable, spent budget
+        "raise",  # the transport raises
+    ],
+)
+def test_no_key_leaks_on_error_paths(tmp_path, monkeypatch, capsys, answers):
+    from devkit import cli
+
+    for k in lit.KEYS.values():
+        monkeypatch.delenv(k, raising=False)
+    (tmp_path / "s").mkdir()
+    for k, v in secrets(tmp_path / "s", "export OPENALEX_API_KEY=fake-oa-321\nS2_API_KEY=fake-s2-654\n").items():
+        monkeypatch.setenv(k, v)
+    net = _raises_like_http_get if answers == "raise" else FakeNet(answers | {CR: [(500, {}, "")]})
+    clock, real = Clock(), lit.Client
+    (tmp_path / "state").mkdir()
+    monkeypatch.setattr(lit, "state_dir", lambda *_: tmp_path / "state")
+    monkeypatch.setattr(lit, "Client", lambda d, env: real(d, get=net, clock=clock, sleep=clock.sleep, env=env))
+    cli.run_lit(cli.build().parse_args(["lit", "search", "q"]))
+    cli.run_lit(cli.build().parse_args(["lit", "get", "10.1/x"]))
+    assert cli.run_lit(cli.build().parse_args(["lit", "status"])) == 1
+    out = capsys.readouterr()
+    stored = "".join(p.read_text() for p in (tmp_path / "state").rglob("*") if p.is_file())
+    for key in ("fake-oa-321", "fake-s2-654"):
+        assert key not in out.out and key not in out.err and key not in stored
