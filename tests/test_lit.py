@@ -547,3 +547,70 @@ def test_fallback_against_a_local_fake_server(tmp_path):
     assert "fallback: answered by europepmc (3), arxiv (1)" in notes
     assert any(n.startswith("crossref: HTTP 500") for n in notes)
     assert "note: fallback: answered by europepmc (3), arxiv (1)" in lit.render(papers, notes)
+
+
+# ---- source health before a research round (#8) ----
+
+ATOM_EMPTY = "<feed xmlns='http://www.w3.org/2005/Atom'></feed>"
+
+
+def healthy() -> dict[str, list[tuple[int, dict, str]]]:
+    return {
+        OA: [(200, {}, oa_body(1))],
+        S2: [(200, {}, s2_body([]))],
+        CR: [(200, {}, json.dumps({"message": {"items": []}}))],
+        EP: [(200, {}, ep_body(1))],
+        AX: [(200, {}, ATOM_EMPTY)],
+    }
+
+
+def test_status_reports_each_source_and_a_degraded_default_source(tmp_path):
+    answers = healthy() | {S2: SPENT, EP: [(500, {}, "")]}
+    health = make(tmp_path, FakeNet(answers)).status()
+    by = {h.source: h for h in health}
+    assert list(by) == list(lit.SOURCES)
+    assert by["openalex"].ok and by["crossref"].ok and by["arxiv"].ok
+    assert not by["s2"].ok and "rate limited" in by["s2"].detail
+    assert not by["europepmc"].ok and "500" in by["europepmc"].detail
+    assert lit.degraded(health) == ["s2"]  # europepmc is a fallback: shown, but discovery is judged on the defaults
+    out = lit.render_status(health)
+    assert "DEGRADED" in out.splitlines()[-1] and "s2" in out.splitlines()[-1]
+
+
+def test_status_all_healthy_names_keys_and_is_not_degraded(tmp_path):
+    health = make(tmp_path, FakeNet(healthy()), env={"S2_API_KEY": "secret"}).status()
+    assert all(h.ok for h in health) and lit.degraded(health) == []
+    out = lit.render_status(health)
+    assert "secret" not in out and "full" in out.splitlines()[-1]
+    by = {h.source: h for h in health}
+    assert "key" in by["s2"].detail and "no key" in by["openalex"].detail
+
+
+def test_status_probes_live_instead_of_trusting_the_cache(tmp_path):
+    clock = Clock()
+    c = make(tmp_path, FakeNet(healthy()), clock=clock)
+    assert all(h.ok for h in c.status())
+    clock.t += 3600  # past every bucket refill
+    c.get = FakeNet({})  # every source now answers 404
+    assert not any(h.ok for h in c.status())
+
+
+def test_status_honours_a_shared_cooldown_without_calling_the_source(tmp_path):
+    net = FakeNet(healthy())
+    c = make(tmp_path, net)
+    c.bucket.cooldown("openalex", 7200)  # another process got a spent-budget 429
+    by = {h.source: h for h in c.status()}
+    assert not by["openalex"].ok and "7200" in by["openalex"].detail
+    assert not any(u.startswith(OA) for u, _ in net.calls)
+
+
+def test_dev_lit_status_exits_nonzero_when_discovery_is_degraded(tmp_path, monkeypatch, capsys):
+    from devkit import cli
+
+    answers = healthy() | {OA: SPENT}
+    monkeypatch.setattr(lit, "client", lambda: make(tmp_path, FakeNet(answers)))
+    assert cli.run_lit(cli.build().parse_args(["lit", "status"])) == 1
+    assert "DEGRADED" in capsys.readouterr().out
+    (tmp_path / "b").mkdir()
+    monkeypatch.setattr(lit, "client", lambda: make(tmp_path / "b", FakeNet(healthy())))
+    assert cli.run_lit(cli.build().parse_args(["lit", "status"])) == 0

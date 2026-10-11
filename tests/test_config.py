@@ -80,3 +80,34 @@ def test_a_usage_reading_carries_the_configured_cap(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "get", lambda: config.Config(quota_cap=50))
     data = json.loads(workflow.write_usage(60, now=1000).read_text())
     assert data == {"pct": 60, "t": 1000, "cap": 50}
+
+
+NOTE = "# Research: x\n\nStatus: v0\nLabels: SOURCED = cited\n{coverage}\nA claim ([src](https://example.org)).\n"
+
+
+def test_a_note_without_a_search_coverage_line_fails_the_note_check(monkeypatch, tmp_path):
+    (tmp_path / "notes").mkdir()
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    monkeypatch.setattr(config, "get", lambda: config.Config(research_dir="notes"))
+    (tmp_path / "notes/a.md").write_text(NOTE.format(coverage=""))
+    assert any("Search coverage" in p for p in checks.check_research_notes().problems)
+    (tmp_path / "notes/a.md").write_text(
+        NOTE.format(coverage="Search coverage: openalex, s2, crossref ok (dev lit status, 2026-10-11)")
+    )
+    assert checks.check_research_notes().problems == []
+
+
+def test_the_new_note_template_has_a_search_coverage_line():
+    from devkit import cli
+
+    assert "\nSearch coverage: " in cli.NOTE_TEMPLATE
+
+
+def test_research_skill_researcher_and_template_require_lit_status_and_coverage():
+    from devkit.paths import root
+
+    plugin = root() / "plugins/harness-ops"
+    for rel in ("skills/research/SKILL.md", "agents/researcher.md"):
+        text = (plugin / rel).read_text()
+        assert "uv run dev lit status" in text and "Search coverage" in text, rel
+    assert "Search coverage" in (root() / "template/docs/research/README.md").read_text()

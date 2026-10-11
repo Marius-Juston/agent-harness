@@ -12,7 +12,9 @@ fell back to weaker sources. Every call here goes through one client:
   still answer;
 - a fallback chain (`--source auto`, the default): OpenAlex and S2, then Crossref, Europe PMC and arXiv in turn
   until n papers are in hand, with a note naming the fallbacks that answered;
-- compact output: one record per paper (title, year, venue, citations, ids, abstract snippet), capped.
+- compact output: one record per paper (title, year, venue, citations, ids, abstract snippet), capped;
+- `dev lit status`: each source's health from a live probe, failing when a default source is down, so a research
+  round never starts on the weaker fallbacks without knowing it (#8).
 
 stdlib only: pyalex and semanticscholar each cover one API and retry in-process, which does not share a rate limit
 or a cache across processes, the part that failed.
@@ -134,6 +136,11 @@ class Bucket:
             if wait > MAX_WAIT:  # a cooldown from a spent budget: skip the source instead of asking again
                 raise SourceError(f"{source}: rate limited for another {wait:.0f}s (daily budget spent?); skipped")
             self.sleep(wait)
+
+    def held_off(self, source: str) -> float:
+        """Seconds of shared cooldown left on `source` (0 = none). Takes no token."""
+        with self._state() as data:
+            return max(0.0, data.get(source, {}).get("until", 0.0) - self.clock())
 
     def cooldown(self, source: str, seconds: float) -> None:
         """Every process holds off `source` for `seconds` (a 429 told one of them to)."""
@@ -420,17 +427,18 @@ class Client:
     def _cache_path(self, url: str) -> Path:
         return self.dir / "cache" / (hashlib.sha256(url.encode()).hexdigest()[:32] + ".json")
 
-    def fetch(self, source: str, url: str) -> str:
-        """Body of a 200 answer for `url`, from the shared cache when fresh. Raises SourceError otherwise."""
+    def fetch(self, source: str, url: str, *, live: bool = False, tries: int = TRIES) -> str:
+        """Body of a 200 answer for `url`, from the shared cache when fresh (never when `live`). Raises SourceError
+        otherwise."""
         path = self._cache_path(url)
         with contextlib.suppress(FileNotFoundError, json.JSONDecodeError, KeyError):
             rec = json.loads(path.read_text())
-            if self.clock() - rec["t"] < CACHE_DAYS * 86400:
+            if not live and self.clock() - rec["t"] < CACHE_DAYS * 86400:
                 return rec["body"]
         send, headers = with_key(source, url, self.env)
         delay = 2.0
         status, body = 0, ""
-        for attempt in range(TRIES):
+        for attempt in range(tries):
             self.bucket.acquire(source)
             status, resp_headers, body = self.get(send, headers)
             if status == 200:
@@ -446,10 +454,30 @@ class Client:
                 self.bucket.cooldown(source, wait)
             if wait > MAX_WAIT:
                 raise SourceError(f"{source}: rate limited for {wait:.0f}s (daily budget spent?); skipped")
-            if not throttled and attempt + 1 < TRIES:  # a 429's wait is the cooldown, which acquire() honours
+            if not throttled and attempt + 1 < tries:  # a 429's wait is the cooldown, which acquire() honours
                 self.sleep(wait)
             delay *= 2
-        raise SourceError(f"{source}: {'HTTP ' + str(status) if status else 'unreachable'} after {TRIES} tries")
+        raise SourceError(f"{source}: {'HTTP ' + str(status) if status else 'unreachable'} after {tries} tries")
+
+    def status(self, sources: tuple[str, ...] = SOURCES) -> list["Health"]:
+        """Each source's health now: a shared cooldown, else one live, uncached probe search (one try, through the
+        shared bucket, so a 429 here also holds every other process off)."""
+        out = []
+        for src in sources:
+            key = {"openalex": "OPENALEX_API_KEY", "s2": "S2_API_KEY"}.get(src)
+            keyed = "" if key is None else (" (key)" if self.env.get(key) else " (no key: shared pool)")
+            if (left := self.bucket.held_off(src)) > 0:
+                out.append(Health(src, False, f"rate limited for another {left:.0f}s{keyed}"))
+                continue
+            try:
+                PARSE[src](self.fetch(src, search_url(src, PROBE, 1), live=True, tries=1))
+            except SourceError as exc:
+                out.append(Health(src, False, str(exc).removeprefix(f"{src}: ") + keyed))
+            except (ValueError, ET.ParseError) as exc:
+                out.append(Health(src, False, f"unreadable answer ({type(exc).__name__}){keyed}"))
+            else:
+                out.append(Health(src, True, "ok" + keyed))
+        return out
 
     def search(
         self,
@@ -550,6 +578,30 @@ def client() -> Client:
 def render(papers: list[Paper], notes: list[str], snippet: int = SNIPPET) -> str:
     lines = [p.line(snippet) for p in papers] or ["no results"]
     lines += [f"note: {n}" for n in notes]
+    return "\n".join(lines)
+
+
+PROBE = "memory"  # the query `status` searches for; any common word answers on every source
+
+
+@dataclass
+class Health:
+    source: str
+    ok: bool
+    detail: str  # "ok" or why not (a cooldown, an HTTP status, unreachable), then "(key)" or "(no key: shared pool)"
+
+
+def degraded(health: list[Health]) -> list[str]:
+    """The default sources that are down: discovery leans on them, and the fallbacks are weaker (#8)."""
+    return [h.source for h in health if not h.ok and h.source in DEFAULT_SOURCES]
+
+
+def render_status(health: list[Health]) -> str:
+    lines = [f"{h.source:<10} {'ok  ' if h.ok else 'DOWN'}  {h.detail}" for h in health]
+    if bad := degraded(health):
+        lines.append(f"discovery: DEGRADED ({', '.join(bad)} down): do not start a research round; wait and re-run")
+    else:
+        lines.append(f"discovery: full ({', '.join(h.source for h in health if h.ok)} answered)")
     return "\n".join(lines)
 
 
