@@ -6,7 +6,7 @@ description: The lead session's routine in a repository run with agent-harness â
 # Lead routine
 
 Rules that must hold:
-- Never build while workers run. The lead only plans, dispatches and integrates.
+- Never build while workers run. The lead plans, dispatches and integrates.
 - A worker's report is not evidence. `uv run dev integrate` re-gates the merged tree. Read PR numbers against the data.
 - Spawn prompts are one line. The brief carries the rest.
 - At the quota cap, start nothing new. Commit, update HANDOFF, stop.
@@ -21,7 +21,7 @@ For each item in review, in priority order:
 1. `gh pr view <pr>`, `gh pr diff <pr> --name-only` and `uv run dev board feedback <pr>` (comments and reviews since the last commit, unresolved threads).
 2. Spawn a `harness-ops:reviewer` when the PR touches harness files, several Owns, or anything a user sees. Spawn a `harness-ops:research-auditor` for research PRs that drive a decision.
 3. Read every comment, from people and bots. Answer or fix each one (resume the worker for fixes), resolve its thread (an outdated thread still blocks until resolved), and wait for the checks to go green.
-4. `uv run dev integrate <pr>`; add `--harness-ok` only after reading the harness diff yourself. It refuses failing or pending checks, requested changes and unresolved threads; `--override '<reason>'` only on the owner's word (logged on the PR). Its last line, `RESULT-JSON`, gives the `outcome`: on `conflict`, resume the worker it names; on `stopped` or `gate-failed`, comment the failure on the PR, then resume (SendMessage) or respawn its worker.
+4. `uv run dev integrate <pr>`; add `--harness-ok` only after reading the harness diff yourself. It refuses failing or pending checks, requested changes and unresolved threads; `--override '<reason>'` only on the owner's word (logged on the PR). Its last line, `RESULT-JSON`, gives the `outcome`: on `conflict`, resume the worker it names; on `stopped` or `gate-failed`, comment the failure on the PR and resume or respawn its worker.
 
 ## 3. Pick the next wave
 - `uv run dev board next -n 10`. Prefer P0, then items that unblock the most.
