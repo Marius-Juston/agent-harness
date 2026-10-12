@@ -636,6 +636,81 @@ def in_flight_files() -> dict[str, list[str]]:
     return files
 
 
+FEEDBACK_QUERY = """query($owner: String!, $name: String!, $n: Int!) { repository(owner: $owner, name: $name) {
+  pullRequest(number: $n) {
+    commits(last: 1) { nodes { commit { committedDate } } }
+    comments(last: 50) { nodes { author { login } body createdAt url } }
+    reviews(last: 50) { nodes { author { login } body state submittedAt url } }
+    reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved path line comments(last: 1) { nodes { author { login } body url } } } }
+} } }"""
+FEEDBACK_CHARS = 200
+THREADS_PAGE = 100  # the reviewThreads(first:) above; past it integrate refuses (fails closed) instead of paginating
+
+
+def pr_feedback(number: int) -> dict:
+    """A PR's conversation: `since` (its last commit's date), comments, reviews and the unresolved review threads.
+    Review threads are GraphQL-only (`gh pr view` has no field for them); past 100 threads `threads_truncated`."""
+    owner, name = repo().split("/", 1)
+    out = gh("api", "graphql", "-f", f"owner={owner}", "-f", f"name={name}", "-F", f"n={number}", "-f",
+             f"query={FEEDBACK_QUERY}")  # fmt: skip
+    pr = json.loads(out)["data"]["repository"]["pullRequest"]
+    commits = pr["commits"]["nodes"]
+    return {
+        "since": commits[-1]["commit"]["committedDate"] if commits else "",
+        "comments": pr["comments"]["nodes"],
+        "reviews": pr["reviews"]["nodes"],
+        "threads": [t for t in pr["reviewThreads"]["nodes"] if not t["isResolved"]],
+        "threads_truncated": bool((pr["reviewThreads"].get("pageInfo") or {}).get("hasNextPage")),
+    }
+
+
+def login(node: dict) -> str:
+    """The author's login; a deleted account comes back as a null author."""
+    return (node.get("author") or {}).get("login", "ghost")
+
+
+def pr_feedback_lines(fb: dict) -> list[str]:
+    """What an agent must answer: comments and reviews newer than the last commit, then every unresolved thread.
+    A COMMENTED review with no body only wraps inline comments, which its threads already carry."""
+
+    def text(body: str) -> str:
+        return " ".join(body.split())[:FEEDBACK_CHARS]
+
+    since = fb["since"]
+    out = [
+        f"- comment {login(c)} {c['createdAt'][:16]}: {text(c['body'])} ({c['url']})"
+        for c in fb["comments"]
+        if c["createdAt"] > since
+    ]
+    out += [
+        f"- review {r['state']} {login(r)} {r['submittedAt'][:16]}: {text(r['body'])} ({r['url']})"
+        for r in fb["reviews"]
+        if (r.get("submittedAt") or "") > since and (r["body"].strip() or r["state"] != "COMMENTED")
+    ]
+    for t in fb["threads"]:
+        last = (t["comments"]["nodes"] or [{}])[-1]
+        out.append(
+            f"- unresolved thread {t['path']}:{t.get('line') or '?'} {login(last)}: "
+            f"{text(last.get('body', ''))} ({last.get('url', '')})"
+        )
+    if fb.get("threads_truncated"):
+        out.append(f"- more than {THREADS_PAGE} review threads: the rest are not shown, read them on GitHub")
+    return out
+
+
+def issue_prs(number: int) -> list[int]:
+    """Open PRs of an item: its `<n>-slug` branch, or a body that closes it (a `Refs #n` mention links nothing)."""
+    prs = gh(
+        "pr", "list", "-R", repo(), "--state", "open", "--limit", str(PR_LIMIT), "--json", "number,headRefName,body"
+    )
+    out = []
+    for p in json.loads(prs):
+        closes, own = linked(p.get("body") or "", p.get("headRefName") or "")
+        if number in closes + own:
+            out.append(p["number"])
+    return out
+
+
 def brief(number: int) -> str:
     """Everything an agent needs to start one item, so its spawn prompt can be one line."""
     i = get(number)
@@ -661,6 +736,13 @@ def brief(number: int) -> str:
         out.append("\n## Files other work is changing (hotspots: coordinate, do not edit blindly)")
         rows = [f"- {h}" for h in hot] or [f"- {len(busy)} files in flight elsewhere, none under this item's Owns"]
         out += cap(rows, SECTION_LINES, "`uv run dev status` and `gh pr list`")
+    try:
+        for pr in issue_prs(i.number):
+            rows = pr_feedback_lines(pr_feedback(pr)) or ["- none: no new comments or reviews, no unresolved threads"]
+            out.append(f"\n## PR #{pr} feedback since its last commit (answer or fix each, resolve threads)")
+            out += cap(rows, SECTION_LINES, f"`uv run dev board feedback {pr}`")
+    except BoardError:
+        pass
     slug = re.sub(r"[^a-z0-9]+", "-", i.title.lower()).strip("-")[:40]
     out.append(f"""
 ## Commands

@@ -250,11 +250,50 @@ def test_integrate_reads_the_fields_it_checks(monkeypatch):
 HEAD, MAIN = "h" * 40, "m" * 40
 
 
+def _run(name, status="COMPLETED", conclusion="SUCCESS", workflow="ci", started="2026-10-11T12:00:00Z"):
+    return {
+        "__typename": "CheckRun",
+        "name": name,
+        "workflowName": workflow,
+        "status": status,
+        "conclusion": conclusion,
+        "startedAt": started,
+        "completedAt": started if status == "COMPLETED" else "0001-01-01T00:00:00Z",
+    }
+
+
+def _thread(path="a.py", line=3, resolved=False, who="bot"):
+    c = {"author": {"login": who}, "body": "please fix", "createdAt": "2026-10-11T00:00:00Z", "url": "u"}
+    return {"isResolved": resolved, "path": path, "line": line, "comments": {"nodes": [c]}}
+
+
+def _graphql(threads=(), comments=(), reviews=(), committed="2026-10-11T12:00:00Z", more_threads=False):
+    pr = {
+        "commits": {"nodes": [{"commit": {"committedDate": committed}}]},
+        "comments": {"nodes": list(comments)},
+        "reviews": {"nodes": list(reviews)},
+        "reviewThreads": {"pageInfo": {"hasNextPage": more_threads}, "nodes": list(threads)},
+    }
+    return {"data": {"repository": {"pullRequest": pr}}}
+
+
 @pytest.fixture
 def fake_integrate(monkeypatch, tmp_path):
     """integrate against fake git, gh and subprocess: records every call in order. Knobs: fetched_head, gate_code,
-    files (what git diff reports)."""
-    world = {"events": [], "fetched_head": HEAD, "gate_code": 0, "files": ["src/app.py"]}
+    files (what git diff reports), checks / reviews / decision (PR view fields), threads / more_threads (GraphQL
+    review threads), during_gate (knob updates applied while the gate runs)."""
+    world = {
+        "events": [],
+        "fetched_head": HEAD,
+        "gate_code": 0,
+        "files": ["src/app.py"],
+        "checks": [_run("check")],
+        "reviews": [],
+        "decision": "",
+        "threads": [],
+        "more_threads": False,
+        "during_gate": {},
+    }
     ev = world["events"]
 
     def git(*args, cwd=None, check=True):
@@ -276,12 +315,24 @@ def fake_integrate(monkeypatch, tmp_path):
             return json.dumps(
                 {"headRefOid": HEAD}
                 if fields == "headRefOid"
-                else _info(headRefOid=HEAD, isDraft=False, title="t", body="")
+                else _info(
+                    headRefOid=HEAD,
+                    isDraft=False,
+                    title="t",
+                    body="",
+                    statusCheckRollup=world["checks"],
+                    latestReviews=world["reviews"],
+                    reviewDecision=world["decision"],
+                )
             )
+        if args[:2] == ("api", "graphql"):
+            return json.dumps(_graphql(threads=world["threads"], more_threads=world["more_threads"]))
         return ""
 
     def run(cmd, **_):
         ev.append(("run", *cmd))
+        if "check" in cmd:
+            world.update(world["during_gate"])
         return subprocess.CompletedProcess(cmd, world["gate_code"] if "check" in cmd else 0, "", "")
 
     monkeypatch.setattr(workflow, "git", git)
@@ -333,6 +384,105 @@ def test_integrate_judges_harness_from_the_git_diff_of_the_pinned_shas(fake_inte
     diff = ev[_index(ev, lambda e: e[:2] == ("git", "diff"))]
     assert "--no-renames" in diff and diff[-1] == HEAD
     assert not any(e[0] == "run" for e in ev)
+
+
+def _merged(ev):
+    return any(e[:3] == ("gh", "pr", "merge") for e in ev)
+
+
+@pytest.mark.parametrize(
+    ("knob", "value", "expect"),
+    [
+        ("checks", [_run("check", conclusion="FAILURE")], "check: failing"),
+        ("checks", [_run("citations", status="IN_PROGRESS", conclusion="")], "citations: pending"),
+        ("checks", [{"__typename": "StatusContext", "context": "ci/x", "state": "PENDING"}], "ci/x: pending"),
+        ("checks", [{"__typename": "StatusContext", "context": "ci/x", "state": "ERROR"}], "ci/x: failing"),
+        ("reviews", [{"author": {"login": "ann"}, "state": "CHANGES_REQUESTED"}], "changes requested by ann"),
+        ("decision", "CHANGES_REQUESTED", "changes requested"),
+        ("threads", [_thread("devkit/x.py", 9)], "unresolved review thread devkit/x.py:9"),
+        ("more_threads", True, "more than 100 review threads"),
+        # duplicate runs of one check: the latest decides, whatever order the rollup lists them in
+        ("checks", [_run("board", started="2026-10-11T13:00:00Z", conclusion="FAILURE"), _run("board")], "board"),
+    ],
+)
+def test_integrate_refuses_unfinished_feedback_before_gating(fake_integrate, capsys, knob, value, expect):
+    fake_integrate[knob] = value
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    out = capsys.readouterr().out
+    assert "RESULT: refused" in out and expect in out and "--override" in out
+    assert not any(e[0] == "run" for e in fake_integrate["events"])
+    assert not _merged(fake_integrate["events"])
+
+
+def test_integrate_passes_green_neutral_skipped_checks_and_resolved_threads(fake_integrate):
+    fake_integrate["checks"] = [_run("a"), _run("b", conclusion="NEUTRAL"), _run("c", conclusion="SKIPPED")]
+    fake_integrate["threads"] = [_thread(resolved=True)]
+    fake_integrate["reviews"] = [{"author": {"login": "ann"}, "state": "APPROVED"}]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert _merged(fake_integrate["events"])
+
+
+def test_integrate_judges_each_check_by_its_latest_run(fake_integrate):
+    """Real rollups repeat a check per run (a downstream PR had two `board` runs): a later pass clears an earlier fail."""
+    fake_integrate["checks"] = [
+        _run("board", conclusion="FAILURE"),
+        _run("board", started="2026-10-11T13:00:00Z"),
+        _run("board", workflow="other", started="2026-10-11T11:00:00Z"),
+    ]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert _merged(fake_integrate["events"])
+
+
+def test_latest_checks_keeps_one_run_per_workflow_and_name():
+    runs = [_run("a", conclusion="FAILURE"), _run("a", started="2026-10-11T13:00:00Z"), _run("a", workflow="w2")]
+    status = {"__typename": "StatusContext", "context": "ci/x", "state": "SUCCESS"}
+    latest = workflow.latest_checks([*runs, status])
+    assert [c is runs[1] or c is runs[2] or c is status for c in latest] == [True] * 3 and len(latest) == 3
+
+
+@pytest.mark.parametrize(
+    ("knob", "value"),
+    [
+        ("threads", [_thread("late.py", 5)]),
+        ("checks", [_run("check"), _run("late", status="QUEUED", conclusion="")]),
+        ("reviews", [{"author": {"login": "ann"}, "state": "CHANGES_REQUESTED"}]),
+    ],
+)
+def test_integrate_refuses_feedback_that_arrives_during_the_gate(fake_integrate, capsys, knob, value):
+    fake_integrate["during_gate"] = {knob: value}
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert "during the gate" in capsys.readouterr().out
+    assert any(e[0] == "run" for e in fake_integrate["events"]) and not _merged(fake_integrate["events"])
+
+
+def test_override_covers_only_the_feedback_it_was_given(fake_integrate, capsys):
+    fake_integrate["threads"] = [_thread("a.py", 1)]
+    fake_integrate["during_gate"] = {"threads": [_thread("a.py", 1), _thread("b.py", 2)]}
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, override="owner said so") == 1
+    out = capsys.readouterr().out
+    assert "b.py:2" in out and "a.py:1" not in out.split("during the gate")[1]
+    assert not _merged(fake_integrate["events"])
+    assert not any(e[:3] == ("gh", "pr", "comment") for e in fake_integrate["events"])
+
+
+def test_integrate_override_merges_and_logs_the_reason_on_the_pr(fake_integrate):
+    fake_integrate["checks"] = [_run("citations", conclusion="FAILURE")]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, override="flaky link checker, see #12") == 0
+    ev = fake_integrate["events"]
+    log = _index(ev, lambda e: e[:3] == ("gh", "pr", "comment"))
+    body = ev[log][ev[log].index("--body") + 1]
+    assert "flaky link checker, see #12" in body and "citations: failing" in body
+    assert "Overriding" in body and "Merged" not in body  # posted before a merge that may still not happen
+    assert log < _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
+
+
+def test_integrate_override_needs_a_reason_and_dry_run_logs_nothing(fake_integrate, capsys):
+    fake_integrate["threads"] = [_thread()]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, override="  ") == 1
+    assert not _merged(fake_integrate["events"])
+    assert workflow.integrate(7, harness_ok=True, dry_run=True, override="reviewed by hand") == 0
+    assert not any(e[:3] == ("gh", "pr", "comment") for e in fake_integrate["events"])
+    assert "would log" in capsys.readouterr().out
 
 
 def test_changed_paths_lists_both_sides_of_a_rename(repo, monkeypatch):

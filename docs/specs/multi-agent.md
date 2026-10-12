@@ -37,6 +37,9 @@ Nothing assumes that two machines share a disk.
    This merges the PR onto `origin/main` in a throwaway worktree and re-runs the gate there. A worker's report is
    not evidence. If the gate passes, the PR merges, blocked items whose blockers closed move to ready, and the
    worktree is removed. A PR that touches harness files is refused until the lead has read that diff (`--harness-ok`).
+   Integrate also refuses a PR with failing or pending checks, a standing CHANGES_REQUESTED review or unresolved
+   review threads, unless `--override '<reason>'` is given; the reason is logged on the PR. The lead reads
+   `uv run dev board feedback <pr>` first and answers or fixes each comment.
 
 ## 3. Avoiding collisions
 - **Owns.** An issue lists the paths it may change. Two workers run at once only when their Owns do not overlap

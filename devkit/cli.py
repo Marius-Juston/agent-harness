@@ -115,6 +115,8 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("--payload", type=Path, default=os.environ.get("GITHUB_EVENT_PATH"))
     x = bs.add_parser("brief", help="everything an agent needs to start an item (spawn prompts stay one line)")
     x.add_argument("number", type=int)
+    x = bs.add_parser("feedback", help="a PR's comments and reviews since its last commit, and its unresolved threads")
+    x.add_argument("pr", type=int)
 
     x = sub.add_parser("pr", help="worker: push the gated branch, open the PR, move the item to review")
     x.add_argument("number", type=int)
@@ -127,6 +129,9 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("pr", type=int)
     x.add_argument("--harness-ok", action="store_true", help="you read the diff of harness files it touches")
     x.add_argument("--dry-run", action="store_true")
+    x.add_argument(
+        "--override", metavar="REASON", help="merge despite unfinished PR feedback; the reason is logged on the PR"
+    )
 
     x = sub.add_parser(
         "cite-check", help="resolve every source in research notes; flag dead links and title mismatches"
@@ -235,7 +240,7 @@ def run(a: argparse.Namespace) -> int:
         case "pr":
             print(workflow.pr(a.number, a.summary, a.draft))
         case "integrate":
-            return workflow.integrate(a.pr, a.harness_ok, a.dry_run)
+            return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override)
         case "cite-check":
             paths = [Path(p) for p in a.paths] or _changed_notes()
             if not paths:
@@ -321,6 +326,10 @@ def run_board(a: argparse.Namespace) -> int:
             print("\n".join(board.event(a.name, json.loads(Path(a.payload).read_text()))) or "nothing to move")
         case "brief":
             print(board.brief(a.number))
+        case "feedback":
+            print(
+                "\n".join(board.pr_feedback_lines(board.pr_feedback(a.pr))) or "no new comments, no unresolved threads"
+            )
     return 0
 
 
