@@ -104,6 +104,42 @@ def test_ratchet_accepts_exactly_the_covered_raises(before, value, to):
     assert (problems == []) == (value <= before or value <= to)
 
 
+def floors(**tests) -> dict:
+    return ratchets() | {"tests": tests}
+
+
+def test_a_test_floor_may_rise_or_appear_without_approval():
+    assert checks.ratchet_raises(floors(min_tests=10), floors(min_tests=5), [], OWNER) == []
+    assert checks.ratchet_raises(floors(min_coverage=80.0), ratchets(), [], OWNER) == []
+
+
+def test_lowering_or_removing_a_test_floor_needs_an_owner_approved_raise():
+    old = floors(min_tests=100, min_coverage=77)
+    (problem,) = checks.ratchet_raises(floors(min_tests=90, min_coverage=77), old, [], OWNER)
+    assert "tests.min_tests lowered 100 -> 90" in problem
+    (problem,) = checks.ratchet_raises(floors(min_tests=100), old, [], OWNER)
+    assert "tests.min_coverage lowered 77 -> None" in problem
+    ok = floors(min_tests=90, min_coverage=77) | {"raise": [raise_("tests.min_tests", 90)]}
+    assert checks.ratchet_raises(ok, old, [], OWNER) == []
+    stranger = floors(min_tests=90, min_coverage=77) | {"raise": [raise_("tests.min_tests", 90, "someone")]}
+    assert checks.ratchet_raises(stranger, old, [], OWNER)
+
+
+@given(st.integers(1, 10_000), st.integers(1, 10_000), st.integers(1, 10_000))
+def test_floor_accepts_exactly_the_covered_lowerings(before, value, to):
+    cur = floors(min_tests=value) | {"raise": [raise_("tests.min_tests", to)]}
+    problems = checks.ratchet_raises(cur, floors(min_tests=before), [], OWNER)
+    assert (problems == []) == (value >= before or value >= to)
+
+
+def test_floors_must_be_non_negative_numbers(tmp_path):
+    for bad in ('min_tests = "x"', "min_tests = -1", "min_coverage = 101", "min_coverage = true", "max_tests = 3"):
+        with pytest.raises(ValueError):
+            checks.test_floors(f"[tests]\n{bad}\n")
+    assert checks.test_floors("[tests]\nmin_tests = 3\nmin_coverage = 77.5\n") == {"min_tests": 3, "min_coverage": 77.5}
+    assert checks.test_floors("[defaults]\nagent = 1\n") == {}
+
+
 def test_repo_owner_from_origin(monkeypatch):
     monkeypatch.setattr(checks, "git", lambda *a, **k: "git@github.com:Marius-Juston/agent-harness.git")
     assert checks.repo_owner() == "Marius-Juston"
@@ -121,6 +157,19 @@ def test_check_ratchets_against_base(monkeypatch, tmp_path):
     assert ran.checked == 1 and len(ran.problems) == 1 and "600 -> 5000" in ran.problems[0]
     ran = checks.check_ratchets(None, owner=OWNER)
     assert not ran.problems and ran.warnings  # no merge base: said out loud, not silently skipped
+
+
+def test_check_ratchets_reports_a_bad_floor_and_a_lowered_one(monkeypatch, tmp_path):
+    (tmp_path / ".devkit").mkdir()
+    (tmp_path / ".devkit/ratchets.toml").write_text(
+        "[defaults]\nagent = 600\n[tests]\nmin_tests = 5\nmin_coverage = 120\n"
+    )
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    monkeypatch.setattr(checks, "measured_words", lambda: {AGENT: 10})
+    monkeypatch.setattr(checks, "git", lambda *a, **k: "[defaults]\nagent = 600\n[tests]\nmin_tests = 9\n")
+    problems = checks.check_ratchets("abc123", owner=OWNER).problems
+    assert len(problems) == 2
+    assert "min_coverage = 120" in problems[0] and "tests.min_tests lowered 9 -> 5" in problems[1]
 
 
 def _tree(tmp_path, files: dict[str, str]) -> None:

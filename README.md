@@ -43,7 +43,7 @@ from the template carries too; `uv run dev doctor` reports each key as found or 
 
 ## Configuration
 What differs between projects lives in the project: `[tool.devkit]` in its pyproject.toml (the keys and defaults
-are in [devkit/config.py](devkit/config.py)), word budgets in `.devkit/ratchets.toml`, the area-label map in
+are in [devkit/config.py](devkit/config.py)), word budgets and test floors in `.devkit/ratchets.toml`, the area-label map in
 `.github/labeler.yml`, and its own CLAUDE.md. Everything generic is changed here, released as a tag, and pulled into
 a project with `uvx copier update` (which also moves the devkit and plugin pins).
 
