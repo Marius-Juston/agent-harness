@@ -68,7 +68,9 @@ def test_the_project_pins_the_devkit_and_the_plugin_to_this_release(rendered):
     }
     # PyPI's `agent-harness` is an unrelated project: the requirement itself names the git tag, so `--no-sources`,
     # `uv export` and pip resolve this release, never PyPI's (docs/research/agent-harness.md, section 9).
-    assert py["dependency-groups"]["dev"] == [f"agent-harness @ git+https://github.com/Marius-Juston/agent-harness@{tag}"]
+    assert py["dependency-groups"]["dev"] == [
+        f"agent-harness @ git+https://github.com/Marius-Juston/agent-harness@{tag}"
+    ]
     cfg = config.parse(py["tool"]["devkit"])  # the rendered config is valid for this devkit
     assert cfg.plugins["harness-ops@agent-harness"] == f"Marius-Juston/agent-harness@{tag}"
     settings = json.loads((rendered / ".claude/settings.json").read_text())
