@@ -33,10 +33,23 @@ def test_summary_dash_reads_the_body_from_stdin(opened, monkeypatch):
     assert opened == ["Closes #33\n\nstdin body `$x` ünï\n"]
 
 
-def test_stdin_body_without_a_ref_line_gets_refs_prepended(opened, monkeypatch):
+def test_a_body_without_a_ref_line_closes_its_issue(opened, monkeypatch):
+    """#38: a complete hand-back gets 'Closes #N', so the merge closes the issue (PRs said 'Refs' and reopened it)."""
     monkeypatch.setattr("sys.stdin", io.StringIO("just text\n"))
     workflow.pr(33, "-", draft=False)
+    assert opened == ["Closes #33\n\njust text\n"]
+
+
+def test_a_partial_hand_back_refs_its_issue(opened, monkeypatch):
+    monkeypatch.setattr("sys.stdin", io.StringIO("just text\n"))
+    workflow.pr(33, "-", draft=False, partial=True)
     assert opened == ["Refs #33\n\njust text\n"]
+
+
+def test_an_explicit_ref_line_wins_over_the_default(opened, monkeypatch):
+    monkeypatch.setattr("sys.stdin", io.StringIO("Refs #33\n\nhalf done\n"))
+    workflow.pr(33, "-", draft=False)
+    assert opened == ["Refs #33\n\nhalf done\n"]
 
 
 def test_empty_stdin_is_refused_before_anything_is_pushed(opened, monkeypatch):
@@ -51,3 +64,10 @@ def test_summary_file_still_works(opened, tmp_path):
     f.write_text("Refs #33\n\nfrom a file\n")
     workflow.pr(33, str(f), draft=False)
     assert opened == ["Refs #33\n\nfrom a file\n"]
+
+
+def test_partial_with_a_closes_line_is_refused_before_anything_is_pushed(opened, monkeypatch):
+    monkeypatch.setattr("sys.stdin", io.StringIO("Closes #33\n\nhalf done\n"))
+    with pytest.raises(board.BoardError, match="--partial"):
+        workflow.pr(33, "-", draft=False, partial=True)
+    assert opened == []

@@ -1,6 +1,7 @@
 # Research: agent harness design for a multi-agent research and implementation repo
 
 Status: v1 (2026-10-11), the evidence behind this repository's design.
+Section 9 added 2026-10-12 (#61).
 Labels: SOURCED = cited and fetched; VERIFIED = measured (in the earlier repositories named below, from their own transcripts and records, which are private); BELIEVED = judgment; ASSUMED = unchecked premise.
 Search coverage: not recorded (written before `uv run dev lit status` existed; the evidence is mostly the earlier repositories' own records).
 Companions: [../specs/multi-agent.md](../specs/multi-agent.md) (the protocol this note justifies).
@@ -59,7 +60,13 @@ The harness is built from mechanisms measured on the agents of two earlier priva
 - A server's own wait comes first. Retry-After is delay-seconds or an HTTP-date ([RFC 9110, 10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#name-retry-after)). GitHub answers a primary or secondary rate limit with 403 or 429 ([rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)) and asks clients to honour retry-after, else x-ratelimit-reset when x-ratelimit-remaining is 0, else to wait at least a minute and then exponentially longer ([best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)).
 - *Design (BELIEVED):* `devkit/backoff.py` serves `dev lit`, `dev cite-check` and the gh wrapper: full jitter (base 2 s, cap 60 s), a hint honoured as a lower bound plus a random 0-20 % so the waiters it releases do not wake together, and, in `dev lit`, a cooldown shared through the bucket file that doubles on each throttle within 10 minutes and resets on a 200. gh prints no headers, so its wait is 60 s plus jitter.
 
-## 9. Recommendation
+## 9. The distribution name and dependency confusion (SOURCED; VERIFIED)
+- PyPI's `agent-harness` is an unrelated project (homepage `github.com/dschonholtz/agent_harness`), at 0.1.10 on 2026-10-12, above this harness's 0.1.4 (VERIFIED, `curl -s https://pypi.org/pypi/agent-harness/json`).
+- uv respects `[tool.uv.sources]` but no other tool does ("Sources are only respected by uv"), and `--no-sources` makes uv ignore the table, per [uv's dependency docs](https://docs.astral.sh/uv/concepts/projects/dependencies/) (SOURCED). uv's default `first-index` strategy exists "to prevent dependency confusion attacks" across indexes, and pinning a package to an index is also a `tool.uv.sources` entry, per [uv's index docs](https://docs.astral.sh/uv/concepts/indexes/) (SOURCED), so an index restriction has the same `--no-sources` hole.
+- With a bare `agent-harness` requirement and a git source, `uv lock` takes the git tag, but `uv lock --no-sources` took PyPI's 0.1.10 and `uv export --no-sources` printed `agent-harness==0.1.4`, which pip would fetch from PyPI. With a PEP 508 direct reference (`agent-harness @ git+…@v0.1.4`) all three resolved the git tag, and a `path` source still overrides the reference, which keeps the template's `harness_path` test override working (VERIFIED, uv 0.12.23, scratch projects, 2026-10-12).
+- *Design:* the rendered dev group names the git tag directly and keeps the `[tool.uv.sources]` entry; `tests/test_template.py` asserts both, after `copier update` as well. A rename was not needed (BELIEVED): it would break every existing consumer's requirement for no gain over the direct reference.
+
+## 10. Recommendation
 Adopted as built (BELIEVED, to be measured with `uv run dev agent-stats` and evals):
 - Word budgets: 600 per agent, 650 per skill, 600 for CLAUDE.md, only tightening.
 - Up to 12 concurrent subagents. The spawn guard holds builders and testers below 6 GB free memory and refuses all spawns at the quota cap (95 % weekly by default).
