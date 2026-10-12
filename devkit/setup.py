@@ -175,17 +175,30 @@ def plugin_steps() -> list[tuple[str, list[str]]]:
     return steps
 
 
+def git_steps() -> list[tuple[str, list[str]]]:
+    """Per-clone git config. The merge driver lets a merge keep one side of a generated file (`.gitattributes` names
+    it); `dev docs` regenerates it afterwards, and the gate fails if nobody did."""
+    from devkit.workflow import GENERATED_MERGE
+
+    return [
+        ("git rerere (replays conflict resolutions across worktrees)", ["git", "config", "rerere.enabled", "true"]),
+        ("git rerere autoupdate", ["git", "config", "rerere.autoupdate", "true"]),
+        ("git pull rebase off (merge commits keep PR history)", ["git", "config", "pull.rebase", "false"]),
+        *[(f"merge driver for generated files ({k})", ["git", "config", k, v]) for k, v in GENERATED_MERGE],
+    ]
+
+
 def setup() -> int:
     inside = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False)
     if inside.returncode != 0:
         subprocess.run(["git", "init", "-q", "-b", "main"], check=True)
         print("ok   git init (branch main)")
+    from devkit.workflow import POLLER
+
     steps = [
         ("uv sync", ["uv", "sync"]),
         ("generated references (dev docs)", ["uv", "run", "--quiet", "dev", "docs"]),
-        ("git rerere (replays conflict resolutions across worktrees)", ["git", "config", "rerere.enabled", "true"]),
-        ("git rerere autoupdate", ["git", "config", "rerere.autoupdate", "true"]),
-        ("git pull rebase off (merge commits keep PR history)", ["git", "config", "pull.rebase", "false"]),
+        *git_steps(),
         ("pre-commit hooks (prek)", ["uvx", "prek", "install"]),
         *plugin_steps(),
     ]
@@ -193,8 +206,6 @@ def setup() -> int:
         ok, out = _ok(cmd)
         already = "already" in out.lower()
         print(f"{'ok  ' if ok or already else 'FAIL'} {what}" + ("" if ok or already else f": {out[-300:]}"))
-    from devkit.workflow import POLLER
-
     print(f"""
 Still to do by hand:
 - run `claude` here once interactively and accept the trust dialog (headless agents need it)

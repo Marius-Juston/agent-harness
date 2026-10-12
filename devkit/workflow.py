@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 from pathlib import Path, PurePosixPath
 
 from devkit import board, checks, config
@@ -213,7 +214,9 @@ def pr_areas() -> list[str]:
     return board.path_areas(files, board.area_globs())
 
 
-def pr(number: int, summary: str | None, draft: bool) -> str:
+def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> str:
+    """Push the gated branch and open its PR. A body without a `Closes #N` / `Refs #N` first line gets `Closes #N`
+    (a complete hand-back: the merge closes the issue), or `Refs #N` with `partial` (the issue returns to ready)."""
     branch = git("branch", "--show-current")
     if branch in ("main", ""):
         raise board.BoardError("open PRs from an issue branch in a worktree, not from main")
@@ -223,8 +226,10 @@ def pr(number: int, summary: str | None, draft: bool) -> str:
         raise board.BoardError("run `uv run dev check` on this tip first: the PR must be gated")
     issue = board.get(number)
     body = _summary_body(number, summary)
+    if partial and re.match(r"Closes #\d+", body):
+        raise board.BoardError("--partial, but the summary starts with 'Closes #N': write 'Refs #N' or drop --partial")
     if not re.match(r"(Closes|Refs) #\d+", body):
-        body = f"Refs #{number}\n\n{body}"
+        body = f"{'Refs' if partial else 'Closes'} #{number}\n\n{body}"
     git("push", "-u", "origin", branch)
     args = [
         "pr",
@@ -347,21 +352,135 @@ def _pr_state(pr_number: int) -> tuple[dict, list[str]]:
     return info, unfinished(info, board.pr_feedback(pr_number))
 
 
+# Generated files never conflict: a merge keeps our side (`.gitattributes` names this driver for them, `dev setup`
+# and integrate define it) and `dev docs` regenerates them in the merged tree before the gate.
+GENERATED_DRIVER = "devkit-generated"
+GENERATED_MERGE = (
+    (f"merge.{GENERATED_DRIVER}.name", "generated file: keep one side, `uv run dev docs` regenerates it"),
+    (f"merge.{GENERATED_DRIVER}.driver", "true"),
+)
+REGENERATED = "Regenerate generated files after merging main (dev integrate)"
+PUSH_WAIT_S = 1.0  # between reads of the PR head after integrate pushed an update
+PUSH_TRIES = 15
+
+
+ATTR_SOURCE_GIT = (2, 40)  # `git --attr-source`
+
+
+def git_version() -> tuple[int, ...]:
+    m = re.search(r"(\d+)\.(\d+)", git("--version"))
+    return tuple(int(x) for x in m.groups()) if m else (0, 0)
+
+
+def merge_main(tree: Path, main: str) -> list[str]:
+    """Merge main into the PR head checked out at `tree`, as GitHub's "Update branch" would, with the generated-file
+    driver. Merge rules come from main's `.gitattributes` (`--attr-source`): an old branch must not bring back a
+    union rule that interleaves rewrites. Returns the paths that really conflict (the merge is then aborted), or []
+    when it merged or was current. Raises RuntimeError when git is too old or the merge failed without a conflict."""
+    if (have := git_version()) < ATTR_SOURCE_GIT:
+        need, got = ".".join(map(str, ATTR_SOURCE_GIT)), ".".join(map(str, have))
+        raise RuntimeError(f"integrate needs git >= {need} (--attr-source); this is git {got}")
+    config = [arg for key, value in GENERATED_MERGE for arg in ("-c", f"{key}={value}")]
+    merge = subprocess.run(
+        ["git", f"--attr-source={main}", *config, "merge", "--no-ff", "--no-edit", main],
+        cwd=tree,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if merge.returncode == 0:
+        return []
+    paths = git("diff", "--name-only", "--diff-filter=U", cwd=tree, check=False).splitlines()
+    git("merge", "--abort", cwd=tree, check=False)
+    if not paths:
+        raise RuntimeError(
+            f"git merge of main failed without a conflict: {(merge.stdout + merge.stderr).strip()[-300:]}"
+        )
+    return paths
+
+
+def regenerate(tree: Path) -> bool:
+    """`dev docs` in the merged tree, committing what it changed. True when it committed."""
+    docs = subprocess.run(
+        ["uv", "run", "--quiet", "dev", "docs"], cwd=tree, capture_output=True, text=True, check=False
+    )
+    if docs.returncode != 0:
+        raise RuntimeError(f"`dev docs` failed in the merged tree: {(docs.stdout + docs.stderr).strip()[-500:]}")
+    if not git("status", "--porcelain", cwd=tree):
+        return False
+    git("add", "-A", cwd=tree)
+    git("commit", "--no-verify", "-q", "-m", REGENERATED, cwd=tree)  # the gate runs on this tree next
+    return True
+
+
+def send_back(pr_number: int, info: dict, main: str, paths: list[str], dry_run: bool = False) -> list[str]:
+    """A real conflict with main: comment the paths on the PR and block each issue it links ('rebase on main'),
+    naming the worker to resume. Returns the workers (agent@host of each live claim)."""
+    branch = info.get("headRefName", "")
+    closes, own = board.linked(info.get("body") or "", branch)
+    issues = closes + own
+    workers = list(dict.fromkeys(f"{c.agent}@{c.host}" for n in issues if (c := board.get(n).claim())))
+    who = ", ".join(workers) or "the worker that opened it"
+    files = "\n".join(f"- `{p}`" for p in paths)
+    note = (
+        f"`dev integrate`: PR #{pr_number} conflicts with main ({main[:10]}) in:\n{files}\n\n"
+        f"Rebase on main: resume {who} on branch `{branch}` to merge `origin/main`, resolve these files, run "
+        "`uv run dev docs` and `uv run dev check`, push, and hand back. Then the lead reruns integrate."
+    )
+    reason = f"rebase on main: PR #{pr_number} conflicts with main in {', '.join(paths)}; resume {who} on `{branch}`"
+    if dry_run:
+        print(f"would comment on PR #{pr_number} and block {', '.join(f'#{n}' for n in issues) or 'no issue'}")
+        return workers
+    board.gh("pr", "comment", str(pr_number), "-R", board.repo(), "--body", note)
+    for n in issues:
+        board.block(n, reason)
+    return workers
+
+
+def _head_is(pr_number: int, tip: str) -> bool:
+    """After a push, wait until GitHub reports the PR head at `tip` (it lags the push by a moment)."""
+    for i in range(PUSH_TRIES):
+        if _remote_shas(pr_number)[0] == tip:
+            return True
+        if i + 1 < PUSH_TRIES:
+            time.sleep(PUSH_WAIT_S)
+    return False
+
+
+def result(pr_number: int, code: int, outcome: str, **fields: object) -> int:
+    """The last line integrate prints, for the lead to branch on: `RESULT-JSON: {"pr", "outcome", "exit", ...}`.
+    Outcomes: merged, would-merge, conflict, gate-failed, harness-review, refused, stopped, not-open."""
+    print("RESULT-JSON: " + json.dumps({"pr": pr_number, "outcome": outcome, "exit": code, **fields}))
+    return code
+
+
 def integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | None = None) -> int:
-    """Lead only: merge a PR after re-gating the merged tree (main + pull/N/head) in a throwaway worktree.
+    """`_integrate`, but every exit ends with a `result` line: a crash (even after a push) is `stopped` with its reason."""
+    try:
+        return _integrate(pr_number, harness_ok, dry_run, override)
+    except Exception as exc:  # the lead branches on the last line, whatever failed
+        traceback.print_exc()
+        print(f"RESULT: stopped (integrate failed: {exc}); check the PR branch and the board, then rerun")
+        return result(pr_number, 1, "stopped", reason=f"integrate failed: {type(exc).__name__}: {exc}")
+
+
+def _integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | None = None) -> int:
+    """Lead only: merge a PR after re-gating the merged tree in a throwaway worktree: main merged into pull/N/head,
+    generated files regenerated. When that tree differs from the head (the PR is behind main, or its generated files
+    are stale) it is pushed to the PR branch before the merge; a real conflict is sent back (`send_back`).
     Unfinished feedback (checks, requested changes, open threads) refuses it unless `override` gives a reason,
     which is logged on the PR just before the merge. Feedback is read again after the gate: what arrived during it
-    refuses the merge, override or not."""
+    refuses the merge, override or not. Issues close only after the merge; the last line printed is `result`."""
     info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
     if info["state"] != "OPEN" or info["isDraft"]:
         print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
-        return 1
+        return result(pr_number, 1, "not-open")
     if reason := refusal(info):
         print(f"RESULT: refused: {reason}")
-        return 1
+        return result(pr_number, 1, "refused", reason=reason)
     if override is not None and not override.strip():
         print("RESULT: refused: --override needs a reason")
-        return 1
+        return result(pr_number, 1, "refused", reason="--override needs a reason")
     if todo := unfinished(info, board.pr_feedback(pr_number)):
         if override is None:
             print(f"RESULT: refused: PR #{pr_number} has unfinished feedback:\n  " + "\n  ".join(todo))
@@ -369,7 +488,7 @@ def integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | N
                 f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, resolve the threads and "
                 "wait for the checks; or rerun with --override '<reason>' (logged on the PR)."
             )
-            return 1
+            return result(pr_number, 1, "refused", reason="unfinished feedback", feedback=todo)
         print(f"overriding unfinished feedback ({override}):\n  " + "\n  ".join(todo))
     head_ref, main_ref = f"refs/devkit/integrate/pr-{pr_number}", f"refs/devkit/integrate/main-{pr_number}"
     try:
@@ -378,29 +497,36 @@ def integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | N
         touched = changed_paths(main, head)
     except RuntimeError as exc:
         print(f"RESULT: stopped (cannot fetch or diff PR #{pr_number} against main): {exc}")
-        return 1
+        return result(pr_number, 1, "stopped", reason=f"cannot fetch or diff: {exc}")
     if head != info["headRefOid"]:
         print(f"RESULT: stopped (the PR head moved while fetching: {info['headRefOid'][:10]} -> {head[:10]}); rerun")
-        return 1
+        return result(pr_number, 1, "stopped", reason="the PR head moved while fetching")
     harness = [f for f in touched if is_harness(f)]
     if harness and not harness_ok:
         print("PR changes the harness (rules agents are judged by):\n  " + "\n  ".join(harness))
         print(f"Read that diff yourself (`git diff {main[:10]}...{head[:10]}`), then rerun with --harness-ok.")
-        return 2
+        return result(pr_number, 2, "harness-review", harness=harness)
     tmp = state_dir("integrate") / f"pr-{pr_number}"
-    _add_worktree(tmp, main)
+    _add_worktree(tmp, head)
     try:
-        merge = subprocess.run(
-            ["git", "merge", "--no-ff", "--no-edit", head], cwd=tmp, capture_output=True, text=True, check=False
+        try:
+            if conflicts := merge_main(tmp, main):
+                workers = send_back(pr_number, info, main, conflicts, dry_run=dry_run)
+                who = ", ".join(workers) or "its worker"
+                print(f"RESULT: conflict with main in {', '.join(conflicts)}; sent back, resume {who}")
+                return result(pr_number, 1, "conflict", conflicts=conflicts, resume=workers, branch=info["headRefName"])
+            regenerated = regenerate(tmp)
+        except RuntimeError as exc:
+            print(f"RESULT: stopped ({exc})")
+            return result(pr_number, 1, "stopped", reason=str(exc))
+        tip = git("rev-parse", "HEAD", cwd=tmp)
+        print(
+            f"gating PR #{pr_number} ({head[:10]}) merged with main {main[:10]} as {tip[:10]} in {tmp} ...", flush=True
         )
-        if merge.returncode != 0:
-            print(f"merge conflicts with main: send the branch back to rebase.\n{merge.stdout[-1500:]}")
-            return 1
-        print(f"gating the merged tree of PR #{pr_number} ({head[:10]} into main {main[:10]}) in {tmp} ...", flush=True)
         gate = subprocess.run(["uv", "run", "--quiet", "dev", "check", "--no-cache"], cwd=tmp, check=False)
         if gate.returncode != 0:
             print(f"RESULT: stopped (merged tree fails the gate); comment on PR #{pr_number} and send it back")
-            return 1
+            return result(pr_number, 1, "gate-failed")
     finally:
         git("worktree", "remove", "--force", str(tmp), check=False)
         git("update-ref", "-d", head_ref, check=False)
@@ -408,27 +534,49 @@ def integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | N
     if arrived := [t for t in _pr_state(pr_number)[1] if t not in todo]:
         print(f"RESULT: refused: feedback arrived on PR #{pr_number} during the gate:\n  " + "\n  ".join(arrived))
         print(f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate.")
-        return 1
+        return result(pr_number, 1, "refused", reason="feedback arrived during the gate", feedback=arrived)
     if todo:
         log = f"`dev integrate --override`: {override}\n\nOverriding:\n" + "\n".join(f"- {t}" for t in todo)
         if dry_run:
             print(f"would log on PR #{pr_number}:\n{log}")
         else:
             board.gh("pr", "comment", str(pr_number), "-R", board.repo(), "--body", log)
-    if reason := _merge_if_unchanged(pr_number, head, main, dry_run=dry_run):
+    update = {"updated": tip != head, "regenerated": regenerated, "head": tip}
+    if tip != head:  # behind main, or stale generated files: the gated tree goes onto the PR branch first
+        if dry_run:
+            print(f"would push {tip[:10]} (main merged in, generated files regenerated) to {info['headRefName']}")
+        else:
+            try:  # a fast-forward of the head: refused if the worker pushed meanwhile
+                git("push", "origin", f"{tip}:refs/heads/{info['headRefName']}")
+            except RuntimeError as exc:
+                print(f"RESULT: stopped (cannot update the PR branch; did the worker push? rerun): {exc}")
+                return result(pr_number, 1, "stopped", reason=f"cannot update the PR branch: {exc}", **update)
+            if not _head_is(pr_number, tip):
+                print(f"RESULT: stopped (GitHub does not show the pushed head {tip[:10]} yet); rerun integrate")
+                return result(pr_number, 1, "stopped", reason="pushed head not visible on GitHub", **update)
+    try:
+        reason = _merge_if_unchanged(pr_number, head if dry_run else tip, main, dry_run=dry_run)
+    except board.BoardError as exc:  # e.g. branch protection waiting for checks on the update just pushed
+        print(f"RESULT: stopped (GitHub refused the merge: {exc}); rerun integrate once its checks pass")
+        return result(pr_number, 1, "stopped", reason=f"GitHub refused the merge: {exc}", **update)
+    if reason:
         print(f"RESULT: stopped ({reason})")
-        return 1
+        return result(pr_number, 1, "stopped", reason=reason, **update)
     if dry_run:
         print("RESULT: would merge (dry run)")
-        return 0
-    moved = board.merged_pr(pr_number, info["body"] or "", info.get("headRefName", ""), info["baseRefName"])
+        return result(pr_number, 0, "would-merge", **update)
+    try:  # issues close only now, after the merge
+        moved = board.merged_pr(pr_number, info["body"] or "", info.get("headRefName", ""), info["baseRefName"])
+    except board.BoardError as exc:
+        print(f"RESULT: merged PR #{pr_number}, but the board update failed ({exc}): move its issue by hand")
+        return result(pr_number, 0, "merged", moved=[], board_error=str(exc), **update)
     for w in worktrees():
         if w["branch"] == info["headRefName"] and w["dirty"] == 0:
             git("worktree", "remove", w["path"], check=False)
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):
         git("-C", str(main_checkout()), "pull", "--ff-only", check=False)
     print(f"RESULT: merged PR #{pr_number}" + (f"; {', '.join(moved)}" if moved else ""))
-    return 0
+    return result(pr_number, 0, "merged", moved=moved, **update)
 
 
 def heartbeat(number: int, message: str) -> None:
