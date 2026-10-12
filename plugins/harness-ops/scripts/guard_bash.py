@@ -70,6 +70,12 @@ ENV_SAFE = {".env.example", ".env.sample", ".env.template", ".env.dist"}
 ENV_OK_CMDS = {"ls", "stat", "test", "[", "[[", "echo", "printf", "touch", "rm"}
 MESSAGE_OPTS = {"-m", "--message", "--title", "--body", "-b", "-t", "--subject"}  # their values are text, not paths
 MAX_DEPTH = 8
+# `git config` options that only read; any other flag (--add, --unset, -e, ...) makes the call a possible write
+CONFIG_READ_ACTIONS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "-l", "--list"}
+CONFIG_READ_FLAGS = {"--global", "--system", "--local", "--worktree", "--show-origin", "--show-scope", "--includes"}
+CONFIG_READ_FLAGS |= {"--no-includes", "-z", "--null", "--name-only", "--all", "--regexp", "--fixed-value"}
+CONFIG_READ_FLAGS |= {"--bool", "--int", "--bool-or-int", "--path", "--expiry-date", "--no-type"}
+CONFIG_VALUE_OPTS = {"-f", "--file", "--blob", "--type", "--default", "--url", "--value"}  # their value is not a name
 
 
 @dataclass
@@ -583,7 +589,7 @@ class Checker:
         if i >= len(args):
             return None
         sub, rest = args[i], args[i + 1 :]
-        if sub == "config" and any("hookspath" in a.lower() for a in rest):
+        if sub == "config" and any("hookspath" in a.lower() for a in rest) and not config_reads_only(rest):
             return HOOKS
         if any(long_opt(a, "--no-verify", 9) for a in rest):
             return HOOKS
@@ -655,6 +661,29 @@ def grep_pattern(argv: list[str]) -> int | None:
 
 COMMIT_VALUE = {"--message", "--file", "--reuse-message", "--reedit-message", "--template", "--author", "--date"}
 COMMIT_VALUE |= {"--fixup", "--squash", "--trailer", "--cleanup", "--pathspec-from-file"}
+
+
+def config_reads_only(rest: list[str]) -> bool:
+    """True when `git config <rest>` can only read: a get/list action, or a bare name. Unknown flags count as writes."""
+    names, flags, i = [], set(), 0
+    while i < len(rest):
+        a = rest[i]
+        opt = a.split("=", 1)[0]
+        if opt in CONFIG_VALUE_OPTS:
+            i += 1 if "=" in a else 2
+            continue
+        if a.startswith("-"):
+            if opt not in CONFIG_READ_FLAGS | CONFIG_READ_ACTIONS:
+                return False
+            flags.add(opt)
+        else:
+            names.append(a)
+        i += 1
+    if names[:1] in (["get"], ["list"]):
+        return True
+    if names[:1] and names[0] in ("set", "unset", "rename-section", "remove-section", "edit"):
+        return False
+    return bool(flags & CONFIG_READ_ACTIONS) or len(names) == 1
 
 
 def commit_skips_hooks(rest: list[str]) -> bool:

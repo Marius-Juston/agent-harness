@@ -102,6 +102,15 @@ def _skills() -> list[Path]:
     return sorted(p for s in config.get().surface for p in (root() / s / "skills").glob("*/SKILL.md"))
 
 
+def _rules() -> list[Path]:
+    """Every `.md` under a surface's rules/ directory: Claude Code discovers them recursively."""
+    return sorted(p for s in config.get().surface for p in (root() / s / "rules").rglob("*.md"))
+
+
+def _commands() -> list[Path]:
+    return sorted(p for s in config.get().surface for p in (root() / s / "commands").rglob("*.md"))
+
+
 def is_plugin(path: Path) -> bool:
     """True for a file inside a Claude Code plugin (a surface root with .claude-plugin/plugin.json)."""
     return any(
@@ -357,13 +366,33 @@ def supporting_words(skill: Path) -> int | None:
     return total
 
 
+def _split_lenient(p: Path) -> tuple[dict | None, str]:
+    """(frontmatter, body), or (None, whole text) when the frontmatter does not parse: Claude Code then ignores it
+    and loads the file as written."""
+    text = p.read_text(errors="replace")
+    try:
+        return frontmatter.split(text)
+    except ValueError:
+        return None, text
+
+
 def measured_words() -> dict[str, int]:
     """Words each budgeted text costs when loaded: the body plus an agent's initialPrompt, CLAUDE.md/AGENTS.md plus
-    what they @-import, and a skill's supporting files under `<skill dir>/*` (budgeted like the skill's body)."""
+    what they @-import, and a skill's supporting files under `<skill dir>/*` (budgeted like the skill's body).
+    Rules without `paths:` load at launch, so they count toward CLAUDE.md (the session context); a path-scoped rule
+    and a command each get their own budget (code.claude.com/docs/en/memory)."""
     out: dict[str, int] = {}
     for p in [root() / "CLAUDE.md", root() / "AGENTS.md"]:
         if p.exists():
             out[p.name] = frontmatter.words(p.read_text()) + imported_words(p)
+    for p in _rules():
+        meta, body = _split_lenient(p)
+        if (meta or {}).get("paths"):
+            out[str(p.relative_to(root()))] = frontmatter.words(body)  # loads with a matching file: own budget
+        else:
+            out["CLAUDE.md"] = out.get("CLAUDE.md", 0) + frontmatter.words(body)  # loads at launch, every session
+    for p in _commands():
+        out[str(p.relative_to(root()))] = frontmatter.words(_split_lenient(p)[1])
     for p in [*_agents(), *_skills()]:
         meta, body = frontmatter.split(p.read_text())
         rel = str(p.relative_to(root()))
@@ -389,11 +418,12 @@ def repo_owner() -> str | None:
 
 
 def _kind(rel: str) -> str:
-    """Budget kind of a measured file: agent, skill (a SKILL.md or a skill's `<dir>/*`), or context."""
+    """Budget kind of a measured file: agent, skill (a SKILL.md, a skill's `<dir>/*`, or a command, which loads on
+    invocation like a skill), or context (CLAUDE.md, AGENTS.md, a path-scoped rule)."""
     parts = Path(rel).parts
     surface = {Path(s).parts for s in config.get().surface}
     for i in range(len(parts)):
-        if parts[:i] in surface and parts[i : i + 1] in (("agents",), ("skills",)):
+        if parts[:i] in surface and parts[i : i + 1] in (("agents",), ("skills",), ("commands",)):
             return "agent" if parts[i] == "agents" else "skill"
     return "context"
 
