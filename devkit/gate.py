@@ -94,6 +94,7 @@ def _run(
 
 
 TEST_FLOOR_SLACK = 0.95  # suggested min_tests: this share of the passed count (one dropped test file still fails)
+TEST_FLOOR_STALE = 0.90  # suggest it once the floor is below this share (the gap keeps the notice from nagging)
 COVERAGE_SLACK = 2  # suggest raising min_coverage once the measured line % is this many points above it
 
 
@@ -107,7 +108,7 @@ def floor_problems(passed: int, percent: float | None, floors: dict) -> tuple[li
             problems.append(
                 f"{passed} tests passed, below the floor min_tests = {floor} ({where}): did a test file drop out?"
             )
-        elif floor < int(passed * TEST_FLOOR_SLACK) - 1:
+        elif floor < passed * TEST_FLOOR_STALE:
             notes.append(f"raise min_tests to {int(passed * TEST_FLOOR_SLACK)} ({passed} passed)")
     if (floor := floors.get("min_coverage")) is not None:
         if percent is None:

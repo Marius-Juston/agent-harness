@@ -95,6 +95,7 @@ def test_floor_problems_fail_below_a_floor_and_suggest_raising_one_left_behind()
     problems, notes = gate.floor_problems(200, 90.4, {"min_tests": 100, "min_coverage": 77})
     assert problems == []
     assert notes == ["raise min_tests to 190 (200 passed)", "raise min_coverage to 90 (90.4% measured)"]
+    assert gate.floor_problems(804, 78.2, {"min_tests": 759, "min_coverage": 77}) == ([], [])  # close: no nagging
 
 
 @given(st.integers(0, 5000), st.integers(0, 5000))
