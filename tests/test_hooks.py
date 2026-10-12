@@ -735,7 +735,13 @@ case "$*" in
   *python*) echo "GATE $FAKE_GATE" ;;
 esac
 """
-FAKE_GH = '#!/usr/bin/env bash\necho "$*" >> "$FAKE_LOG"\necho "$FAKE_PRS"\n'
+FAKE_GH = """#!/usr/bin/env bash
+echo "$*" >> "$FAKE_LOG"
+case "$*" in
+  "issue view"*) echo "{\\"labels\\": [{\\"name\\": \\"${FAKE_STATUS:-status:in-progress}\\"}]}" ;;
+  *) echo "$FAKE_PRS" ;;
+esac
+"""
 
 
 def _builder_repo(tmp_path, gate="yes", prs=None):
@@ -859,6 +865,18 @@ def test_completion_gate_skips_a_builder_off_an_issue_branch_with_a_warning(hook
     subprocess.run(["git", "-C", str(repo), "checkout", "-q", "main"], check=True)
     code, out, _ = hook("completion_gate.py", _stop(repo), env)
     assert code == 0 and "not an issue branch" in json.loads(out)["systemMessage"]
+
+
+def test_completion_gate_lets_a_builder_stop_on_a_blocked_item(hook, tmp_path):
+    """builder.md: a builder that finds a wrong test runs `uv run dev board block <n>` and stops, with no PR."""
+    repo, env = _builder_repo(tmp_path, gate="no", prs=[])
+    (repo / "wip.py").write_text("x = 1\n")
+    code, out, _ = hook("completion_gate.py", _stop(repo), {**env, "FAKE_STATUS": "status:blocked"})
+    assert code == 0 and "status:blocked" in json.loads(out)["systemMessage"]
+    assert "board block" not in (tmp_path / "calls.log").read_text()
+    # gh failing on the issue lookup is not a block: the gate still refuses.
+    (tmp_path / "bin/gh").write_text("#!/usr/bin/env bash\nexit 1\n")
+    assert json.loads(hook("completion_gate.py", _stop(repo), env)[1])["decision"] == "block"
 
 
 @pytest.mark.parametrize("payload", ["", "not json", "[]", json.dumps({"agent_type": 5})])

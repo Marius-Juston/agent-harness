@@ -61,6 +61,18 @@ def problem(top: str, branch: str, issue: str) -> str | None:
     return None
 
 
+def blocked(top: str, issue: str) -> bool:
+    """The item is status:blocked: the builder stopped on purpose (`uv run dev board block`, e.g. a wrong test), so
+    refusing would push it toward a PR it should not open. Unknown (gh fails) counts as not blocked."""
+    out = run(["gh", "issue", "view", issue, "--json", "labels"], top)
+    if out.returncode:
+        return False
+    try:
+        return any(label.get("name") == "status:blocked" for label in json.loads(out.stdout).get("labels", []))
+    except (ValueError, AttributeError):
+        return False
+
+
 def main() -> int:
     try:
         data = json.loads(sys.stdin.read())
@@ -84,6 +96,10 @@ def main() -> int:
     why = problem(top, branch, issue)
     if why is None:
         count_file.unlink(missing_ok=True)
+        return 0
+    if blocked(top, issue):
+        msg = f"completion gate: #{issue} is status:blocked on the board, so the builder may stop unfinished ({why})"
+        print(json.dumps({"systemMessage": msg}))
         return 0
     head = git(top, "rev-parse", "HEAD")
     seen = json.loads(count_file.read_text()) if count_file.exists() else {}
