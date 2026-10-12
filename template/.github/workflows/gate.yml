@@ -5,6 +5,7 @@ on:
     branches: [main]
 permissions:
   contents: read
+  issues: read
 concurrency:
   group: gate-${{ github.ref }}
   cancel-in-progress: true
@@ -20,6 +21,8 @@ jobs:
         with: { enable-cache: true }
       - run: uv sync --locked
       - name: gate (same command agents run)
+        env:
+          GH_TOKEN: ${{ github.token }} # reads the issue's weakening-ok approval
         run: uv run dev check --no-cache
   citations:
     if: github.event_name == 'pull_request'
