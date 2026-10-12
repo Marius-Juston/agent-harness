@@ -32,7 +32,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
 
-from devkit import backoff
+from devkit import backoff, netsafe
 from devkit.paths import state_dir
 
 CACHE_DAYS = 14
@@ -51,9 +51,11 @@ MATCH_FLOOR = 0.55
 
 
 def _get(url: str, timeout: int = 20) -> tuple[int, dict[str, str], str]:
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})
+    if why := netsafe.bad_scheme(url):
+        return 0, {}, why
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})  # noqa: S310 - http(s) only
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with netsafe.OPENER.open(req, timeout=timeout) as r:
             return r.status, dict(r.headers), r.read(400_000).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers or {}), ""
@@ -64,7 +66,7 @@ def _get(url: str, timeout: int = 20) -> tuple[int, dict[str, str], str]:
 TRIES = 2  # one retry of a transient answer; the next run retries again
 MAX_WAIT = 30.0  # seconds: a longer Retry-After leaves the link unchecked for this run instead of stalling it
 SLEEP: Callable[[float], None] = time.sleep
-RNG = random.Random()
+RNG = random.Random()  # noqa: S311 - retry jitter, not a secret
 
 
 def _fetch(url: str, timeout: int = 20, also: tuple[int, ...] = ()) -> tuple[int, str]:
@@ -109,7 +111,7 @@ def arxiv_titles(ids: list[str]) -> dict[str, str]:
         )
         if status != 200:
             raise RuntimeError(f"arXiv API answered {status or body}")
-        for entry in ET.fromstring(body).findall("a:entry", ns):
+        for entry in netsafe.parse_xml(body).findall("a:entry", ns):
             eid = (entry.findtext("a:id", "", ns) or "").rsplit("/", 1)[-1].split("v")[0]
             title = " ".join((entry.findtext("a:title", "", ns) or "").split())
             if eid and title and title.lower() != "error":

@@ -53,7 +53,7 @@ def passed_count(stdout: str, junit: Path) -> int:
     summary = [line for line in stdout.splitlines() if SUMMARY.match(line.strip())]
     by_line = re.search(r"(\d+) passed", summary[-1]) if summary else None
     try:
-        cases = ElementTree.parse(junit).getroot().iter("testcase")
+        cases = ElementTree.parse(junit).getroot().iter("testcase")  # noqa: S314 - the gate's own pytest wrote it
         by_junit = sum(1 for c in cases if not any(x.tag in ("skipped", "failure", "error") for x in c))
     except (OSError, ElementTree.ParseError):
         by_junit = 0

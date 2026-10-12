@@ -806,7 +806,7 @@ def test_a_bad_key_is_a_note_naming_the_source_not_the_key(tmp_path):
 
 
 def _redirect(src: str, dst: str):
-    req = urllib.request.Request(src, headers={"x-api-key": "fake-s2", "User-Agent": "ua"})
+    req = urllib.request.Request(src, headers={"x-api-key": "fake-s2", "User-Agent": "ua"})  # noqa: S310 - never opened
     return lit.KeepKeysOnHost().redirect_request(req, None, 302, "Found", {}, dst)
 
 

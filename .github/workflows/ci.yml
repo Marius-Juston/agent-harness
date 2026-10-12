@@ -3,6 +3,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "23 5 * * 1" # weekly: new advisories against an unchanged lock (only the security jobs run)
 permissions:
   contents: read
   issues: read
@@ -13,6 +15,7 @@ concurrency:
 jobs:
   check:
     # This repository's own gate: devkit, plugin and template tests, scrub test, budgets, lint.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -25,8 +28,44 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }} # reads the issue's weakening-ok approval
         run: uv run dev check --no-cache
+  security:
+    # Free stand-ins for GitHub secret scanning and dependency alerts, which private user-owned repositories do not
+    # get: gitleaks over every commit, uv audit (OSV) over uv.lock, and a CycloneDX SBOM of uv.lock kept with the run.
+    # Network-bound, so CI runs these rather than `dev check`. A false positive: add its fingerprint to .gitleaksignore,
+    # or `--ignore <id>` to the audit with the reason beside it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        # pinned: audit-command and sbom-export are preview features whose flags may change
+        with: { enable-cache: true, version: "0.12.23" }
+      - name: secrets in history (gitleaks, pinned in .pre-commit-config.yaml)
+        run: uvx prek@0.5.3 run -c .pre-commit-config.yaml --hook-stage manual gitleaks-history --all-files
+      - name: known vulnerabilities and yanked or deprecated packages (uv audit, OSV)
+        if: ${{ !cancelled() }}
+        run: uv audit --locked --preview-features audit-command
+      - name: SBOM (CycloneDX 1.5 from uv.lock)
+        if: ${{ !cancelled() }}
+        run: uv export --frozen --format cyclonedx1.5 --preview-features sbom-export --quiet --output-file sbom.cdx.json
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with: { name: sbom, path: sbom.cdx.json, if-no-files-found: error }
+  security-fixtures:
+    # The security job's checks still fail on a fake secret and a vulnerable pin (tests/test_security.py, live).
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { persist-credentials: false }
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with: { enable-cache: true, version: "0.12.23" } # same uv as the security job
+      - run: uv sync --locked
+      - run: uv run pytest -m live tests/test_security.py
   template:
     # A fresh project from this commit's template, with this commit's devkit, must pass its own gate.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -38,6 +77,7 @@ jobs:
         run: scripts/render_check.sh "$RUNNER_TEMP/rendered-project"
   plugin:
     # The marketplace and the plugin load: Claude Code's own validator, warnings as errors.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
