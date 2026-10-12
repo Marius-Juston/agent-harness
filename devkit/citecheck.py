@@ -5,7 +5,7 @@ This resolves every link and, where an authoritative record exists, compares the
 
 - arXiv ids (abs/, html/, pdf/ links): one batched query to the arXiv API; link text that looks like a title must
   match the record's title.
-- DOIs (doi.org links): the Crossref record; same title comparison.
+- DOIs (doi.org links): the Crossref record, else DataCite's (same title comparison), else the doi.org handle.
 - GitHub repositories: the API record (exists, archived?).
 - Any other http(s) link: answers with a status below 400.
 
@@ -37,13 +37,15 @@ from devkit.paths import state_dir
 
 CACHE_DAYS = 14
 UA = "agent-harness-devkit-citecheck/0.1 (research verification; mailto:noreply@example.invalid)"
-LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+)\)")
-BARE = re.compile(r"(?<![(\[])\bhttps?://[^\s)>\]`'\"]+")
-BARE_ARXIV = re.compile(r"\b(?:arXiv[: ]*)?(\d{4}\.\d{4,5})(?:v\d+)?\b")
+LINK = re.compile(r"\[([^\]]+)\]\((https?://(?:[^()\s]|\([^()\s]*\))+)\)")  # a DOI may hold "(83)"
+BARE = re.compile(r"(?<![(\[])\bhttps?://(?:[^\s()<>\]`'\"]|\([^\s()]*\))+")
+# an id right after '.', '/', '-' or a word character is part of a DOI or a path, not an arXiv id
+BARE_ARXIV = re.compile(r"(?:\barXiv[: ]*|(?<![\w./-]))(\d{4}\.\d{4,5})(?:v\d+)?\b")
 CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 ARXIV = re.compile(r"arxiv\.org/(?:abs|html|pdf)/(\d{4}\.\d{4,5})(?:v\d+)?")
 DOI = re.compile(r"doi\.org/(10\.\d{4,9}/[^\s?#]+)")
 GITHUB = re.compile(r"^https?://github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
+FLAKY = ("eur-lex.europa.eu", "federalregister.gov")  # answer 404/202 to CI runners for pages that exist
 TITLE_MIN_WORDS = 4
 MATCH_FLOOR = 0.55
 
@@ -69,8 +71,9 @@ def _fetch(url: str, timeout: int = 20, also: tuple[int, ...] = ()) -> tuple[int
     """(status, body) of `url`, retried through devkit.backoff while the answer is transient (or in `also`)."""
 
     def hint(res: tuple[int, dict[str, str], str]) -> float | None:
-        status, headers, _ = res
-        return backoff.hinted(headers, time.time()) if transient(status) or status in also else None
+        status, headers, body = res
+        retry = (transient(status) and not _tls(status, body)) or status in also
+        return backoff.hinted(headers, time.time()) if retry else None
 
     status, _, body = backoff.retry(
         lambda: _get(url, timeout), hint, tries=TRIES, sleep=SLEEP, rng=RNG, max_wait=MAX_WAIT
@@ -119,13 +122,7 @@ def arxiv_titles(ids: list[str]) -> dict[str, str]:
 def _check_one(url: str) -> dict:
     """One check; a transient answer (timeout, 5xx, 429, GitHub's 403 rate limit) is retried by _fetch."""
     if m := DOI.search(url):
-        status, body = _fetch(f"https://api.crossref.org/works/{urllib.parse.quote(m.group(1))}")
-        if status == 200:
-            title = (json.loads(body)["message"].get("title") or [""])[0]
-            return {"ok": True, "title": title}
-        if transient(status):
-            return {"ok": False, "transient": True, "why": f"Crossref {status or body[:80]}: not reachable now"}
-        return {"ok": False, "why": f"DOI not found at Crossref ({status})"}
+        return _check_doi(urllib.parse.quote(urllib.parse.unquote(m.group(1))))
     if m := GITHUB.match(url):
         status, body = _fetch(f"https://api.github.com/repos/{m.group(1)}/{m.group(2)}", also=(403,))
         if status == 200:
@@ -136,7 +133,12 @@ def _check_one(url: str) -> dict:
         if transient(status):
             return {"ok": False, "transient": True, "why": f"GitHub API {status or body[:80]}"}
         return {"ok": False, "why": f"GitHub repo not found ({status})"}
-    status, body = _fetch(url)
+    flaky = (urllib.parse.urlsplit(url).hostname or "").endswith(FLAKY)
+    status, body = _fetch(url, also=(404, 202) if flaky else ())
+    if _tls(status, body):  # reachable, broken chain: never retried, never retried insecurely
+        return {"ok": False, "unverified": True, "why": "unverified (TLS): the certificate chain does not verify"}
+    if flaky and status in (404, 202):
+        return {"ok": False, "unverified": True, "transient": True, "why": f"HTTP {status}: unverified (flaky host)"}
     if status in (401, 403, 999):  # paywalls and bot walls: the page may or may not exist
         return {"ok": False, "unverified": True, "why": f"HTTP {status}: unverified (cite a DOI or an open copy)"}
     if transient(status):
@@ -144,6 +146,33 @@ def _check_one(url: str) -> dict:
     if status < 400:
         return {"ok": True}
     return {"ok": False, "why": f"HTTP {status}"}
+
+
+def _check_doi(doi: str) -> dict:
+    """Crossref, then DataCite (Zenodo, figshare, ...), then the doi.org handle server (mEDRA, JaLC, ...), which
+    proves the DOI exists but gives no title. Missing only when all three say so."""
+    status, body = _fetch(f"https://api.crossref.org/works/{doi}")
+    if status == 200:
+        return {"ok": True, "title": (json.loads(body)["message"].get("title") or [""])[0]}
+    if transient(status):
+        return {"ok": False, "transient": True, "why": f"Crossref {status or body[:80]}: not reachable now"}
+    status, body = _fetch(f"https://api.datacite.org/dois/{doi}")
+    if status == 200:
+        titles = json.loads(body)["data"]["attributes"].get("titles") or [{}]
+        return {"ok": True, "title": titles[0].get("title", "")}
+    if transient(status):
+        return {"ok": False, "transient": True, "why": f"DataCite {status or body[:80]}: not reachable now"}
+    status, body = _fetch(f"https://doi.org/api/handles/{doi}")
+    if status == 200:
+        return {"ok": True}
+    if transient(status):
+        return {"ok": False, "transient": True, "why": f"doi.org {status or body[:80]}: not reachable now"}
+    return {"ok": False, "why": f"DOI not found at Crossref, DataCite or doi.org ({status})"}
+
+
+def _tls(status: int, body: str) -> bool:
+    """The certificate did not verify: an answer about the server's TLS setup, not a transient outage."""
+    return status == 0 and "CERTIFICATE_VERIFY_FAILED" in body
 
 
 def transient(status: int) -> bool:

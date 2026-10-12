@@ -390,3 +390,102 @@ def test_parallel_writers_and_readers_never_see_a_torn_cache(tmp_path):
     reader.join()
     assert bad == []
     assert len(json.loads(path.read_text())) == 6 * 20  # no writer lost another's entries
+
+
+# --- cite-check: DOIs and odd hosts (#35) ----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Pediatrics study https://doi.org/10.1001/jamapediatrics.2018.0232 shows",
+        "Br J Educ Psychol, doi 10.1111/j.2044-8279.2011.02041.x",
+        "see files/2401.12345.pdf and run-2401.12345",
+        "a2401.12345",
+    ],
+)
+def test_a_bare_id_inside_a_doi_or_path_is_not_an_arxiv_id(text):
+    assert citecheck.BARE_ARXIV.findall(text) == []
+
+
+@given(
+    st.sampled_from(".-/") | st.characters(categories=["L", "Nd"]),
+    st.from_regex(r"\d{4}\.\d{4,5}", fullmatch=True),
+    st.text(alphabet=" .,;)/-x", max_size=3),
+)
+def test_no_id_glued_to_a_doi_or_path_character_is_read_as_arxiv(before, ident, after):
+    assert citecheck.BARE_ARXIV.findall(f"10.1000/ab{before}{ident}{after}") == []
+
+
+@pytest.mark.parametrize("text", ["arXiv:2401.12345", "arXiv 2401.12345v2", "(2401.12345)", "id 2401.12345."])
+def test_a_bare_arxiv_id_is_still_found(text):
+    assert citecheck.BARE_ARXIV.findall(text) == ["2401.12345"]
+
+
+def test_a_link_keeps_balanced_parentheses_in_a_doi():
+    doi = "https://doi.org/10.1016/0361-476x(83)90019-x"
+    assert citecheck.LINK.findall(f"x [T]({doi}).") == [("T", doi)]
+    assert citecheck.BARE.findall(f"bare {doi} and (see https://e.org/a)") == [doi, "https://e.org/a"]
+
+
+def test_a_percent_encoded_doi_is_not_quoted_twice(net):
+    answers, _, tmp = net
+    answers["https://api.crossref.org/works/10.1016/0361-476x%2883%2990019-x"] = (200, '{"message": {"title": ["T"]}}')
+    _, problems, _ = citecheck.check_notes([_note(tmp, "https://doi.org/10.1016/0361-476x%2883%2990019-x")])
+    assert problems == []
+
+
+def test_a_datacite_doi_passes_after_crossref_404_and_its_title_is_compared(net):
+    answers, calls, tmp = net
+    doi = "10.5281/zenodo.1234567"
+    answers[f"https://api.crossref.org/works/{doi}"] = (404, "")
+    answers[f"https://api.datacite.org/dois/{doi}"] = (
+        200,
+        '{"data": {"attributes": {"titles": [{"title": "Agent Benchmark Dataset Release"}]}}}',
+    )
+    note = tmp / "note.md"
+    note.write_text(f"- [Agent Benchmark Dataset Release](https://doi.org/{doi})\n")
+    _, problems, _ = citecheck.check_notes([note])
+    assert problems == [] and f"https://api.datacite.org/dois/{doi}" in calls
+    note.write_text(f"- [A Completely Different Paper About Protein Folding](https://doi.org/{doi})\n")
+    _, problems, _ = citecheck.check_notes([note])
+    assert len(problems) == 1 and "does not match" in problems[0]
+
+
+def test_a_doi_only_the_handle_server_knows_passes(net):
+    answers, _, tmp = net
+    doi = "10.9999/medra.42"
+    answers[f"https://api.crossref.org/works/{doi}"] = (404, "")
+    answers[f"https://api.datacite.org/dois/{doi}"] = (404, "")
+    answers[f"https://doi.org/api/handles/{doi}"] = (200, '{"responseCode": 1, "handle": "10.9999/medra.42"}')
+    _, problems, _ = citecheck.check_notes([_note(tmp, f"https://doi.org/{doi}")])
+    assert problems == []
+
+
+def test_a_doi_nobody_knows_is_reported_missing(net):
+    answers, _, tmp = net
+    doi = "10.9999/nothing"
+    answers[f"https://api.crossref.org/works/{doi}"] = (404, "")
+    answers[f"https://api.datacite.org/dois/{doi}"] = (404, "")
+    answers[f"https://doi.org/api/handles/{doi}"] = (404, '{"responseCode": 100}')
+    _, problems, _ = citecheck.check_notes([_note(tmp, f"https://doi.org/{doi}")])
+    assert len(problems) == 1 and "DOI not found" in problems[0]
+
+
+@pytest.mark.parametrize("status", [404, 202])
+def test_a_flaky_official_source_is_unverified_and_not_cached(net, status):
+    answers, calls, tmp = net
+    url = "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679"
+    answers[url] = (status, "")
+    _, problems, notes = citecheck.check_notes([_note(tmp, url)])
+    assert problems == [] and len(notes) == 1 and "unverified" in notes[0]
+    assert calls.count(url) == citecheck.TRIES and not (tmp / "cite-cache.json").exists()
+
+
+def test_a_tls_error_is_unverified_not_a_problem(net):
+    answers, calls, tmp = net
+    url = "https://chapters.example.edu/ch3.pdf"
+    answers[url] = (0, "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed>")
+    _, problems, notes = citecheck.check_notes([_note(tmp, url)])
+    assert problems == [] and len(notes) == 1 and "unverified (TLS)" in notes[0]
+    assert calls.count(url) == 1  # a certificate error is not transient: no retry, never an insecure one
