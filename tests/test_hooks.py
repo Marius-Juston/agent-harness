@@ -222,6 +222,54 @@ def test_guard_bash_allows(hook, cmd):
     assert code == 0, cmd
 
 
+GIT_CONFIG_READS = [
+    "git config --get core.hooksPath",
+    "git config --get-all core.hooksPath",
+    "git config --get-regexp 'core\\.hooks.*'",
+    "git config --global --get core.hooksPath",
+    "git config --show-origin --get core.hooksPath",
+    "git config --type=path --get core.hooksPath",
+    "git config --file .git/config --get core.hooksPath",
+    "git config core.hooksPath",
+    "git config get core.hooksPath",
+    "git config get --all core.hooksPath",
+    "git config --list",
+    "git config -l --show-origin | grep -i hookspath",
+    "git config list --global",
+    "git -C sub config --get core.hooksPath",
+]
+GIT_CONFIG_WRITES = [
+    "git config core.hooksPath /dev/null",
+    "git config --global core.hooksPath /dev/null",
+    "git config --file .git/config core.hooksPath /dev/null",
+    "git config set core.hooksPath /dev/null",
+    "git config --add core.hooksPath /dev/null",
+    "git config --replace-all core.hooksPath /dev/null",
+    "git config --unset core.hooksPath",
+    "git config --unset-all core.hooksPath",
+    "git config unset core.hooksPath",
+    "git config --get core.hooksPath --add core.hooksPath /dev/null",
+    "git config --get --unset core.hooksPath",
+    "git config -e --get core.hooksPath",
+    "git -c core.hooksPath=/dev/null config --get core.hooksPath",
+    "git config --rename-section core.hooksPath x",
+    "git config --file=x core.hooksPath /dev/null",
+]
+
+
+@pytest.mark.parametrize("cmd", GIT_CONFIG_READS)
+def test_guard_bash_allows_reading_hooks_path(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}})
+    assert code == 0, (cmd, err)
+
+
+@pytest.mark.parametrize("cmd", GIT_CONFIG_WRITES)
+def test_guard_bash_blocks_writing_hooks_path(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}})
+    assert code == 2, cmd
+    assert "core.hooksPath" in err
+
+
 def _guard_module():
     spec = importlib.util.spec_from_file_location("guard_bash", HOOKS / "guard_bash.py")
     mod = importlib.util.module_from_spec(spec)
@@ -251,6 +299,18 @@ def test_guard_bash_never_crashes(cmd):
 def test_guard_bash_single_quoted_text_is_data(body):
     """Any text in single quotes, as an echo argument or a commit message, never trips a rule."""
     assert GUARD.Checker("/nonexistent").text(f"git commit -m '{body}'") is None
+
+
+@given(
+    st.lists(st.sampled_from(["--get", "--list", "--global", "--show-origin", "--type=path"]), max_size=4),
+    st.sampled_from(["--add", "--replace-all", "--unset", "--unset-all", "-e", "--edit", "--rename-section", "set"]),
+    st.lists(st.sampled_from(["--get", "--local", "-z", "/dev/null"]), max_size=3),
+    st.sampled_from(["core.hooksPath", "CORE.HOOKSPATH"]),
+)
+def test_guard_bash_git_config_write_action_is_never_a_read(before, write, after, key):
+    """A write action anywhere among read flags still refuses a core.hooksPath change."""
+    cmd = shlex.join(["git", "config", *before, write, *after, key, "/dev/null"])
+    assert GUARD.Checker("/nonexistent").text(cmd) == GUARD.HOOKS, cmd
 
 
 def test_guard_bash_bare_push_follows_current_branch(hook, tmp_path):
