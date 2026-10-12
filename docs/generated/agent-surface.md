@@ -62,6 +62,7 @@
 | `board list` | open items, one line each (STALE = in progress, no update for 6 h) |
 | `board next` | startable items: ready, blockers closed; by priority, then how much they unblock |
 | `board new` | create an item with a measurable DONE WHEN |
+| `board link` | add native links to an item; a blocked-by link that closes a cycle is refused |
 | `board claim` | claim an item for an agent (race-safe across machines) |
 | `board beat` | heartbeat / milestone comment on an item |
 | `board block` | mark blocked with a reason |
