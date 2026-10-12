@@ -20,7 +20,11 @@ Nothing assumes that two machines share a disk.
 ## 2. The cycle (one issue)
 1. **File.** `uv run dev board new --title ... --type research|build|test|infra|bug --prio P0..P3 --done "<measurable>" [--owns <path>] [--blocked-by N]`.
    Every DONE WHEN item is something a reviewer can check: a test, a number with a threshold, or an artifact.
-2. **Pick.** `uv run dev board next` lists ready items whose blockers are closed, by priority, then by how much they unblock.
+   The item meets the conventions below (§2a).
+2. **Pick.** `uv run dev board next` lists ready items whose blockers are closed. It ranks them by effective priority
+   (the highest of the item's own and of everything it transitively blocks), then by how many open items they
+   transitively unblock, and prints that reason on each line. `uv run dev board wave N` picks up to N of them whose
+   Owns overlap neither each other nor any item in progress or in review, for parallel dispatch.
 3. **Claim.** `uv run dev board claim N --agent <name> --branch N-<slug>`. Claiming is race-safe across machines: the
    earliest live claim comment wins and a loser withdraws. A claim with no update for 6 h shows as STALE. Take one
    over only with `--force`, after reading its last comment.
@@ -54,6 +58,20 @@ Nothing assumes that two machines share a disk.
    accepts only the GitHub Actions app (a posted status would not count; the refusal names the `app_id: -1` change
    for the owner) or has no stand-in. The board needs no scheduled job either: `dev orient` and `dev integrate` run
    `board sync`, so the template's `board.yml` is optional.
+
+## 2a. Conventions (`uv run dev board lint`)
+Every open item meets these. `board lint` lists what breaks them and exits 1. `--fix` makes the label edits that
+follow from the item itself: a missing priority becomes P2 and a missing status ready (blocked while a blocker is
+open); of several labels, the highest priority and the furthest status are kept; a `Research:`, `Experiment:` or
+`Epic:` title sets the type. The gate (as warnings, since the board is not the tree) and `dev orient` show them too.
+- **Labels.** Exactly one `type:`, one priority (P0..P3) and one `status:` label. An epic may have no status.
+- **Title.** At most 100 characters, with no trailing period. A research item starts `Research:` or `Experiment:`,
+  an epic starts `Epic:` (with `type:epic`), and every other item is `<component>: <outcome>`, for example
+  `board: lint conventions`. The type is in the labels, never in the title.
+- **Body.** DONE WHEN has at least one real condition (not empty, not a bare number). Build and infra items list
+  their Owns as backticked paths or globs.
+- **Links.** No blocked-by cycle. A ready item has no open blocker. An epic has sub-issues. An item that a merged PR
+  closes by keyword (`Closes #N`: every DONE WHEN met) is closed, not left open.
 
 ## 3. Avoiding collisions
 - **Owns.** An issue lists the paths it may change. Two workers run at once only when their Owns do not overlap

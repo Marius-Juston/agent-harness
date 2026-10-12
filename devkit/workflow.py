@@ -175,10 +175,11 @@ def orient() -> str:
     except board.BoardError as exc:
         synced = [f"failed ({exc})"]
     try:
-        issues, done = board.fetch(with_comments=True), board.closed_numbers()
+        issues, done = board.fetch(with_comments=True, links=board.ALL_LINK_FIELDS), board.closed_numbers()
         active = [i for i in issues if i.status in ("in-progress", "review", "blocked") and i.kind != "epic"]
         rows = [board._line(i, done) for i in active] or ["nothing in progress, review or blocked"]
         nxt = [board._line(i, done) for i in board.startable(issues, done=done)[:5]] or ["  (none)"]
+        bad = [f for f in board.lint(issues, done, {}) if not f.warn]
         board_part = [
             "",
             "## Board (GitHub issues; `uv run dev board list` for all)",
@@ -187,6 +188,9 @@ def orient() -> str:
             "next startable:",
             *nxt,
         ]
+        if bad:
+            n = len({f.number for f in bad})
+            board_part.append(f"board lint: {len(bad)} problem(s) on {n} item(s); `uv run dev board lint`")
     except board.BoardError as exc:
         board_part = ["", f"## Board unavailable: {exc}"]
     tail = ["", "## This machine", *board.cap(status().splitlines(), 10, "`uv run dev status`")]

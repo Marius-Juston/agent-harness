@@ -67,8 +67,9 @@ def test_startable_orders_by_priority_then_unblocks():
         mk(4, ["status:blocked", "P0"], "## Blocked by\n#3"),
         mk(5, ["status:ready", "P0"], "## Blocked by\n#1"),  # blocker still open: not startable
     ]
-    # P1 first; #1 and #3 each unblock one item, so the tie falls to the lower number; #5 waits on open #1
-    assert [i.number for i in board.startable(issues)] == [2, 1, 3]
+    # #1 and #3 inherit P0 from the items they block (#5, #4), so both start before the P1; each unblocks one item,
+    # so the tie falls to the lower number; #5 waits on open #1
+    assert [i.number for i in board.startable(issues)] == [1, 3, 2]
 
 
 def test_title_similarity():

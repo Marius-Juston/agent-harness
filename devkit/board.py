@@ -33,7 +33,7 @@ import socket
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from fnmatch import fnmatchcase
@@ -44,6 +44,7 @@ import yaml
 
 from devkit import backoff, config
 from devkit.paths import default_branch, git, root
+from devkit.ran import Ran
 
 STATUSES = ("ready", "in-progress", "review", "blocked")
 TYPES = ("research", "build", "test", "infra", "bug", "epic")
@@ -438,10 +439,10 @@ def gh_json(*args: str, fields: str, links: str) -> object:
         return json.loads(gh(*args, "--json", fields))
 
 
-def fetch(state: str = "open", with_comments: bool = False) -> list[Issue]:
+def fetch(state: str = "open", with_comments: bool = False, links: str = LINK_FIELDS) -> list[Issue]:
     fields = FIELDS + (",comments" if with_comments else "")
     args = ("issue", "list", "-R", repo(), "--state", state, "--limit", str(ISSUE_LIMIT))
-    return [_issue(d) for d in gh_json(*args, fields=fields, links=LINK_FIELDS)]
+    return [_issue(d) for d in gh_json(*args, fields=fields, links=links)]
 
 
 def closed_numbers() -> set[int]:
@@ -762,8 +763,54 @@ def listing(status: str | None = None, kind: str | None = None, as_json: bool = 
     return "\n".join(_line(i, done) for i in rows) or "no matching issues"
 
 
+class Rank(NamedTuple):
+    """What starting an item opens up: its effective priority (the highest of its own and of everything it
+    transitively blocks; `inherited` names the item it came from) and the open non-epic items downstream of it."""
+
+    priority: str
+    inherited: Ref | None
+    downstream: list[Ref]
+
+
+def ref_key(r: Ref) -> tuple[bool, int | str]:
+    """Sorts this repository's issues by number before other repositories' references."""
+    return (isinstance(r, str), r)
+
+
+def ranks(issues: list[Issue]) -> dict[Ref, Rank]:
+    """Each fetched item's Rank over the blocked-by graph of the fetched (open) items. Priority inheritance lets a
+    P3 that blocks a P0 start like a P0; a cycle or a closed blocker adds nothing."""
+    by = {i.number: i for i in issues}
+    dependents: dict[Ref, list[Ref]] = {}
+    for i in issues:
+        for b in i.blockers:
+            dependents.setdefault(b, []).append(i.number)
+    out: dict[Ref, Rank] = {}
+    for i in issues:
+        seen: set[Ref] = set()
+        todo: list[Ref] = [i.number]
+        while todo:
+            for d in dependents.get(todo.pop(), []):
+                if d not in seen and d != i.number:
+                    seen.add(d)
+                    todo.append(d)
+        prio, source = i.priority, None
+        for d in sorted(seen, key=ref_key):
+            if by[d].priority < prio:
+                prio, source = by[d].priority, d
+        out[i.number] = Rank(prio, source, sorted((d for d in seen if by[d].kind != "epic"), key=ref_key))
+    return out
+
+
+def reason(r: Rank) -> str:
+    prio = f"{r.priority} from {show(r.inherited)}" if r.inherited is not None else r.priority
+    shown = ",".join(map(show, r.downstream[:5])) + (",…" if len(r.downstream) > 5 else "")
+    return f"[{prio}, unblocks {len(r.downstream)}{': ' + shown if r.downstream else ''}]"
+
+
 def startable(issues: list[Issue], kind: str | None = None, done: set[Ref] = frozenset()) -> list[Issue]:
-    """Ready items whose blockers are all known closed (`done`); an unknown blocker counts as open."""
+    """Ready items whose blockers are all known closed (`done`); an unknown blocker counts as open. Ranked by
+    effective priority, then by how many items they transitively unblock, then by number (oldest first)."""
     ready = [
         i
         for i in issues
@@ -772,15 +819,236 @@ def startable(issues: list[Issue], kind: str | None = None, done: set[Ref] = fro
         and (not kind or i.kind == kind)
         and all(n in done for n in i.blockers)
     ]
-    unblocks = {i.number: sum(i.number in j.blockers for j in issues) for i in ready}
-    return sorted(ready, key=lambda i: (i.priority, -unblocks[i.number], i.number))
+    rank = ranks(issues)
+    return sorted(ready, key=lambda i: (rank[i.number].priority, -len(rank[i.number].downstream), i.number))
+
+
+def _ranked_lines(rows: list[Issue], issues: list[Issue], done: set[Ref]) -> str:
+    rank = ranks(issues)
+    return "\n".join(f"{_line(i, done)}  {reason(rank[i.number])}" for i in rows)
 
 
 def next_items(kind: str | None, count: int) -> str:
     issues = fetch()
     done = resolved(issues)
     rows = startable(issues, kind, done)[:count]
-    return "\n".join(_line(i, done) for i in rows) or "nothing startable (check `uv run dev board list`)"
+    return _ranked_lines(rows, issues, done) or "nothing startable (check `uv run dev board list`)"
+
+
+def owns_of(i: Issue) -> list[str]:
+    """The item's Owns entries: backticked paths or globs, a comma-separated list inside one backtick included."""
+    found = re.findall(r"`([^`]+)`", i.parts.get("Owns", ""))
+    return [p.strip() for entry in found for p in entry.split(",") if p.strip()]
+
+
+def overlap(a: list[str], b: list[str]) -> bool:
+    """Two Owns lists can touch the same file: an entry of one is a path, glob or prefix the other covers."""
+    return any(owned(x, [y]) or owned(y, [x]) for x in a for y in b)
+
+
+def wave(issues: list[Issue], n: int, done: set[Ref]) -> list[Issue]:
+    """Up to n startable items, in `next` order, whose Owns overlap neither each other nor any item in progress or
+    in review (greedy, after a sibling project's batching wave). An item with no Owns overlaps nothing."""
+    busy = [owns_of(i) for i in issues if i.status in ("in-progress", "review")]
+    chosen: list[Issue] = []
+    for i in startable(issues, done=done):
+        if len(chosen) == n:
+            break
+        mine = owns_of(i)
+        if not any(overlap(mine, other) for other in busy):
+            chosen.append(i)
+            busy.append(mine)
+    return chosen
+
+
+def wave_items(n: int) -> str:
+    issues = fetch()
+    done = resolved(issues)
+    return _ranked_lines(wave(issues, n, done), issues, done) or (
+        "nothing startable with Owns disjoint from work in progress (check `uv run dev board next`)"
+    )
+
+
+# Conventions every open item meets (docs/specs/multi-agent.md, "Conventions"). `board lint` reports them, the gate
+# and orient show them, and `--fix` makes the label edits that follow from the item itself.
+TITLE_MAX = 100
+TITLE_PREFIX = re.compile(r"(Research|Experiment|Epic):\s")
+PREFIX_KIND = {"Research": "research", "Experiment": "research", "Epic": "epic"}
+COMPONENT_TITLE = re.compile(r"[\w.+#/-]+(?: [\w.+#/-]+){0,3}: \S")  # '<component>: <outcome>'
+NEEDS_OWNS = ("build", "infra")
+FURTHEST = ("review", "in-progress", "blocked", "ready")  # of several status labels, --fix keeps the furthest
+
+
+class Finding(NamedTuple):
+    number: int
+    problem: str
+    add: tuple[str, ...] = ()  # the label edit --fix makes; none: a person fixes it
+    remove: tuple[str, ...] = ()
+    warn: bool = False
+
+
+def done_items(i: Issue) -> list[str]:
+    """DONE WHEN entries that say something: a bare `- [ ]`, `-` or number is not a condition."""
+    out = []
+    for line in i.parts.get("DONE WHEN", "").splitlines():
+        text = re.sub(r"^\s*[-*+]\s*(\[[ xX]\]\s*)?", "", line).strip()
+        if re.search(r"[^\W\d_]", text):
+            out.append(text)
+    return out
+
+
+def _label_findings(i: Issue, done: set[Ref]) -> tuple[str, list[Finding]]:
+    """(the item's kind, "" when no label or prefix says it; its label findings). A title prefix names the kind, so
+    it fixes the type label."""
+    n, found = i.number, []
+    m = TITLE_PREFIX.match(i.title)
+    said = PREFIX_KIND[m.group(1)] if m else None
+    types = [x for x in i.labels if x.startswith("type:")]
+    one = len(types) == 1 and types[0].split(":", 1)[1] in TYPES
+    kind = said or (i.kind if one else "")
+    if not one:
+        fix = ((f"type:{said}",), tuple(t for t in types if t != f"type:{said}")) if said else ((), ())
+        found.append(Finding(n, f"needs exactly one type: label, has {', '.join(types) or 'none'}", *fix))
+    elif said and types[0] != f"type:{said}":
+        found.append(Finding(n, f"title says {m[1]}: but the label is {types[0]}", (f"type:{said}",), (types[0],)))
+    prios = [p for p in PRIORITIES if p in i.labels]
+    if len(prios) != 1:
+        fix = (("P2",), ()) if not prios else ((), tuple(prios[1:]))  # the board's default, or keep the highest
+        found.append(Finding(n, f"needs exactly one priority label, has {', '.join(prios) or 'none'}", *fix))
+    states = [x for x in i.labels if x.startswith("status:")]
+    valid = [s for s in FURTHEST if f"status:{s}" in states]
+    waiting = [b for b in i.blockers if b not in done]
+    if (len(states) > 1 if kind == "epic" else len(states) != 1) or len(valid) < len(states):
+        want = [
+            f"status:{s}" for s in (valid[:1] if kind == "epic" else valid[:1] or ["blocked" if waiting else "ready"])
+        ]
+        add = tuple(s for s in want if s not in states)
+        rest = tuple(s for s in states if s not in want)
+        what = "at most one" if kind == "epic" else "exactly one"
+        found.append(Finding(n, f"needs {what} known status: label, has {', '.join(states) or 'none'}", add, rest))
+    elif states == ["status:ready"] and waiting:
+        found.append(
+            Finding(
+                n,
+                f"status:ready with an open blocker {','.join(map(show, waiting))}",
+                ("status:blocked",),
+                tuple(states),
+            )
+        )
+    return kind, found
+
+
+def _title_findings(t: str, kind: str) -> list[str]:
+    out = []
+    if len(t) > TITLE_MAX:
+        out.append(f"title is {len(t)} chars (max {TITLE_MAX})")
+    if t.rstrip().endswith("."):
+        out.append("title ends with a period")
+    m = TITLE_PREFIX.match(t)
+    if kind == "epic" and not t.startswith("Epic: "):
+        out.append("title of an epic starts 'Epic: '")
+    elif kind == "research" and not (m and PREFIX_KIND[m[1]] == "research"):
+        out.append("title of a research item starts 'Research: ' or 'Experiment: '")
+    elif kind not in ("epic", "research") and (m or not COMPONENT_TITLE.match(t)):
+        out.append("title is not '<component>: <outcome>'")
+    return out
+
+
+def lint(issues: list[Issue], done: set[Ref], merged: dict[int, list[int]]) -> list[Finding]:
+    """Every convention an open item breaks. `done`: blockers known closed (`resolved`); `merged`: issue -> merged
+    PRs that close it by keyword (`merged_closes`). A warning (warn=True) is worth a look but breaks no convention."""
+    by = {i.number: i for i in issues}
+    named_parent = {i.parent for i in issues if i.parent is not None}
+    titles: dict[str, list[int]] = {}
+    out: list[Finding] = []
+    for i in issues:
+        n = i.number
+        kind, found = _label_findings(i, done)
+        out += found
+        out += [Finding(n, p) for p in _title_findings(i.title, kind)]
+        if kind != "epic" and not done_items(i):
+            out.append(Finding(n, "DONE WHEN is empty (or only bare numbers)"))
+        if kind in NEEDS_OWNS and not owns_of(i):
+            out.append(Finding(n, f"type:{kind} without Owns (backticked paths)"))
+        if kind == "epic" and not (i.links and i.links.subs) and n not in named_parent:
+            out.append(Finding(n, "epic with no sub-issues"))
+        if n in merged:
+            prs = ", ".join(f"#{p}" for p in merged[n])
+            out.append(Finding(n, f"open, but merged PR {prs} closes it (every DONE WHEN met): close it or reopen"))
+        if i.status in ("in-progress", "review") and kind != "epic" and i.claim() is None:
+            out.append(Finding(n, f"status:{i.status} with no live claim", warn=True))
+        titles.setdefault(i.title.strip().lower(), []).append(n)
+
+    def open_deps(r: Ref) -> list[Ref]:
+        return [b for b in by[r].blockers if b in by] if r in by else []
+
+    out += [Finding(c[0], f"blocking cycle: {cycle_text(c)}") for c in cycles(sorted(by), open_deps)]
+    same = [ns for ns in titles.values() if len(ns) > 1]
+    out += [Finding(ns[0], f"same title as {', '.join(f'#{x}' for x in ns[1:])}", warn=True) for ns in same]
+    return out
+
+
+def merged_closes() -> dict[int, list[int]]:
+    """Issue -> merged PRs into the default branch that close it by keyword (the last PR_LIMIT merged)."""
+    out: dict[int, list[int]] = {}
+    args = ("pr", "list", "-R", repo(), "--state", "merged", "--base", default_branch(), "--limit", str(PR_LIMIT))
+    for p in json.loads(gh(*args, "--json", "number,body,headRefName")):
+        for n in linked(p.get("body") or "", p.get("headRefName") or "")[0]:
+            out.setdefault(n, []).append(p["number"])
+    return out
+
+
+def _findings() -> tuple[list[Issue], list[Finding]]:
+    issues = fetch(with_comments=True, links=ALL_LINK_FIELDS)
+    return issues, lint(issues, resolved(issues), merged_closes())
+
+
+def lint_board(fix: bool = False) -> tuple[str, int]:
+    """`board lint`: one line per finding, exit 1 on any problem left; `fix` makes the label edits, one per item."""
+    _, found = _findings()
+
+    def edit(add: Iterable[str], remove: Iterable[str]) -> str:
+        return " ".join([*(f"+{x}" for x in sorted(add)), *(f"-{x}" for x in sorted(remove))])
+
+    lines = [
+        f"#{f.number:<4} {'warning: ' if f.warn else ''}{f.problem}"
+        + (f" (--fix: {edit(f.add, f.remove)})" if (f.add or f.remove) and not fix else "")
+        for f in found
+    ]
+    left = [f for f in found if not f.warn and not (fix and (f.add or f.remove))]
+    if fix:
+        edits: dict[int, tuple[set[str], set[str]]] = {}
+        for f in found:
+            if f.add or f.remove:
+                add, remove = edits.setdefault(f.number, (set(), set()))
+                add.update(f.add)
+                remove.update(f.remove)
+        missing_labels_created(sorted({x for add, _ in edits.values() for x in add}))
+        for n, (add, remove) in edits.items():
+            args = ["issue", "edit", str(n), "-R", repo()]
+            args += ["--add-label", ",".join(sorted(add))] if add else []
+            args += ["--remove-label", ",".join(sorted(remove - add))] if remove - add else []
+            gh(*args)
+            lines.append(f"#{n:<4} fixed: {edit(add, remove - add)}")
+    hint = "; `uv run dev board lint --fix` makes the label edits" if left and not fix else ""
+    lines.append(f"{len(left)} problem(s) left{hint}")
+    return "\n".join(lines), 1 if left else 0
+
+
+def check_board() -> Ran:
+    """The gate's board stage. Findings are warnings: the board is shared remote state, not this tree, and a gate
+    pass is cached by the tree, so no PR fails for another item's label. Offline (or no gh) skips with a warning."""
+    ran = Ran("board conventions (warnings only)", allow_empty=True)
+    try:
+        issues, found = _findings()
+    except (BoardError, OSError) as e:
+        ran.warnings.append(f"board not read, skipped: {e}")
+        return ran
+    ran.checked = len(issues)
+    if found:
+        ran.warnings.append("`uv run dev board lint --fix` makes the label edits; titles and bodies need a person")
+    ran.warnings += [f"#{f.number} {f.problem}" for f in found]
+    return ran
 
 
 def claim(number: int, agent: str, branch: str, force: bool = False) -> str:
@@ -1063,7 +1331,7 @@ def brief(number: int) -> str:
             for c in i.comments[-3:]
         ]
         out += ["\n## Last comments", *cap("\n".join(last).splitlines(), SECTION_LINES, more)]
-    owns = re.findall(r"`([^`]+)`", p.get("Owns", ""))
+    owns = owns_of(i)
     busy = in_flight_files()
     hot = sorted(f"{f} ({', '.join(w)})" for f, w in busy.items() if owned(f, owns))
     if busy:
