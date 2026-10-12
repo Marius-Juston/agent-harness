@@ -9,6 +9,7 @@ _answers_file: .copier-answers.yml
 _skip_if_exists:
   - CLAUDE.md
   - README.md
+  - CHANGELOG.md   # the project's own release notes
 
 project_name:
   type: str
