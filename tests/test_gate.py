@@ -366,7 +366,8 @@ def fake_integrate(monkeypatch, tmp_path):
     """integrate against fake git, gh and subprocess: records every call in order. Knobs: fetched_head, gate_code,
     files (what git diff reports), checks / reviews / decision (PR view fields), threads / more_threads (GraphQL
     review threads), during_gate (knob updates applied while the gate runs), tip (HEAD of the merged tree: not HEAD
-    when main was merged in or files were regenerated), merge_code / conflicts (merging main into the head)."""
+    when main was merged in or files were regenerated), merge_code / conflicts (merging main into the head),
+    after_push (the rollups GitHub shows once the head moved, one per PR read; the last one repeats)."""
     world = {
         "events": [],
         "fetched_head": HEAD,
@@ -383,6 +384,7 @@ def fake_integrate(monkeypatch, tmp_path):
         "merge_code": 0,
         "conflicts": [],
         "blocked": [],
+        "after_push": [],
         "git_version": "git version 2.43.0",
     }
     ev = world["events"]
@@ -409,16 +411,19 @@ def fake_integrate(monkeypatch, tmp_path):
         ev.append(("gh", *args))
         if args[:2] == ("pr", "view"):
             fields = args[args.index("--json") + 1]
+            rollup = world["checks"]
+            if world["remote_head"] != HEAD and world["after_push"] and fields != "headRefOid":
+                rollup = world["after_push"][0] if len(world["after_push"]) == 1 else world["after_push"].pop(0)
             return json.dumps(
                 {"headRefOid": world["remote_head"]}
                 if fields == "headRefOid"
                 else _info(
-                    headRefOid=HEAD,
+                    headRefOid=world["remote_head"],
                     headRefName="5-x",
                     isDraft=False,
                     title="t",
                     body="Closes #5",
-                    statusCheckRollup=world["checks"],
+                    statusCheckRollup=rollup,
                     latestReviews=world["reviews"],
                     reviewDecision=world["decision"],
                 )
@@ -445,9 +450,15 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(workflow.time, "sleep", lambda s: None)
     monkeypatch.setattr(workflow, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
-    monkeypatch.setattr(workflow, "state_dir", lambda *p: tmp_path.joinpath(*p))
+    monkeypatch.setattr(workflow, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
+    workflow.config.get()  # resolve this repository's config with the real git, before subprocess.run is faked
     monkeypatch.setattr(workflow.subprocess, "run", run)
     return world
+
+
+def _made(path):
+    path.mkdir(parents=True, exist_ok=True)  # as paths.state_dir does
+    return path
 
 
 def _index(events, pred):
@@ -669,6 +680,108 @@ def _no_push(git):
         return "" if args[0] == "push" else git(*args, **kw)
 
     return wrapped
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """A fake clock that only `time.sleep` advances; records each sleep."""
+    state = {"now": 0.0, "sleeps": []}
+
+    def sleep(s):
+        state["sleeps"].append(s)
+        state["now"] += s
+
+    monkeypatch.setattr(workflow.time, "sleep", sleep)
+    monkeypatch.setattr(workflow, "CHECKS_CLOCK", lambda: state["now"])
+    return state
+
+
+def _status(context, state):
+    return {"__typename": "StatusContext", "context": context, "state": state, "startedAt": "", "completedAt": ""}
+
+
+def test_pending_checks_counts_running_and_not_yet_registered_checks():
+    info = {"statusCheckRollup": [_run("a", status="IN_PROGRESS"), _run("b"), _status("bot", "PENDING")]}
+    assert workflow.pending_checks(info, ["ci/b", "ci/c"]) == ["ci/a", "/bot", "ci/c (not started)"]
+    done = {"statusCheckRollup": [_run("a", conclusion="FAILURE"), _status("bot", "ERROR")]}
+    assert workflow.pending_checks(done, ["ci/a", "/bot"]) == []  # failed is complete: unfinished() judges it
+
+
+def test_after_pushing_an_update_integrate_waits_for_every_check_on_the_tip_then_merges(fake_integrate, clock, capsys):
+    """#72: a required check that has not even registered, an optional job still running: both are waited for, with
+    jittered sleeps from a floor, before the merge; nothing about branch protection is consulted."""
+    tip = "t" * 40
+    fake_integrate["tip"] = tip
+    fake_integrate["checks"] = [_run("check"), _run("template")]
+    fake_integrate["after_push"] = [
+        [],
+        [_run("check", status="QUEUED")],
+        [_run("check", status="IN_PROGRESS"), _run("template", status="IN_PROGRESS")],
+        [_run("check"), _run("template")],
+    ]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    ev = fake_integrate["events"]
+    assert _index(ev, lambda e: e[:2] == ("git", "push")) < _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
+    assert len(clock["sleeps"]) >= 3 and fake_integrate["after_push"] == [[_run("check"), _run("template")]]
+    floor = workflow.CHECKS_FLOOR_S
+    assert all(floor <= s <= floor + workflow.CHECKS_CAP_S for s in clock["sleeps"])
+    assert len(set(clock["sleeps"])) > 1  # jittered, not a fixed interval
+    assert _last_json(capsys.readouterr().out)["outcome"] == "merged"
+
+
+def test_a_check_that_fails_on_the_pushed_tip_refuses_the_merge(fake_integrate, clock, capsys):
+    fake_integrate["tip"] = "t" * 40
+    fake_integrate["after_push"] = [[_run("check", status="IN_PROGRESS")], [_run("check", conclusion="FAILURE")]]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert not _merged(fake_integrate["events"])
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "refused" and res["feedback"] == ["check check: failing (FAILURE)"]
+
+
+def test_an_override_still_covers_the_same_failure_on_the_pushed_tip(fake_integrate, clock):
+    fake_integrate["tip"] = "t" * 40
+    fake_integrate["checks"] = [_run("links", conclusion="FAILURE")]
+    fake_integrate["after_push"] = [[_run("links", status="IN_PROGRESS")], [_run("links", conclusion="FAILURE")]]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, override="flaky link checker") == 0
+
+
+def test_a_timeout_reports_waiting_and_a_rerun_resumes_without_pushing(fake_integrate, clock, capsys, monkeypatch):
+    """#72: checks still running at the deadline: outcome `waiting` with the tip; the rerun waits on that tip (it does
+    not refuse its pending checks), pushes nothing, and merges once they pass."""
+    tip = "t" * 40
+    monkeypatch.setattr(workflow.config, "get", lambda: workflow.config.Config(checks_wait_s=120))
+    fake_integrate["tip"] = tip
+    fake_integrate["after_push"] = [[_run("check", status="IN_PROGRESS")]]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert (res["outcome"], res["head"], res["pending"]) == ("waiting", tip, ["ci/check"])
+    assert sum(clock["sleeps"]) == pytest.approx(120) and not _merged(fake_integrate["events"])
+
+    fake_integrate["events"].clear()
+    fake_integrate["fetched_head"] = tip  # GitHub now has the pushed tip as the head; main has not moved
+    fake_integrate["after_push"] = [[_run("check", status="IN_PROGRESS")], [_run("check")]]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    ev = fake_integrate["events"]
+    assert not any(e[:2] == ("git", "push") for e in ev)
+    assert ev[_index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))][-2] == tip
+    assert _last_json(capsys.readouterr().out)["outcome"] == "merged"
+    assert not list(workflow.state_dir("integrate").glob("*.waiting.json"))
+
+
+def test_a_head_that_moves_while_waiting_stops(fake_integrate, clock, capsys, monkeypatch):
+    fake_integrate["tip"] = "t" * 40
+    gh = board.gh
+
+    def moved(*args, **kw):
+        out = gh(*args, **kw)
+        if args[:2] == ("pr", "view") and fake_integrate["remote_head"] != HEAD and "statusCheckRollup" in args[-1]:
+            return json.dumps(json.loads(out) | {"headRefOid": "w" * 40})
+        return out
+
+    monkeypatch.setattr(board, "gh", moved)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert not _merged(fake_integrate["events"])
+    assert "moved" in _last_json(capsys.readouterr().out)["reason"]
 
 
 def test_issues_move_only_after_the_merge(fake_integrate, monkeypatch, capsys):
