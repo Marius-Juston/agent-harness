@@ -222,6 +222,130 @@ def test_guard_bash_allows(hook, cmd):
     assert code == 0, cmd
 
 
+# Destructive local commands (#52): each loses work, maybe another worker's in a sibling worktree. The first
+# eight are the probe cases from a downstream harness-gap review; the second item names the rule's message.
+DESTRUCTIVE = [
+    ("git reset --hard HEAD~1", "RESET"),
+    ("git checkout -- .", "DISCARD"),
+    ("git clean -fdx", "CLEAN"),
+    ("rm -rf ../proj-worktrees", "RM"),
+    ("git stash drop", "STASH"),
+    ("git worktree remove --force ../x", "WORKTREE"),
+    ("git push --force origin x", "FORCE"),
+    ("git branch -D 12-foo", "BRANCH_D"),
+    ("git reset --hard", "RESET"),
+    ("git -C ../other reset --merge", "RESET"),
+    ("cd ../x && git reset --hard origin/main", "RESET"),
+    ("git checkout .", "DISCARD"),
+    ("git checkout HEAD -- :/", "DISCARD"),
+    ("git checkout -f main", "DISCARD"),
+    ("git checkout --force", "DISCARD"),
+    ("git checkout -- tests", "DISCARD"),  # a directory
+    ("git restore .", "DISCARD"),
+    ("git restore --worktree --staged .", "DISCARD"),
+    ("git switch --discard-changes main", "DISCARD"),
+    ("git switch -f main", "DISCARD"),
+    ("git clean -f", "CLEAN"),
+    ("git clean --force -d", "CLEAN"),
+    ("git clean -xdf", "CLEAN"),
+    ("git stash clear", "STASH"),
+    ("git -C .. stash drop stash@{0}", "STASH"),
+    ("git worktree remove -f ../x", "WORKTREE"),
+    ("git worktree remove ../x --force", "WORKTREE"),
+    ("git branch --delete --force 12-foo", "BRANCH_D"),
+    ("git branch -d -f 12-foo", "BRANCH_D"),
+    ("git branch -df 12-foo", "BRANCH_D"),
+    ("rm -rf /", "RM"),
+    ("rm -rf ~", "RM"),
+    ('rm -rf "$HOME"', "RM"),
+    ("rm -r ~/projects", "RM"),
+    ("rm -R ../*", "RM"),
+    ("rm --recursive --force ..", "RM"),
+    ("rm -rf .", "RM"),  # the worktree itself, from its root
+    ("rm -rf .git", "RM"),
+    ("rm -fr -- ../sibling", "RM"),
+    ("cd .. && rm -rf proj-worktrees", "RM"),
+    ("bash -c 'git reset --hard'", "RESET"),
+    ("sudo rm -rf /etc", "RM"),
+    ("find . -name x -exec rm -rf ../y \\;", "RM"),
+]
+DESTRUCTIVE_OK = [
+    "git reset",
+    "git reset --soft HEAD~1",
+    "git reset HEAD -- file.py",
+    "git reset --keep HEAD~1",
+    "git checkout main",
+    "git checkout -b 12-x origin/main",
+    "git checkout -- README.md",  # one file of your own worktree
+    "git checkout HEAD~1 -- pyproject.toml",
+    "git restore README.md",
+    "git restore --staged .",
+    "git switch 12-x",
+    "git switch -c 12-x",
+    "git clean -n",
+    "git clean -nfd",  # a dry run never deletes
+    "git clean --dry-run -fdx",
+    "git stash list",
+    "git stash push -u -m tag",
+    "git stash apply abc123",
+    "git stash show -p",
+    "git worktree remove ../x",
+    "git worktree list",
+    "git worktree prune",
+    "git branch -d 12-foo",
+    "git branch -f 12-foo origin/main",
+    "git branch -vv",
+    "rm -rf build",
+    "rm -rf .scratch/out dist/*",
+    "rm -r ./tests/__pycache__",
+    "rm -f ../notes.txt",  # not recursive
+    "rm file.py",
+    'rm -rf "$tmp"',  # a dynamic target cannot be checked here
+    "git commit -m 'never git reset --hard or rm -rf /'",
+    "echo 'git stash clear'",
+]
+
+
+@pytest.mark.parametrize(("cmd", "rule"), DESTRUCTIVE)
+def test_guard_bash_blocks_destructive_commands_with_a_safe_alternative(hook, tmp_path, cmd, rule):
+    repo = _repo(tmp_path)
+    (repo / "tests").mkdir()
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "cwd": str(repo)})
+    assert code == 2, cmd
+    assert f"Blocked by project rule: {getattr(GUARD, rule)}" in err, (cmd, err)
+
+
+@pytest.mark.parametrize("cmd", DESTRUCTIVE_OK)
+def test_guard_bash_allows_benign_variants_of_destructive_commands(hook, tmp_path, cmd):
+    repo = _repo(tmp_path)
+    (repo / "tests").mkdir()
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "cwd": str(repo)})
+    assert code == 0, (cmd, err)
+
+
+@pytest.mark.parametrize("rule", ["RESET", "DISCARD", "CLEAN", "RM", "STASH", "WORKTREE", "BRANCH_D"])
+def test_every_destructive_rule_names_a_safe_alternative(rule):
+    assert "`" in getattr(GUARD, rule), rule  # the alternative is a command to run instead
+
+
+def test_guard_bash_rm_outside_a_repository_is_checked_against_the_cwd(hook, tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    for cmd, code in [("rm -rf sub", 0), ("rm -rf ../other", 2), (f"rm -rf {tmp_path}", 2)]:
+        got, _, _ = hook("guard_bash.py", {"tool_input": {"command": cmd}, "cwd": str(work)})
+        assert got == code, cmd
+
+
+def test_guard_bash_rm_allows_the_temp_dir_unless_the_work_lives_in_it(hook, tmp_path):
+    """The temp dir is scratch space, but when the worktree itself sits in it, its siblings are other work."""
+    temp, repo = tmp_path / "temp", _repo(tmp_path)
+    temp.mkdir()
+    env = {**os.environ, "TMPDIR": str(temp)}
+    for cwd, code in [(repo, 0), (temp / "w", 2)]:
+        got, _, _ = hook("guard_bash.py", {"tool_input": {"command": f"rm -rf {temp}/x"}, "cwd": str(cwd)}, env)
+        assert got == code, cwd
+
+
 GIT_CONFIG_READS = [
     "git config --get core.hooksPath",
     "git config --get-all core.hooksPath",
@@ -311,6 +435,30 @@ def test_guard_bash_git_config_write_action_is_never_a_read(before, write, after
     """A write action anywhere among read flags still refuses a core.hooksPath change."""
     cmd = shlex.join(["git", "config", *before, write, *after, key, "/dev/null"])
     assert GUARD.Checker("/nonexistent").text(cmd) == GUARD.HOOKS, cmd
+
+
+def _on_failure_outcome(code: int, on_failure: str) -> str:
+    """Claude Code's documented PreToolUse outcome for a command hook's exit code (v2.1.295+): 0 allows, 2 blocks,
+    and any other code is a failure that blocks only with `onFailure: "block"`.
+    https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails"""
+    if code in (0, 2):
+        return "allow" if code == 0 else "block"
+    return "block" if on_failure == "block" else "allow"
+
+
+@pytest.mark.parametrize("name", ["guard_bash.py", "edit_guard.py"])
+def test_a_crashing_guard_blocks_the_call(hook, tmp_path, name):
+    """#46: a guard that cannot run (here: an import that raises) refuses the call instead of allowing it."""
+    data = json.loads((HOOKS.parent / "hooks/hooks.json").read_text())
+    [entry] = [h for g in data["hooks"]["PreToolUse"] for h in g["hooks"] if h["command"].endswith(f"/{name}")]
+    (tmp_path / "json.py").write_text("raise RuntimeError('broken guard')\n")
+    env = {**os.environ, "PYTHONPATH": str(tmp_path)}
+    payload = {"tool_input": {"command": "git push origin main", "file_path": "uv.lock"}}
+    code, _, err = hook(name, payload, env)
+    assert code not in (0, 2) and "broken guard" in err
+    assert entry.get("onFailure") == "block"
+    assert _on_failure_outcome(code, entry["onFailure"]) == "block"
+    assert _on_failure_outcome(code, "continue") == "allow"  # the default this replaces
 
 
 def test_guard_bash_bare_push_follows_current_branch(hook, tmp_path):
