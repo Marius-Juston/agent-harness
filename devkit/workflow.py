@@ -273,7 +273,7 @@ def refusal(info: dict) -> str | None:
 
 def unfinished(info: dict, threads: list[dict]) -> list[str]:
     """Feedback a merge would bury: failing or pending checks, a standing CHANGES_REQUESTED review, unresolved
-    review threads. Every check counts, required or not (TheEye #164 merged over a failing optional job)."""
+    review threads. Every check counts, required or not: a PR once merged over a failing optional job."""
     out = []
     for c in info.get("statusCheckRollup") or []:
         name = c.get("name") or c.get("context") or "?"
