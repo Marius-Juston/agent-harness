@@ -12,6 +12,8 @@ from types import SimpleNamespace
 
 import pytest
 import yaml
+from hypothesis import given
+from hypothesis import strategies as st
 
 from devkit import board, gate, workflow
 
@@ -79,6 +81,87 @@ def test_a_real_pass_is_counted(tmp_path):
     (tmp_path / "test_a.py").write_text("def test_a():\n    assert True\n")
     ran = gate._run("tests", [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", str(tmp_path)])
     assert ran.ok and ran.checked == 1
+
+
+def test_floor_problems_fail_below_a_floor_and_suggest_raising_one_left_behind():
+    assert gate.floor_problems(100, 80.0, {}) == ([], [])
+    problems, _ = gate.floor_problems(9, None, {"min_tests": 10})
+    assert problems == [
+        "9 tests passed, below the floor min_tests = 10 (.devkit/ratchets.toml): did a test file drop out?"
+    ]
+    problems, _ = gate.floor_problems(10, 76.9, {"min_tests": 10, "min_coverage": 77})
+    assert problems == ["line coverage 76.9% is below the floor min_coverage = 77 (.devkit/ratchets.toml)"]
+    problems, _ = gate.floor_problems(10, None, {"min_coverage": 77})
+    assert problems and "no coverage data" in problems[0]
+    problems, notes = gate.floor_problems(200, 90.4, {"min_tests": 100, "min_coverage": 77})
+    assert problems == []
+    assert notes == ["raise min_tests to 190 (200 passed)", "raise min_coverage to 90 (90.4% measured)"]
+    assert gate.floor_problems(804, 78.2, {"min_tests": 759, "min_coverage": 77}) == ([], [])  # close: no nagging
+
+
+@given(st.integers(0, 5000), st.integers(0, 5000))
+def test_the_test_floor_fails_exactly_below_it(passed, floor):
+    problems, _ = gate.floor_problems(passed, None, {"min_tests": floor})
+    assert bool(problems) == (passed < floor)
+
+
+def _project(r, body="X = 1\n"):
+    (r / "m.py").write_text(body)
+    (r / "test_m.py").write_text("import m\n\n\ndef test_x():\n    assert m.X == 1\n")
+
+
+def test_tests_stage_enforces_floors_and_prints_report_only_diff_coverage(repo):
+    _project(repo)
+    _sh(repo, "git", "add", ".")
+    _sh(repo, "git", "commit", "-q", "-m", "tests")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip()
+    _project(repo, "X = 1\n\n\ndef untested():\n    return 2\n")
+    _sh(repo, "git", "commit", "-qam", "change")
+    cmd = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-p", "no:randomly", "test_m.py"]
+    ran = gate.tests_stage(cmd, {"min_tests": 1, "min_coverage": 50}, base, cwd=repo)
+    assert ran.ok, ran.problems
+    assert ran.checked == 1
+    (diff,) = [n for n in ran.notes if n.startswith("diff coverage")]
+    assert "50% of 2 changed" in diff and "m.py:5" in diff  # report-only: uncovered, still ok
+    assert not list(repo.glob(".coverage*"))  # the data file lives in a temporary directory
+    ran = gate.tests_stage(cmd, {"min_tests": 2, "min_coverage": 99}, base, cwd=repo)
+    assert not ran.ok and len(ran.problems) == 2
+
+
+def test_tests_stage_without_a_coverage_floor_does_not_measure_coverage(repo):
+    _project(repo)
+    cmd = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "test_m.py"]
+    ran = gate.tests_stage(cmd, {}, None, cwd=repo)
+    assert ran.ok and ran.notes == []
+
+
+def test_a_failing_run_reports_its_own_output_not_the_floors(repo):
+    (repo / "test_m.py").write_text("def test_x():\n    assert False\n")
+    cmd = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "test_m.py"]
+    ran = gate.tests_stage(cmd, {"min_tests": 5, "min_coverage": 90}, None, cwd=repo)
+    assert not ran.ok and not any("floor" in p for p in ran.problems)
+
+
+def test_diff_coverage_never_fails_the_stage_when_it_cannot_measure(repo, monkeypatch):
+    assert gate.diff_coverage(repo / "missing.xml", "HEAD", cwd=repo)[0].startswith("diff coverage: not measured")
+    monkeypatch.setattr(gate, "tool", lambda name: None)
+    assert "diff-cover not found" in gate.diff_coverage(repo / "missing.xml", "HEAD", cwd=repo)[0]
+
+
+@given(st.sets(st.integers(1, 200)))
+def test_ranges_round_trip(lines):
+    spans = [s.split("-") for s in gate._ranges(list(lines)).split(",") if s]
+    assert {n for s in spans for n in range(int(s[0]), int(s[-1]) + 1)} == lines
+
+
+def test_bad_or_missing_floors_read_as_none(monkeypatch, tmp_path):
+    monkeypatch.setattr(gate, "root", lambda: tmp_path)
+    assert gate._floors() == {}
+    (tmp_path / ".devkit").mkdir()
+    (tmp_path / ".devkit/ratchets.toml").write_text("[tests]\nmin_tests = -3\n")
+    assert gate._floors() == {}
+    (tmp_path / ".devkit/ratchets.toml").write_text("[tests]\nmin_tests = 3\n")
+    assert gate._floors() == {"min_tests": 3}
 
 
 @pytest.mark.parametrize(

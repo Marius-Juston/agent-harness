@@ -1,5 +1,5 @@
 {
-  "description": "agent-harness guards (fail closed): uv only, no pushes to main, no destructive git or rm, no secrets, outlines for long reads, ruff at edit time, resource gates before spawns, worktrees beside the repository, orientation at session start",
+  "description": "agent-harness guards (fail closed): uv only, no pushes to main, no destructive git or rm, no secrets, outlines for long reads, ruff at edit time, resource gates before spawns, a completion gate on builders, worktrees beside the repository, orientation at session start",
   "hooks": {
     "SessionStart": [
       {
@@ -37,13 +37,38 @@
         ]
       },
       {
-        "matcher": "Agent",
+        "matcher": "Agent|Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/spawn_guard.sh",
+            "timeout": 10,
+            "statusMessage": "Checking the weekly quota before spawning"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
         "hooks": [
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/spawn_guard.sh",
             "timeout": 330,
-            "statusMessage": "Checking quota and free memory before spawning"
+            "statusMessage": "Waiting for free memory before a heavy agent starts"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "builder$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/completion_gate.py",
+            "timeout": 240,
+            "statusMessage": "Checking the builder's tree, gate and PR before it stops"
           }
         ]
       }
