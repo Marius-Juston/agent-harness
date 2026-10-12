@@ -7,6 +7,7 @@ on:
     - cron: "23 5 * * 1" # weekly: new advisories against an unchanged lock (only the security jobs run)
 permissions:
   contents: read
+  issues: read
 concurrency:
   group: gate-${{ github.ref }}
   cancel-in-progress: true
@@ -23,6 +24,8 @@ jobs:
         with: { enable-cache: true }
       - run: uv sync --locked
       - name: gate (same command agents run)
+        env:
+          GH_TOKEN: ${{ github.token }} # reads the issue's weakening-ok approval
         run: uv run dev check --no-cache
   security:
     # Free stand-ins for GitHub secret scanning and dependency alerts, which private user-owned repositories do not
