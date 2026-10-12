@@ -29,6 +29,12 @@ class Config:
     path_check_skip: list[str] = field(default_factory=list)
     quota_cap: int = 95  # weekly all-models percent at which the spawn guard refuses new agents
     checks_wait_s: int = 900  # how long integrate waits for the checks on a PR head it pushed before it merges
+    # `dev integrate --local-ci` (#76): a required check that has not queued after this long means Actions cannot run.
+    local_ci_wait_s: int = 600
+    # `dev integrate --local-ci`: required check context -> the commands (argument lists, run in the merged tree after
+    # the gate passed; "{tmpdir}" becomes a fresh empty directory) that stand in for it. [] = the gate alone. A required
+    # context without an entry is never posted: integrate refuses instead.
+    local_ci: dict[str, list[list[str]]] = field(default_factory=lambda: {"check": []})
     # Claude Code plugins `dev setup` installs at project scope: "plugin@marketplace" -> marketplace source.
     plugins: dict[str, str] = field(
         default_factory=lambda: {

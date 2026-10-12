@@ -49,6 +49,15 @@ Nothing assumes that two machines share a disk.
    Integrate also refuses a PR with failing or pending checks, a standing CHANGES_REQUESTED review or unresolved
    review threads, unless `--override '<reason>'` is given; the reason is logged on the PR. The lead reads
    `uv run dev board feedback <pr>` first and answers or fixes each comment.
+8. **No Actions minutes** (billing-blocked, Actions disabled, or a required check never queues): run
+   `uv run dev integrate <pr> --local-ci`. Integrate then runs, in the merged tree, the gate and each required
+   check's stand-in commands (`local_ci` in `[tool.devkit]`: context -> commands; `[]` is the gate alone), with all
+   output in one log. Only after all of them passed, and only on that exact merged commit, does it post each required
+   context Actions did not run as a success commit status carrying the log's sha256, comment on the PR that CI ran
+   locally, and merge. A check Actions did run and fail still refuses. It refuses up front when a required check
+   accepts only the GitHub Actions app (a posted status would not count; the refusal names the `app_id: -1` change
+   for the owner) or has no stand-in. The board needs no scheduled job either: `dev orient` and `dev integrate` run
+   `board sync`, so the template's `board.yml` is optional.
 
 ## 2a. Conventions (`uv run dev board lint`)
 Every open item meets these. `board lint` lists what breaks them and exits 1. `--fix` makes the label edits that

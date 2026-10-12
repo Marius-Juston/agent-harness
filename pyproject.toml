@@ -48,6 +48,15 @@ surface = ["plugins/harness-ops"]
 # The plugin and the template describe a consuming project's paths, which do not exist here.
 path_check_skip = ["plugins/", "template/"]
 
+# `dev integrate --local-ci`: what stands in for each required CI job when Actions cannot run (ci.yml's commands).
+[tool.devkit.local_ci]
+check = []
+template = [["scripts/render_check.sh", "{tmpdir}/rendered-project"]]
+plugin = [
+    ["npx", "--yes", "@anthropic-ai/claude-code@2.1.296", "plugin", "validate", "--strict", "."],
+    ["npx", "--yes", "@anthropic-ai/claude-code@2.1.296", "plugin", "validate", "--strict", "./plugins/harness-ops"],
+]
+
 [tool.ruff]
 line-length = 120
 target-version = "py313"
