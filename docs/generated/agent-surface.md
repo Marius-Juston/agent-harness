@@ -6,7 +6,7 @@
 
 | name | model | effort | tools | words | use when |
 |---|---|---|---|---|---|
-| harness-ops:builder | opus | - | all | 361 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
+| harness-ops:builder | opus | - | all | 383 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
 | harness-ops:research-auditor | opus | high | Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers | 190 | Adversarial, read-only audit of one research note. |
 | harness-ops:researcher | opus | high | all | 599 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
 | harness-ops:reviewer | opus | - | Read, Grep, Glob, Bash | 216 | Read-only pre-merge review of one PR against its issue's DONE WHEN, the research it cites and the project rules. |
@@ -91,7 +91,7 @@
 | file | words | budget |
 |---|---|---|
 | CLAUDE.md | 260 | 600 |
-| plugins/harness-ops/agents/builder.md | 361 | 600 |
+| plugins/harness-ops/agents/builder.md | 383 | 600 |
 | plugins/harness-ops/agents/research-auditor.md | 190 | 600 |
 | plugins/harness-ops/agents/researcher.md | 599 | 600 |
 | plugins/harness-ops/agents/reviewer.md | 216 | 600 |

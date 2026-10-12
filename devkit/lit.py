@@ -45,7 +45,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from devkit import backoff
+from devkit import backoff, netsafe
 from devkit.paths import state_dir
 
 UA = "agent-harness-devkit-lit/0.1 (research tooling; mailto:noreply@example.invalid)"
@@ -88,7 +88,7 @@ class SourceError(Exception):
 KEY_HEADERS = {"x-api-key"}  # request headers that carry a key
 
 
-class KeepKeysOnHost(urllib.request.HTTPRedirectHandler):
+class KeepKeysOnHost(netsafe.HttpOnlyRedirects):
     """A redirect to another host does not take the key header with it (urllib copies every header by default)."""
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -104,7 +104,9 @@ OPENER = urllib.request.build_opener(KeepKeysOnHost)
 
 
 def http_get(url: str, headers: dict[str, str], timeout: int = 30) -> tuple[int, dict[str, str], str]:
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*", **headers})
+    if why := netsafe.bad_scheme(url):
+        return 0, {}, why
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*", **headers})  # noqa: S310 - http(s)
     try:
         with OPENER.open(req, timeout=timeout) as r:
             return r.status, dict(r.headers), r.read(2_000_000).decode("utf-8", errors="replace")
@@ -347,7 +349,7 @@ def parse_crossref(body: str) -> list[Paper]:
 def parse_arxiv(body: str) -> list[Paper]:
     ns = {"a": "http://www.w3.org/2005/Atom", "x": "http://arxiv.org/schemas/atom"}
     out = []
-    for e in ET.fromstring(body).findall("a:entry", ns):
+    for e in netsafe.parse_xml(body).findall("a:entry", ns):
         aid = re.sub(r"v\d+$", "", (e.findtext("a:id", "", ns) or "").rsplit("/abs/", 1)[-1])
         title = " ".join((e.findtext("a:title", "", ns) or "").split())
         if not aid or not title or title.lower() == "error":

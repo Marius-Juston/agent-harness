@@ -12,6 +12,15 @@ repos:
     hooks:
       - id: typos
         args: [--force-exclude]   # report only: never rewrite words (it 'fixed' deliberate test strings)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks          # staged changes, every commit (prek installs Go to build it)
+      - id: gitleaks          # every commit in history; CI's security job runs it with --hook-stage manual
+        alias: gitleaks-history
+        name: gitleaks (whole history)
+        entry: gitleaks git --redact --verbose --no-banner
+        stages: [manual]
   - repo: local
     hooks:
       - id: generated-docs
