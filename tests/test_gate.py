@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -281,7 +282,8 @@ def _graphql(threads=(), comments=(), reviews=(), committed="2026-10-11T12:00:00
 def fake_integrate(monkeypatch, tmp_path):
     """integrate against fake git, gh and subprocess: records every call in order. Knobs: fetched_head, gate_code,
     files (what git diff reports), checks / reviews / decision (PR view fields), threads / more_threads (GraphQL
-    review threads), during_gate (knob updates applied while the gate runs)."""
+    review threads), during_gate (knob updates applied while the gate runs), tip (HEAD of the merged tree: not HEAD
+    when main was merged in or files were regenerated), merge_code / conflicts (merging main into the head)."""
     world = {
         "events": [],
         "fetched_head": HEAD,
@@ -293,13 +295,25 @@ def fake_integrate(monkeypatch, tmp_path):
         "threads": [],
         "more_threads": False,
         "during_gate": {},
+        "tip": HEAD,
+        "remote_head": HEAD,
+        "merge_code": 0,
+        "conflicts": [],
+        "blocked": [],
+        "git_version": "git version 2.43.0",
     }
     ev = world["events"]
 
     def git(*args, cwd=None, check=True):
         ev.append(("git", *args))
         if args[0] == "rev-parse":
-            return world["fetched_head"] if "pr-" in args[1] else MAIN
+            return world["tip"] if args[1] == "HEAD" else world["fetched_head"] if "pr-" in args[1] else MAIN
+        if args[0] == "--version":
+            return world["git_version"]
+        if args[0] == "diff" and "--diff-filter=U" in args:
+            return "\n".join(world["conflicts"])
+        if args[0] == "push":
+            world["remote_head"] = world["tip"]
         if args[0] == "merge-base":
             return "b" * 40
         if args[0] == "diff":
@@ -313,13 +327,14 @@ def fake_integrate(monkeypatch, tmp_path):
         if args[:2] == ("pr", "view"):
             fields = args[args.index("--json") + 1]
             return json.dumps(
-                {"headRefOid": HEAD}
+                {"headRefOid": world["remote_head"]}
                 if fields == "headRefOid"
                 else _info(
                     headRefOid=HEAD,
+                    headRefName="5-x",
                     isDraft=False,
                     title="t",
-                    body="",
+                    body="Closes #5",
                     statusCheckRollup=world["checks"],
                     latestReviews=world["reviews"],
                     reviewDecision=world["decision"],
@@ -333,13 +348,18 @@ def fake_integrate(monkeypatch, tmp_path):
         ev.append(("run", *cmd))
         if "check" in cmd:
             world.update(world["during_gate"])
-        return subprocess.CompletedProcess(cmd, world["gate_code"] if "check" in cmd else 0, "", "")
+        code = world["gate_code"] if "check" in cmd else world["merge_code"] if "merge" in cmd else 0
+        return subprocess.CompletedProcess(cmd, code, "", "")
 
     monkeypatch.setattr(workflow, "git", git)
     monkeypatch.setattr(board, "gh", gh)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "comment", lambda *a, **k: None)
     monkeypatch.setattr(board, "sync", lambda: [])
+    claim = board.Claim(host="box", agent="builder-5", branch="5-x", at="", token=None, cid="")
+    monkeypatch.setattr(board, "get", lambda n: SimpleNamespace(state="OPEN", status="review", claim=lambda: claim))
+    monkeypatch.setattr(board, "block", lambda n, reason: world["blocked"].append((n, reason)))
+    monkeypatch.setattr(workflow.time, "sleep", lambda s: None)
     monkeypatch.setattr(workflow, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: tmp_path.joinpath(*p))
@@ -357,7 +377,13 @@ def test_integrate_fetches_the_pull_ref_gates_then_merges_the_pinned_head(fake_i
     fetch = _index(ev, lambda e: e[:2] == ("git", "fetch"))
     assert any(a.startswith("+refs/pull/7/head:") for a in ev[fetch])
     gate_run = _index(ev, lambda e: e[0] == "run" and "check" in e)
-    assert ("run", "git", "merge", "--no-ff", "--no-edit", HEAD) in ev[fetch:gate_run]
+    assert ("git", "worktree", "add", "--detach", str(workflow.state_dir("integrate", "pr-7")), HEAD) in ev[
+        fetch:gate_run
+    ]
+    driver = [a for k, v in workflow.GENERATED_MERGE for a in ("-c", f"{k}={v}")]
+    merge_cmd = ("run", "git", f"--attr-source={MAIN}", *driver, "merge", "--no-ff", "--no-edit", MAIN)
+    assert merge_cmd in ev[fetch:gate_run]  # main into the head, by main's merge rules
+    assert ("run", "uv", "run", "--quiet", "dev", "docs") in ev[fetch:gate_run]  # regenerated before the gate
     merge = _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
     assert fetch < gate_run < merge
     assert ev[merge][ev[merge].index("--match-head-commit") + 1] == HEAD
@@ -483,6 +509,161 @@ def test_integrate_override_needs_a_reason_and_dry_run_logs_nothing(fake_integra
     assert workflow.integrate(7, harness_ok=True, dry_run=True, override="reviewed by hand") == 0
     assert not any(e[:3] == ("gh", "pr", "comment") for e in fake_integrate["events"])
     assert "would log" in capsys.readouterr().out
+
+
+def _last_json(out):
+    last = out.strip().splitlines()[-1]
+    assert last.startswith("RESULT-JSON: "), last
+    return json.loads(last.removeprefix("RESULT-JSON: "))
+
+
+def test_a_conflict_is_sent_back_to_the_named_worker_and_blocks_the_issue(fake_integrate, capsys):
+    """#38: a real conflict comments the paths on the PR, blocks the issue 'rebase on main' and names the worker."""
+    fake_integrate["merge_code"], fake_integrate["conflicts"] = 1, ["docs/research/n.md", "src/app.py"]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    ev = fake_integrate["events"]
+    assert not any(e[0] == "run" and "check" in e for e in ev) and not _merged(ev)
+    assert ("git", "merge", "--abort") in ev
+    note = next(e for e in ev if e[:3] == ("gh", "pr", "comment"))
+    body = note[note.index("--body") + 1]
+    assert "`docs/research/n.md`" in body and "`src/app.py`" in body and "builder-5@box" in body
+    [(n, reason)] = fake_integrate["blocked"]
+    assert n == 5 and reason.startswith("rebase on main") and "builder-5@box" in reason and "src/app.py" in reason
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "conflict" and res["conflicts"] == fake_integrate["conflicts"]
+    assert res["resume"] == ["builder-5@box"] and res["branch"] == "5-x" and res["exit"] == 1
+
+
+def test_a_dry_run_conflict_comments_and_blocks_nothing(fake_integrate, capsys):
+    fake_integrate["merge_code"], fake_integrate["conflicts"] = 1, ["a.py"]
+    assert workflow.integrate(7, harness_ok=True, dry_run=True) == 1
+    assert not any(e[:3] == ("gh", "pr", "comment") for e in fake_integrate["events"])
+    assert fake_integrate["blocked"] == [] and _last_json(capsys.readouterr().out)["outcome"] == "conflict"
+
+
+def test_a_pr_behind_main_is_updated_then_merged_at_the_gated_tip(fake_integrate, capsys):
+    """#38: when the merged tree is not the head, integrate pushes it to the PR branch, then merges exactly it."""
+    tip = "t" * 40
+    fake_integrate["tip"] = tip
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    ev = fake_integrate["events"]
+    gate_run = _index(ev, lambda e: e[0] == "run" and "check" in e)
+    push = _index(ev, lambda e: e[:2] == ("git", "push"))
+    merge = _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
+    assert gate_run < push < merge
+    assert ev[push] == ("git", "push", "origin", f"{tip}:refs/heads/5-x")  # a plain push: never forced
+    assert ev[merge][ev[merge].index("--match-head-commit") + 1] == tip
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "merged" and res["updated"] and res["head"] == tip
+
+
+def test_an_up_to_date_pr_is_not_pushed(fake_integrate, capsys):
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert not any(e[:2] == ("git", "push") for e in fake_integrate["events"])
+    assert _last_json(capsys.readouterr().out)["updated"] is False
+
+
+def test_a_dry_run_never_pushes_the_update(fake_integrate, capsys):
+    fake_integrate["tip"] = "t" * 40
+    assert workflow.integrate(7, harness_ok=True, dry_run=True) == 0
+    assert not any(e[:2] == ("git", "push") for e in fake_integrate["events"])
+    assert not _merged(fake_integrate["events"])
+    assert _last_json(capsys.readouterr().out)["outcome"] == "would-merge"
+
+
+def test_integrate_stops_when_github_never_shows_the_pushed_head(fake_integrate, monkeypatch, capsys):
+    fake_integrate["tip"] = "t" * 40
+    monkeypatch.setattr(workflow, "git", _no_push(workflow.git))
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert not _merged(fake_integrate["events"])
+    assert "not visible" in _last_json(capsys.readouterr().out)["reason"]
+
+
+def _no_push(git):
+    """A push that GitHub never reflects: the PR head stays where it was."""
+
+    def wrapped(*args, **kw):
+        return "" if args[0] == "push" else git(*args, **kw)
+
+    return wrapped
+
+
+def test_issues_move_only_after_the_merge(fake_integrate, monkeypatch, capsys):
+    """#38: an issue closes only after integrate merged; a board failure then still reports the merge."""
+    ev = fake_integrate["events"]
+
+    def merged_pr(*args):
+        ev.append(("merged_pr", *args))
+        raise board.BoardError("gh issue close: boom")
+
+    monkeypatch.setattr(board, "merged_pr", merged_pr)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert _index(ev, lambda e: e[:3] == ("gh", "pr", "merge")) < _index(ev, lambda e: e[0] == "merged_pr")
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "merged" and "boom" in res["board_error"]
+
+
+def test_no_issue_moves_when_the_merge_does_not_happen(fake_integrate, monkeypatch):
+    monkeypatch.setattr(board, "merged_pr", lambda *a: pytest.fail("issue moved without a merge"))
+    fake_integrate["gate_code"] = 1
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    fake_integrate["gate_code"] = 0
+    assert workflow.integrate(7, harness_ok=True, dry_run=True) == 0
+
+
+@pytest.mark.parametrize(
+    ("knob", "value", "harness_ok", "outcome", "code"),
+    [
+        ("checks", [_run("check", conclusion="FAILURE")], True, "refused", 1),
+        ("gate_code", 1, True, "gate-failed", 1),
+        ("files", ["devkit/x.py"], False, "harness-review", 2),
+        ("fetched_head", "x" * 40, True, "stopped", 1),
+        ("tip", HEAD, True, "merged", 0),
+    ],
+)
+def test_integrate_always_ends_with_one_machine_readable_line(
+    fake_integrate, capsys, knob, value, harness_ok, outcome, code
+):
+    """#38: the lead branches on the last line, whatever happened."""
+    fake_integrate[knob] = value
+    assert workflow.integrate(7, harness_ok=harness_ok, dry_run=False) == code
+    res = _last_json(capsys.readouterr().out)
+    assert (res["pr"], res["outcome"], res["exit"]) == (7, outcome, code)
+
+
+def test_integrate_needs_a_git_with_attr_source(fake_integrate, capsys):
+    fake_integrate["git_version"] = "git version 2.39.5"
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "stopped" and "git >= 2.40" in res["reason"] and "2.39" in res["reason"]
+    assert not any(e[0] == "run" and "merge" in e for e in fake_integrate["events"])
+    assert not _merged(fake_integrate["events"])
+
+
+def test_a_failed_merge_without_conflicted_paths_is_stopped_not_sent_back(fake_integrate, capsys):
+    fake_integrate["merge_code"] = 128  # e.g. a hook or a lock, not a conflict: --diff-filter=U lists nothing
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "stopped" and "without a conflict" in res["reason"]
+    assert fake_integrate["blocked"] == []
+    assert not any(e[:3] == ("gh", "pr", "comment") for e in fake_integrate["events"])
+
+
+def test_a_crash_after_the_push_still_ends_with_a_result_line(fake_integrate, monkeypatch, capsys):
+    """Reviewer on #73: every exit prints RESULT-JSON, even an unexpected error once the PR branch was updated."""
+    fake_integrate["tip"] = "t" * 40
+    gh = board.gh
+
+    def flaky(*args, **kw):
+        if args[:2] == ("pr", "merge"):
+            raise ConnectionError("network down")
+        return gh(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", flaky)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert any(e[:2] == ("git", "push") for e in fake_integrate["events"])
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "stopped" and "ConnectionError: network down" in res["reason"]
 
 
 def test_changed_paths_lists_both_sides_of_a_rename(repo, monkeypatch):
