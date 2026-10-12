@@ -77,9 +77,15 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("--status", choices=board.STATUSES)
     x.add_argument("--type", dest="kind", choices=board.TYPES)
     x.add_argument("--json", action="store_true")
-    x = bs.add_parser("next", help="startable items: ready, blockers closed; by priority, then how much they unblock")
+    x = bs.add_parser(
+        "next", help="startable items: ready, blockers closed; by inherited priority, then how much they unblock"
+    )
     x.add_argument("--type", dest="kind", choices=board.TYPES)
     x.add_argument("-n", type=int, default=5)
+    x = bs.add_parser("wave", help="up to N startable items whose Owns overlap neither each other nor work in progress")
+    x.add_argument("n", type=int)
+    x = bs.add_parser("lint", help="conventions every open item meets (labels, title, DONE WHEN, Owns, links)")
+    x.add_argument("--fix", action="store_true", help="make the label edits that follow from each item")
     x = bs.add_parser("new", help="create an item with a measurable DONE WHEN")
     x.add_argument("--title", required=True)
     x.add_argument("--type", dest="kind", choices=board.TYPES, required=True)
@@ -309,6 +315,12 @@ def run_board(a: argparse.Namespace) -> int:
             print(board.listing(a.status, a.kind, a.json))
         case "next":
             print(board.next_items(a.kind, a.n))
+        case "wave":
+            print(board.wave_items(a.n))
+        case "lint":
+            out, code = board.lint_board(a.fix)
+            print(out)
+            return code
         case "new":
             print(board.new(a.title, a.kind, a.prio, a.context, a.done, a.owns, a.blocked_by, a.refs, a.parent))
         case "link":
