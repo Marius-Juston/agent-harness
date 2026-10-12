@@ -109,7 +109,7 @@ SECONDARY_LIMIT = re.compile(r"secondary rate limit|abuse detection|HTTP 429", r
 GH_TRIES = 3
 GH_FLOOR, GH_BASE, GH_CAP = 60.0, 30.0, 240.0  # seconds
 GH_SLEEP = time.sleep
-GH_RNG = random.Random()
+GH_RNG = random.Random()  # noqa: S311 - retry jitter, not a secret
 
 
 def gh(*args: str, input: str | None = None) -> str:

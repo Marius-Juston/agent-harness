@@ -21,6 +21,29 @@ jobs:
       - run: uv sync --locked
       - name: gate (same command agents run)
         run: uv run dev check --no-cache
+  security:
+    # Free stand-ins for GitHub secret scanning and dependency alerts, which private user-owned repositories do not
+    # get: gitleaks over every commit, uv audit (OSV) over uv.lock, and a CycloneDX SBOM of uv.lock kept with the run.
+    # Network-bound, so CI runs these rather than `dev check`. A false positive: add its fingerprint to .gitleaksignore,
+    # or `--ignore <id>` to the audit with the reason beside it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with: { enable-cache: true }
+      - name: secrets in history (gitleaks, pinned in .pre-commit-config.yaml)
+        run: uvx prek@0.5.3 run --hook-stage manual gitleaks-history --all-files
+      - name: known vulnerabilities and yanked or deprecated packages (uv audit, OSV)
+        if: ${{ !cancelled() }}
+        run: uv audit --frozen --preview-features audit-command
+      - name: SBOM (CycloneDX 1.5 from uv.lock)
+        if: ${{ !cancelled() }}
+        run: uv export --frozen --format cyclonedx1.5 --preview-features sbom-export --output-file sbom.cdx.json
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with: { name: sbom, path: sbom.cdx.json, if-no-files-found: error }
   citations:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
