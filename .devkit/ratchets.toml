@@ -7,6 +7,8 @@ agent = 600      # body + initialPrompt words of a .claude/agents/*.md
 skill = 650      # body words of a SKILL.md, and separately of all its supporting files (key "<skill dir>/*")
                  # (compaction keeps only the first ~5,000 tokens of a skill)
 context = 600    # CLAUDE.md/AGENTS.md plus the files they @-import: loaded into every session and subagent
+                 # (CLAUDE.md also counts every .claude/rules/ file without `paths:`, which loads at launch;
+                 # a rule with `paths:` has its own budget of this kind. A .claude/commands/ file: kind skill.)
 
 [words]
 

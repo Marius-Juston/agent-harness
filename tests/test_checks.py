@@ -178,6 +178,68 @@ def test_skill_supporting_files_have_a_budget(monkeypatch, tmp_path):
     assert ran.problems == [".claude/skills/s/*: 4 words > budget 3. Cut text, or ask the owner for a [[raise]]"]
 
 
+def test_unscoped_rules_count_toward_the_session_context(monkeypatch, tmp_path):
+    _tree(
+        tmp_path,
+        {
+            "CLAUDE.md": "one two\n",
+            ".claude/rules/a.md": "three four\n",  # no frontmatter: loads at launch
+            ".claude/rules/sub/b.md": "---\nother: x\n---\nfive\n",  # recursive; frontmatter without paths
+            ".claude/rules/bad.md": "---\npaths: [\n---\nsix\n",  # unparsable YAML loads as unscoped, whole text
+            ".claude/rules/scoped.md": "---\npaths:\n  - src/**/*.py\n---\nseven eight nine\n",
+            ".devkit/ratchets.toml": "[defaults]\ncontext = 8\n",
+        },
+    )
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    measured = checks.measured_words()
+    assert measured["CLAUDE.md"] == 2 + 2 + 1 + 5  # bad.md: "---", "paths:", "[", "---", "six"
+    assert measured[".claude/rules/scoped.md"] == 3  # its own per-file budget, frontmatter not counted
+    assert not {".claude/rules/a.md", ".claude/rules/sub/b.md", ".claude/rules/bad.md"} & set(measured)
+    ran = checks.check_ratchets(None, owner=OWNER)
+    assert ran.problems == [
+        f"CLAUDE.md: {measured['CLAUDE.md']} words > budget 8. Cut text, or ask the owner for a [[raise]]"
+    ]
+
+
+def test_unscoped_rule_pushes_the_session_over_budget(monkeypatch, tmp_path):
+    _tree(tmp_path, {"CLAUDE.md": "a b c\n", ".devkit/ratchets.toml": "[defaults]\ncontext = 4\n"})
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    assert checks.check_ratchets(None, owner=OWNER).problems == []
+    _tree(tmp_path, {".claude/rules/new.md": "d e\n"})
+    (problem,) = checks.check_ratchets(None, owner=OWNER).problems
+    assert problem.startswith("CLAUDE.md: 5 words > budget 4")
+
+
+def test_unscoped_rules_without_claude_md_still_count(monkeypatch, tmp_path):
+    _tree(tmp_path, {".claude/rules/a.md": "one two\n"})
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    assert checks.measured_words()["CLAUDE.md"] == 2
+
+
+def test_commands_and_scoped_rules_get_per_file_budgets(monkeypatch, tmp_path):
+    _tree(
+        tmp_path,
+        {
+            ".claude/commands/deploy.md": "---\ndescription: d\n---\none two three\n",
+            ".claude/commands/ops/up.md": "four\n",
+            ".claude/commands/broken.md": "---\ndescription: [\n---\nx\n",  # counted as written, no crash
+            ".claude/rules/py.md": "---\npaths: src/*.py\n---\nw w w w\n",
+            ".devkit/ratchets.toml": "[defaults]\nskill = 2\ncontext = 3\n",
+        },
+    )
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    measured = checks.measured_words()
+    assert measured[".claude/commands/deploy.md"] == 3 and measured[".claude/commands/ops/up.md"] == 1
+    assert measured[".claude/commands/broken.md"] == 5
+    assert checks._kind(".claude/commands/deploy.md") == "skill"
+    assert checks._kind(".claude/rules/py.md") == "context"
+    assert sorted(checks.check_ratchets(None, owner=OWNER).problems) == [
+        ".claude/commands/broken.md: 5 words > budget 2. Cut text, or ask the owner for a [[raise]]",
+        ".claude/commands/deploy.md: 3 words > budget 2. Cut text, or ask the owner for a [[raise]]",
+        ".claude/rules/py.md: 4 words > budget 3. Cut text, or ask the owner for a [[raise]]",
+    ]
+
+
 # --- check_links -----------------------------------------------------------------------------------------------------
 
 
