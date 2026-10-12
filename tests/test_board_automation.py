@@ -93,6 +93,8 @@ class FakeBoard:
         if args[:2] == ("label", "create"):
             self.labels.add(args[2])
             return ""
+        if args[:2] == ("api", "graphql"):  # native links (tests/test_board.py covers them): any issue, no links
+            return json.dumps({"data": {"repository": {"issue": {"id": "I_1", "state": "OPEN", "blockedBy": None}}}})
         raise AssertionError(f"unexpected gh call {args}")
 
 

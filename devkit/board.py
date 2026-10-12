@@ -15,6 +15,12 @@ withdraws (its comment id), so a loser's withdrawal never clears the winner's cl
 A claim without a heartbeat comment for STALE_H hours shows as STALE and may be taken over with --force.
 Blockers count as done only when they are known closed issues: a typo, a PR number or an issue outside the fetch
 keeps the item waiting, where a person sees it, instead of letting it start early.
+
+Relationships are GitHub's native issue links: blocked-by (and so blocking) and the sub-issue parent, set through
+GraphQL (addBlockedBy, addSubIssue), across repositories too. They are the one source of truth: the body's
+`Blocked by` and `Parent` sections are rendered from them under LINKS_MARK. A body without the mark predates native
+links; its sections still count, and `board sync` backfills them as native links, then renders the body. A blocked-by
+link that would close a cycle is refused with the cycle's path. `Refs` stays plain mentions (relates-to).
 """
 
 import functools
@@ -27,6 +33,7 @@ import socket
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from fnmatch import fnmatchcase
@@ -53,6 +60,9 @@ STALE_MARK = "<!-- devkit:stale -->"  # the sweep's own comment; it never counts
 BLOCK_MARK = "<!-- devkit:block -->"  # `board block`: a manual block that sync never lifts
 CLAIM = re.compile(r"<!-- devkit:claim host=(\S+) agent=(\S+) branch=(\S*)(?: id=(\S+))? -->")
 RELEASE = re.compile(r"<!-- devkit:release(?: claim=(\S+))? -->")
+LINKS_MARK = "<!-- devkit:links native -->"  # Blocked by / Parent below are rendered from native links
+# An issue reference: a URL, `owner/repo#n`, or `#n` (this repository).
+REF = re.compile(r"https://github\.com/([\w.-]+/[\w.-]+)/issues/(\d+)|(?<![\w/.-])(?:([\w.-]+/[\w.-]+))?#(\d+)")
 SECTIONS = ("Context", "DONE WHEN", "Owns", "Blocked by", "Refs", "Parent")
 ISSUE_LIMIT = 2000  # explicit: gh paginates up to this many; beyond it, blockers stay waiting (never wrongly done)
 PR_LIMIT = 200
@@ -158,6 +168,141 @@ def issue_numbers(text: str) -> list[int]:
     return [int(n) for n in re.findall(r"#(\d+)", text or "")]
 
 
+type Ref = int | str  # an issue of this repository by number, or another's as `owner/repo#n`
+
+
+def ref_of(where: str | None, number: int | str) -> Ref:
+    """`number` in repository `where` (None: this one), as a Ref: an int when it is this repository."""
+    n = int(number)
+    return n if not where or where.lower() == repo().lower() else f"{where}#{n}"
+
+
+def refs_in(text: str) -> list[Ref]:
+    """Issue references in text (URLs, `owner/repo#n`, `#n`), deduplicated in order."""
+    found = [ref_of(m.group(1) or m.group(3), m.group(2) or m.group(4)) for m in REF.finditer(text or "")]
+    return list(dict.fromkeys(found))
+
+
+def parse_ref(text: int | str) -> Ref:
+    """A command-line reference: `12`, `#12`, `owner/repo#12` or an issue URL."""
+    if isinstance(text, int) or text.isdigit():
+        return int(text)
+    found = refs_in(text)
+    if len(found) != 1:
+        raise BoardError(f"not one issue reference: {text!r} (use 12, #12, owner/repo#12 or an issue URL)")
+    return found[0]
+
+
+def show(ref: Ref) -> str:
+    return f"#{ref}" if isinstance(ref, int) else ref
+
+
+def split(ref: Ref) -> tuple[str, str, int]:
+    """(owner, name, number) of a Ref."""
+    where, _, n = (f"{repo()}#{ref}" if isinstance(ref, int) else ref).rpartition("#")
+    owner, _, name = where.partition("/")
+    return owner, name, int(n)
+
+
+def ref_from_url(url: str) -> Ref:
+    m = re.search(r"github\.com/([^/]+/[^/]+)/issues/(\d+)", url or "")
+    if not m:
+        raise BoardError(f"not an issue URL: {url}")
+    return ref_of(m.group(1), m.group(2))
+
+
+def graphql(query: str, **variables: str | int | bool) -> dict:
+    args = ["api", "graphql", "-f", f"query={query}"]
+    for k, v in variables.items():
+        typed = isinstance(v, int)  # -F sends ints and booleans typed, -f sends a string
+        args += ["-F" if typed else "-f", f"{k}={str(v).lower() if isinstance(v, bool) else v}"]
+    return json.loads(gh(*args))["data"]
+
+
+ISSUE_QUERY = """query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) {
+    id state stateReason blockedBy(first: 100) { nodes { url } } } } }"""
+ADD_BLOCKED_BY = """mutation($issue: ID!, $blocker: ID!) {
+  addBlockedBy(input: {issueId: $issue, blockingIssueId: $blocker}) { issue { number } } }"""
+ADD_SUB_ISSUE = """mutation($parent: ID!, $sub: ID!, $replace: Boolean!) {
+  addSubIssue(input: {issueId: $parent, subIssueId: $sub, replaceParent: $replace}) { issue { number } } }"""
+
+
+def remote(ref: Ref) -> dict:
+    """An issue's node id, state, stateReason and native blockers (as Refs), by GraphQL; any repository."""
+    owner, name, n = split(ref)
+    issue = (graphql(ISSUE_QUERY, owner=owner, name=name, number=n).get("repository") or {}).get("issue")
+    if not issue:
+        raise BoardError(f"{show(ref)}: no such issue, or no access to it")
+    issue["blockers"] = [ref_from_url(x["url"]) for x in (issue.get("blockedBy") or {}).get("nodes") or []]
+    return issue
+
+
+def cycles(starts: list[Ref], deps: Callable[[Ref], list[Ref]]) -> list[list[Ref]]:
+    """Each blocked-by cycle reachable from `starts` once, as the path that closes it. Iterative (a port of
+    a sibling project's board `_cycles`), so a chain of a thousand issues meets no recursion limit."""
+    state: dict[Ref, int] = {}  # 1: on the current path, 2: finished
+    found: list[list[Ref]] = []
+    for start in starts:
+        if start in state:
+            continue
+        state[start] = 1
+        path = [start]
+        stack = [iter(deps(start))]
+        while stack:
+            dep = next(stack[-1], None)
+            if dep is None:
+                state[path.pop()] = 2
+                stack.pop()
+            elif state.get(dep) == 1:
+                found.append([*path[path.index(dep) :], dep])
+            elif dep not in state:
+                state[dep] = 1
+                path.append(dep)
+                stack.append(iter(deps(dep)))
+    return found
+
+
+def closing_cycle(issue: Ref, blocker: Ref, deps: Callable[[Ref], list[Ref]]) -> list[Ref] | None:
+    """The cycle that `issue` blocked by `blocker` would close (issue -> blocker -> ... -> issue), or None."""
+    if issue == blocker:
+        return [issue, issue]
+
+    def only_the_new_edge(r: Ref) -> list[Ref]:  # from `issue`, walk the new edge alone: does blocker reach issue?
+        return [blocker] if r == issue else deps(r)
+
+    return next((c for c in cycles([issue], only_the_new_edge) if c[0] == issue), None)
+
+
+class Graph:
+    """Blocked-by edges as `deps(ref)`: fetched issues' native links (their body's when gh gave none) from memory,
+    any other issue (closed, or in another repository) by GraphQL, once each. Body-only declarations are not edges
+    until linked, so of two that contradict each other the first linked wins and the second is refused. An
+    unreadable issue raises: a cycle check that skips part of the graph proves nothing."""
+
+    def __init__(self, issues: list["Issue"]):
+        self.known: dict[Ref, list[Ref]] = {
+            i.number: list(i.links.blocked_by) if i.links else i.blockers for i in issues
+        }
+
+    def __call__(self, ref: Ref) -> list[Ref]:
+        if ref not in self.known:
+            self.known[ref] = remote(ref)["blockers"]
+        return self.known[ref]
+
+    def add(self, issue: Ref, blocker: Ref) -> None:
+        self(issue).append(blocker)
+
+
+class Links(NamedTuple):
+    """An issue's native relationships, as GitHub returns them."""
+
+    blocked_by: list[Ref]
+    parent: Ref | None
+    blocking: list[Ref] = []  # noqa: RUF012 - a NamedTuple default, never mutated
+    subs: list[Ref] = []  # noqa: RUF012
+
+
 @dataclass
 class Issue:
     number: int
@@ -167,6 +312,7 @@ class Issue:
     state: str
     updated: str
     comments: list[dict] = field(default_factory=list)
+    links: Links | None = None  # None: not fetched (an old gh, or a test); the body's sections are all there is
 
     @property
     def status(self) -> str:
@@ -187,8 +333,28 @@ class Issue:
         return sections(self.body)
 
     @property
-    def blockers(self) -> list[int]:
-        return issue_numbers(self.parts.get("Blocked by", ""))
+    def rendered(self) -> bool:
+        """The body's Blocked by / Parent were rendered from native links, so they declare nothing of their own."""
+        return LINKS_MARK in self.body
+
+    @property
+    def declared_blockers(self) -> list[Ref]:
+        """Blockers only the body declares (a body from before native links); `board sync` backfills them."""
+        return [] if self.rendered else refs_in(self.parts.get("Blocked by", ""))
+
+    @property
+    def declared_parent(self) -> Ref | None:
+        return None if self.rendered else next(iter(refs_in(self.parts.get("Parent", ""))), None)
+
+    @property
+    def blockers(self) -> list[Ref]:
+        """Native blockers, plus any the body still declares: an unsynced declaration keeps the item waiting."""
+        native = self.links.blocked_by if self.links else []
+        return list(dict.fromkeys([*native, *self.declared_blockers]))
+
+    @property
+    def parent(self) -> Ref | None:
+        return (self.links.parent if self.links else None) or self.declared_parent
 
     def live_claims(self) -> list[Claim]:
         """Claims no release has withdrawn, oldest first. A release names claim ids (comma-separated) or none (all)."""
@@ -232,6 +398,21 @@ class Issue:
 
 
 FIELDS = "number,title,labels,body,state,updatedAt"
+LINK_FIELDS = "blockedBy,parent"  # gh 2.80+; an older gh answers "Unknown JSON field" and the body is read instead
+ALL_LINK_FIELDS = LINK_FIELDS + ",blocking,subIssues"
+
+
+def _links(d: dict) -> Links | None:
+    if "blockedBy" not in d:
+        return None
+
+    def refs(key: str) -> list[Ref]:
+        return [ref_from_url(x["url"]) for x in ((d.get(key) or {}).get("nodes") or [])]
+
+    parent = d.get("parent")
+    return Links(
+        refs("blockedBy"), ref_from_url(parent["url"]) if parent else None, refs("blocking"), refs("subIssues")
+    )
 
 
 def _issue(d: dict) -> Issue:
@@ -243,15 +424,24 @@ def _issue(d: dict) -> Issue:
         d.get("state", "OPEN"),
         d.get("updatedAt", ""),
         d.get("comments", []),
+        _links(d),
     )
+
+
+def gh_json(*args: str, fields: str, links: str) -> object:
+    """`gh ... --json fields,links`; without the link fields when this gh does not know them."""
+    try:
+        return json.loads(gh(*args, "--json", f"{fields},{links}"))
+    except BoardError as e:
+        if "Unknown JSON field" not in str(e):
+            raise
+        return json.loads(gh(*args, "--json", fields))
 
 
 def fetch(state: str = "open", with_comments: bool = False) -> list[Issue]:
     fields = FIELDS + (",comments" if with_comments else "")
-    data = json.loads(
-        gh("issue", "list", "-R", repo(), "--state", state, "--limit", str(ISSUE_LIMIT), "--json", fields)
-    )
-    return [_issue(d) for d in data]
+    args = ("issue", "list", "-R", repo(), "--state", state, "--limit", str(ISSUE_LIMIT))
+    return [_issue(d) for d in gh_json(*args, fields=fields, links=LINK_FIELDS)]
 
 
 def closed_numbers() -> set[int]:
@@ -274,7 +464,22 @@ def closed_numbers() -> set[int]:
 
 
 def get(number: int) -> Issue:
-    return _issue(json.loads(gh("issue", "view", str(number), "-R", repo(), "--json", FIELDS + ",comments")))
+    args = ("issue", "view", str(number), "-R", repo())
+    return _issue(gh_json(*args, fields=FIELDS + ",comments", links=ALL_LINK_FIELDS))
+
+
+def resolved(issues: list[Issue]) -> set[Ref]:
+    """Blockers known done: issues of this repository closed as done, and other repositories' blockers closed as
+    done (asked by GraphQL; one that cannot be read stays waiting)."""
+    done: set[Ref] = set(closed_numbers())
+    for ref in {b for i in issues for b in i.blockers if isinstance(b, str)}:
+        try:
+            r = remote(ref)
+        except BoardError:
+            continue
+        if r.get("state") == "CLOSED" and r.get("stateReason") != "NOT_PLANNED":
+            done.add(ref)
+    return done
 
 
 @functools.cache
@@ -360,18 +565,48 @@ def missing_labels_created(labels: list[str]) -> None:
 
 
 def body_from(
-    context: str, done: list[str], owns: list[str], blocked_by: list[int], refs: list[str], parent: int | None
+    context: str,
+    done: list[str],
+    owns: list[str],
+    blocked_by: list[Ref],
+    refs: list[str],
+    parent: Ref | None,
+    rendered: bool = False,
 ) -> str:
     out = [f"## Context\n{context.strip() or '-'}", "## DONE WHEN\n" + "\n".join(f"- [ ] {d}" for d in done)]
     if owns:
         out.append("## Owns\n" + "\n".join(f"- `{o}`" for o in owns))
-    if blocked_by:
-        out.append("## Blocked by\n" + ", ".join(f"#{n}" for n in blocked_by))
     if refs:
         out.append("## Refs\n" + "\n".join(f"- {r}" for r in refs))
+    return render_links("\n\n".join(out) + "\n", blocked_by, parent, rendered)
+
+
+LINK_SECTIONS = ("Blocked by", "Parent")
+
+
+def render_links(body: str, blocked_by: list[Ref], parent: Ref | None, rendered: bool = True) -> str:
+    """The body with its Blocked by / Parent sections replaced by these links, and LINKS_MARK first when `rendered`
+    (before any section, so no section reads it). A link section ends at the next `## ` heading; everything else
+    is kept as written."""
+    kept, skipping = [], False
+    for line in (body or "").splitlines():
+        if m := re.match(r"##\s+(.+?)\s*$", line):
+            skipping = m.group(1) in LINK_SECTIONS
+        if not skipping and line.strip() != LINKS_MARK:
+            kept.append(line)
+    out = [LINKS_MARK if rendered else "", "\n".join(kept).strip()]
+    if blocked_by:
+        out.append("## Blocked by\n" + ", ".join(show(b) for b in blocked_by))
     if parent:
-        out.append(f"## Parent\n#{parent}")
-    return "\n\n".join(out) + "\n"
+        out.append(f"## Parent\n{show(parent)}")
+    return "\n\n".join(x for x in out if x) + "\n"
+
+
+def is_done(ref: Ref, closed: set[int], info: dict | None = None) -> bool:
+    """A blocker is done when closed as done: this repository's from `closed`, another's from its GraphQL `info`."""
+    if isinstance(ref, int):
+        return ref in closed
+    return bool(info) and info.get("state") == "CLOSED" and info.get("stateReason") != "NOT_PLANNED"
 
 
 def new(
@@ -381,14 +616,19 @@ def new(
     context: str,
     done: list[str],
     owns: list[str],
-    blocked_by: list[int],
+    blocked_by: list[int | str],
     refs: list[str],
-    parent: int | None,
+    parent: int | str | None,
 ) -> str:
+    """Create an item, then link it natively (blocked-by, sub-issue of `parent`); the body renders those links.
+    Every reference is looked up before anything is created, so a typo or an unreadable issue creates nothing."""
     if kind != "epic" and not done:
         raise BoardError("a work item needs at least one --done (a measurable DONE WHEN condition)")
-    closed = closed_numbers() if blocked_by else set()  # not `done`: that is the DONE WHEN list
-    status = "blocked" if any(n not in closed for n in blocked_by) else "ready"
+    blockers = list(dict.fromkeys(parse_ref(b) for b in blocked_by))
+    up = parse_ref(parent) if parent else None
+    info = {r: remote(r) for r in [*blockers, *([up] if up else [])]}
+    closed = closed_numbers() if blockers else set()  # not `done`: that is the DONE WHEN list
+    status = "blocked" if any(not is_done(b, closed, info[b]) for b in blockers) else "ready"
     area = areas(owns, area_globs(), tracked_files()) if owns else []
     labels = [f"type:{kind}", priority] + ([] if kind == "epic" else [f"status:{status}"]) + area
     missing_labels_created(area)
@@ -403,24 +643,98 @@ def new(
         "-",
         "--label",
         ",".join(labels),
-        input=body_from(context, done, owns, blocked_by, refs, parent),
+        input=body_from(context, done, owns, blockers, refs, up, rendered=bool(info)),
     ).strip()
+    if info:
+        number = int(url.rstrip("/").rsplit("/", 1)[-1])
+        try:
+            me = remote(number)["id"]
+            for b in blockers:
+                graphql(ADD_BLOCKED_BY, issue=me, blocker=info[b]["id"])
+            if up:
+                graphql(ADD_SUB_ISSUE, parent=info[up]["id"], sub=me, replace=False)
+        except BoardError as e:  # unmark the body, so `board sync` backfills the links still missing
+            plain = body_from(context, done, owns, blockers, refs, up)
+            gh("issue", "edit", str(number), "-R", repo(), "--body-file", "-", input=plain)
+            raise BoardError(f"{url} created, but linking failed ({e}); `uv run dev board sync` retries") from e
     return f"{url} ({status})"
 
 
-def _line(i: Issue, done: set[int]) -> str:
+def cycle_text(path: list[Ref]) -> str:
+    return " -> ".join(map(show, path))
+
+
+def settle(i: Issue, deps: Graph, blockers: list[Ref] = (), parent: Ref | None = None) -> list[str]:
+    """Native links for `blockers` and `parent` plus what i's body still declares, then the body rendered from
+    them. A link that would close a cycle is refused; a body whose links failed for another reason stays unmarked
+    (so a later sync retries). An explicit `parent` replaces a native one; a declared one never does."""
+    if i.links is None:
+        return []
+    native, up, msgs, failed, me = list(i.links.blocked_by), i.links.parent, [], False, None
+    for b in dict.fromkeys([*blockers, *i.declared_blockers]):
+        if b in native:
+            continue
+        if path := closing_cycle(i.number, b, deps):
+            msgs.append(f"#{i.number}: refused blocked by {show(b)}: it closes the cycle {cycle_text(path)}")
+            continue
+        try:
+            me = me or remote(i.number)["id"]
+            graphql(ADD_BLOCKED_BY, issue=me, blocker=remote(b)["id"])
+        except BoardError as e:
+            failed = True
+            msgs.append(f"#{i.number}: blocked by {show(b)} not linked: {e}")
+            continue
+        native.append(b)
+        deps.add(i.number, b)
+        msgs.append(f"#{i.number} blocked by {show(b)}: linked")
+    want = parent or i.declared_parent
+    if want and want != up:
+        if up and not parent:
+            msgs.append(f"#{i.number}: kept native parent {show(up)}; the body named {show(want)}")
+        else:
+            try:
+                me = me or remote(i.number)["id"]
+                graphql(ADD_SUB_ISSUE, parent=remote(want)["id"], sub=me, replace=bool(up))
+                up = want
+                msgs.append(f"#{i.number} sub-issue of {show(want)}: linked")
+            except BoardError as e:
+                failed = True
+                msgs.append(f"#{i.number}: sub-issue of {show(want)} not linked: {e}")
+    stated = (set(refs_in(i.parts.get("Blocked by", ""))), next(iter(refs_in(i.parts.get("Parent", ""))), None))
+    if not failed and (stated != (set(native), up) or (not i.rendered and (stated[0] or stated[1]))):
+        i.body = render_links(i.body, native, up)
+        gh("issue", "edit", str(i.number), "-R", repo(), "--body-file", "-", input=i.body)
+    i.links = i.links._replace(blocked_by=native, parent=up)
+    return msgs
+
+
+def link(number: int, blocked_by: list[int | str], parent: int | str | None = None) -> list[str]:
+    """Add native links to an existing item: blocked by each of `blocked_by`, sub-issue of `parent`. A blocked-by
+    link that would close a cycle refuses the whole call, before anything changes, and names the cycle."""
+    blockers = list(dict.fromkeys(parse_ref(b) for b in blocked_by))
+    deps = Graph(fetch())
+    for b in blockers:
+        if path := closing_cycle(number, b, deps):
+            raise BoardError(f"refused: #{number} blocked by {show(b)} closes the cycle {cycle_text(path)}")
+    i = get(number)
+    if i.links is None:
+        raise BoardError("this gh cannot read native issue links (blockedBy, parent); upgrade gh")
+    return settle(i, deps, blockers, parse_ref(parent) if parent else None)
+
+
+def _line(i: Issue, done: set[Ref]) -> str:
     who = ""
     if c := i.claim():
         who = f" @{c[0]}/{c[1]}"
     stale = " STALE" if i.status == "in-progress" and i.comments and i.hours_idle() > STALE_H else ""
     waits = [n for n in i.blockers if n not in done]
-    wait = f" waits {','.join(f'#{n}' for n in waits)}" if waits else ""
+    wait = f" waits {','.join(map(show, waits))}" if waits else ""
     return f"#{i.number:<4} {i.priority} {i.kind:<8} {i.status:<11}{who}{stale}{wait}  {i.title if len(i.title) <= 90 else i.title[:89] + '…'}"
 
 
 def listing(status: str | None = None, kind: str | None = None, as_json: bool = False) -> str:
     issues = fetch(with_comments=True)
-    done = closed_numbers()
+    done = resolved(issues)
 
     def wanted(i: Issue) -> bool:
         if kind:
@@ -448,7 +762,7 @@ def listing(status: str | None = None, kind: str | None = None, as_json: bool = 
     return "\n".join(_line(i, done) for i in rows) or "no matching issues"
 
 
-def startable(issues: list[Issue], kind: str | None = None, done: set[int] = frozenset()) -> list[Issue]:
+def startable(issues: list[Issue], kind: str | None = None, done: set[Ref] = frozenset()) -> list[Issue]:
     """Ready items whose blockers are all known closed (`done`); an unknown blocker counts as open."""
     ready = [
         i
@@ -463,7 +777,8 @@ def startable(issues: list[Issue], kind: str | None = None, done: set[int] = fro
 
 
 def next_items(kind: str | None, count: int) -> str:
-    issues, done = fetch(), closed_numbers()
+    issues = fetch()
+    done = resolved(issues)
     rows = startable(issues, kind, done)[:count]
     return "\n".join(_line(i, done) for i in rows) or "nothing startable (check `uv run dev board list`)"
 
@@ -515,9 +830,19 @@ def block(number: int, reason: str) -> None:
 
 
 def sync() -> list[str]:
-    """Blocked <-> ready from the declared blockers. Manual blocks (`board block`) stay until a release or claim."""
-    issues, done = fetch(), closed_numbers()
-    moved = []
+    """Native links first: backfill what bodies still declare (refusing cycles), render bodies from native links,
+    and name any cycle already there. Then blocked <-> ready from the blockers. Manual blocks (`board block`) stay
+    until a release or claim."""
+    issues = fetch()
+    deps = Graph(issues)
+    moved = [m for i in issues for m in settle(i, deps)]
+    open_ = {i.number for i in issues}  # a deadlock is a cycle among open items; closed ones cost a call each
+
+    def open_deps(r: Ref) -> list[Ref]:
+        return deps(r) if r in open_ else []
+
+    moved += [f"cycle: {cycle_text(c)}" for c in cycles(sorted(open_), open_deps)]
+    done = resolved(issues)
     for i in issues:
         waiting = any(n not in done for n in i.blockers)
         if i.status == "ready" and waiting:
@@ -719,9 +1044,18 @@ def brief(number: int) -> str:
     if c := i.claim():
         out.append(f"claimed by {c.agent}@{c.host} on branch {c.branch}")
     more = f"`gh issue view {i.number}`"
-    for name in ("Context", "DONE WHEN", "Owns", "Blocked by", "Refs", "Parent"):
+    for name in ("Context", "DONE WHEN", "Owns", "Refs"):
         if p.get(name):
             out += [f"\n## {name}", *cap(p[name].splitlines(), SECTION_LINES, more)]
+    links = i.links or Links([], None)
+    for name, refs in (
+        ("Blocked by", i.blockers),
+        ("Blocking", links.blocking),
+        ("Parent", [i.parent] if i.parent else []),
+        ("Sub-issues", links.subs),
+    ):
+        if refs:
+            out += [f"\n## {name}", ", ".join(map(show, refs))]
     if i.comments:
         last = [
             f"- {c.get('author', {}).get('login', '?')} {c.get('createdAt', '')[:16]}: "
