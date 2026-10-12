@@ -17,7 +17,7 @@
 | name | invocation | words | purpose |
 |---|---|---|---|
 | harness-ops:harness | model + /harness-ops:harness | 526 | How to change a project's agent surface safely — CLAUDE.md, .claude/ settings and agents, skills, hooks, the [tool.devkit] config, CI — without drift or bloa... |
-| harness-ops:lead | model + /harness-ops:lead | 573 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
+| harness-ops:lead | model + /harness-ops:lead | 643 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
 | harness-ops:research | model + /harness-ops:research | 587 | Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reve... |
 
 ## Hooks
@@ -70,6 +70,7 @@
 | `board sweep` | label and comment on claimed in-progress items with no comment for --hours |
 | `board event` | CI, scheduled: sync blockers, then sweep stale claims (GITHUB_EVENT_NAME, GITHUB_EVENT_PATH) |
 | `board brief` | everything an agent needs to start an item (spawn prompts stay one line) |
+| `board feedback` | a PR's comments and reviews since its last commit, and its unresolved threads |
 | `pr` | worker: push the gated branch, open the PR, move the item to review |
 | `integrate` | lead: re-gate a PR merged onto main in a throwaway worktree, then merge it |
 | `cite-check` | resolve every source in research notes; flag dead links and title mismatches |
@@ -96,5 +97,5 @@
 | plugins/harness-ops/agents/reviewer.md | 216 | 600 |
 | plugins/harness-ops/agents/tester.md | 205 | 600 |
 | plugins/harness-ops/skills/harness/SKILL.md | 526 | 650 |
-| plugins/harness-ops/skills/lead/SKILL.md | 573 | 650 |
+| plugins/harness-ops/skills/lead/SKILL.md | 643 | 650 |
 | plugins/harness-ops/skills/research/SKILL.md | 587 | 650 |

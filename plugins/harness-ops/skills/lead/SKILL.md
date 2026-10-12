@@ -18,9 +18,10 @@ Then run `uv run dev orient` if the SessionStart context is old, and `uv run dev
 
 ## 2. Close the loop first
 For each item in review, in priority order:
-1. `gh pr view <pr>` and `gh pr diff <pr> --name-only`.
+1. `gh pr view <pr>`, `gh pr diff <pr> --name-only` and `uv run dev board feedback <pr>` (comments and reviews since the last commit, unresolved threads).
 2. Spawn a `harness-ops:reviewer` when the PR touches harness files, several Owns, or anything a user sees. Spawn a `harness-ops:research-auditor` for research PRs that drive a decision.
-3. `uv run dev integrate <pr>`, adding `--harness-ok` only after you have read the harness diff yourself. On `RESULT: stopped`, comment the failure on the PR and resume its worker (SendMessage) or respawn it.
+3. Read every comment, from people and bots. Answer or fix each one (resume the worker for fixes), resolve its thread, and wait for the checks to go green.
+4. `uv run dev integrate <pr>`, adding `--harness-ok` only after you have read the harness diff yourself. It refuses failing or pending checks, requested changes and unresolved threads; pass `--override '<reason>'` only on the owner's word (the reason is logged on the PR). On `RESULT: stopped`, comment the failure on the PR and resume its worker (SendMessage) or respawn it.
 
 ## 3. Pick the next wave
 - `uv run dev board next -n 10`. Prefer P0, then items that unblock the most.

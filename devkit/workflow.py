@@ -251,7 +251,15 @@ def pr(number: int, summary: str | None, draft: bool) -> str:
     return url
 
 
-PR_FIELDS = "headRefName,headRefOid,baseRefName,isCrossRepository,title,body,state,isDraft"
+PR_FIELDS = (
+    "headRefName,headRefOid,baseRefName,isCrossRepository,title,body,state,isDraft,"
+    "statusCheckRollup,latestReviews,reviewDecision"
+)
+CHECK_PASSED = {
+    "SUCCESS",
+    "NEUTRAL",
+    "SKIPPED",
+}  # CheckRun conclusions that do not block; a StatusContext needs SUCCESS
 
 
 def refusal(info: dict) -> str | None:
@@ -261,6 +269,30 @@ def refusal(info: dict) -> str | None:
     if info["isCrossRepository"]:
         return "PR comes from a fork: integrate only merges branches of this repository"
     return None
+
+
+def unfinished(info: dict, threads: list[dict]) -> list[str]:
+    """Feedback a merge would bury: failing or pending checks, a standing CHANGES_REQUESTED review, unresolved
+    review threads. Every check counts, required or not (TheEye #164 merged over a failing optional job)."""
+    out = []
+    for c in info.get("statusCheckRollup") or []:
+        name = c.get("name") or c.get("context") or "?"
+        if c.get("__typename") == "StatusContext":
+            state = c.get("state") or "PENDING"
+            if state in {"PENDING", "EXPECTED"}:
+                out.append(f"check {name}: pending")
+            elif state != "SUCCESS":
+                out.append(f"check {name}: failing ({state})")
+        elif c.get("status") != "COMPLETED":
+            out.append(f"check {name}: pending ({c.get('status')})")
+        elif c.get("conclusion") not in CHECK_PASSED:
+            out.append(f"check {name}: failing ({c.get('conclusion')})")
+    asked = [board.login(r) for r in info.get("latestReviews") or [] if r.get("state") == "CHANGES_REQUESTED"]
+    out += [f"changes requested by {who}" for who in asked]
+    if not asked and info.get("reviewDecision") == "CHANGES_REQUESTED":
+        out.append("changes requested (review decision)")
+    out += [f"unresolved review thread {t['path']}:{t.get('line') or '?'}" for t in threads]
+    return out
 
 
 def _add_worktree(path: Path, commit: str, cwd: Path | None = None) -> None:
@@ -294,8 +326,10 @@ def _merge_if_unchanged(pr_number: int, head: str, main: str, dry_run: bool = Fa
     return None
 
 
-def integrate(pr_number: int, harness_ok: bool, dry_run: bool) -> int:
-    """Lead only: merge a PR after re-gating the merged tree (main + pull/N/head) in a throwaway worktree."""
+def integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | None = None) -> int:
+    """Lead only: merge a PR after re-gating the merged tree (main + pull/N/head) in a throwaway worktree.
+    Unfinished feedback (checks, requested changes, open threads) refuses it unless `override` gives a reason,
+    which is logged on the PR just before the merge."""
     info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
     if info["state"] != "OPEN" or info["isDraft"]:
         print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
@@ -303,6 +337,18 @@ def integrate(pr_number: int, harness_ok: bool, dry_run: bool) -> int:
     if reason := refusal(info):
         print(f"RESULT: refused: {reason}")
         return 1
+    if override is not None and not override.strip():
+        print("RESULT: refused: --override needs a reason")
+        return 1
+    if todo := unfinished(info, board.pr_feedback(pr_number)["threads"]):
+        if override is None:
+            print(f"RESULT: refused: PR #{pr_number} has unfinished feedback:\n  " + "\n  ".join(todo))
+            print(
+                f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, resolve the threads and "
+                "wait for the checks; or rerun with --override '<reason>' (logged on the PR)."
+            )
+            return 1
+        print(f"overriding unfinished feedback ({override}):\n  " + "\n  ".join(todo))
     head_ref, main_ref = f"refs/devkit/integrate/pr-{pr_number}", f"refs/devkit/integrate/main-{pr_number}"
     try:
         git("fetch", "--no-tags", "origin", f"+refs/pull/{pr_number}/head:{head_ref}", f"+refs/heads/main:{main_ref}")
@@ -337,6 +383,12 @@ def integrate(pr_number: int, harness_ok: bool, dry_run: bool) -> int:
         git("worktree", "remove", "--force", str(tmp), check=False)
         git("update-ref", "-d", head_ref, check=False)
         git("update-ref", "-d", main_ref, check=False)
+    if todo:
+        log = f"`dev integrate --override`: {override}\n\nMerged over:\n" + "\n".join(f"- {t}" for t in todo)
+        if dry_run:
+            print(f"would log on PR #{pr_number}:\n{log}")
+        else:
+            board.gh("pr", "comment", str(pr_number), "-R", board.repo(), "--body", log)
     if reason := _merge_if_unchanged(pr_number, head, main, dry_run=dry_run):
         print(f"RESULT: stopped ({reason})")
         return 1

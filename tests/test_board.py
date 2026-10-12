@@ -251,6 +251,7 @@ def test_brief_caps_each_section_at_40_lines(monkeypatch):
     body = f"## Context\n{lines}\n## DONE WHEN\n- [ ] a\n## Owns\n- `devkit/`\n"
     monkeypatch.setattr(board, "get", lambda n: mk(n, ["status:ready"], body))
     monkeypatch.setattr(board, "in_flight_files", lambda: {f"devkit/f{k}.py": ["PR #1"] for k in range(90)})
+    monkeypatch.setattr(board, "issue_prs", lambda n: [])
     out = board.brief(4)
     blocks = out.split("\n## ")
     for b in blocks[1:]:
