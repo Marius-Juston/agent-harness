@@ -135,10 +135,10 @@ def test_ready_with_an_open_blocker_fails_and_is_fixed_to_blocked():
 def test_epic_with_no_sub_issues_fails():
     lonely = mk(1, ["type:epic", "P1"], DONE, "Epic: x", board.Links([], None, [], []))
     assert any("sub-issue" in p for p in problems([lonely]))
-    # without fetched links, an open child naming it as parent is enough
+    # without fetched links, an open sub-issue naming it as parent is enough
     epic = mk(1, ["type:epic", "P1"], DONE, "Epic: x")
-    child = ok(2, body=DONE + OWNS + "\n## Parent\n#1\n")
-    assert problems([epic, child], number=1) == []
+    sub = ok(2, body=DONE + OWNS + "\n## Parent\n#1\n")
+    assert problems([epic, sub], number=1) == []
 
 
 def test_fix_labels_an_epic_titled_issue_type_epic():

@@ -958,7 +958,7 @@ def lint(issues: list[Issue], done: set[Ref], merged: dict[int, list[int]]) -> l
     """Every convention an open item breaks. `done`: blockers known closed (`resolved`); `merged`: issue -> merged
     PRs that close it by keyword (`merged_closes`). A warning (warn=True) is worth a look but breaks no convention."""
     by = {i.number: i for i in issues}
-    children = {i.parent for i in issues if i.parent is not None}
+    named_parent = {i.parent for i in issues if i.parent is not None}
     titles: dict[str, list[int]] = {}
     out: list[Finding] = []
     for i in issues:
@@ -970,7 +970,7 @@ def lint(issues: list[Issue], done: set[Ref], merged: dict[int, list[int]]) -> l
             out.append(Finding(n, "DONE WHEN is empty (or only bare numbers)"))
         if kind in NEEDS_OWNS and not owns_of(i):
             out.append(Finding(n, f"type:{kind} without Owns (backticked paths)"))
-        if kind == "epic" and not (i.links and i.links.subs) and n not in children:
+        if kind == "epic" and not (i.links and i.links.subs) and n not in named_parent:
             out.append(Finding(n, "epic with no sub-issues"))
         if n in merged:
             prs = ", ".join(f"#{p}" for p in merged[n])
