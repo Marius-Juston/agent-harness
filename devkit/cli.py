@@ -138,6 +138,11 @@ def build() -> argparse.ArgumentParser:
     x.add_argument(
         "--override", metavar="REASON", help="merge despite unfinished PR feedback; the reason is logged on the PR"
     )
+    x.add_argument(
+        "--local-ci",
+        action="store_true",
+        help="no Actions minutes: required checks Actions does not run are run locally and posted as statuses",
+    )
 
     x = sub.add_parser(
         "cite-check", help="resolve every source in research notes; flag dead links and title mismatches"
@@ -246,7 +251,7 @@ def run(a: argparse.Namespace) -> int:
         case "pr":
             print(workflow.pr(a.number, a.summary, a.draft, a.partial))
         case "integrate":
-            return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override)
+            return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override, a.local_ci)
         case "cite-check":
             paths = [Path(p) for p in a.paths] or _changed_notes()
             if not paths:

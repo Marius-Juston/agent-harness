@@ -1,6 +1,7 @@
 """Gate and integrate integrity: the gate cannot be talked into a pass, and integrate merges what it gated."""
 
 import fcntl
+import hashlib
 import json
 import os
 import subprocess
@@ -897,3 +898,211 @@ def test_maintenance_keeps_one_broken_links_issue_open_or_closes_it():
     for needed in ("gh issue list --state open --label type:bug", "gh issue edit", "gh issue create", "gh issue close"):
         assert needed in script
     assert "${{" not in script  # expressions only via env (no template injection)
+
+
+# --- #76: merging with no Actions minutes (`dev integrate --local-ci`) ----------------------------------------------
+
+
+def _job(name, job, conclusion="FAILURE"):
+    return _run(name, conclusion=conclusion) | {"detailsUrl": f"https://github.com/o/r/actions/runs/1/job/{job}"}
+
+
+@pytest.fixture
+def actions(fake_integrate, monkeypatch, clock):
+    """GitHub's REST side for --local-ci on top of fake_integrate. Knobs: protection (required_status_checks, None
+    when unreadable), enabled (Actions permissions), steps (job id -> steps it ran), commands (config local_ci);
+    statuses records each status posted."""
+    knobs = {
+        "protection": {"contexts": ["check"], "checks": [{"context": "check", "app_id": None}]},
+        "enabled": True,
+        "steps": {},
+        "commands": {"check": []},
+        "statuses": [],
+    }
+    inner = board.gh
+
+    def gh(*args, **kw):
+        if args[0] != "api" or args[1] == "graphql":
+            return inner(*args, **kw)
+        fake_integrate["events"].append(("gh", *args))
+        path = next(a for a in args[1:] if a.startswith("repos/"))
+        if path.endswith("/protection/required_status_checks"):
+            if knobs["protection"] is None:
+                raise board.BoardError("gh api: 404 Branch not protected")
+            return json.dumps(knobs["protection"])
+        if path.endswith("/actions/permissions"):
+            return json.dumps({"enabled": knobs["enabled"]})
+        if "/actions/jobs/" in path:
+            return json.dumps({"steps": [{}] * knobs["steps"].get(path.rsplit("/", 1)[1], 0)})
+        if "/statuses/" in path:
+            fields = dict(a.split("=", 1) for a in args if "=" in a and not a.startswith("repos/"))
+            knobs["statuses"].append({"sha": path.rsplit("/", 1)[1], **fields})
+            return "{}"
+        raise AssertionError(args)
+
+    monkeypatch.setattr(board, "gh", gh)
+    cfg = workflow.config.Config(checks_wait_s=900, local_ci_wait_s=600, local_ci=knobs["commands"])
+    monkeypatch.setattr(workflow.config, "get", lambda: cfg)
+    return knobs
+
+
+def _comments(ev):
+    return [e[e.index("--body") + 1] for e in ev if e[:3] == ("gh", "pr", "comment")]
+
+
+def _log_sha(tmp_path, tip):
+    return hashlib.sha256((tmp_path / "integrate" / f"pr-7-{tip[:12]}.log").read_bytes()).hexdigest()
+
+
+def test_billing_blocked_checks_are_run_locally_posted_as_statuses_with_the_log_hash_then_merged(
+    fake_integrate, actions, capsys, tmp_path
+):
+    """#76: Actions failed the required job without running a step (a billing block): the local gate on the merged
+    tree stands in; its pass is posted as the `check` status on that exact commit, with the log's hash; the PR says
+    CI ran locally; the merge goes through."""
+    fake_integrate["checks"] = [_job("check", 11)]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
+    ev = fake_integrate["events"]
+    digest = _log_sha(tmp_path, HEAD)
+    (status,) = actions["statuses"]
+    assert (status["sha"], status["state"], status["context"]) == (HEAD, "success", "check")
+    assert digest[:16] in status["description"]
+    gate_run = _index(ev, lambda e: e[0] == "run" and "check" in e)
+    post = _index(ev, lambda e: e[:3] == ("gh", "api", "-X") and "/statuses/" in e[4])
+    assert gate_run < post < _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
+    (body,) = _comments(ev)
+    assert "CI ran locally" in body and digest in body and HEAD in body
+    assert _last_json(capsys.readouterr().out)["outcome"] == "merged"
+
+
+def test_with_actions_disabled_nothing_is_waited_for(fake_integrate, actions, clock):
+    fake_integrate["checks"] = []
+    actions["enabled"] = False
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
+    assert [s["context"] for s in actions["statuses"]] == ["check"] and clock["sleeps"] == []
+
+
+def test_a_required_check_that_never_queues_counts_as_actions_unavailable_after_the_wait(
+    fake_integrate, actions, clock
+):
+    fake_integrate["checks"] = []
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
+    assert 600 <= sum(clock["sleeps"]) < 600 + workflow.CHECKS_FLOOR_S + workflow.CHECKS_CAP_S
+    assert [s["context"] for s in actions["statuses"]] == ["check"]
+
+
+def test_a_check_actions_ran_and_failed_is_never_covered_by_a_local_status(fake_integrate, actions, capsys):
+    fake_integrate["checks"] = [_job("check", 11)]
+    actions["steps"] = {"11": 5}  # the job ran its steps: a real failure
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 1
+    assert actions["statuses"] == [] and not _merged(fake_integrate["events"])
+    assert _last_json(capsys.readouterr().out)["outcome"] == "refused"
+
+
+def test_a_check_actions_runs_is_waited_for_and_nothing_is_posted(fake_integrate, actions, clock):
+    fake_integrate["tip"] = "t" * 40
+    fake_integrate["checks"] = [_run("check", status="QUEUED")]
+    fake_integrate["after_push"] = [[_run("check", status="IN_PROGRESS")], [_run("check")]]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
+    assert actions["statuses"] == [] and clock["sleeps"]
+    assert not any("CI ran locally" in b for b in _comments(fake_integrate["events"]))
+
+
+def test_after_a_push_the_status_goes_on_the_gated_tip_not_the_old_head(fake_integrate, actions, tmp_path):
+    tip = "t" * 40
+    fake_integrate["tip"] = tip
+    fake_integrate["checks"] = [_job("check", 11)]
+    fake_integrate["after_push"] = [[_job("check", 12)]]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
+    (status,) = actions["statuses"]
+    assert status["sha"] == tip and _log_sha(tmp_path, tip)[:16] in status["description"]
+    ev = fake_integrate["events"]
+    assert _index(ev, lambda e: e[:2] == ("git", "push")) < _index(ev, lambda e: "/statuses/" in " ".join(e))
+
+
+def test_a_failing_gate_posts_no_status(fake_integrate, actions, capsys):
+    fake_integrate["checks"] = [_job("check", 11)]
+    fake_integrate["gate_code"] = 1
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 1
+    assert actions["statuses"] == [] and not _comments(fake_integrate["events"])
+    assert _last_json(capsys.readouterr().out)["outcome"] == "gate-failed"
+
+
+def test_each_required_context_runs_its_own_stand_in_and_a_failure_posts_nothing(
+    fake_integrate, actions, monkeypatch, capsys
+):
+    """`template` is not what the gate checks: its configured commands run in the merged tree ({tmpdir} filled)."""
+    actions["protection"] = {"contexts": ["check", "template"], "checks": []}
+    actions["commands"]["template"] = [["scripts/render_check.sh", "{tmpdir}/p"]]
+    fake_integrate["checks"] = [_job("check", 11), _job("template", 12)]
+    ran, code = [], {"stand_in": 0}
+    run = workflow.subprocess.run
+
+    def stand_in(cmd, **kw):
+        if cmd[0] == "scripts/render_check.sh":
+            ran.append(cmd)
+            return subprocess.CompletedProcess(cmd, code["stand_in"])
+        return run(cmd, **kw)
+
+    monkeypatch.setattr(workflow.subprocess, "run", stand_in)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
+    assert "{tmpdir}" not in ran[0][1] and ran[0][1].endswith("/p")
+    assert sorted(s["context"] for s in actions["statuses"]) == ["check", "template"]
+    assert "scripts/render_check.sh" in _comments(fake_integrate["events"])[0]
+
+    actions["statuses"].clear()
+    code["stand_in"] = 1
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 1
+    assert actions["statuses"] == [] and _last_json(capsys.readouterr().out)["outcome"] == "gate-failed"
+
+
+def test_local_ci_refuses_before_the_gate_when_a_status_cannot_count(fake_integrate, actions, capsys):
+    """A required check bound to the GitHub Actions app ignores statuses from anyone else; a required check with no
+    configured stand-in would be posted unverified. Both refuse, naming the fix."""
+    actions["protection"] = {"contexts": ["check"], "checks": [{"context": "check", "app_id": 15368}]}
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 1
+    reason = _last_json(capsys.readouterr().out)["reason"]
+    assert '"app_id": -1' in reason and "required_status_checks" in reason
+    actions["protection"] = {"contexts": ["check", "plugin"], "checks": []}
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 1
+    assert "plugin" in _last_json(capsys.readouterr().out)["reason"]
+    ev = fake_integrate["events"]
+    assert not any(e[0] == "run" and "check" in e for e in ev) and actions["statuses"] == []
+
+
+def test_unreadable_protection_falls_back_to_the_configured_contexts(fake_integrate, actions):
+    actions["protection"] = None
+    fake_integrate["checks"] = [_job("check", 11)]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
+    assert [s["context"] for s in actions["statuses"]] == ["check"]
+
+
+def test_a_local_ci_dry_run_posts_nothing(fake_integrate, actions, capsys):
+    fake_integrate["checks"] = [_job("check", 11)]
+    assert workflow.integrate(7, harness_ok=True, dry_run=True, local_ci=True) == 0
+    assert actions["statuses"] == [] and not _comments(fake_integrate["events"])
+    assert "would wait for Actions" in capsys.readouterr().out
+
+
+def test_without_local_ci_a_billing_blocked_check_still_refuses(fake_integrate, actions, capsys):
+    fake_integrate["checks"] = [_job("check", 11)]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert actions["statuses"] == [] and _last_json(capsys.readouterr().out)["outcome"] == "refused"
+
+
+def test_orient_syncs_the_board_first(monkeypatch, tmp_path):
+    """#76: blockers re-sync at every orient (and integrate), so the scheduled board workflow is optional."""
+    calls = []
+    monkeypatch.setattr(board, "sync", lambda: calls.append("sync") or ["#4 -> ready"])
+    monkeypatch.setattr(board, "fetch", lambda *a, **k: calls.append("fetch") or [])
+    monkeypatch.setattr(board, "closed_numbers", lambda: set())
+    monkeypatch.setattr(workflow, "root", lambda: tmp_path)
+    monkeypatch.setattr(workflow, "status", lambda: "")
+    out = workflow.orient()
+    assert calls[:2] == ["sync", "fetch"] and "board sync: #4 -> ready" in out
+
+    def down():
+        raise board.BoardError("rate limited")
+
+    monkeypatch.setattr(board, "sync", down)
+    assert "board sync: failed (rate limited)" in workflow.orient()
