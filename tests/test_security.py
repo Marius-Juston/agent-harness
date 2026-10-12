@@ -32,8 +32,16 @@ def gitleaks_repo(config: Path) -> dict:
     return next(r for r in repos if r["repo"] == GITLEAKS)
 
 
+def check_steps(workflow: Path) -> list[dict]:
+    return yaml.safe_load(workflow.read_text())["jobs"]["check"]["steps"]
+
+
 def security_steps(workflow: Path) -> list[dict]:
-    return yaml.safe_load(workflow.read_text())["jobs"]["security"]["steps"]
+    """The security steps inside the check job (#57: one billed job): gitleaks through the SBOM upload."""
+    steps = check_steps(workflow)
+    start = next(i for i, s in enumerate(steps) if "gitleaks-history" in s.get("run", ""))
+    end = next(i for i, s in enumerate(steps) if s.get("uses", "").startswith("actions/upload-artifact@"))
+    return steps[start : end + 1]
 
 
 def step_run(workflow: Path, needle: str) -> str:
@@ -64,12 +72,13 @@ def test_both_configs_pin_the_same_gitleaks():
 
 
 @pytest.mark.parametrize("workflow", WORKFLOWS, ids=lambda p: str(p.relative_to(ROOT)))
-def test_ci_security_job(workflow):
-    job = yaml.safe_load(workflow.read_text())["jobs"]["security"]
+def test_ci_security_steps(workflow):
+    job = yaml.safe_load(workflow.read_text())["jobs"]["check"]
+    assert "if" not in job  # the weekly schedule reaches the security steps
     checkout = job["steps"][0]
     assert checkout["uses"].startswith("actions/checkout@")
     assert checkout["with"]["fetch-depth"] == 0  # the history scan needs every commit
-    runs = " ".join(s.get("run", "") for s in job["steps"])
+    runs = " ".join(s.get("run", "") for s in security_steps(workflow))
     assert "-c .pre-commit-config.yaml --hook-stage manual gitleaks-history" in runs  # root config: one scan
     assert "uv audit --locked" in runs  # a stale lock fails rather than being audited as is
     assert "--format cyclonedx1.5" in runs and "--quiet" in runs  # the SBOM goes to the artifact, not the log
@@ -77,11 +86,11 @@ def test_ci_security_job(workflow):
     assert setup["with"]["version"]  # preview features: pin uv
     assert "schedule" in yaml.safe_load(workflow.read_text())[True]  # weekly re-audit
     assert any(s.get("uses", "").startswith("actions/upload-artifact@") for s in job["steps"])
-    # every check reports even when an earlier one fails
-    assert all(s.get("if") == "${{ !cancelled() }}" for s in job["steps"][3:])
+    # every check reports even when an earlier one fails, and on the weekly schedule
+    assert all(s.get("if") == "${{ !cancelled() }}" for s in security_steps(workflow))
 
 
-def test_the_two_security_jobs_match():
+def test_the_two_security_step_lists_match():
     assert security_steps(WORKFLOWS[0]) == security_steps(WORKFLOWS[1])
 
 

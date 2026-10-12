@@ -66,6 +66,11 @@ def test_the_project_pins_the_devkit_and_the_plugin_to_this_release(rendered):
         "git": "https://github.com/Marius-Juston/agent-harness",
         "tag": tag,
     }
+    # PyPI's `agent-harness` is an unrelated project: the requirement itself names the git tag, so `--no-sources`,
+    # `uv export` and pip resolve this release, never PyPI's (docs/research/agent-harness.md, section 9).
+    assert py["dependency-groups"]["dev"] == [
+        f"agent-harness @ git+https://github.com/Marius-Juston/agent-harness@{tag}"
+    ]
     cfg = config.parse(py["tool"]["devkit"])  # the rendered config is valid for this devkit
     assert cfg.plugins["harness-ops@agent-harness"] == f"Marius-Juston/agent-harness@{tag}"
     settings = json.loads((rendered / ".claude/settings.json").read_text())
@@ -193,3 +198,63 @@ def test_copier_update_never_conflicts_on_project_owned_files(tmp_path):
     assert not [p for p in files if p.suffix == ".rej"]
     assert not [p for p in files if "<<<<<<<" in p.read_text(errors="replace")]
     assert "## Rules" in (dest / ".devkit/HARNESS.md").read_text()
+    py = tomllib.loads((dest / "pyproject.toml").read_text())  # the pinned requirement reaches existing projects
+    url = f"git+https://github.com/Marius-Juston/agent-harness@v{version()}"
+    assert py["dependency-groups"]["dev"] == [f"agent-harness @ {url}"]
+    assert py["tool"]["uv"]["sources"]["agent-harness"]["git"] == "https://github.com/Marius-Juston/agent-harness"
+
+
+STANDARD = ("CONTRIBUTING.md", "SECURITY.md", ".editorconfig", "CHANGELOG.md")
+HARNESS_ONLY = (
+    "CODE_OF_CONDUCT.md",
+    ".github/pull_request_template.md",
+    ".github/ISSUE_TEMPLATE/config.yml",
+    ".github/ISSUE_TEMPLATE/task.yml",
+)
+
+
+def test_the_standard_repo_files_exist_here_and_in_a_rendered_project(rendered):
+    for name in STANDARD:
+        assert (rendered / name).is_file(), f"rendered project lacks {name}"
+        assert (ROOT / name).is_file(), f"agent-harness lacks {name}"
+    for name in HARNESS_ONLY:
+        assert (ROOT / name).is_file(), f"agent-harness lacks {name}"
+    # one text where nothing is project-specific, so the two never drift apart
+    for name in ("SECURITY.md", ".editorconfig", ".github/ISSUE_TEMPLATE/task.yml"):
+        assert (ROOT / name).read_text() == (ROOT / "template" / name).read_text(), name
+    for path in (ROOT / ".github/ISSUE_TEMPLATE").glob("*.yml"):
+        assert isinstance(yaml.safe_load(path.read_text()), dict), path
+
+
+def test_contributing_links_setup_and_help_and_readme_links_contributing(rendered):
+    """CONTRIBUTING is the path from clone to first PR: it links the setup page and `uv run dev --help`, never a copy
+    of the command list."""
+    for where in (ROOT, rendered):
+        text = (where / "CONTRIBUTING.md").read_text()
+        assert "docs/SETUP.md" in text and "`uv run dev --help`" in text, where
+        assert "uv run dev check" in text, where
+        assert "(CONTRIBUTING.md)" in (where / "README.md").read_text(), where
+    for name in ("CODE_OF_CONDUCT.md", "SECURITY.md"):
+        assert f"({name})" in (ROOT / "CONTRIBUTING.md").read_text(), name
+
+
+def test_the_changelog_is_project_owned():
+    """release-please (#60) writes CHANGELOG.md; a `copier update` must never overwrite a project's release notes."""
+    assert "CHANGELOG.md" in yaml.safe_load((ROOT / "copier.yml").read_text())["_skip_if_exists"]
+
+
+def test_render_check_asserts_the_standard_files():
+    script = (ROOT / "scripts/render_check.sh").read_text()
+    for name in STANDARD:
+        assert name in script, name
+
+
+@pytest.mark.slow
+def test_a_fresh_clone_reaches_a_green_gate_following_readme_and_contributing(tmp_path):
+    out = subprocess.run(
+        [str(ROOT / "scripts/contributing_check.sh"), str(tmp_path / "clone")],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert out.returncode == 0 and "RESULT: passed" in out.stdout, (out.stdout + out.stderr)[-3000:]

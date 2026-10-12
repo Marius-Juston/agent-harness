@@ -61,7 +61,8 @@ sections of its CLAUDE.md with the line `@.devkit/HARNESS.md` once, by hand, aft
 It runs its own harness on itself (`[tool.devkit]` in [pyproject.toml](pyproject.toml)): `uv sync`, then
 `uv run dev check`. CI also renders the template into a fresh project and gates it
 ([scripts/render_check.sh](scripts/render_check.sh)), and runs `claude plugin validate --strict`. A test scans every
-file for strings that must not be public ([tests/test_scrub.py](tests/test_scrub.py)).
+file for strings that must not be public ([tests/test_scrub.py](tests/test_scrub.py)). From a clone to a pull
+request: [CONTRIBUTING.md](CONTRIBUTING.md); vulnerabilities: [SECURITY.md](SECURITY.md).
 
 ## License
 MIT, see [LICENSE](LICENSE).

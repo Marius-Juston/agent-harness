@@ -127,9 +127,10 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("number", type=int)
     x.add_argument(
         "--summary",
-        help="markdown file, or - for stdin (heredoc); first line 'Closes #N' only if DONE WHEN is met, else 'Refs #N'",
+        help="markdown file, or - for stdin (heredoc); without a 'Closes #N' or 'Refs #N' first line it gets 'Closes #N'",
     )
     x.add_argument("--draft", action="store_true")
+    x.add_argument("--partial", action="store_true", help="some DONE WHEN item is not met: 'Refs #N', not 'Closes #N'")
     x = sub.add_parser("integrate", help="lead: re-gate a PR merged onto main in a throwaway worktree, then merge it")
     x.add_argument("pr", type=int)
     x.add_argument("--harness-ok", action="store_true", help="you read the diff of harness files it touches")
@@ -243,7 +244,7 @@ def run(a: argparse.Namespace) -> int:
         case "board":
             return run_board(a)
         case "pr":
-            print(workflow.pr(a.number, a.summary, a.draft))
+            print(workflow.pr(a.number, a.summary, a.draft, a.partial))
         case "integrate":
             return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override)
         case "cite-check":

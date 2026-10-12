@@ -1,10 +1,10 @@
 * text=auto eol=lf
-# Append-mostly files: keep both sides' lines on merge (parallel agents add sections, never rewrite others').
-docs/research/*.md merge=union
+# Append-only files: keep both sides' lines on merge. Never a file agents rewrite (research notes): two rewrites
+# must conflict, not interleave.
 docs/research/_scratch/**/*.md merge=union
 docs/log/*.md merge=union
 docs/questions/OPEN_QUESTIONS.md merge=union
-# Generated: never merge by hand, regenerate (`uv run dev docs`).
-docs/generated/** linguist-generated=true -diff
-docs/research/INDEX.md linguist-generated=true
+# Generated: never merge by hand. The driver (`dev setup`, and integrate) keeps one side; `uv run dev docs` regenerates.
+docs/generated/** linguist-generated=true -diff merge=devkit-generated
+docs/research/INDEX.md linguist-generated=true merge=devkit-generated
 uv.lock linguist-generated=true -diff

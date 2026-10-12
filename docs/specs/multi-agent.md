@@ -31,12 +31,17 @@ Nothing assumes that two machines share a disk.
 5. **Work.** Builders write failing tests first. Iterate with `uv run dev test --affected`. Post milestones with
    `uv run dev board beat N "..."` at least every ~4 h.
 6. **Hand back.** Commit, run `uv run dev check` once on the tip, then `uv run dev pr N --summary <file>`. The summary
-   starts with `Closes #N` only if every DONE WHEN item is met, otherwise `Refs #N`. The item moves to review.
+   gets `Closes #N` (every DONE WHEN item met), or `Refs #N` with `--partial`. The item moves to review.
    The reply to the lead is at most 25 lines.
 7. **Integrate** (lead). Read the PR and check its numbers against the data, then run `uv run dev integrate <pr>`.
    This merges the PR onto `origin/main` in a throwaway worktree and re-runs the gate there. A worker's report is
-   not evidence. If the gate passes, the PR merges, blocked items whose blockers closed move to ready, and the
-   worktree is removed. A PR that touches harness files is refused until the lead has read that diff (`--harness-ok`).
+   not evidence. The merged tree is main merged into the PR, with generated files regenerated (`dev docs`); when
+   that differs from the PR head, integrate pushes it to the PR branch first. A real conflict is sent back: the
+   paths go on the PR, the item is blocked ('rebase on main') and the worker to resume is named. If the gate
+   passes, the PR merges, then its items close, blocked items whose blockers closed move to ready, and the
+   worktree is removed. The last line, `RESULT-JSON: {...}`, says what happened (`outcome`). A PR that touches
+   harness files is refused until the lead has read that diff (`--harness-ok`); a `.gitattributes` change can hide
+   conflicts, so read it too.
    Integrate also refuses a PR with failing or pending checks, a standing CHANGES_REQUESTED review or unresolved
    review threads, unless `--override '<reason>'` is given; the reason is logged on the PR. The lead reads
    `uv run dev board feedback <pr>` first and answers or fixes each comment.

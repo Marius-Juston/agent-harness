@@ -1,4 +1,4 @@
-Refs #<issue>   <!-- "Closes #<issue>" only if every DONE WHEN item is met -->
+Closes #<issue>   <!-- "Refs #<issue>" if some DONE WHEN item is not met -->
 
 ## What changed
 <!-- files; harness files touched (.devkit/, .claude/, .github/workflows/, CLAUDE.md, pyproject.toml)? -->
