@@ -5,8 +5,22 @@ from pathlib import Path
 
 import pytest
 
+from devkit import config, paths
+
 ROOT = Path(__file__).resolve().parents[1]
 HOOKS = ROOT / "plugins/harness-ops/scripts"
+
+
+@pytest.fixture(autouse=True)
+def _fresh_location_caches():
+    """root(), common_dir() and config.get() are cached per process: a test that chdirs into a temporary repository
+    (or runs integrate in one) must not leave its answers to the next test on the same worker."""
+    caches = (paths.root, paths.common_dir, config.get)
+    for cached in caches:
+        cached.cache_clear()
+    yield
+    for cached in caches:
+        cached.cache_clear()
 
 
 @pytest.fixture
