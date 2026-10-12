@@ -5,7 +5,9 @@ own one issue in their own worktree and finish with a PR. Only the lead merges, 
 gate on the merged tree in a throwaway worktree, never on the worker's say-so.
 """
 
+import itertools
 import json
+import random
 import re
 import shutil
 import subprocess
@@ -15,7 +17,7 @@ import time
 import traceback
 from pathlib import Path, PurePosixPath
 
-from devkit import board, checks, config
+from devkit import backoff, board, checks, config
 from devkit.gate import free_gb, tree_key
 from devkit.paths import git, main_checkout, root, state_dir
 
@@ -280,12 +282,17 @@ def refusal(info: dict) -> str | None:
     return None
 
 
+def check_key(c: dict) -> str:
+    """`workflow/name` of a CheckRun, `/context` of a StatusContext."""
+    return f"{c.get('workflowName') or ''}/{c.get('name') or c.get('context') or '?'}"
+
+
 def latest_checks(rollup: list[dict]) -> list[dict]:
     """One check per (workflow, name or context), the latest by start then completion: a rollup keeps every run, so a
     rerun that passed sits next to the failure it replaced."""
-    latest: dict[tuple[str, str], dict] = {}
+    latest: dict[str, dict] = {}
     for c in rollup:
-        key = (c.get("workflowName") or "", c.get("name") or c.get("context") or "?")
+        key = check_key(c)
         when = (c.get("startedAt") or "", c.get("completedAt") or "")
         if key not in latest or when >= (latest[key].get("startedAt") or "", latest[key].get("completedAt") or ""):
             latest[key] = c
@@ -317,6 +324,55 @@ def unfinished(info: dict, feedback: dict) -> list[str]:
     if feedback.get("threads_truncated"):
         out.append(f"more than {board.THREADS_PAGE} review threads: the rest are unread, check them on GitHub")
     return out
+
+
+def pending_checks(info: dict, expected: list[str]) -> list[str]:
+    """Checks on the PR head that are not done: still queued or running, or one of `expected` (`check_key`s the PR
+    had before integrate pushed) not registered on it yet. A failed check is done: `unfinished` judges it."""
+    runs = latest_checks(info.get("statusCheckRollup") or [])
+    out = [
+        check_key(c)
+        for c in runs
+        if (
+            (c.get("state") or "PENDING") in {"PENDING", "EXPECTED"}
+            if c.get("__typename") == "StatusContext"
+            else c.get("status") != "COMPLETED"
+        )
+    ]
+    seen = {check_key(c) for c in runs}
+    return out + [f"{k} (not started)" for k in expected if k not in seen]
+
+
+# Waiting for the checks on a head integrate pushed (#72): polls back off with full jitter (devkit.backoff) from a
+# floor, so a lead's integrate does not hammer the API and parallel leads do not poll in step.
+CHECKS_FLOOR_S = 5.0  # every poll waits at least this
+CHECKS_BASE_S = 10.0  # the first poll's jitter window
+CHECKS_CAP_S = 60.0  # no jitter window grows past this
+CHECKS_RNG = random.Random()  # noqa: S311 - poll jitter, not a secret
+CHECKS_CLOCK = time.monotonic
+
+
+def await_checks(pr_number: int, tip: str, expected: list[str], timeout_s: float) -> tuple[str, list[str]]:
+    """Poll the PR until every check on `tip` is complete, at most `timeout_s`. Returns ("ready", []), ("moved",
+    [new head]) when the head is no longer `tip`, or ("timeout", the checks still pending)."""
+    deadline = CHECKS_CLOCK() + timeout_s
+    for attempt in itertools.count():
+        info = json.loads(
+            board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", "headRefOid,statusCheckRollup")
+        )
+        if info["headRefOid"] != tip:
+            return "moved", [info["headRefOid"]]
+        if not (pending := pending_checks(info, expected)):
+            return "ready", []
+        if (left := deadline - CHECKS_CLOCK()) <= 0:
+            return "timeout", pending
+        time.sleep(min(left, backoff.wait(attempt, 0, CHECKS_RNG, CHECKS_BASE_S, CHECKS_CAP_S, CHECKS_FLOOR_S)))
+    raise AssertionError("unreachable")
+
+
+def _waiting_file(pr_number: int) -> Path:
+    """Where a timed-out wait records the tip it pushed and the checks expected on it, so a rerun resumes there."""
+    return state_dir("integrate") / f"pr-{pr_number}.waiting.json"
 
 
 def _add_worktree(path: Path, commit: str, cwd: Path | None = None) -> None:
@@ -453,9 +509,26 @@ def _head_is(pr_number: int, tip: str) -> bool:
 
 def result(pr_number: int, code: int, outcome: str, **fields: object) -> int:
     """The last line integrate prints, for the lead to branch on: `RESULT-JSON: {"pr", "outcome", "exit", ...}`.
-    Outcomes: merged, would-merge, conflict, gate-failed, harness-review, refused, stopped, not-open."""
+    Outcomes: merged, would-merge, conflict, gate-failed, harness-review, refused, stopped, not-open, waiting."""
     print("RESULT-JSON: " + json.dumps({"pr": pr_number, "outcome": outcome, "exit": code, **fields}))
     return code
+
+
+def _wait_on_tip(pr_number: int, tip: str, expected: list[str], update: dict) -> int | None:
+    """`await_checks` on a head integrate pushed. None when every check on it is complete; else the exit code, after
+    the result line: `stopped` when the head moved, `waiting` (recorded for a rerun) when the time ran out."""
+    timeout_s = config.get().checks_wait_s
+    print(f"waiting up to {timeout_s} s for the checks on {tip[:10]} ...", flush=True)
+    state, detail = await_checks(pr_number, tip, expected, timeout_s)
+    if state == "moved":
+        _waiting_file(pr_number).unlink(missing_ok=True)
+        print(f"RESULT: stopped (the PR head moved to {detail[0][:10]} while waiting for checks); rerun integrate")
+        return result(pr_number, 1, "stopped", reason="the PR head moved while waiting for checks", **update)
+    if state == "timeout":
+        _waiting_file(pr_number).write_text(json.dumps({"tip": tip, "expected": expected}) + "\n")
+        print(f"RESULT: waiting (checks on {tip[:10]} still pending after {timeout_s} s: {', '.join(detail)}); rerun")
+        return result(pr_number, 1, "waiting", pending=detail, **({"head": tip} | update))
+    return None
 
 
 def integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | None = None) -> int:
@@ -474,7 +547,10 @@ def _integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | 
     are stale) it is pushed to the PR branch before the merge; a real conflict is sent back (`send_back`).
     Unfinished feedback (checks, requested changes, open threads) refuses it unless `override` gives a reason,
     which is logged on the PR just before the merge. Feedback is read again after the gate: what arrived during it
-    refuses the merge, override or not. Issues close only after the merge; the last line printed is `result`."""
+    refuses the merge, override or not. After a push it waits (bounded, `checks_wait_s`) for every check on the new
+    head, whatever the branch protection, and reads feedback once more; a timeout is `waiting`, and a rerun on that
+    head resumes the wait instead of refusing its pending checks. Issues close only after the merge; the last line
+    printed is `result`."""
     info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
     if info["state"] != "OPEN" or info["isDraft"]:
         print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
@@ -485,6 +561,13 @@ def _integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | 
     if override is not None and not override.strip():
         print("RESULT: refused: --override needs a reason")
         return result(pr_number, 1, "refused", reason="--override needs a reason")
+    if (waiting := _waiting_file(pr_number)).exists():
+        mark = json.loads(waiting.read_text())
+        if mark.get("tip") == info["headRefOid"]:  # a rerun after `waiting`: resume on the head integrate pushed
+            if (code := _wait_on_tip(pr_number, mark["tip"], mark.get("expected") or [], {})) is not None:
+                return code
+            info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
+        waiting.unlink(missing_ok=True)
     if todo := unfinished(info, board.pr_feedback(pr_number)):
         if override is None:
             print(f"RESULT: refused: PR #{pr_number} has unfinished feedback:\n  " + "\n  ".join(todo))
@@ -535,7 +618,8 @@ def _integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | 
         git("worktree", "remove", "--force", str(tmp), check=False)
         git("update-ref", "-d", head_ref, check=False)
         git("update-ref", "-d", main_ref, check=False)
-    if arrived := [t for t in _pr_state(pr_number)[1] if t not in todo]:
+    state, now = _pr_state(pr_number)
+    if arrived := [t for t in now if t not in todo]:
         print(f"RESULT: refused: feedback arrived on PR #{pr_number} during the gate:\n  " + "\n  ".join(arrived))
         print(f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate.")
         return result(pr_number, 1, "refused", reason="feedback arrived during the gate", feedback=arrived)
@@ -558,6 +642,15 @@ def _integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | 
             if not _head_is(pr_number, tip):
                 print(f"RESULT: stopped (GitHub does not show the pushed head {tip[:10]} yet); rerun integrate")
                 return result(pr_number, 1, "stopped", reason="pushed head not visible on GitHub", **update)
+            expected = [check_key(c) for c in latest_checks(state.get("statusCheckRollup") or [])]
+            if (code := _wait_on_tip(pr_number, tip, expected, update)) is not None:
+                return code
+            if arrived := [t for t in _pr_state(pr_number)[1] if t not in todo]:
+                print(f"RESULT: refused: unfinished feedback on the pushed head {tip[:10]}:\n  " + "\n  ".join(arrived))
+                print(
+                    f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate."
+                )
+                return result(pr_number, 1, "refused", reason="feedback on the pushed head", feedback=arrived, **update)
     try:
         reason = _merge_if_unchanged(pr_number, head if dry_run else tip, main, dry_run=dry_run)
     except board.BoardError as exc:  # e.g. branch protection waiting for checks on the update just pushed

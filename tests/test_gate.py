@@ -11,6 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 import yaml
+from hypothesis import given
+from hypothesis import strategies as st
 
 from devkit import board, gate, workflow
 
@@ -78,6 +80,87 @@ def test_a_real_pass_is_counted(tmp_path):
     (tmp_path / "test_a.py").write_text("def test_a():\n    assert True\n")
     ran = gate._run("tests", [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", str(tmp_path)])
     assert ran.ok and ran.checked == 1
+
+
+def test_floor_problems_fail_below_a_floor_and_suggest_raising_one_left_behind():
+    assert gate.floor_problems(100, 80.0, {}) == ([], [])
+    problems, _ = gate.floor_problems(9, None, {"min_tests": 10})
+    assert problems == [
+        "9 tests passed, below the floor min_tests = 10 (.devkit/ratchets.toml): did a test file drop out?"
+    ]
+    problems, _ = gate.floor_problems(10, 76.9, {"min_tests": 10, "min_coverage": 77})
+    assert problems == ["line coverage 76.9% is below the floor min_coverage = 77 (.devkit/ratchets.toml)"]
+    problems, _ = gate.floor_problems(10, None, {"min_coverage": 77})
+    assert problems and "no coverage data" in problems[0]
+    problems, notes = gate.floor_problems(200, 90.4, {"min_tests": 100, "min_coverage": 77})
+    assert problems == []
+    assert notes == ["raise min_tests to 190 (200 passed)", "raise min_coverage to 90 (90.4% measured)"]
+    assert gate.floor_problems(804, 78.2, {"min_tests": 759, "min_coverage": 77}) == ([], [])  # close: no nagging
+
+
+@given(st.integers(0, 5000), st.integers(0, 5000))
+def test_the_test_floor_fails_exactly_below_it(passed, floor):
+    problems, _ = gate.floor_problems(passed, None, {"min_tests": floor})
+    assert bool(problems) == (passed < floor)
+
+
+def _project(r, body="X = 1\n"):
+    (r / "m.py").write_text(body)
+    (r / "test_m.py").write_text("import m\n\n\ndef test_x():\n    assert m.X == 1\n")
+
+
+def test_tests_stage_enforces_floors_and_prints_report_only_diff_coverage(repo):
+    _project(repo)
+    _sh(repo, "git", "add", ".")
+    _sh(repo, "git", "commit", "-q", "-m", "tests")
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip()
+    _project(repo, "X = 1\n\n\ndef untested():\n    return 2\n")
+    _sh(repo, "git", "commit", "-qam", "change")
+    cmd = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-p", "no:randomly", "test_m.py"]
+    ran = gate.tests_stage(cmd, {"min_tests": 1, "min_coverage": 50}, base, cwd=repo)
+    assert ran.ok, ran.problems
+    assert ran.checked == 1
+    (diff,) = [n for n in ran.notes if n.startswith("diff coverage")]
+    assert "50% of 2 changed" in diff and "m.py:5" in diff  # report-only: uncovered, still ok
+    assert not list(repo.glob(".coverage*"))  # the data file lives in a temporary directory
+    ran = gate.tests_stage(cmd, {"min_tests": 2, "min_coverage": 99}, base, cwd=repo)
+    assert not ran.ok and len(ran.problems) == 2
+
+
+def test_tests_stage_without_a_coverage_floor_does_not_measure_coverage(repo):
+    _project(repo)
+    cmd = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "test_m.py"]
+    ran = gate.tests_stage(cmd, {}, None, cwd=repo)
+    assert ran.ok and ran.notes == []
+
+
+def test_a_failing_run_reports_its_own_output_not_the_floors(repo):
+    (repo / "test_m.py").write_text("def test_x():\n    assert False\n")
+    cmd = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "test_m.py"]
+    ran = gate.tests_stage(cmd, {"min_tests": 5, "min_coverage": 90}, None, cwd=repo)
+    assert not ran.ok and not any("floor" in p for p in ran.problems)
+
+
+def test_diff_coverage_never_fails_the_stage_when_it_cannot_measure(repo, monkeypatch):
+    assert gate.diff_coverage(repo / "missing.xml", "HEAD", cwd=repo)[0].startswith("diff coverage: not measured")
+    monkeypatch.setattr(gate, "tool", lambda name: None)
+    assert "diff-cover not found" in gate.diff_coverage(repo / "missing.xml", "HEAD", cwd=repo)[0]
+
+
+@given(st.sets(st.integers(1, 200)))
+def test_ranges_round_trip(lines):
+    spans = [s.split("-") for s in gate._ranges(list(lines)).split(",") if s]
+    assert {n for s in spans for n in range(int(s[0]), int(s[-1]) + 1)} == lines
+
+
+def test_bad_or_missing_floors_read_as_none(monkeypatch, tmp_path):
+    monkeypatch.setattr(gate, "root", lambda: tmp_path)
+    assert gate._floors() == {}
+    (tmp_path / ".devkit").mkdir()
+    (tmp_path / ".devkit/ratchets.toml").write_text("[tests]\nmin_tests = -3\n")
+    assert gate._floors() == {}
+    (tmp_path / ".devkit/ratchets.toml").write_text("[tests]\nmin_tests = 3\n")
+    assert gate._floors() == {"min_tests": 3}
 
 
 @pytest.mark.parametrize(
@@ -283,7 +366,8 @@ def fake_integrate(monkeypatch, tmp_path):
     """integrate against fake git, gh and subprocess: records every call in order. Knobs: fetched_head, gate_code,
     files (what git diff reports), checks / reviews / decision (PR view fields), threads / more_threads (GraphQL
     review threads), during_gate (knob updates applied while the gate runs), tip (HEAD of the merged tree: not HEAD
-    when main was merged in or files were regenerated), merge_code / conflicts (merging main into the head)."""
+    when main was merged in or files were regenerated), merge_code / conflicts (merging main into the head),
+    after_push (the rollups GitHub shows once the head moved, one per PR read; the last one repeats)."""
     world = {
         "events": [],
         "fetched_head": HEAD,
@@ -300,6 +384,7 @@ def fake_integrate(monkeypatch, tmp_path):
         "merge_code": 0,
         "conflicts": [],
         "blocked": [],
+        "after_push": [],
         "git_version": "git version 2.43.0",
     }
     ev = world["events"]
@@ -326,16 +411,19 @@ def fake_integrate(monkeypatch, tmp_path):
         ev.append(("gh", *args))
         if args[:2] == ("pr", "view"):
             fields = args[args.index("--json") + 1]
+            rollup = world["checks"]
+            if world["remote_head"] != HEAD and world["after_push"] and fields != "headRefOid":
+                rollup = world["after_push"][0] if len(world["after_push"]) == 1 else world["after_push"].pop(0)
             return json.dumps(
                 {"headRefOid": world["remote_head"]}
                 if fields == "headRefOid"
                 else _info(
-                    headRefOid=HEAD,
+                    headRefOid=world["remote_head"],
                     headRefName="5-x",
                     isDraft=False,
                     title="t",
                     body="Closes #5",
-                    statusCheckRollup=world["checks"],
+                    statusCheckRollup=rollup,
                     latestReviews=world["reviews"],
                     reviewDecision=world["decision"],
                 )
@@ -362,9 +450,15 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(workflow.time, "sleep", lambda s: None)
     monkeypatch.setattr(workflow, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
-    monkeypatch.setattr(workflow, "state_dir", lambda *p: tmp_path.joinpath(*p))
+    monkeypatch.setattr(workflow, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
+    workflow.config.get()  # resolve this repository's config with the real git, before subprocess.run is faked
     monkeypatch.setattr(workflow.subprocess, "run", run)
     return world
+
+
+def _made(path):
+    path.mkdir(parents=True, exist_ok=True)  # as paths.state_dir does
+    return path
 
 
 def _index(events, pred):
@@ -586,6 +680,108 @@ def _no_push(git):
         return "" if args[0] == "push" else git(*args, **kw)
 
     return wrapped
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """A fake clock that only `time.sleep` advances; records each sleep."""
+    state = {"now": 0.0, "sleeps": []}
+
+    def sleep(s):
+        state["sleeps"].append(s)
+        state["now"] += s
+
+    monkeypatch.setattr(workflow.time, "sleep", sleep)
+    monkeypatch.setattr(workflow, "CHECKS_CLOCK", lambda: state["now"])
+    return state
+
+
+def _status(context, state):
+    return {"__typename": "StatusContext", "context": context, "state": state, "startedAt": "", "completedAt": ""}
+
+
+def test_pending_checks_counts_running_and_not_yet_registered_checks():
+    info = {"statusCheckRollup": [_run("a", status="IN_PROGRESS"), _run("b"), _status("bot", "PENDING")]}
+    assert workflow.pending_checks(info, ["ci/b", "ci/c"]) == ["ci/a", "/bot", "ci/c (not started)"]
+    done = {"statusCheckRollup": [_run("a", conclusion="FAILURE"), _status("bot", "ERROR")]}
+    assert workflow.pending_checks(done, ["ci/a", "/bot"]) == []  # failed is complete: unfinished() judges it
+
+
+def test_after_pushing_an_update_integrate_waits_for_every_check_on_the_tip_then_merges(fake_integrate, clock, capsys):
+    """#72: a required check that has not even registered, an optional job still running: both are waited for, with
+    jittered sleeps from a floor, before the merge; nothing about branch protection is consulted."""
+    tip = "t" * 40
+    fake_integrate["tip"] = tip
+    fake_integrate["checks"] = [_run("check"), _run("template")]
+    fake_integrate["after_push"] = [
+        [],
+        [_run("check", status="QUEUED")],
+        [_run("check", status="IN_PROGRESS"), _run("template", status="IN_PROGRESS")],
+        [_run("check"), _run("template")],
+    ]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    ev = fake_integrate["events"]
+    assert _index(ev, lambda e: e[:2] == ("git", "push")) < _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
+    assert len(clock["sleeps"]) >= 3 and fake_integrate["after_push"] == [[_run("check"), _run("template")]]
+    floor = workflow.CHECKS_FLOOR_S
+    assert all(floor <= s <= floor + workflow.CHECKS_CAP_S for s in clock["sleeps"])
+    assert len(set(clock["sleeps"])) > 1  # jittered, not a fixed interval
+    assert _last_json(capsys.readouterr().out)["outcome"] == "merged"
+
+
+def test_a_check_that_fails_on_the_pushed_tip_refuses_the_merge(fake_integrate, clock, capsys):
+    fake_integrate["tip"] = "t" * 40
+    fake_integrate["after_push"] = [[_run("check", status="IN_PROGRESS")], [_run("check", conclusion="FAILURE")]]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert not _merged(fake_integrate["events"])
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "refused" and res["feedback"] == ["check check: failing (FAILURE)"]
+
+
+def test_an_override_still_covers_the_same_failure_on_the_pushed_tip(fake_integrate, clock):
+    fake_integrate["tip"] = "t" * 40
+    fake_integrate["checks"] = [_run("links", conclusion="FAILURE")]
+    fake_integrate["after_push"] = [[_run("links", status="IN_PROGRESS")], [_run("links", conclusion="FAILURE")]]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, override="flaky link checker") == 0
+
+
+def test_a_timeout_reports_waiting_and_a_rerun_resumes_without_pushing(fake_integrate, clock, capsys, monkeypatch):
+    """#72: checks still running at the deadline: outcome `waiting` with the tip; the rerun waits on that tip (it does
+    not refuse its pending checks), pushes nothing, and merges once they pass."""
+    tip = "t" * 40
+    monkeypatch.setattr(workflow.config, "get", lambda: workflow.config.Config(checks_wait_s=120))
+    fake_integrate["tip"] = tip
+    fake_integrate["after_push"] = [[_run("check", status="IN_PROGRESS")]]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert (res["outcome"], res["head"], res["pending"]) == ("waiting", tip, ["ci/check"])
+    assert sum(clock["sleeps"]) == pytest.approx(120) and not _merged(fake_integrate["events"])
+
+    fake_integrate["events"].clear()
+    fake_integrate["fetched_head"] = tip  # GitHub now has the pushed tip as the head; main has not moved
+    fake_integrate["after_push"] = [[_run("check", status="IN_PROGRESS")], [_run("check")]]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    ev = fake_integrate["events"]
+    assert not any(e[:2] == ("git", "push") for e in ev)
+    assert ev[_index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))][-2] == tip
+    assert _last_json(capsys.readouterr().out)["outcome"] == "merged"
+    assert not list(workflow.state_dir("integrate").glob("*.waiting.json"))
+
+
+def test_a_head_that_moves_while_waiting_stops(fake_integrate, clock, capsys, monkeypatch):
+    fake_integrate["tip"] = "t" * 40
+    gh = board.gh
+
+    def moved(*args, **kw):
+        out = gh(*args, **kw)
+        if args[:2] == ("pr", "view") and fake_integrate["remote_head"] != HEAD and "statusCheckRollup" in args[-1]:
+            return json.dumps(json.loads(out) | {"headRefOid": "w" * 40})
+        return out
+
+    monkeypatch.setattr(board, "gh", moved)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert not _merged(fake_integrate["events"])
+    assert "moved" in _last_json(capsys.readouterr().out)["reason"]
 
 
 def test_issues_move_only_after_the_merge(fake_integrate, monkeypatch, capsys):

@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import re
 import shlex
 import subprocess
 import time
@@ -634,12 +635,87 @@ def test_spawn_guard_quota_and_light_agents(hook, tmp_path):
     assert code == 0 and out == ""
 
 
-@pytest.mark.parametrize("kind", ["builder", "harness-ops:builder", "harness-ops:tester"])
-def test_spawn_guard_memory_wait_times_out(hook, tmp_path, kind):
+def _hook_entries(event: str, script: str) -> list[dict]:
+    data = json.loads((HOOKS.parent / "hooks/hooks.json").read_text())
+    return [g for g in data["hooks"].get(event, []) for h in g["hooks"] if h["command"].endswith(f"/{script}")]
+
+
+def test_spawn_guard_runs_on_workflow_and_agent_spawns_and_at_subagent_start():
+    """#85: a workflow fires PreToolUse for `Workflow`, never `Agent`, and SubagentStart for each of its agents."""
+    [pre] = _hook_entries("PreToolUse", "spawn_guard.sh")
+    assert re.fullmatch(pre["matcher"], "Agent") and re.fullmatch(pre["matcher"], "Workflow")
+    [start] = _hook_entries("SubagentStart", "spawn_guard.sh")
+    assert "matcher" not in start and start["hooks"][0]["timeout"] > 300
+
+
+def test_spawn_guard_quota_denies_a_workflow_run(hook, tmp_path):
+    repo = _repo(tmp_path)
+    (repo / ".git/devkit").mkdir()
+    (repo / ".git/devkit/usage.json").write_text(json.dumps({"pct": 96, "t": int(time.time())}))
+    payload = {"hook_event_name": "PreToolUse", "tool_name": "Workflow", "tool_input": {"name": "p:wf"}}
+    _, out, _ = hook("spawn_guard.sh", payload, env={**os.environ, "CLAUDE_PROJECT_DIR": str(repo)})
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def _start(kind: str) -> dict:
+    return {"hook_event_name": "SubagentStart", "agent_type": kind, "agent_id": "a1"}
+
+
+@pytest.mark.parametrize("kind", ["builder", "harness-ops:builder", "harness-ops:tester", "workflow-subagent"])
+def test_spawn_guard_memory_wait_times_out_at_subagent_start(hook, tmp_path, kind):
+    """SubagentStart cannot refuse: after the wait the agent starts, with a warning naming the free memory."""
     repo = _repo(tmp_path)
     env = {**os.environ, "CLAUDE_PROJECT_DIR": str(repo), "DEVKIT_SPAWN_FLOOR_GB": "100000", "DEVKIT_SPAWN_WAIT_S": "0"}
-    _, out, _ = hook("spawn_guard.sh", {"tool_input": {"subagent_type": kind}}, env=env)
-    assert "GB free" in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+    code, out, _ = hook("spawn_guard.sh", _start(kind), env=env)
+    assert code == 0 and "GB free" in json.loads(out)["systemMessage"]
+    # The memory wait moved off PreToolUse: a spawn call is never held or denied for memory.
+    code, out, _ = hook("spawn_guard.sh", {"tool_input": {"subagent_type": kind}}, env=env)
+    assert code == 0 and out == ""
+
+
+def test_spawn_guard_holds_a_workflow_agent_until_memory_frees(hook, tmp_path):
+    """The hold is a wait: with memory below the floor the hook sleeps (here a 2 s wait, whole seconds by `date`), then lets it start."""
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(_repo(tmp_path)), "DEVKIT_SPAWN_FLOOR_GB": "100000"}
+    start = time.monotonic()
+    code, out, _ = hook("spawn_guard.sh", _start("workflow-subagent"), env={**env, "DEVKIT_SPAWN_WAIT_S": "2"})
+    assert code == 0 and time.monotonic() - start >= 1 and "held workflow-subagent" in out
+    code, out, _ = hook("spawn_guard.sh", _start("workflow-subagent"), env={**env, "DEVKIT_SPAWN_FLOOR_GB": "0"})
+    assert code == 0 and out == ""
+
+
+@pytest.mark.parametrize("kind", ["researcher", "harness-ops:reviewer", "Explore"])
+def test_spawn_guard_does_not_hold_light_agents(hook, tmp_path, kind):
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(_repo(tmp_path)), "DEVKIT_SPAWN_FLOOR_GB": "100000"}
+    code, out, _ = hook("spawn_guard.sh", _start(kind), env=env)
+    assert code == 0 and out == ""
+
+
+@pytest.mark.parametrize("payload", ["", "not json", "[]", "null", json.dumps({"hook_event_name": 5})])
+@pytest.mark.parametrize("usage", [None, "{not json", json.dumps({"pct": "x", "t": None})])
+def test_spawn_guard_degrades_to_allow_with_warning(hook, tmp_path, payload, usage):
+    """#85: malformed input or a broken usage reading never blocks a spawn (exit 0, no deny), it warns instead."""
+    repo = _repo(tmp_path)
+    if usage is not None:
+        (repo / ".git/devkit").mkdir()
+        (repo / ".git/devkit/usage.json").write_text(usage)
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(repo), "DEVKIT_SPAWN_FLOOR_GB": "100000"}
+    code, out, _ = hook("spawn_guard.sh", payload, env=env)
+    assert code == 0 and "deny" not in out
+    if out:
+        assert json.loads(out)["systemMessage"].startswith("spawn_guard:")
+    if payload in ("", "not json", "[]", "null"):
+        assert "unreadable hook input" in out
+
+
+def test_spawn_guard_allows_with_warning_when_jq_is_missing(hook, tmp_path):
+    """A missing jq is a crash of the guard: the ERR trap turns it into an allow with a warning, not exit 127."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for tool in ("bash", "cat", "git", "date", "awk"):
+        (bin_dir / tool).symlink_to(subprocess.run(["which", tool], capture_output=True, text=True).stdout.strip())
+    env = {"PATH": str(bin_dir), "CLAUDE_PROJECT_DIR": str(_repo(tmp_path))}
+    code, out, _ = hook("spawn_guard.sh", {"tool_input": {"subagent_type": "builder"}}, env=env)
+    assert code == 0 and json.loads(out)["systemMessage"].startswith("spawn_guard:")
 
 
 def test_worktree_create_refuses_bad_names_and_places_beside_repo(hook, tmp_path):
@@ -651,3 +727,168 @@ def test_worktree_create_refuses_bad_names_and_places_beside_repo(hook, tmp_path
     assert code == 0 and out.strip() == str(tmp_path / "proj-worktrees/agent-1")
     code, _, err = hook("worktree_create.sh", {"name": "agent-1", "cwd": str(repo)})
     assert code != 0 and "not empty" in err
+
+
+FAKE_UV = """#!/usr/bin/env bash
+case "$*" in
+  *"board block"*) echo "$*" >> "$FAKE_LOG" ;;
+  *python*) echo "GATE $FAKE_GATE" ;;
+esac
+"""
+FAKE_GH = """#!/usr/bin/env bash
+echo "$*" >> "$FAKE_LOG"
+case "$*" in
+  "issue view"*) echo "{\\"labels\\": [{\\"name\\": \\"${FAKE_STATUS:-status:in-progress}\\"}]}" ;;
+  *) echo "$FAKE_PRS" ;;
+esac
+"""
+
+
+def _builder_repo(tmp_path, gate="yes", prs=None):
+    """A worker's worktree on branch 12-x, with `uv` (gate probe, board block) and `gh` (open PRs) faked on PATH."""
+    repo = _repo(tmp_path)
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", "12-x"], check=True)
+    head = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name, text in (("uv", FAKE_UV), ("gh", FAKE_GH)):
+        (bin_dir / name).write_text(text)
+        (bin_dir / name).chmod(0o755)
+    prs = [{"url": "https://x/pull/3", "headRefOid": head}] if prs is None else prs
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "FAKE_LOG": str(tmp_path / "calls.log"),
+        "FAKE_GATE": gate,
+        "FAKE_PRS": json.dumps(prs),
+    }
+    return repo, env
+
+
+def _stop(repo, kind="harness-ops:builder", agent="ag1"):
+    return {
+        "hook_event_name": "SubagentStop",
+        "agent_type": kind,
+        "agent_id": agent,
+        "cwd": str(repo),
+        "stop_hook_active": False,
+    }
+
+
+def _refusal(out: str) -> str:
+    data = json.loads(out)
+    assert data["decision"] == "block"
+    return data["reason"]
+
+
+def test_completion_gate_is_wired_to_subagent_stop_without_on_failure():
+    """onFailure has no effect on SubagentStop (Claude Code docs), so the entry must not pretend it fails closed."""
+    [entry] = _hook_entries("SubagentStop", "completion_gate.py")
+    assert re.search(entry["matcher"], "harness-ops:builder") and "onFailure" not in entry["hooks"][0]
+
+
+def test_completion_gate_refuses_a_dirty_tree_with_the_command_to_run(hook, tmp_path):
+    repo, env = _builder_repo(tmp_path)
+    (repo / "wip.py").write_text("x = 1\n")
+    code, out, _ = hook("completion_gate.py", _stop(repo), env)
+    assert code == 0 and "git add" in _refusal(out) and "wip.py" in _refusal(out)
+
+
+def test_completion_gate_refuses_without_a_gate_pass_on_head(hook, tmp_path):
+    repo, env = _builder_repo(tmp_path, gate="no")
+    _, out, _ = hook("completion_gate.py", _stop(repo), env)
+    assert "uv run dev check" in _refusal(out)
+
+
+def test_completion_gate_refuses_without_an_open_pr(hook, tmp_path):
+    repo, env = _builder_repo(tmp_path, prs=[])
+    _, out, _ = hook("completion_gate.py", _stop(repo), env)
+    assert "uv run dev pr 12 --summary -" in _refusal(out)
+    assert "pr list --head 12-x --state open" in (tmp_path / "calls.log").read_text()
+
+
+def test_completion_gate_refuses_a_pr_behind_head(hook, tmp_path):
+    repo, env = _builder_repo(tmp_path, prs=[{"url": "u", "headRefOid": "0" * 40}])
+    _, out, _ = hook("completion_gate.py", _stop(repo), env)
+    assert "git push" in _refusal(out)
+
+
+def test_completion_gate_allows_a_finished_builder_and_forgets_its_refusals(hook, tmp_path):
+    repo, env = _builder_repo(tmp_path)
+    (repo / "wip.py").write_text("x = 1\n")
+    _refusal(hook("completion_gate.py", _stop(repo), env)[1])
+    (repo / "wip.py").unlink()
+    code, out, _ = hook("completion_gate.py", _stop(repo), env)
+    assert code == 0 and out == ""
+    assert not list((repo / ".git/devkit/completion-gate").glob("*"))
+
+
+def test_completion_gate_refuses_at_most_twice_then_records_a_board_block(hook, tmp_path):
+    """Claude Code gives up on its own after 8 blocks, each a full turn of context: cap at 2, then block the item."""
+    repo, env = _builder_repo(tmp_path, gate="no")
+    outs = [hook("completion_gate.py", _stop(repo), env) for _ in range(5)]
+    assert [json.loads(o).get("decision") for _, o, _ in outs] == ["block", "block", None, None, None]
+    assert all(code == 0 for code, _, _ in outs)
+    assert "gave up" in json.loads(outs[2][1])["systemMessage"]
+    assert "already blocked" in json.loads(outs[4][1])["systemMessage"]
+    blocks = [line for line in (tmp_path / "calls.log").read_text().splitlines() if "board block" in line]
+    assert len(blocks) == 1 and blocks[0].startswith("run --quiet dev board block 12 --reason")
+    # Another agent's refusals are counted apart.
+    assert json.loads(hook("completion_gate.py", _stop(repo, agent="ag2"), env)[1])["decision"] == "block"
+
+
+def test_completion_gate_counts_refusals_per_commit_up_to_a_total(hook, tmp_path):
+    """Claude Code's own cap resets on every tool call, so the gate counts itself: a new commit is progress and earns
+    a fresh 2 refusals, but no worker is refused more than 6 times in all."""
+    repo, env = _builder_repo(tmp_path, gate="no")
+    decisions = []
+    for i in range(5):
+        for _ in range(3):
+            decisions.append(json.loads(hook("completion_gate.py", _stop(repo), env)[1]).get("decision"))
+        commit = ["git", "-C", str(repo), "-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q"]
+        subprocess.run([*commit, "--allow-empty", "-m", f"fix {i}"], check=True)
+    assert decisions[:3] == ["block", "block", None] and decisions[3:5] == ["block", "block"]
+    assert decisions.count("block") == 6
+    blocks = [line for line in (tmp_path / "calls.log").read_text().splitlines() if "board block" in line]
+    assert len(blocks) == 5  # one per commit the gate gave up on
+
+
+@pytest.mark.parametrize("kind", ["harness-ops:researcher", "tester", "workflow-subagent", ""])
+def test_completion_gate_lets_other_agents_stop(hook, tmp_path, kind):
+    repo, env = _builder_repo(tmp_path, gate="no")
+    code, out, _ = hook("completion_gate.py", _stop(repo, kind=kind), env)
+    assert code == 0 and out == "" and not (tmp_path / "calls.log").exists()
+
+
+def test_completion_gate_skips_a_builder_off_an_issue_branch_with_a_warning(hook, tmp_path):
+    repo, env = _builder_repo(tmp_path, gate="no")
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "main"], check=True)
+    code, out, _ = hook("completion_gate.py", _stop(repo), env)
+    assert code == 0 and "not an issue branch" in json.loads(out)["systemMessage"]
+
+
+def test_completion_gate_lets_a_builder_stop_on_a_blocked_item(hook, tmp_path):
+    """builder.md: a builder that finds a wrong test runs `uv run dev board block <n>` and stops, with no PR."""
+    repo, env = _builder_repo(tmp_path, gate="no", prs=[])
+    (repo / "wip.py").write_text("x = 1\n")
+    code, out, _ = hook("completion_gate.py", _stop(repo), {**env, "FAKE_STATUS": "status:blocked"})
+    assert code == 0 and "status:blocked" in json.loads(out)["systemMessage"]
+    assert "board block" not in (tmp_path / "calls.log").read_text()
+    # gh failing on the issue lookup is not a block: the gate still refuses.
+    (tmp_path / "bin/gh").write_text("#!/usr/bin/env bash\nexit 1\n")
+    assert json.loads(hook("completion_gate.py", _stop(repo), env)[1])["decision"] == "block"
+
+
+@pytest.mark.parametrize("payload", ["", "not json", "[]", json.dumps({"agent_type": 5})])
+def test_completion_gate_lets_garbage_through(hook, payload):
+    code, out, _ = hook("completion_gate.py", payload)
+    assert code == 0 and out == ""
+
+
+def test_completion_gate_fails_open_only_on_its_own_crash(hook, tmp_path):
+    """#46 policy for a gate onFailure cannot reach: a crash exits non-zero without a decision, which Claude Code
+    treats as a non-blocking error, so the stop goes through. An unreadable gate probe is such a crash."""
+    repo, env = _builder_repo(tmp_path, gate="no")
+    (tmp_path / "bin/uv").write_text("#!/usr/bin/env bash\necho 'ModuleNotFoundError: devkit' >&2; exit 1\n")
+    code, out, err = hook("completion_gate.py", _stop(repo), env)
+    assert code not in (0, 2) and out == "" and "gate probe" in err

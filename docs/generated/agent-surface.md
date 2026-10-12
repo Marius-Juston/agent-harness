@@ -28,7 +28,9 @@
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash | `scripts/guard_bash.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash/Read | `scripts/read_guard.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Edit/Write/NotebookEdit | `scripts/edit_guard.py` |
-| plugins/harness-ops/hooks/hooks.json | PreToolUse | Agent | `scripts/spawn_guard.sh` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Agent/Workflow | `scripts/spawn_guard.sh` |
+| plugins/harness-ops/hooks/hooks.json | SubagentStart | * | `scripts/spawn_guard.sh` |
+| plugins/harness-ops/hooks/hooks.json | SubagentStop | builder$ | `scripts/completion_gate.py` |
 | plugins/harness-ops/hooks/hooks.json | PostToolUse | Edit/Write | `scripts/lint_after_edit.py` |
 | plugins/harness-ops/hooks/hooks.json | WorktreeCreate | * | `scripts/worktree_create.sh` |
 | plugins/harness-ops/hooks/hooks.json | (mod) | - | `./register.tsx` |

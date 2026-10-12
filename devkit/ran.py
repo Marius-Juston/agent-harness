@@ -10,6 +10,7 @@ class Ran:
     checked: int = 0
     problems: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)  # report-only information, printed under the stage's line
     allow_empty: bool = False
 
     @property

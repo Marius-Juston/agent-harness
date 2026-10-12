@@ -17,6 +17,8 @@ dependencies = [
     "ruff>=0.17",
     "actionlint-py>=1.7.12.25",
     "zizmor>=1.30.1",
+    "pytest-cov>=7.1",
+    "diff-cover>=10.6",
 ]
 
 [project.urls]
@@ -67,3 +69,7 @@ markers = [
     "slow: long-running tests (run with `uv run dev test --slow`)",
     "live: needs network or a model; never in the default gate",
 ]
+
+# Measured by the gate because .devkit/ratchets.toml sets [tests] min_coverage. The tests themselves do not count.
+[tool.coverage.run]
+source = ["devkit"]

@@ -4,6 +4,8 @@
 - A pass is cached by tree_key: re-gating an unchanged clean tree is free; a dirty tree is never cached.
 - Each stage prints one line; a failing stage prints at most FAIL_LINES of its output and saves the rest.
 - A pytest run that passed nothing fails (nothing collected, everything skipped or deselected): it is not a pass.
+- The [tests] floors of ratchets.toml hold the run to a passed-test count and a line coverage; diff coverage is
+  printed, never gated (docs/research/test-floors-and-coverage.md).
 """
 
 import contextlib
@@ -21,7 +23,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 
-from devkit import board, checks, docs, weaken
+from devkit import board, checks, config, docs, weaken
 from devkit.paths import git, root, state_dir
 from devkit.ran import Ran
 
@@ -61,13 +63,18 @@ def passed_count(stdout: str, junit: Path) -> int:
 
 
 def _run(
-    name: str, cmd: list[str], allow_empty: bool = False, cwd: Path | None = None, checked: int | None = None
+    name: str,
+    cmd: list[str],
+    allow_empty: bool = False,
+    cwd: Path | None = None,
+    checked: int | None = None,
+    env: dict[str, str] | None = None,
 ) -> Ran:
     ran = Ran(name, allow_empty=allow_empty)
     with tempfile.TemporaryDirectory(prefix="gate-junit-") as tmp:
         junit = Path(tmp) / "junit.xml"
         full = [*cmd, f"--junitxml={junit}"] if "pytest" in cmd else cmd
-        out = subprocess.run(full, cwd=cwd or root(), capture_output=True, text=True, check=False)
+        out = subprocess.run(full, cwd=cwd or root(), capture_output=True, text=True, check=False, env=env)
         # count what ran; an unreadable summary counts 0, which fails (never a silent pass)
         if "pytest" in cmd:
             ran.checked = passed_count(out.stdout, junit)
@@ -83,6 +90,90 @@ def _run(
         log.write_text(text)
         lines = text.splitlines()
         ran.problems += lines[-FAIL_LINES:] + ([f"(full output: {log})"] if len(lines) > FAIL_LINES else [])
+    return ran
+
+
+TEST_FLOOR_SLACK = 0.95  # suggested min_tests: this share of the passed count (one dropped test file still fails)
+TEST_FLOOR_STALE = 0.90  # suggest it once the floor is below this share (the gap keeps the notice from nagging)
+COVERAGE_SLACK = 2  # suggest raising min_coverage once the measured line % is this many points above it
+
+
+def floor_problems(passed: int, percent: float | None, floors: dict) -> tuple[list[str], list[str]]:
+    """(problems, notes) of the [tests] floors: below a floor fails; a floor the suite has outgrown gets a notice."""
+    where = config.get().ratchets
+    problems: list[str] = []
+    notes: list[str] = []
+    if (floor := floors.get("min_tests")) is not None:
+        if passed < floor:
+            problems.append(
+                f"{passed} tests passed, below the floor min_tests = {floor} ({where}): did a test file drop out?"
+            )
+        elif floor < passed * TEST_FLOOR_STALE:
+            notes.append(f"raise min_tests to {int(passed * TEST_FLOOR_SLACK)} ({passed} passed)")
+    if (floor := floors.get("min_coverage")) is not None:
+        if percent is None:
+            problems.append(f"no coverage data, but {where} sets min_coverage = {floor}")
+        elif percent < floor:
+            problems.append(f"line coverage {percent:.1f}% is below the floor min_coverage = {floor} ({where})")
+        elif percent >= floor + COVERAGE_SLACK:
+            notes.append(f"raise min_coverage to {int(percent)} ({percent:.1f}% measured)")
+    return problems, notes
+
+
+def _ranges(lines: list[int]) -> str:
+    """[3, 4, 5, 9] -> "3-5,9"."""
+    spans: list[list[int]] = []
+    for n in sorted(lines):
+        if spans and n == spans[-1][1] + 1:
+            spans[-1][1] = n
+        else:
+            spans.append([n, n])
+    return ",".join(str(a) if a == b else f"{a}-{b}" for a, b in spans)
+
+
+def diff_coverage(xml: Path, base: str, cwd: Path | None = None, shown: int = 10) -> list[str]:
+    """Report-only diff coverage (diff-cover): the share of this change's executable lines that a test ran, and
+    where the uncovered ones are. Never a problem: a hard per-change gate buys tests written for the number."""
+    binary = tool("diff-cover")
+    if binary is None:
+        return ["diff coverage: diff-cover not found (run `uv sync`)"]
+    report = xml.parent / "diff-cover.json"
+    cmd = [binary, str(xml), f"--compare-branch={base}", "--include-untracked", "-q", f"--format=json:{report}"]
+    out = subprocess.run(cmd, cwd=cwd or root(), capture_output=True, text=True, check=False)
+    try:
+        data = json.loads(report.read_text())
+    except (OSError, ValueError):
+        return [f"diff coverage: not measured {(out.stderr or out.stdout).strip().splitlines()[-1:]}"]
+    if not data.get("total_num_lines"):
+        return ["diff coverage (report-only): no changed executable lines"]
+    uncovered = [f"{f}:{_ranges(s['violation_lines'])}" for f, s in data["src_stats"].items() if s["violation_lines"]]
+    line = f"diff coverage (report-only): {data['total_percent_covered']}% of {data['total_num_lines']} changed lines"
+    more = f" (+{len(uncovered) - shown} files)" if len(uncovered) > shown else ""
+    return [line + (f"; uncovered: {' '.join(uncovered[:shown])}{more}" if uncovered else "")]
+
+
+def tests_stage(cmd: list[str], floors: dict, base: str | None, cwd: Path | None = None) -> Ran:
+    """The test run, held to the [tests] floors of ratchets.toml. A min_coverage floor turns on coverage (pytest-cov,
+    data and reports in a temporary directory) and the report-only diff coverage against `base`."""
+    with tempfile.TemporaryDirectory(prefix="gate-cov-") as tmp:
+        report, xml = Path(tmp) / "coverage.json", Path(tmp) / "coverage.xml"
+        percent = None
+        if "min_coverage" in floors:
+            cov = ["--cov", "--cov-report=", f"--cov-report=json:{report}", f"--cov-report=xml:{xml}"]
+            env = os.environ | {"COVERAGE_FILE": str(Path(tmp) / ".coverage")}
+            ran = _run("tests", [*cmd, *cov], cwd=cwd, env=env)
+            with contextlib.suppress(OSError, ValueError, KeyError):
+                percent = json.loads(report.read_text())["totals"]["percent_covered"]
+        else:
+            ran = _run("tests", cmd, cwd=cwd)
+        if ran.problems:  # the run itself failed: its output says why, a floor message would only add noise
+            return ran
+        problems, ran.notes = floor_problems(ran.checked, percent, floors)
+        ran.problems += problems
+        if percent is not None:
+            ran.notes.insert(0, f"line coverage: {percent:.1f}% (floor {floors['min_coverage']})")
+            if base and xml.exists():
+                ran.notes += diff_coverage(xml, base, cwd)
     return ran
 
 
@@ -219,8 +310,16 @@ def stages(full: bool, commands: dict[str, set[str]], base: str | None) -> list[
         lock_check,
         actionlint,
         zizmor,
-        lambda: _run("tests", pytest_cmd(["tests"], slow=full)),
+        lambda: tests_stage(pytest_cmd(["tests"], slow=full), _floors(), base),
     ]
+
+
+def _floors() -> dict:
+    """The [tests] floors, or none when ratchets.toml is missing or bad (the ratchets stage reports a bad one)."""
+    try:
+        return checks.test_floors((root() / config.get().ratchets).read_text())
+    except (OSError, ValueError):
+        return {}
 
 
 CLEAN_FLAG = "DEVKIT_GATE_PYCACHE"
@@ -259,6 +358,8 @@ def check(commands: dict[str, set[str]], full: bool = False, use_cache: bool = T
                 print(f"     {p}")
             for w in ran.warnings[:10]:
                 print(f"     warning: {w}")
+            for n in ran.notes:
+                print(f"     {n}")
             failed += not ran.ok
         took = time.time() - start
     if failed:
