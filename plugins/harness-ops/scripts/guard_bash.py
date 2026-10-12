@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 
@@ -29,6 +30,32 @@ MAIN = "Never push to main: push your issue branch and open a PR (`uv run dev pr
 FORCE = "Force-push rewrites shared history. Use --force-with-lease on your own issue branch only, never on main."
 HOOKS = "--no-verify, -n, SKIP= and core.hooksPath skip the checks every agent is held to. Fix what the hook reports instead."
 DEEP = "the command nests too deeply to check. Split it into simpler commands."
+# Destructive local commands: each loses uncommitted work, and sibling worktrees share one repository.
+RESET = (
+    "`git reset --hard` / `--merge` throw away uncommitted work. Commit it first, then `git reset --keep <ref>`, "
+    "which refuses to lose changes."
+)
+DISCARD = (
+    "this discards uncommitted changes across the tree. Commit what you want to keep (a WIP commit is fine), revert one "
+    "file with `git restore <file>`, or unstage with `git restore --staged .`."
+)
+CLEAN = "`git clean -f` deletes untracked files for good. Preview with `git clean -n`, then `rm` the files it lists."
+RM = (
+    "recursive rm outside your worktree (or of the worktree or its .git) can delete another worker's files. "
+    "`rm -r` paths inside your worktree, and remove a worktree with `git worktree remove <path>`."
+)
+STASH = (
+    "the stash is shared by every worktree of the repository, so `git stash drop` / `clear` can delete another "
+    "worker's changes. Keep work in a WIP commit and leave stash entries to the owner."
+)
+WORKTREE = (
+    "`git worktree remove --force` deletes unsaved work. Commit and push its branch, then `git worktree remove <path>`."
+)
+BRANCH_D = (
+    "`git branch -D` deletes an unmerged branch, maybe another worker's. Use `git branch -d`; for a squash-merged "
+    "branch, check `gh pr view <branch>` first and leave the deletion to `uv run dev integrate`."
+)
+WHOLE_TREE = {".", "./", ":", ":/", ":/*", "*"}  # pathspecs that name every file
 HOOK_VAR = re.compile(r"^(SKIP|PRE_COMMIT\w*|GIT_CONFIG\w*)(=|$)")
 C_RUNNERS = {"flock", "su", "runuser", "script"}  # their -c / --command value is a shell command
 GREPS = {"grep", "egrep", "fgrep", "rg"}
@@ -436,6 +463,7 @@ def unwrap(argv: list[str], assigns: list[str]) -> list[str]:
 class Checker:
     def __init__(self, cwd: str):
         self.cwd = cwd
+        self.start = cwd  # the session's worktree; a `cd ..` inside the command does not move it
         self.in_python = 0  # > 0 while checking a Python string literal as a shell command
 
     def text(self, text: str, depth: int = 0) -> str | None:
@@ -570,6 +598,8 @@ class Checker:
             return PKILL
         if name == "git":
             return self.git(args, assigns)
+        if name == "rm":
+            return self.rm(args)
         return None
 
     def git(self, args: list[str], assigns: list[str]) -> str | None:
@@ -606,6 +636,25 @@ class Checker:
                     return why
         if sub == "push":
             return self.push(rest, where)
+        return destructive_git(sub, rest, where)
+
+    def rm(self, args: list[str]) -> str | None:
+        shorts, longs, pos = parse_opts(args)
+        if not ({"r", "R"} & shorts or any(long_opt(o, "--recursive", 3) for o in longs)):
+            return None
+        root = worktree_root(self.start)
+        temp = os.path.realpath(tempfile.gettempdir())
+        for t in pos:
+            path = os.path.expandvars(os.path.expanduser(t))
+            if "$" in path:  # a variable the shell sets: the target cannot be checked here
+                continue
+            full = os.path.realpath(os.path.join(self.cwd, path))
+            if root not in ("/", os.path.realpath(os.path.expanduser("~"))) and within(full, root):
+                if full != root and ".git" not in os.path.relpath(full, root).split(os.sep):
+                    continue
+            elif within(full, temp) and not within(root, temp):
+                continue
+            return RM
         return None
 
     def push(self, rest: list[str], where: str) -> str | None:
@@ -705,6 +754,76 @@ def commit_skips_hooks(rest: list[str]) -> bool:
                     skip = j == len(a) - 2
                     break
     return False
+
+
+def parse_opts(args: list[str], valued: str = "") -> tuple[set[str], set[str], list[str]]:
+    """Split args into short flag letters, long option names and positionals (all of them after `--`).
+    `valued`: short options whose value is the rest of the cluster or the next word."""
+    shorts: set[str] = set()
+    longs: set[str] = set()
+    pos: list[str] = []
+    skip = False
+    for k, a in enumerate(args):
+        if skip:
+            skip = False
+        elif a == "--":
+            pos += args[k + 1 :]
+            break
+        elif a.startswith("--"):
+            longs.add(a.split("=", 1)[0])
+        elif a.startswith("-") and len(a) > 1:
+            for j, ch in enumerate(a[1:], 1):
+                shorts.add(ch)
+                if ch in valued:
+                    skip = j == len(a) - 1
+                    break
+        else:
+            pos.append(a)
+    return shorts, longs, pos
+
+
+def destructive_git(sub: str, rest: list[str], where: str) -> str | None:
+    """The git subcommands that throw away uncommitted work, stashes, worktrees or unmerged branches."""
+    shorts, longs, pos = parse_opts(rest, {"checkout": "bB", "switch": "cC", "restore": "s", "clean": "e"}.get(sub, ""))
+
+    def has(letter: str, name: str, shortest: int) -> bool:
+        return letter in shorts or any(long_opt(o, name, shortest) for o in longs)
+
+    def whole_tree() -> bool:
+        return any(p in WHOLE_TREE or os.path.isdir(os.path.join(where, p)) for p in pos)
+
+    if sub == "reset" and any(long_opt(o, "--hard", 4) or long_opt(o, "--merge", 4) for o in longs):
+        return RESET
+    if sub == "checkout" and (has("f", "--force", 4) or whole_tree()):
+        return DISCARD
+    if sub == "switch" and (has("f", "--force", 4) or any(long_opt(o, "--discard-changes", 3) for o in longs)):
+        return DISCARD
+    if sub == "restore" and (has("W", "--worktree", 3) or not has("S", "--staged", 4)) and whole_tree():
+        return DISCARD
+    if sub == "clean" and has("f", "--force", 3) and not has("n", "--dry-run", 3):
+        return CLEAN
+    if sub == "stash" and pos[:1] in (["drop"], ["clear"]):
+        return STASH
+    if sub == "worktree" and pos[:1] == ["remove"] and has("f", "--force", 3):
+        return WORKTREE
+    if sub == "branch" and ("D" in shorts or (has("d", "--delete", 4) and has("f", "--force", 3))):
+        return BRANCH_D
+    return None
+
+
+def within(path: str, top: str) -> bool:
+    return path == top or path.startswith(top.rstrip(os.sep) + os.sep)
+
+
+def worktree_root(cwd: str) -> str:
+    """The top of the worktree holding cwd, or cwd itself outside a repository."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", cwd, "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=5, check=False
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        out = ""
+    return os.path.realpath(out or cwd)
 
 
 def current_branch(where: str) -> str | None:
