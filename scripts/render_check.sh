@@ -13,6 +13,9 @@ ref=${3:-HEAD}
 uvx --from "copier==9.18.2" copier copy --defaults --vcs-ref "$ref" \
   --data project_name=rendered-project --data harness_path="$harness" "$here" "$dest"
 cd "$dest"
+for f in CONTRIBUTING.md SECURITY.md .editorconfig CHANGELOG.md; do
+  [[ -s "$f" ]] || { echo "render_check: the rendered project lacks $f" >&2; exit 1; }
+done
 git init -q -b main
 git -c user.name=render -c user.email=render@example.invalid commit -q --allow-empty -m "empty root"
 uv sync
