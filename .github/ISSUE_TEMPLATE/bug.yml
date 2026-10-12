@@ -1,0 +1,19 @@
+name: Bug
+description: Something in the devkit, the harness-ops plugin or the template does not work as documented
+labels: ["type:bug"]
+body:
+  - type: input
+    id: version
+    attributes: {label: Version, description: "The agent-harness tag your project pins (`.copier-answers.yml`, `harness_ref`)"}
+    validations: {required: true}
+  - type: textarea
+    id: steps
+    attributes: {label: Steps to reproduce, description: "Commands run and in which repository; a rendered project is the best repro"}
+    validations: {required: true}
+  - type: textarea
+    id: expected
+    attributes: {label: Expected and actual, description: "What should have happened, what did, with the output"}
+    validations: {required: true}
+  - type: textarea
+    id: done
+    attributes: {label: DONE WHEN, description: "Optional: the measurable condition that shows it fixed", value: "- [ ] "}

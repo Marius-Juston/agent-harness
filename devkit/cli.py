@@ -87,9 +87,14 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("--context", default="")
     x.add_argument("--done", action="append", default=[], help="a measurable completion condition (repeat)")
     x.add_argument("--owns", action="append", default=[], help="path or glob this item may change (repeat)")
-    x.add_argument("--blocked-by", type=int, action="append", default=[])
-    x.add_argument("--refs", action="append", default=[])
-    x.add_argument("--parent", type=int)
+    ref = "12, #12, owner/repo#12 or an issue URL"
+    x.add_argument("--blocked-by", action="append", default=[], help=f"a native blocked-by link (repeat): {ref}")
+    x.add_argument("--refs", action="append", default=[], help="a mention, not a link (relates-to)")
+    x.add_argument("--parent", help=f"makes the item a native sub-issue of: {ref}")
+    x = bs.add_parser("link", help="add native links to an item; a blocked-by link that closes a cycle is refused")
+    x.add_argument("number", type=int)
+    x.add_argument("--blocked-by", action="append", default=[], help=f"(repeat) {ref}")
+    x.add_argument("--parent", help=f"replaces any parent: {ref}")
     x = bs.add_parser("claim", help="claim an item for an agent (race-safe across machines)")
     x.add_argument("number", type=int)
     x.add_argument("--agent", required=True)
@@ -306,6 +311,8 @@ def run_board(a: argparse.Namespace) -> int:
             print(board.next_items(a.kind, a.n))
         case "new":
             print(board.new(a.title, a.kind, a.prio, a.context, a.done, a.owns, a.blocked_by, a.refs, a.parent))
+        case "link":
+            print("\n".join(board.link(a.number, a.blocked_by, a.parent)) or "already linked")
         case "claim":
             print(board.claim(a.number, a.agent, a.branch, a.force))
         case "beat":

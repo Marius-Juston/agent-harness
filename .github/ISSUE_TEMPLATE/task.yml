@@ -1,0 +1,17 @@
+name: Task
+description: One unit of work with a measurable outcome (prefer `uv run dev board new`, which fills these sections)
+body:
+  - type: textarea
+    id: context
+    attributes: {label: Context, description: "What is missing or wrong, with links (brief section, notes, code)"}
+    validations: {required: true}
+  - type: textarea
+    id: done
+    attributes: {label: DONE WHEN, description: "Checklist of measurable conditions: metric, threshold, test, or artifact", value: "- [ ] "}
+    validations: {required: true}
+  - type: textarea
+    id: owns
+    attributes: {label: Owns, description: "Paths/globs this item may change, one per line in backticks"}
+  - type: input
+    id: blocked
+    attributes: {label: Blocked by, description: "#12, #13"}
