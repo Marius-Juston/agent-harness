@@ -1,6 +1,6 @@
 # Research: free secret, dependency and code scanning for private repositories
 
-Status: v1 (2026-10-12). Issue: #15 (and the generic part of TheEye #46).
+Status: v1 (2026-10-12). Issue: #15 (and the generic part of a consuming project's security pipeline request).
 Labels: SOURCED = cited and fetched; VERIFIED = measured in this repo (script named); BELIEVED = judgment; ASSUMED = unchecked premise.
 Search coverage: tool documentation only (no literature search: the question is which maintained tools fit); `uv run dev lit status` on 2026-10-12 showed openalex, crossref, europepmc and arxiv up, s2 down (HTTP 429).
 Companions: [agent-harness.md](agent-harness.md) (why checks are enforced, not described).
@@ -9,7 +9,7 @@ Companions: [agent-harness.md](agent-harness.md) (why checks are enforced, not d
 GitHub runs secret scanning for free on public repositories only, so a private user-owned project needs its own. The harness uses four free tools, each run where it fits. **gitleaks** (MIT) runs as a pre-commit hook on staged changes and over the whole history in a CI `security` job. **`uv audit`** checks uv.lock against OSV and needs no extra dependency. **`uv export --format cyclonedx1.5`** writes an SBOM that is kept with each CI run. **ruff's S rules** (the bandit port) run in the gate. The audit and the history scan need the network, so CI runs them rather than `dev check`. All four fail on fixtures: `uv run pytest -m live tests/test_security.py` checks this, and CI runs it in the `security-fixtures` job.
 
 ## 1. Question and scope
-Which free tools stand in for GitHub secret scanning, dependency alerts and code scanning on a private repository, and where should each one run (pre-commit, `dev check`, CI)? Semgrep CE (the static-analysis half of TheEye #46) is not covered. ruff S covers Python, and a second static analyzer is a follow-up.
+Which free tools stand in for GitHub secret scanning, dependency alerts and code scanning on a private repository, and where should each one run (pre-commit, `dev check`, CI)? Semgrep CE (the static-analysis half of that request) is not covered. ruff S covers Python, and a second static analyzer is a follow-up.
 
 ## 2. Findings
 - Secret scanning runs automatically for free only on public repositories, and user-owned private repositories are not listed as covered without paid Secret Protection, per [GitHub's secret scanning overview](https://docs.github.com/en/code-security/secret-scanning/introduction/about-secret-scanning) (SOURCED).
@@ -29,5 +29,5 @@ Adopted: a gitleaks hook in both pre-commit configs, a `security` CI job in this
 Inline links above, all fetched 2026-10-12: GitHub secret scanning overview, the gitleaks README, the prek home page, the uv CLI reference (`uv audit`), uv's export guide, the pip-audit README, ruff's S603 page, Python's XML security notes.
 
 ## Follow-ups
-- [ ] Semgrep CE or a second static analyzer for non-Python files (TheEye #46). DONE WHEN a ruleset runs in CI and a fixture finding fails it.
+- [ ] Semgrep CE or a second static analyzer for non-Python files. DONE WHEN a ruleset runs in CI and a fixture finding fails it.
 - [ ] Drop `--preview-features` once `uv audit` and the CycloneDX export are stable. DONE WHEN uv's changelog marks them stable and the flags are removed.

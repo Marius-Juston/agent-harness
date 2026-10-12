@@ -7,4 +7,4 @@ Read this before researching: extend an existing note rather than writing a para
 | note | status | finding |
 |---|---|---|
 | [agent harness design for a multi-agent research and implementation repo](agent-harness.md) | v1 (2026-10-11), the evidence behind this repository's design. | The harness is built from mechanisms measured on the agents of two earlier private repositories of the author, called here **repository A** (a software project: about 400 transcripts, 300 merged tickets) and **reposit... |
-| [free secret, dependency and code scanning for private repositories](free-security-scanning.md) | v1 (2026-10-12). Issue: #15 (and the generic part of TheEye #46). | GitHub runs secret scanning for free on public repositories only, so a private user-owned project needs its own. |
+| [free secret, dependency and code scanning for private repositories](free-security-scanning.md) | v1 (2026-10-12). Issue: #15 (and the generic part of a consuming project's security pipeline request). | GitHub runs secret scanning for free on public repositories only, so a private user-owned project needs its own. |
