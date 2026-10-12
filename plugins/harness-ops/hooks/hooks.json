@@ -37,13 +37,25 @@
         ]
       },
       {
-        "matcher": "Agent",
+        "matcher": "Agent|Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/spawn_guard.sh",
+            "timeout": 10,
+            "statusMessage": "Checking the weekly quota before spawning"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
         "hooks": [
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/spawn_guard.sh",
             "timeout": 330,
-            "statusMessage": "Checking quota and free memory before spawning"
+            "statusMessage": "Waiting for free memory before a heavy agent starts"
           }
         ]
       }

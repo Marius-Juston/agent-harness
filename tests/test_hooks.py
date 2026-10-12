@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import re
 import shlex
 import subprocess
 import time
@@ -634,12 +635,87 @@ def test_spawn_guard_quota_and_light_agents(hook, tmp_path):
     assert code == 0 and out == ""
 
 
-@pytest.mark.parametrize("kind", ["builder", "harness-ops:builder", "harness-ops:tester"])
-def test_spawn_guard_memory_wait_times_out(hook, tmp_path, kind):
+def _hook_entries(event: str, script: str) -> list[dict]:
+    data = json.loads((HOOKS.parent / "hooks/hooks.json").read_text())
+    return [g for g in data["hooks"].get(event, []) for h in g["hooks"] if h["command"].endswith(f"/{script}")]
+
+
+def test_spawn_guard_runs_on_workflow_and_agent_spawns_and_at_subagent_start():
+    """#85: a workflow fires PreToolUse for `Workflow`, never `Agent`, and SubagentStart for each of its agents."""
+    [pre] = _hook_entries("PreToolUse", "spawn_guard.sh")
+    assert re.fullmatch(pre["matcher"], "Agent") and re.fullmatch(pre["matcher"], "Workflow")
+    [start] = _hook_entries("SubagentStart", "spawn_guard.sh")
+    assert "matcher" not in start and start["hooks"][0]["timeout"] > 300
+
+
+def test_spawn_guard_quota_denies_a_workflow_run(hook, tmp_path):
+    repo = _repo(tmp_path)
+    (repo / ".git/devkit").mkdir()
+    (repo / ".git/devkit/usage.json").write_text(json.dumps({"pct": 96, "t": int(time.time())}))
+    payload = {"hook_event_name": "PreToolUse", "tool_name": "Workflow", "tool_input": {"name": "p:wf"}}
+    _, out, _ = hook("spawn_guard.sh", payload, env={**os.environ, "CLAUDE_PROJECT_DIR": str(repo)})
+    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def _start(kind: str) -> dict:
+    return {"hook_event_name": "SubagentStart", "agent_type": kind, "agent_id": "a1"}
+
+
+@pytest.mark.parametrize("kind", ["builder", "harness-ops:builder", "harness-ops:tester", "workflow-subagent"])
+def test_spawn_guard_memory_wait_times_out_at_subagent_start(hook, tmp_path, kind):
+    """SubagentStart cannot refuse: after the wait the agent starts, with a warning naming the free memory."""
     repo = _repo(tmp_path)
     env = {**os.environ, "CLAUDE_PROJECT_DIR": str(repo), "DEVKIT_SPAWN_FLOOR_GB": "100000", "DEVKIT_SPAWN_WAIT_S": "0"}
-    _, out, _ = hook("spawn_guard.sh", {"tool_input": {"subagent_type": kind}}, env=env)
-    assert "GB free" in json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"]
+    code, out, _ = hook("spawn_guard.sh", _start(kind), env=env)
+    assert code == 0 and "GB free" in json.loads(out)["systemMessage"]
+    # The memory wait moved off PreToolUse: a spawn call is never held or denied for memory.
+    code, out, _ = hook("spawn_guard.sh", {"tool_input": {"subagent_type": kind}}, env=env)
+    assert code == 0 and out == ""
+
+
+def test_spawn_guard_holds_a_workflow_agent_until_memory_frees(hook, tmp_path):
+    """The hold is a wait: with memory below the floor the hook sleeps (here past a 2 s wait), then lets it start."""
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(_repo(tmp_path)), "DEVKIT_SPAWN_FLOOR_GB": "100000"}
+    start = time.monotonic()
+    code, out, _ = hook("spawn_guard.sh", _start("workflow-subagent"), env={**env, "DEVKIT_SPAWN_WAIT_S": "2"})
+    assert code == 0 and time.monotonic() - start >= 2 and "held workflow-subagent" in out
+    code, out, _ = hook("spawn_guard.sh", _start("workflow-subagent"), env={**env, "DEVKIT_SPAWN_FLOOR_GB": "0"})
+    assert code == 0 and out == ""
+
+
+@pytest.mark.parametrize("kind", ["researcher", "harness-ops:reviewer", "Explore"])
+def test_spawn_guard_does_not_hold_light_agents(hook, tmp_path, kind):
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(_repo(tmp_path)), "DEVKIT_SPAWN_FLOOR_GB": "100000"}
+    code, out, _ = hook("spawn_guard.sh", _start(kind), env=env)
+    assert code == 0 and out == ""
+
+
+@pytest.mark.parametrize("payload", ["", "not json", "[]", "null", json.dumps({"hook_event_name": 5})])
+@pytest.mark.parametrize("usage", [None, "{not json", json.dumps({"pct": "x", "t": None})])
+def test_spawn_guard_degrades_to_allow_with_warning(hook, tmp_path, payload, usage):
+    """#85: malformed input or a broken usage reading never blocks a spawn (exit 0, no deny), it warns instead."""
+    repo = _repo(tmp_path)
+    if usage is not None:
+        (repo / ".git/devkit").mkdir()
+        (repo / ".git/devkit/usage.json").write_text(usage)
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(repo), "DEVKIT_SPAWN_FLOOR_GB": "100000"}
+    code, out, _ = hook("spawn_guard.sh", payload, env=env)
+    assert code == 0 and "deny" not in out
+    if out:
+        assert json.loads(out)["systemMessage"].startswith("spawn_guard:")
+    if payload in ("", "not json", "[]", "null"):
+        assert "unreadable hook input" in out
+
+
+def test_spawn_guard_allows_with_warning_when_jq_is_missing(hook, tmp_path):
+    """A missing jq is a crash of the guard: the ERR trap turns it into an allow with a warning, not exit 127."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for tool in ("bash", "cat", "git", "date", "awk"):
+        (bin_dir / tool).symlink_to(subprocess.run(["which", tool], capture_output=True, text=True).stdout.strip())
+    env = {"PATH": str(bin_dir), "CLAUDE_PROJECT_DIR": str(_repo(tmp_path))}
+    code, out, _ = hook("spawn_guard.sh", {"tool_input": {"subagent_type": "builder"}}, env=env)
+    assert code == 0 and json.loads(out)["systemMessage"].startswith("spawn_guard:")
 
 
 def test_worktree_create_refuses_bad_names_and_places_beside_repo(hook, tmp_path):
