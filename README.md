@@ -53,6 +53,9 @@ uvx copier check-update   # is a newer release out? (`uv run dev doctor` warns t
 uvx copier update         # three-way: your edits to template files are kept
 uv sync && uv run dev docs && uv run dev check
 ```
+`copier update` never touches a project's CLAUDE.md or README.md (`_skip_if_exists`); the generic agent rules are the
+template-owned .devkit/HARNESS.md ([source](template/.devkit/HARNESS.md.jinja)), which CLAUDE.md @-imports. A project made before v0.1.5 replaces the generic
+sections of its CLAUDE.md with the line `@.devkit/HARNESS.md` once, by hand, after its first such update.
 
 ## Working on this repository
 It runs its own harness on itself (`[tool.devkit]` in [pyproject.toml](pyproject.toml)): `uv sync`, then

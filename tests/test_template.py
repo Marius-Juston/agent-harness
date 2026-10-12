@@ -12,7 +12,7 @@ import pytest
 import yaml
 from copier import run_copy, run_update
 
-from devkit import config
+from devkit import checks, config, frontmatter
 from devkit.paths import root
 
 ROOT = root()
@@ -130,9 +130,10 @@ def test_copier_update_brings_the_research_api_keys_setup_to_an_existing_project
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=dest, check=True)
     subprocess.run(["git", "add", "-A"], cwd=dest, check=True)
     subprocess.run([*git, "commit", "-q", "-m", "from v0.1.2"], cwd=dest, check=True)
+    readme = (dest / "README.md").read_text()
     run_update(dest, data=data, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
     assert "## Research API keys" in (dest / "docs/SETUP.md").read_text()
-    assert "docs/SETUP.md#research-api-keys" in (dest / "README.md").read_text()
+    assert (dest / "README.md").read_text() == readme  # project-owned since #22: updates never touch it
 
 
 def test_the_project_carries_the_session_goal_prompt(rendered):
@@ -142,3 +143,53 @@ def test_the_project_carries_the_session_goal_prompt(rendered):
     for must in ("harness-ops:lead", "uv run dev board next", "uv run dev lit status", "Done when", "OPEN_QUESTIONS"):
         assert must in session
     assert "docs/SESSION.md" in (rendered / "README.md").read_text()
+
+
+def test_claude_md_imports_the_template_owned_harness_rules(rendered):
+    """CLAUDE.md holds only the project's facts and an @-import of the generic rules, which the template owns; the
+    context word budget counts both, and together they stay inside it."""
+    claude, harness = rendered / "CLAUDE.md", rendered / ".devkit/HARNESS.md"
+    lines = claude.read_text().splitlines()
+    assert "@.devkit/HARNESS.md" in lines and "## Project facts" in lines
+    assert "## Rules" not in lines and "## Rules" in harness.read_text().splitlines()
+    copier = yaml.safe_load((ROOT / "copier.yml").read_text())
+    assert {"CLAUDE.md", "README.md"} <= set(copier["_skip_if_exists"])
+    assert checks.imported_words(claude) == frontmatter.words(harness.read_text())
+    total = frontmatter.words(claude.read_text()) + checks.imported_words(claude)
+    budget = tomllib.loads((rendered / ".devkit/ratchets.toml").read_text())["defaults"]["context"]
+    assert total <= budget
+
+
+def _previous_release() -> str:
+    tags = subprocess.run(
+        ["git", "tag", "--list", "v*", "--sort=-v:refname", "--no-contains", "HEAD"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    assert tags, "no earlier release tag (CI checks out with fetch-depth 0)"
+    return tags[0]
+
+
+def test_copier_update_never_conflicts_on_project_owned_files(tmp_path):
+    """A project from the previous release edits CLAUDE.md and README.md; updating to HEAD leaves both as the project
+    wrote them, with no conflict anywhere, and brings the template-owned rules file."""
+    dest = tmp_path / "prev"
+    data = {"project_name": "demo-project", "description": "A demo."}
+    run_copy(str(ROOT), dest, data=data, defaults=True, vcs_ref=_previous_release(), unsafe=False, quiet=True)
+    for name in ("CLAUDE.md", "README.md"):
+        p = dest / name
+        p.write_text(p.read_text().replace("demo-project", "Demo Project, edited by its owner") + "\nOwn line.\n")
+    edited = {name: (dest / name).read_text() for name in ("CLAUDE.md", "README.md")}
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=dest, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=dest, check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "previous release, edited"], cwd=dest, check=True)
+    run_update(dest, data=data, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
+    for name, text in edited.items():
+        assert (dest / name).read_text() == text, name
+    files = [p for p in dest.rglob("*") if p.is_file() and ".git" not in p.parts]
+    assert not [p for p in files if p.suffix == ".rej"]
+    assert not [p for p in files if "<<<<<<<" in p.read_text(errors="replace")]
+    assert "## Rules" in (dest / ".devkit/HARNESS.md").read_text()

@@ -4,6 +4,11 @@
 _min_copier_version: "9.4"
 _subdirectory: template
 _answers_file: .copier-answers.yml
+# Project-owned: rendered once, never touched by `copier update`. Generic agent rules live in .devkit/HARNESS.md,
+# which the template owns and CLAUDE.md @-imports, so an update never conflicts with the project's own text.
+_skip_if_exists:
+  - CLAUDE.md
+  - README.md
 
 project_name:
   type: str

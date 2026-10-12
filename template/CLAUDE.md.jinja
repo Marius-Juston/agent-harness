@@ -1,44 +1,10 @@
 # {{ project_name }}: agent guide
 
 {{ description }} (Replace this paragraph with the few product facts every agent must know, and link the owner's
-brief.) Rules below; everything else is derived: `uv run dev --help` lists commands,
-[docs/generated/agent-surface.md](docs/generated/agent-surface.md) lists agents, skills, hooks, plugins and MCP
-servers, [docs/research/INDEX.md](docs/research/INDEX.md) lists what is already researched.
+brief.)
 
-## Every session
-- A SessionStart hook injects `uv run dev orient` (handoff, board, worktrees, memory, quota). Run it again after long breaks.
-- The board is GitHub issues: `uv run dev board next`, `board brief <n>`, `board claim <n> --agent <name>`.
-  Work without an issue does not exist. Each issue has a measurable DONE WHEN.
-- The main session is the **lead** for its machine. It plans, dispatches and integrates (the `harness-ops:lead`
-  skill), and it never builds while workers run. Workers are `harness-ops:` subagents, one issue each, in their own
-  worktree.
-- Multi-agent and multi-machine protocol: [multi-agent.md](https://github.com/Marius-Juston/agent-harness/blob/{{ harness_ref }}/docs/specs/multi-agent.md).
+@.devkit/HARNESS.md
 
-## Rules
-- Python is managed with **uv only** (`uv add`, `uv run`), never pip. A hook enforces this.
-- Branch `<issue>-<slug>` in a worktree. Never commit to `main` directly. Only `uv run dev integrate <pr>` merges.
-- Run `uv run dev test --affected` while iterating. Run `uv run dev check` once at the end, on a committed tip.
-  Never weaken a check, test or budget to pass. Ask the owner instead.
-- **Research before implementing.** Any design or algorithm choice needs a cited note in `docs/research/`.
-  Check INDEX.md first and extend an existing note rather than writing a parallel one. Use the research skill.
-- **Reuse before build.** Search for a maintained library or repo first. Prefer free and open-source options.
-  Record the choice, its license and the alternatives in the note.
-- Label claims **VERIFIED** (measured here, script named), **SOURCED** (cited and fetched), **BELIEVED** (judgment)
-  or **ASSUMED**. Never cite a source you did not fetch. `uv run dev cite-check` must pass for changed notes.
-- Re-check a root cause with data before writing it down. First explanations are often wrong.
-- Navigate by symbol: `uv run dev code outline|show|refs|find`. Do not read whole files. A hook answers whole-file
-  reads of long files with an outline.
-- Batch independent reads and searches as parallel tool calls in one response.
-- Never edit generated files (`docs/generated/`, `docs/research/INDEX.md`, `uv.lock`); run `uv run dev docs`.
-  Never read `.env`.
-- Facts live in one place. Link to them; do not copy counts, field lists or commands into prose. The gate fails on
-  dangling paths and unknown `uv run dev` commands.
-- Hand-backs are at most 25 lines. Details go in the PR body or an issue comment.
-- Unclear requirement: add it to [docs/questions/OPEN_QUESTIONS.md](docs/questions/OPEN_QUESTIONS.md) with your
-  default, then proceed on that default.
-
-## Changing the agent surface
-CLAUDE.md, `.claude/`, `.devkit/`, `[tool.devkit]` and CI are the harness every agent is judged by. Follow the
-`harness-ops:harness` skill: keep text short, keep word budgets (`.devkit/ratchets.toml`) falling, and measure with
-`uv run dev agent-stats`. Generic changes go to agent-harness itself, then `copier update` here. A PR that touches
-harness files needs the lead to read its diff.
+## Project facts
+This file is the project's own: `copier update` never touches it. The generic rules come from the import above.
+(Add project-specific rules and facts here.)
