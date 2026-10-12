@@ -641,14 +641,15 @@ FEEDBACK_QUERY = """query($owner: String!, $name: String!, $n: Int!) { repositor
     commits(last: 1) { nodes { commit { committedDate } } }
     comments(last: 50) { nodes { author { login } body createdAt url } }
     reviews(last: 50) { nodes { author { login } body state submittedAt url } }
-    reviewThreads(first: 100) { nodes { isResolved path line comments(last: 1) { nodes { author { login } body url } } } }
+    reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved path line comments(last: 1) { nodes { author { login } body url } } } }
 } } }"""
 FEEDBACK_CHARS = 200
+THREADS_PAGE = 100  # the reviewThreads(first:) above; past it integrate refuses (fails closed) instead of paginating
 
 
 def pr_feedback(number: int) -> dict:
     """A PR's conversation: `since` (its last commit's date), comments, reviews and the unresolved review threads.
-    Review threads are GraphQL-only (`gh pr view` has no field for them); past 100 threads the rest are unseen."""
+    Review threads are GraphQL-only (`gh pr view` has no field for them); past 100 threads `threads_truncated`."""
     owner, name = repo().split("/", 1)
     out = gh("api", "graphql", "-f", f"owner={owner}", "-f", f"name={name}", "-F", f"n={number}", "-f",
              f"query={FEEDBACK_QUERY}")  # fmt: skip
@@ -659,6 +660,7 @@ def pr_feedback(number: int) -> dict:
         "comments": pr["comments"]["nodes"],
         "reviews": pr["reviews"]["nodes"],
         "threads": [t for t in pr["reviewThreads"]["nodes"] if not t["isResolved"]],
+        "threads_truncated": bool((pr["reviewThreads"].get("pageInfo") or {}).get("hasNextPage")),
     }
 
 
@@ -691,6 +693,8 @@ def pr_feedback_lines(fb: dict) -> list[str]:
             f"- unresolved thread {t['path']}:{t.get('line') or '?'} {login(last)}: "
             f"{text(last.get('body', ''))} ({last.get('url', '')})"
         )
+    if fb.get("threads_truncated"):
+        out.append(f"- more than {THREADS_PAGE} review threads: the rest are not shown, read them on GitHub")
     return out
 
 

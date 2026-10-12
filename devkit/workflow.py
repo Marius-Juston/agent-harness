@@ -271,11 +271,24 @@ def refusal(info: dict) -> str | None:
     return None
 
 
-def unfinished(info: dict, threads: list[dict]) -> list[str]:
+def latest_checks(rollup: list[dict]) -> list[dict]:
+    """One check per (workflow, name or context), the latest by start then completion: a rollup keeps every run, so a
+    rerun that passed sits next to the failure it replaced."""
+    latest: dict[tuple[str, str], dict] = {}
+    for c in rollup:
+        key = (c.get("workflowName") or "", c.get("name") or c.get("context") or "?")
+        when = (c.get("startedAt") or "", c.get("completedAt") or "")
+        if key not in latest or when >= (latest[key].get("startedAt") or "", latest[key].get("completedAt") or ""):
+            latest[key] = c
+    return list(latest.values())
+
+
+def unfinished(info: dict, feedback: dict) -> list[str]:
     """Feedback a merge would bury: failing or pending checks, a standing CHANGES_REQUESTED review, unresolved
-    review threads. Every check counts, required or not: a PR once merged over a failing optional job."""
+    review threads (`feedback` is board.pr_feedback). Every check counts, required or not: a PR once merged over a
+    failing optional job."""
     out = []
-    for c in info.get("statusCheckRollup") or []:
+    for c in latest_checks(info.get("statusCheckRollup") or []):
         name = c.get("name") or c.get("context") or "?"
         if c.get("__typename") == "StatusContext":
             state = c.get("state") or "PENDING"
@@ -291,7 +304,9 @@ def unfinished(info: dict, threads: list[dict]) -> list[str]:
     out += [f"changes requested by {who}" for who in asked]
     if not asked and info.get("reviewDecision") == "CHANGES_REQUESTED":
         out.append("changes requested (review decision)")
-    out += [f"unresolved review thread {t['path']}:{t.get('line') or '?'}" for t in threads]
+    out += [f"unresolved review thread {t['path']}:{t.get('line') or '?'}" for t in feedback["threads"]]
+    if feedback.get("threads_truncated"):
+        out.append(f"more than {board.THREADS_PAGE} review threads: the rest are unread, check them on GitHub")
     return out
 
 
@@ -326,10 +341,17 @@ def _merge_if_unchanged(pr_number: int, head: str, main: str, dry_run: bool = Fa
     return None
 
 
+def _pr_state(pr_number: int) -> tuple[dict, list[str]]:
+    """The PR as GitHub has it now, and its unfinished feedback."""
+    info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
+    return info, unfinished(info, board.pr_feedback(pr_number))
+
+
 def integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | None = None) -> int:
     """Lead only: merge a PR after re-gating the merged tree (main + pull/N/head) in a throwaway worktree.
     Unfinished feedback (checks, requested changes, open threads) refuses it unless `override` gives a reason,
-    which is logged on the PR just before the merge."""
+    which is logged on the PR just before the merge. Feedback is read again after the gate: what arrived during it
+    refuses the merge, override or not."""
     info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
     if info["state"] != "OPEN" or info["isDraft"]:
         print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
@@ -340,7 +362,7 @@ def integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | N
     if override is not None and not override.strip():
         print("RESULT: refused: --override needs a reason")
         return 1
-    if todo := unfinished(info, board.pr_feedback(pr_number)["threads"]):
+    if todo := unfinished(info, board.pr_feedback(pr_number)):
         if override is None:
             print(f"RESULT: refused: PR #{pr_number} has unfinished feedback:\n  " + "\n  ".join(todo))
             print(
@@ -383,8 +405,12 @@ def integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | N
         git("worktree", "remove", "--force", str(tmp), check=False)
         git("update-ref", "-d", head_ref, check=False)
         git("update-ref", "-d", main_ref, check=False)
+    if arrived := [t for t in _pr_state(pr_number)[1] if t not in todo]:
+        print(f"RESULT: refused: feedback arrived on PR #{pr_number} during the gate:\n  " + "\n  ".join(arrived))
+        print(f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate.")
+        return 1
     if todo:
-        log = f"`dev integrate --override`: {override}\n\nMerged over:\n" + "\n".join(f"- {t}" for t in todo)
+        log = f"`dev integrate --override`: {override}\n\nOverriding:\n" + "\n".join(f"- {t}" for t in todo)
         if dry_run:
             print(f"would log on PR #{pr_number}:\n{log}")
         else:

@@ -96,3 +96,13 @@ def test_brief_without_an_open_pr_or_with_github_down_has_no_feedback_section(mo
 
     monkeypatch.setattr(board, "gh", down)
     assert "feedback" not in board.brief(39)
+
+
+def test_feedback_past_the_first_page_of_threads_is_flagged_not_dropped(monkeypatch):
+    calls = _fake(monkeypatch, _graphql(committed=COMMIT, threads=[_thread("x.py", 2)], more_threads=True))
+    fb = board.pr_feedback(7)
+    assert fb["threads_truncated"]
+    assert "more than 100 review threads" in "\n".join(board.pr_feedback_lines(fb))
+    assert "hasNextPage" in next(c for c in calls if c[:2] == ("api", "graphql"))[-1]
+    _fake(monkeypatch, _graphql(committed=COMMIT))
+    assert not board.pr_feedback(7)["threads_truncated"]
