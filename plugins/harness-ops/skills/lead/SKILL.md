@@ -21,7 +21,7 @@ For each item in review, in priority order:
 1. `gh pr view <pr>`, `gh pr diff <pr> --name-only` and `uv run dev board feedback <pr>` (comments and reviews since the last commit, unresolved threads).
 2. Spawn a `harness-ops:reviewer` when the PR touches harness files, several Owns, or anything a user sees. Spawn a `harness-ops:research-auditor` for research PRs that drive a decision.
 3. Read every comment, from people and bots. Answer or fix each one (resume the worker for fixes), resolve its thread (an outdated thread still blocks until resolved), and wait for the checks to go green.
-4. `uv run dev integrate <pr>`; add `--harness-ok` only after reading the harness diff yourself. It refuses failing or pending checks, requested changes and unresolved threads; `--override '<reason>'` only on the owner's word (logged on the PR). Its last line, `RESULT-JSON`, gives the `outcome`: on `conflict`, resume the worker it names; on `stopped` or `gate-failed`, comment the failure on the PR and resume or respawn its worker.
+4. `uv run dev integrate <pr>`; add `--harness-ok` only after reading the harness diff yourself. It refuses failing or pending checks, requested changes and unresolved threads; `--override '<reason>'` only on the owner's word (logged on the PR). Its last line, `RESULT-JSON`, gives the outcome: on `conflict`, resume the worker it names; on `stopped` or `gate-failed`, comment the failure on the PR, then resume or respawn its worker.
 
 ## 3. Pick the next wave
 - `uv run dev board next -n 10`. Prefer P0, then items that unblock the most.
@@ -50,4 +50,4 @@ Update the handoff file (`docs/HANDOFF.md` unless `[tool.devkit] handoff` moves 
 - Next: the ranked startable items, and why.
 - Decisions waiting on the owner (also in the project's open-questions file).
 
-Commit HANDOFF on a branch with your other lead edits; land them through `dev pr`/`dev integrate`.
+Commit HANDOFF with your other lead edits on a branch; land them via `dev pr`/`dev integrate`.
