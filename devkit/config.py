@@ -28,6 +28,7 @@ class Config:
     # Backticked repository paths in prose under these prefixes are not checked (their markdown links still are).
     path_check_skip: list[str] = field(default_factory=list)
     quota_cap: int = 95  # weekly all-models percent at which the spawn guard refuses new agents
+    checks_wait_s: int = 900  # how long integrate waits for the checks on a PR head it pushed before it merges
     # Claude Code plugins `dev setup` installs at project scope: "plugin@marketplace" -> marketplace source.
     plugins: dict[str, str] = field(
         default_factory=lambda: {
