@@ -200,7 +200,7 @@ def test_citecheck_fetches_through_the_guarded_opener(monkeypatch):
     assert any(isinstance(h, netsafe.HttpOnlyRedirects) for h in netsafe.OPENER.handlers)
 
 
-BOMB ='<?xml version="1.0"?><!DOCTYPE f [<!ENTITY a "aaaa"><!ENTITY b "&a;&a;&a;">]><feed>&b;</feed>'
+BOMB = '<?xml version="1.0"?><!DOCTYPE f [<!ENTITY a "aaaa"><!ENTITY b "&a;&a;&a;">]><feed>&b;</feed>'
 
 
 @pytest.mark.parametrize("body", [BOMB, BOMB.lower(), "<!doctype feed SYSTEM 'http://example.org/x.dtd'><feed/>"])
