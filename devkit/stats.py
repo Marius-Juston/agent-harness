@@ -4,6 +4,11 @@ Guidance should be kept only when it changes behavior or outcomes; this is the m
 ~/.claude/projects/<this checkout's key>/ (main sessions and their subagents, worktrees included) and reports, per
 agent type: runs, median tool calls, median fresh/cached/output tokens, and the share of tool-result characters that
 came from whole-file reads and long outputs (the cheapest waste to remove).
+
+Token counts come from each message's `usage`. Claude Code writes one line per content block, each repeating the
+message's usage; older builds wrote the stream-start usage (stop_reason null, output_tokens near zero) on all but the
+last line. So each message id counts once, with its largest `usage.output_tokens`, which is the final one when it was
+logged. Messages that never logged a final usage are counted as "partial"; their output is a lower bound.
 """
 
 import json
@@ -38,10 +43,13 @@ def scan(path: Path) -> dict:
         "fresh": 0,
         "cached": 0,
         "output": 0,
+        "messages": 0,
+        "partial": 0,
         "result_chars": 0,
         "big": 0,
         "tools": defaultdict(int),
     }
+    usage: dict[str, tuple[bool, dict]] = {}  # message id -> (final?, usage) of its most complete record
     for line in path.open(encoding="utf-8", errors="replace"):
         try:
             d = json.loads(line)
@@ -50,9 +58,11 @@ def scan(path: Path) -> dict:
         msg = d.get("message") or {}
         if d.get("type") == "assistant":
             u = msg.get("usage") or {}
-            run["fresh"] += u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
-            run["cached"] += u.get("cache_read_input_tokens", 0)
-            run["output"] += u.get("output_tokens", 0)
+            key = msg.get("id") or f"line{len(usage)}"
+            final = msg.get("stop_reason") is not None
+            seen = usage.get(key)
+            if seen is None or (final, u.get("output_tokens", 0)) > (seen[0], seen[1].get("output_tokens", 0)):
+                usage[key] = (final, u)
             for c in msg.get("content") or []:
                 if isinstance(c, dict) and c.get("type") == "tool_use":
                     run["calls"] += 1
@@ -63,6 +73,12 @@ def scan(path: Path) -> dict:
                     n = _result_chars(c.get("content"))
                     run["result_chars"] += n
                     run["big"] += n if n > BIG_RESULT else 0
+    for final, u in usage.values():
+        run["fresh"] += u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
+        run["cached"] += u.get("cache_read_input_tokens", 0)
+        run["output"] += u.get("output_tokens", 0)
+        run["partial"] += not final
+    run["messages"] = len(usage)
     return run
 
 
@@ -97,6 +113,7 @@ def report(as_json: bool = False) -> str:
                 "fresh": med("fresh"),
                 "cached": med("cached"),
                 "output": med("output"),
+                "partial_share": round(sum(r["partial"] for r in runs) / (sum(r["messages"] for r in runs) or 1), 2),
                 "big_share": round(sum(r["big"] for r in runs) / chars, 2),
                 "top_tools": top,
             }
@@ -113,5 +130,11 @@ def report(as_json: bool = False) -> str:
             f"{r['type'][:23]:<24}{r['runs']:>5}{r['calls']:>7}{r['fresh']:>11,}{r['cached']:>12,}{r['output']:>9,}"
             f"{r['big_share'] * 100:>5.0f}%  {r['top_tools']}"
         )
+    msgs = sum(r["messages"] for runs in data.values() for r in runs) or 1
+    partial = sum(r["partial"] for runs in data.values() for r in runs) / msgs
+    out.append(
+        "out tok = usage.output_tokens of each message's final record, once per message id;"
+        f" {partial:.0%} of messages logged only a stream-start usage (their output is a lower bound)."
+    )
     out.append(f"big% = share of tool-result characters in results over {BIG_RESULT} chars (whole files, long logs).")
     return "\n".join(out)
