@@ -1,6 +1,7 @@
 # Research: agent harness design for a multi-agent research and implementation repo
 
 Status: v1 (2026-10-11), the evidence behind this repository's design.
+Section 9 added 2026-10-12 (#61).
 Labels: SOURCED = cited and fetched; VERIFIED = measured (in the earlier repositories named below, from their own transcripts and records, which are private); BELIEVED = judgment; ASSUMED = unchecked premise.
 Search coverage: not recorded (written before `uv run dev lit status` existed; the evidence is mostly the earlier repositories' own records).
 Companions: [../specs/multi-agent.md](../specs/multi-agent.md) (the protocol this note justifies).
@@ -26,6 +27,8 @@ The harness is built from mechanisms measured on the agents of two earlier priva
 - A rule rewritten as a bounded-loop instruction took unbounded wait loops from 52 of 87 builder runs to 0 of 10. Yet the read discipline stated in its AGENTS.md was still broken: whole-file `cat` of modules over 300 lines was 58 % of all `cat` output, until a PreToolUse hook rewrote such reads into outlines.
 - The builder definition changed 35 times in 11 days, and nothing checked any of those changes.
 - *Design:* the plugin's `read_guard.py` (rewrite, not refuse), `guard_bash.py` and `edit_guard.py` (refuse with the fix), `lint_after_edit.py` (ruff findings at edit time), and the `harness` skill's rule that a rule broken in a quarter of runs becomes a hook.
+- A probe of v0.1.4 `guard_bash.py` with 8 destructive commands blocked only `git push --force`. `git reset --hard`, `checkout -- .`, `clean -fdx`, `rm -rf ../<sibling>`, `stash drop`, `worktree remove --force` and `branch -D` all passed, and sibling worktrees share one stash and one parent directory (VERIFIED by a downstream project's probe script; 8 of 8 blocked after #52, `tests/test_hooks.py`). [cc-safety-net's rule list](https://ccsafetynet.com/docs/reference/blocked-commands) (MIT, Node) blocks the same commands, allows temp paths and `restore --staged`, and lets dynamic `rm` targets through by default (SOURCED). *Design:* the same rules in `guard_bash.py`, which already parses nested commands, instead of a Node dependency. Recursive `rm` is checked against the worktree the session started in, not the cwd after a `cd`, and a one-file `checkout -- <file>` stays allowed (BELIEVED: it touches only the agent's own worktree).
+- [Claude Code hooks](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails): a command hook that crashes, times out or exits with a code other than 0 or 2 lets the action through by default; `"onFailure": "block"` (v2.1.295+) makes the failure act as exit 2 (SOURCED). *Design:* set on the policy guards `guard_bash.py` and `edit_guard.py`. `read_guard.py` and `spawn_guard.sh` stay fail-open: a crash there should not stop reads or spawns (BELIEVED).
 
 ## 3. Drift (VERIFIED in repository A; SOURCED)
 - Repository A's drift audit found eleven classes of hand-declared facts repeated in N places. The fix was the same each time: declare once, derive the rest, and make the check a walk over a registry.
@@ -34,8 +37,9 @@ The harness is built from mechanisms measured on the agents of two earlier priva
 
 ## 4. Gaming and integrity (SOURCED; VERIFIED in repository A)
 - [METR on reward hacking](https://metr.org/blog/2025-06-05-recent-reward-hacking): frontier models stubbed validators and monkey-patched equality in 30.4 % of RE-Bench runs. [ImpossibleBench](https://arxiv.org/abs/2510.20270) makes the cheat rate measurable.
+- [ImpossibleBench](https://arxiv.org/abs/2510.20270) (SOURCED; GPT-5, o3, Claude Opus 4.1 and others, 2025) makes tests contradict the spec, so any pass is a cheat. Test modification was the primary cheating strategy of Claude Opus 4.1. Read-only tests prevented those edits but not special-casing. An explicit abort option (`flag_for_human_intervention`) cut cheating on Impossible-SWEbench from 54 % to 9 % for GPT-5 and from 49 % to 12 % for o3, with a much smaller effect for Claude Opus 4.1.
 - Repository A's harness audit: the gate that judges a branch is the branch's own code, and a gate record is a forgeable file. A same-user signature cannot fix this; re-derivation can.
-- *Design:* `dev integrate` re-runs the gate on the merged tree in a throwaway worktree. CI re-runs it on GitHub's machines. PRs touching harness paths need the lead to read the diff (`--harness-ok`). Ratchets refuse a raised budget without a signed `[[raise]]`.
+- *Design:* `dev integrate` re-runs the gate on the merged tree in a throwaway worktree. CI re-runs it on GitHub's machines. PRs touching harness paths need the lead to read the diff (`--harness-ok`). Ratchets refuse a raised budget without a signed `[[raise]]`. The gate flags removed asserts and tests and new skips in the diff against main (`devkit/weaken.py`) unless the owner wrote `weakening-ok:` in the issue, and the builder's way out is `uv run dev board block`. The marker is auditable, not unforgeable (BELIEVED): agents post with the owner's credentials, so the reviewer checks who wrote it.
 
 ## 5. Coordination across machines (VERIFIED in repositories A and B)
 - Repository A kept tickets as files in git. It needed custom merge drivers, migration renumbering and an integrator folding log fragments, about 28k lines of dev tooling, and conflicts still concentrated on the board files.
@@ -56,7 +60,13 @@ The harness is built from mechanisms measured on the agents of two earlier priva
 - A server's own wait comes first. Retry-After is delay-seconds or an HTTP-date ([RFC 9110, 10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#name-retry-after)). GitHub answers a primary or secondary rate limit with 403 or 429 ([rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)) and asks clients to honour retry-after, else x-ratelimit-reset when x-ratelimit-remaining is 0, else to wait at least a minute and then exponentially longer ([best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)).
 - *Design (BELIEVED):* `devkit/backoff.py` serves `dev lit`, `dev cite-check` and the gh wrapper: full jitter (base 2 s, cap 60 s), a hint honoured as a lower bound plus a random 0-20 % so the waiters it releases do not wake together, and, in `dev lit`, a cooldown shared through the bucket file that doubles on each throttle within 10 minutes and resets on a 200. gh prints no headers, so its wait is 60 s plus jitter.
 
-## 9. Recommendation
+## 9. The distribution name and dependency confusion (SOURCED; VERIFIED)
+- PyPI's `agent-harness` is an unrelated project (homepage `github.com/dschonholtz/agent_harness`), at 0.1.10 on 2026-10-12, above this harness's 0.1.4 (VERIFIED, `curl -s https://pypi.org/pypi/agent-harness/json`).
+- uv respects `[tool.uv.sources]` but no other tool does ("Sources are only respected by uv"), and `--no-sources` makes uv ignore the table, per [uv's dependency docs](https://docs.astral.sh/uv/concepts/projects/dependencies/) (SOURCED). uv's default `first-index` strategy exists "to prevent dependency confusion attacks" across indexes, and pinning a package to an index is also a `tool.uv.sources` entry, per [uv's index docs](https://docs.astral.sh/uv/concepts/indexes/) (SOURCED), so an index restriction has the same `--no-sources` hole.
+- With a bare `agent-harness` requirement and a git source, `uv lock` takes the git tag, but `uv lock --no-sources` took PyPI's 0.1.10 and `uv export --no-sources` printed `agent-harness==0.1.4`, which pip would fetch from PyPI. With a PEP 508 direct reference (`agent-harness @ git+…@v0.1.4`) all three resolved the git tag, and a `path` source still overrides the reference, which keeps the template's `harness_path` test override working (VERIFIED, uv 0.12.23, scratch projects, 2026-10-12).
+- *Design:* the rendered dev group names the git tag directly and keeps the `[tool.uv.sources]` entry; `tests/test_template.py` asserts both, after `copier update` as well. A rename was not needed (BELIEVED): it would break every existing consumer's requirement for no gain over the direct reference.
+
+## 10. Recommendation
 Adopted as built (BELIEVED, to be measured with `uv run dev agent-stats` and evals):
 - Word budgets: 600 per agent, 650 per skill, 600 for CLAUDE.md, only tightening.
 - Up to 12 concurrent subagents. The spawn guard holds builders and testers below 6 GB free memory and refuses all spawns at the quota cap (95 % weekly by default).
