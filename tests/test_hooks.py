@@ -223,12 +223,12 @@ def test_guard_bash_allows(hook, cmd):
 
 
 # Destructive local commands (#52): each loses work, maybe another worker's in a sibling worktree. The first
-# eight are the r1 probe cases from TheEye #193 (r1_guard_probe.sh); the second item names the rule's message.
+# eight are the probe cases from a downstream harness-gap review; the second item names the rule's message.
 DESTRUCTIVE = [
     ("git reset --hard HEAD~1", "RESET"),
     ("git checkout -- .", "DISCARD"),
     ("git clean -fdx", "CLEAN"),
-    ("rm -rf ../TheEye-worktrees", "RM"),
+    ("rm -rf ../proj-worktrees", "RM"),
     ("git stash drop", "STASH"),
     ("git worktree remove --force ../x", "WORKTREE"),
     ("git push --force origin x", "FORCE"),
@@ -264,7 +264,7 @@ DESTRUCTIVE = [
     ("rm -rf .", "RM"),  # the worktree itself, from its root
     ("rm -rf .git", "RM"),
     ("rm -fr -- ../sibling", "RM"),
-    ("cd .. && rm -rf TheEye-worktrees", "RM"),
+    ("cd .. && rm -rf proj-worktrees", "RM"),
     ("bash -c 'git reset --hard'", "RESET"),
     ("sudo rm -rf /etc", "RM"),
     ("find . -name x -exec rm -rf ../y \\;", "RM"),
