@@ -53,7 +53,7 @@ def _get(url: str, timeout: int = 20) -> tuple[int, dict[str, str], str]:
         return 0, {}, why
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})  # noqa: S310 - http(s) only
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - http(s) only
+        with netsafe.OPENER.open(req, timeout=timeout) as r:
             return r.status, dict(r.headers), r.read(400_000).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers or {}), ""

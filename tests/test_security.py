@@ -9,6 +9,8 @@ import shutil
 import string
 import subprocess
 import tomllib
+import urllib.error
+import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -22,6 +24,7 @@ ROOT = root()
 PRECOMMIT = [ROOT / ".pre-commit-config.yaml", ROOT / "template/.pre-commit-config.yaml"]
 WORKFLOWS = [ROOT / ".github/workflows/ci.yml", ROOT / "template/.github/workflows/gate.yml"]
 GITLEAKS = "https://github.com/gitleaks/gitleaks"
+SCRATCH = "docs/research/_scratch/**"
 
 
 def gitleaks_repo(config: Path) -> dict:
@@ -67,9 +70,12 @@ def test_ci_security_job(workflow):
     assert checkout["uses"].startswith("actions/checkout@")
     assert checkout["with"]["fetch-depth"] == 0  # the history scan needs every commit
     runs = " ".join(s.get("run", "") for s in job["steps"])
-    assert "--hook-stage manual gitleaks-history" in runs
-    assert "uv audit" in runs and "--frozen" in runs
-    assert "--format cyclonedx1.5" in runs
+    assert "-c .pre-commit-config.yaml --hook-stage manual gitleaks-history" in runs  # root config: one scan
+    assert "uv audit --locked" in runs  # a stale lock fails rather than being audited as is
+    assert "--format cyclonedx1.5" in runs and "--quiet" in runs  # the SBOM goes to the artifact, not the log
+    setup = next(s for s in job["steps"] if s.get("uses", "").startswith("astral-sh/setup-uv@"))
+    assert setup["with"]["version"]  # preview features: pin uv
+    assert "schedule" in yaml.safe_load(workflow.read_text())[True]  # weekly re-audit
     assert any(s.get("uses", "").startswith("actions/upload-artifact@") for s in job["steps"])
     # every check reports even when an earlier one fails
     assert all(s.get("if") == "${{ !cancelled() }}" for s in job["steps"][3:])
@@ -87,7 +93,14 @@ def test_ruff_bandit_rules_on(pyproject):
     assert "S" in lint["select"]
     ignores = lint["per-file-ignores"]
     assert "S101" in ignores.get("tests/**", ignores.get("**/tests/**", []))
-    assert all("S" not in rules for rules in [lint.get("ignore", []), *ignores.values()])  # never the whole family
+    # never the whole family, except for throwaway research probe scripts
+    whole = [path for path, rules in ignores.items() if "S" in rules]
+    assert "S" not in lint.get("ignore", []) and set(whole) <= {SCRATCH}
+
+
+def test_template_exempts_only_research_scratch():
+    text = (ROOT / "template/pyproject.toml.jinja").read_text()
+    assert f'"{SCRATCH}" = ["S"]' in text
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -166,7 +179,28 @@ def test_fetchers_refuse_non_http_schemes(url):
     assert status == 0 and "scheme" in body
 
 
-BOMB = '<?xml version="1.0"?><!DOCTYPE f [<!ENTITY a "aaaa"><!ENTITY b "&a;&a;&a;">]><feed>&b;</feed>'
+@pytest.mark.parametrize("handler", [netsafe.HttpOnlyRedirects, lit.KeepKeysOnHost])
+@pytest.mark.parametrize("target", ["ftp://example.org/x", "file:///etc/passwd"])
+def test_redirects_to_non_http_schemes_are_refused(handler, target):
+    req = urllib.request.Request("https://example.org/a", headers={"User-Agent": "ua"})
+    with pytest.raises(urllib.error.URLError, match="scheme"):
+        handler().redirect_request(req, None, 302, "Found", {}, target)
+    assert handler().redirect_request(req, None, 302, "Found", {}, "https://example.org/b") is not None
+
+
+def test_citecheck_fetches_through_the_guarded_opener(monkeypatch):
+    seen = []
+
+    def refuse(req, timeout):
+        seen.append(req.full_url)
+        raise urllib.error.URLError("offline")
+
+    monkeypatch.setattr(netsafe.OPENER, "open", refuse)
+    assert citecheck._get("https://example.org/x")[0] == 0 and seen == ["https://example.org/x"]
+    assert any(isinstance(h, netsafe.HttpOnlyRedirects) for h in netsafe.OPENER.handlers)
+
+
+BOMB ='<?xml version="1.0"?><!DOCTYPE f [<!ENTITY a "aaaa"><!ENTITY b "&a;&a;&a;">]><feed>&b;</feed>'
 
 
 @pytest.mark.parametrize("body", [BOMB, BOMB.lower(), "<!doctype feed SYSTEM 'http://example.org/x.dtd'><feed/>"])

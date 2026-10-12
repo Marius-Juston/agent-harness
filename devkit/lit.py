@@ -88,7 +88,7 @@ class SourceError(Exception):
 KEY_HEADERS = {"x-api-key"}  # request headers that carry a key
 
 
-class KeepKeysOnHost(urllib.request.HTTPRedirectHandler):
+class KeepKeysOnHost(netsafe.HttpOnlyRedirects):
     """A redirect to another host does not take the key header with it (urllib copies every header by default)."""
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
