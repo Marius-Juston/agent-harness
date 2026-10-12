@@ -21,7 +21,7 @@ from collections.abc import Callable, Iterator
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 
-from devkit import checks, docs, weaken
+from devkit import board, checks, docs, weaken
 from devkit.paths import git, root, state_dir
 from devkit.ran import Ran
 
@@ -210,6 +210,7 @@ def stages(full: bool, commands: dict[str, set[str]], base: str | None) -> list[
         checks.check_links,
         lambda: checks.check_dev_commands(commands),
         checks.check_research_notes,
+        board.check_board,
         lambda: checks.check_ratchets(base),
         lambda: weaken.check_weakening(base),
         lambda: checks.check_generated(docs.render()),
