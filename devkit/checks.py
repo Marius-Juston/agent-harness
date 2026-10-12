@@ -404,7 +404,30 @@ def measured_words() -> dict[str, int]:
 
 def _load_ratchets(text: str) -> dict:
     data = tomllib.loads(text)
-    return {"words": data.get("words", {}), "defaults": data.get("defaults", {}), "raise": data.get("raise", [])}
+    return {
+        "words": data.get("words", {}),
+        "defaults": data.get("defaults", {}),
+        "raise": data.get("raise", []),
+        "tests": data.get("tests", {}),
+    }
+
+
+FLOORS = {"min_tests": (int,), "min_coverage": (int, float)}  # [tests] keys: floors that only rise
+
+
+def test_floors(text: str) -> dict:
+    """The [tests] floors of a ratchets.toml: min_tests (passed tests) and min_coverage (line %). ValueError if bad."""
+    floors = tomllib.loads(text).get("tests", {})
+    for key, value in floors.items():
+        if key not in FLOORS:
+            raise ValueError(f"[tests] {key}: unknown key; known: {sorted(FLOORS)}")
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, FLOORS[key])
+            or not 0 <= value <= (100 if "cov" in key else 1e9)
+        ):
+            raise ValueError(f"[tests] {key} = {value!r}: expected a number from 0 (min_coverage: up to 100)")
+    return floors
 
 
 GITHUB_LOGIN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$")
@@ -438,10 +461,12 @@ def effective_budget(r: dict, rel: str) -> tuple[int | None, str]:
 
 def ratchet_raises(cur: dict, old: dict, files: list[str], owner: str | None) -> list[str]:
     """Each budget above main's (every file's effective budget, every default) needs a [[raise]] new since main for
-    the key that sets it, approved_by the repository owner's GitHub login, with a `to` that covers the new value."""
+    the key that sets it, approved_by the repository owner's GitHub login, with a `to` that covers the new value.
+    A [tests] floor is the mirror image: one below main's (or removed) needs a [[raise]] whose `to` is at most it."""
     problems: list[str] = []
     known = {(r.get("key"), r.get("to")) for r in old["raise"]}
     allowed: dict[str, int] = {}
+    floor_to: dict[str, int | float] = {}  # a [[raise]] on a [tests] floor loosens it: `to` is the lowest allowed
     for r in cur["raise"]:
         key, to, who = str(r.get("key")), r.get("to"), str(r.get("approved_by", ""))
         if (r.get("key"), to) in known:
@@ -450,10 +475,20 @@ def ratchet_raises(cur: dict, old: dict, files: list[str], owner: str | None) ->
             problems.append(
                 f"ratchets.toml: [[raise]] {key}: approved_by {who!r} is not the repository owner {owner!r}"
             )
-        elif not isinstance(to, int) or isinstance(to, bool):
+        elif isinstance(to, bool) or not isinstance(to, int | float if key.startswith("tests.") else int):
             problems.append(f"ratchets.toml: [[raise]] {key}: `to` must be an integer")
+        elif key.startswith("tests."):
+            floor_to[key] = min(to, floor_to.get(key, to))
         else:
             allowed[key] = max(to, allowed.get(key, to))
+    for name, before in old.get("tests", {}).items():
+        value, key = cur.get("tests", {}).get(name), f"tests.{name}"
+        if value is not None and value >= before:
+            continue
+        if key not in floor_to:
+            problems.append(f"ratchets.toml: {key} lowered {before} -> {value} without an owner-approved [[raise]]")
+        elif value is None or value < floor_to[key]:
+            problems.append(f"ratchets.toml: {key} lowered to {value}, below its [[raise]] to = {floor_to[key]}")
     # A key absent on main is a raise from nothing; a new [words] entry at or below main's budget for that file is
     # a tightening and needs no approval.
     raised: dict[str, tuple[int | None, int, str]] = {}
@@ -476,10 +511,16 @@ def ratchet_raises(cur: dict, old: dict, files: list[str], owner: str | None) ->
 
 
 def check_ratchets(base: str | None, owner: str | None = None) -> Ran:
-    """Word budgets of the always-loaded and agent files may only go down. A raise needs an owner-signed [[raise]]."""
+    """Word budgets of the always-loaded and agent files may only go down, and [tests] floors only up. Loosening
+    either needs an owner-signed [[raise]]."""
     ran = Ran("ratchets (budgets only tighten)")
     ratchets = config.get().ratchets
-    cur = _load_ratchets((root() / ratchets).read_text())
+    text = (root() / ratchets).read_text()
+    cur = _load_ratchets(text)
+    try:
+        test_floors(text)
+    except ValueError as e:
+        ran.problems.append(f"{ratchets}: {e}")
     measured = measured_words()
     for rel, words in measured.items():
         ran.checked += 1
