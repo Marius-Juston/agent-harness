@@ -28,7 +28,8 @@ Crossref, WebSearch/WebFetch, context7, Wikipedia (orientation only).
 2. **Fan out** all researchers in one response (parallel Agent calls, `subagent_type: harness-ops:researcher`,
    background).
    Each prompt names: the sub-question, what is already known (file paths, not pasted text), the scratch file to
-   write (`docs/research/_scratch/<slug>/r<round>-<topic>.md`), and "round mode".
+   write (`docs/research/_scratch/<slug>/r<round>-<topic>.md`), and "round mode". A researcher hands back only once
+   `uv run dev cite-check` passes on that file (link text is the title; author/year/venue follow the link).
 3. **Gap pass.** When all have returned, read their hand-backs, not the files. Write
    `_scratch/<slug>/gaps-r<round>.md` with: new findings that change the recommendation, contradictions between
    researchers, claims resting on one weak source, and questions nobody answered.
