@@ -40,7 +40,8 @@ Nothing assumes that two machines share a disk.
    paths go on the PR, the item is blocked ('rebase on main') and the worker to resume is named. If the gate
    passes, the PR merges, then its items close, blocked items whose blockers closed move to ready, and the
    worktree is removed. The last line, `RESULT-JSON: {...}`, says what happened (`outcome`). A PR that touches
-   harness files is refused until the lead has read that diff (`--harness-ok`).
+   harness files is refused until the lead has read that diff (`--harness-ok`); a `.gitattributes` change can hide
+   conflicts, so read it too.
    Integrate also refuses a PR with failing or pending checks, a standing CHANGES_REQUESTED review or unresolved
    review threads, unless `--override '<reason>'` is given; the reason is logged on the PR. The lead reads
    `uv run dev board feedback <pr>` first and answers or fixes each comment.

@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 from pathlib import Path, PurePosixPath
 
 from devkit import board, checks, config
@@ -225,6 +226,8 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
         raise board.BoardError("run `uv run dev check` on this tip first: the PR must be gated")
     issue = board.get(number)
     body = _summary_body(number, summary)
+    if partial and re.match(r"Closes #\d+", body):
+        raise board.BoardError("--partial, but the summary starts with 'Closes #N': write 'Refs #N' or drop --partial")
     if not re.match(r"(Closes|Refs) #\d+", body):
         body = f"{'Refs' if partial else 'Closes'} #{number}\n\n{body}"
     git("push", "-u", "origin", branch)
@@ -361,18 +364,39 @@ PUSH_WAIT_S = 1.0  # between reads of the PR head after integrate pushed an upda
 PUSH_TRIES = 15
 
 
+ATTR_SOURCE_GIT = (2, 40)  # `git --attr-source`
+
+
+def git_version() -> tuple[int, ...]:
+    m = re.search(r"(\d+)\.(\d+)", git("--version"))
+    return tuple(int(x) for x in m.groups()) if m else (0, 0)
+
+
 def merge_main(tree: Path, main: str) -> list[str]:
     """Merge main into the PR head checked out at `tree`, as GitHub's "Update branch" would, with the generated-file
-    driver. Returns the paths that really conflict (the merge is then aborted), or [] when it merged or was current."""
+    driver. Merge rules come from main's `.gitattributes` (`--attr-source`): an old branch must not bring back a
+    union rule that interleaves rewrites. Returns the paths that really conflict (the merge is then aborted), or []
+    when it merged or was current. Raises RuntimeError when git is too old or the merge failed without a conflict."""
+    if (have := git_version()) < ATTR_SOURCE_GIT:
+        need, got = ".".join(map(str, ATTR_SOURCE_GIT)), ".".join(map(str, have))
+        raise RuntimeError(f"integrate needs git >= {need} (--attr-source); this is git {got}")
     config = [arg for key, value in GENERATED_MERGE for arg in ("-c", f"{key}={value}")]
     merge = subprocess.run(
-        ["git", *config, "merge", "--no-ff", "--no-edit", main], cwd=tree, capture_output=True, text=True, check=False
+        ["git", f"--attr-source={main}", *config, "merge", "--no-ff", "--no-edit", main],
+        cwd=tree,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if merge.returncode == 0:
         return []
     paths = git("diff", "--name-only", "--diff-filter=U", cwd=tree, check=False).splitlines()
     git("merge", "--abort", cwd=tree, check=False)
-    return paths or [f"(git merge failed: {(merge.stdout + merge.stderr).strip()[-300:]})"]
+    if not paths:
+        raise RuntimeError(
+            f"git merge of main failed without a conflict: {(merge.stdout + merge.stderr).strip()[-300:]}"
+        )
+    return paths
 
 
 def regenerate(tree: Path) -> bool:
@@ -431,6 +455,16 @@ def result(pr_number: int, code: int, outcome: str, **fields: object) -> int:
 
 
 def integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | None = None) -> int:
+    """`_integrate`, but every exit ends with a `result` line: a crash (even after a push) is `stopped` with its reason."""
+    try:
+        return _integrate(pr_number, harness_ok, dry_run, override)
+    except Exception as exc:  # the lead branches on the last line, whatever failed
+        traceback.print_exc()
+        print(f"RESULT: stopped (integrate failed: {exc}); check the PR branch and the board, then rerun")
+        return result(pr_number, 1, "stopped", reason=f"integrate failed: {type(exc).__name__}: {exc}")
+
+
+def _integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | None = None) -> int:
     """Lead only: merge a PR after re-gating the merged tree in a throwaway worktree: main merged into pull/N/head,
     generated files regenerated. When that tree differs from the head (the PR is behind main, or its generated files
     are stale) it is pushed to the PR branch before the merge; a real conflict is sent back (`send_back`).
@@ -475,13 +509,12 @@ def integrate(pr_number: int, harness_ok: bool, dry_run: bool, override: str | N
     tmp = state_dir("integrate") / f"pr-{pr_number}"
     _add_worktree(tmp, head)
     try:
-        if conflicts := merge_main(tmp, main):
-            workers = send_back(pr_number, info, main, conflicts, dry_run=dry_run)
-            print(
-                f"RESULT: conflict with main in {', '.join(conflicts)}; sent back, resume {', '.join(workers) or '?'}"
-            )
-            return result(pr_number, 1, "conflict", conflicts=conflicts, resume=workers, branch=info["headRefName"])
         try:
+            if conflicts := merge_main(tmp, main):
+                workers = send_back(pr_number, info, main, conflicts, dry_run=dry_run)
+                who = ", ".join(workers) or "its worker"
+                print(f"RESULT: conflict with main in {', '.join(conflicts)}; sent back, resume {who}")
+                return result(pr_number, 1, "conflict", conflicts=conflicts, resume=workers, branch=info["headRefName"])
             regenerated = regenerate(tmp)
         except RuntimeError as exc:
             print(f"RESULT: stopped ({exc})")

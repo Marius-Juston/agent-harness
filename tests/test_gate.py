@@ -300,6 +300,7 @@ def fake_integrate(monkeypatch, tmp_path):
         "merge_code": 0,
         "conflicts": [],
         "blocked": [],
+        "git_version": "git version 2.43.0",
     }
     ev = world["events"]
 
@@ -307,6 +308,8 @@ def fake_integrate(monkeypatch, tmp_path):
         ev.append(("git", *args))
         if args[0] == "rev-parse":
             return world["tip"] if args[1] == "HEAD" else world["fetched_head"] if "pr-" in args[1] else MAIN
+        if args[0] == "--version":
+            return world["git_version"]
         if args[0] == "diff" and "--diff-filter=U" in args:
             return "\n".join(world["conflicts"])
         if args[0] == "push":
@@ -378,7 +381,8 @@ def test_integrate_fetches_the_pull_ref_gates_then_merges_the_pinned_head(fake_i
         fetch:gate_run
     ]
     driver = [a for k, v in workflow.GENERATED_MERGE for a in ("-c", f"{k}={v}")]
-    assert ("run", "git", *driver, "merge", "--no-ff", "--no-edit", MAIN) in ev[fetch:gate_run]  # main into the head
+    merge_cmd = ("run", "git", f"--attr-source={MAIN}", *driver, "merge", "--no-ff", "--no-edit", MAIN)
+    assert merge_cmd in ev[fetch:gate_run]  # main into the head, by main's merge rules
     assert ("run", "uv", "run", "--quiet", "dev", "docs") in ev[fetch:gate_run]  # regenerated before the gate
     merge = _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
     assert fetch < gate_run < merge
@@ -625,6 +629,41 @@ def test_integrate_always_ends_with_one_machine_readable_line(
     assert workflow.integrate(7, harness_ok=harness_ok, dry_run=False) == code
     res = _last_json(capsys.readouterr().out)
     assert (res["pr"], res["outcome"], res["exit"]) == (7, outcome, code)
+
+
+def test_integrate_needs_a_git_with_attr_source(fake_integrate, capsys):
+    fake_integrate["git_version"] = "git version 2.39.5"
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "stopped" and "git >= 2.40" in res["reason"] and "2.39" in res["reason"]
+    assert not any(e[0] == "run" and "merge" in e for e in fake_integrate["events"])
+    assert not _merged(fake_integrate["events"])
+
+
+def test_a_failed_merge_without_conflicted_paths_is_stopped_not_sent_back(fake_integrate, capsys):
+    fake_integrate["merge_code"] = 128  # e.g. a hook or a lock, not a conflict: --diff-filter=U lists nothing
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "stopped" and "without a conflict" in res["reason"]
+    assert fake_integrate["blocked"] == []
+    assert not any(e[:3] == ("gh", "pr", "comment") for e in fake_integrate["events"])
+
+
+def test_a_crash_after_the_push_still_ends_with_a_result_line(fake_integrate, monkeypatch, capsys):
+    """Reviewer on #73: every exit prints RESULT-JSON, even an unexpected error once the PR branch was updated."""
+    fake_integrate["tip"] = "t" * 40
+    gh = board.gh
+
+    def flaky(*args, **kw):
+        if args[:2] == ("pr", "merge"):
+            raise ConnectionError("network down")
+        return gh(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", flaky)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert any(e[:2] == ("git", "push") for e in fake_integrate["events"])
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "stopped" and "ConnectionError: network down" in res["reason"]
 
 
 def test_changed_paths_lists_both_sides_of_a_rename(repo, monkeypatch):

@@ -64,3 +64,10 @@ def test_summary_file_still_works(opened, tmp_path):
     f.write_text("Refs #33\n\nfrom a file\n")
     workflow.pr(33, str(f), draft=False)
     assert opened == ["Refs #33\n\nfrom a file\n"]
+
+
+def test_partial_with_a_closes_line_is_refused_before_anything_is_pushed(opened, monkeypatch):
+    monkeypatch.setattr("sys.stdin", io.StringIO("Closes #33\n\nhalf done\n"))
+    with pytest.raises(board.BoardError, match="--partial"):
+        workflow.pr(33, "-", draft=False, partial=True)
+    assert opened == []

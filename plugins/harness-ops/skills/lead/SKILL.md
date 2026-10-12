@@ -6,7 +6,7 @@ description: The lead session's routine in a repository run with agent-harness â
 # Lead routine
 
 Rules that must hold:
-- Never build while workers run. The lead plans, dispatches and integrates.
+- Never build while workers run. The lead only plans, dispatches and integrates.
 - A worker's report is not evidence. `uv run dev integrate` re-gates the merged tree. Read PR numbers against the data.
 - Spawn prompts are one line. The brief carries the rest.
 - At the quota cap, start nothing new. Commit, update HANDOFF, stop.

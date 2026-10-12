@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from devkit import board, setup, workflow
+from devkit import board, paths, setup, workflow
 
 ROOT = Path(__file__).resolve().parents[1]
 ATTRIBUTES = ROOT / "template/.gitattributes"
@@ -188,6 +188,8 @@ def project(tmp_path, monkeypatch):
         return REAL_RUN(cmd, **kw)
 
     claim = board.Claim(host="box", agent="builder-12", branch="12-c", at="", token=None, cid="")
+    paths.root.cache_clear()  # root() and common_dir() are cached per process: drop what other tests resolved
+    paths.common_dir.cache_clear()
     monkeypatch.chdir(clone)
     monkeypatch.setattr(subprocess, "run", run)
     monkeypatch.setattr(board, "gh", gh)
@@ -198,7 +200,9 @@ def project(tmp_path, monkeypatch):
     monkeypatch.setattr(board, "merged_pr", lambda *a: world["events"].append(("merged_pr", *a)) or ["#12 -> done"])
     monkeypatch.setattr(workflow, "main_checkout", lambda: clone)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: tmp_path.joinpath("state", *p))
-    return world
+    yield world
+    paths.root.cache_clear()
+    paths.common_dir.cache_clear()
 
 
 def open_pr(world: dict, files: dict[str, str], number: int = 7) -> str:
@@ -270,3 +274,15 @@ def test_integrate_sends_a_real_conflict_back(project, capsys):
     assert not any(e[:3] == ("gh", "pr", "merge") or e[:2] == ("uv", "check") for e in project["events"])
     assert out(project["origin"], "git", "rev-parse", "refs/heads/12-c") == old  # nothing pushed
     assert not any(e[0] == "merged_pr" for e in project["events"])
+
+
+def test_an_old_pr_cannot_bring_back_union_merges_for_notes(project, capsys):
+    """Reviewer HIGH on #73: merging main into the head reads the head's .gitattributes. A PR cut before #38 keeps
+    `docs/research/*.md merge=union`; integrate must still merge by main's rules, so the rewrites conflict."""
+    old_rules = "docs/research/*.md merge=union\n" + ATTRIBUTES.read_text()
+    old = open_pr(project, {".gitattributes": old_rules, "docs/research/a.md": "one\nTWO by the PR\nthree\n"})
+    land_on_main(project, {"docs/research/a.md": "one\nTWO on main\nthree\n"})
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = last_json(capsys.readouterr().out)
+    assert res["outcome"] == "conflict" and res["conflicts"] == ["docs/research/a.md"]
+    assert out(project["origin"], "git", "rev-parse", "refs/heads/12-c") == old
