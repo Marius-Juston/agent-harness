@@ -6,6 +6,7 @@ import multiprocessing
 import os
 import threading
 import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -372,7 +373,7 @@ def test_lookup_by_id_falls_back(tmp_path):
     cr = {"message": {"DOI": "10.1234/x", "title": ["Crossref only"], "issued": {"date-parts": [[2001]]}}}
     net = FakeNet({CR: [(200, {}, json.dumps(cr))]})  # OpenAlex and S2 answer 404
     p, notes = make(tmp_path, net).lookup("https://doi.org/10.1234/x")
-    assert p is not None and p.title == "Crossref only" and len(notes) == 2
+    assert p is not None and p.title == "Crossref only" and len(notes) == 3  # no abstract: Europe PMC asked too
     with pytest.raises(ValueError):
         lit.get_urls("not an id")
 
@@ -946,3 +947,178 @@ def test_take_grants_when_the_wait_is_below_the_clocks_resolution():
         state, wait = lit.take(state, now, 0.15, 2.0)
         assert wait == 0.0 or now + wait > now
         now += wait
+
+
+# ---- dev lit get: authors, open-access link, full abstract, several ids (#30, #174) ----
+LONG = [f"w{i}" for i in range(400)]  # an abstract far longer than any snippet
+
+
+def oa_work(doi: str, wid: str = "W1", *, abstract: bool = True, authors: bool = True) -> dict:
+    return {
+        "id": f"https://openalex.org/{wid}",
+        "doi": f"https://doi.org/{doi}",
+        "title": f"Paper {doi}",
+        "publication_year": 2021,
+        "cited_by_count": 7,
+        "authorships": [{"author": {"display_name": n}} for n in ("Ada Lovelace", "Alan Turing")] if authors else [],
+        "open_access": {"is_oa": True, "oa_url": "https://example.org/landing"},
+        "best_oa_location": {"pdf_url": f"https://example.org/{wid}.pdf", "landing_page_url": "https://x.org/l"},
+        "abstract_inverted_index": {w: [i] for i, w in enumerate(LONG)} if abstract else None,
+    }
+
+
+def test_get_prints_authors_oa_pdf_and_the_full_abstract_then_serves_it_from_cache(tmp_path):
+    net = FakeNet({OA: [(200, {}, json.dumps(oa_work("10.1234/a")))]})
+    (p,), notes = make(tmp_path, net).lookup_many(["10.1234/a"])
+    out = lit.render_full([p], notes)
+    assert "authors: Ada Lovelace, Alan Turing" in out
+    assert "open access: https://example.org/W1.pdf" in out
+    assert " ".join(LONG) in out and "…" not in out  # rebuilt from abstract_inverted_index, never cut
+    assert "select=" in net.calls[0][0] and "authorships" in net.calls[0][0]
+    cached = FakeNet({})
+    (again,), _ = make(tmp_path, cached).lookup_many(["10.1234/a"])
+    assert cached.calls == [] and again is not None and again.authors == p.authors and again.oa_url == p.oa_url
+
+
+def test_get_snippet_caps_the_abstract_and_many_authors_are_capped():
+    p = lit.Paper("T", authors=[f"A{i}" for i in range(40)], abstract=" ".join(LONG))
+    out = lit.render_full([p], [], snippet=50)
+    assert "…" in out and " ".join(LONG) not in out
+    assert f"A{lit.MAX_AUTHORS - 1} (+{40 - lit.MAX_AUTHORS} more)" in out and f"A{lit.MAX_AUTHORS}," not in out
+    assert "w0" not in lit.render_full([p], [], snippet=0)
+
+
+def test_get_fills_a_missing_abstract_from_the_next_source(tmp_path):
+    s2p = {"paperId": "c" * 40, "title": "Paper 10.1234/a", "abstract": "From S2.", "externalIds": {"DOI": "10.1234/a"},
+           "authors": [{"name": "Grace Hopper"}], "openAccessPdf": {"url": "https://s2.example/p.pdf"}}  # fmt: skip
+    net = FakeNet({OA: [(200, {}, json.dumps(oa_work("10.1234/a", abstract=False)))], S2: [(200, {}, json.dumps(s2p))]})
+    p, _ = make(tmp_path, net).lookup("10.1234/a")
+    assert p is not None and p.abstract == "From S2."
+    assert p.authors == ["Ada Lovelace", "Alan Turing"] and p.oa_url == "https://example.org/W1.pdf"  # first wins
+    assert p.ids["s2"] == "c" * 40 and len(net.calls) == 2  # stops once complete: Crossref never asked
+
+
+def test_get_stops_at_the_first_complete_record(tmp_path):
+    net = FakeNet({OA: [(200, {}, json.dumps(oa_work("10.1234/a")))]})
+    make(tmp_path, net).lookup("10.1234/a")
+    assert len(net.calls) == 1
+
+
+def test_get_many_batches_openalex_and_falls_back_per_id_without_asking_openalex_again(tmp_path):
+    works = [oa_work("10.1234/a", "W1"), oa_work("10.1234/B", "W2")]
+    s2p = {"paperId": "d" * 40, "title": "Only in S2", "abstract": "S2.", "authors": [{"name": "X"}],
+           "externalIds": {"DOI": "10.1234/c"}}  # fmt: skip
+    net = FakeNet(
+        {
+            OA + "works?filter=doi:": [(200, {}, json.dumps({"results": works}))],
+            OA + "works?filter=openalex:": [(200, {}, json.dumps({"results": [oa_work("10.1234/w", "W9")]}))],
+            S2: [(200, {}, json.dumps(s2p))],
+        }
+    )
+    papers, _ = make(tmp_path, net).lookup_many(["10.1234/a", "doi:10.1234/b", "10.1234/c", "W9", "w9"])
+    assert [p.title if p else None for p in papers] == ["Paper 10.1234/a", "Paper 10.1234/B", "Only in S2", "Paper 10.1234/w",
+                                                        "Paper 10.1234/w"]  # fmt: skip
+    oa_calls = [u for u, _ in net.calls if u.startswith(OA)]
+    assert len(oa_calls) == 2 and "10.1234/a|10.1234/b|10.1234/c" in urllib.parse.unquote(oa_calls[0])
+    assert len(net.calls) == 3  # 10.1234/c: S2 once, OpenAlex not asked again
+
+
+def test_get_many_reports_each_id_not_found(tmp_path):
+    net = FakeNet({OA: [(200, {}, json.dumps({"results": []}))]})
+    papers, notes = make(tmp_path, net).lookup_many(["10.1234/x", "10.1234/y"])
+    assert papers == [None, None] and "not found: 10.1234/x" in notes and "not found: 10.1234/y" in notes
+
+
+def test_get_many_rejects_a_bad_id_before_any_call(tmp_path):
+    net = FakeNet({})
+    with pytest.raises(ValueError):
+        make(tmp_path, net).lookup_many(["10.1234/a", "not an id"])
+    assert net.calls == []
+
+
+def test_parsers_read_authors_and_open_access_links():
+    s2p = {"paperId": "e" * 40, "title": "T", "authors": [{"name": "A B"}], "openAccessPdf": {"url": "https://p"}}
+    (s,) = lit.parse_s2(json.dumps(s2p))
+    assert (s.authors, s.oa_url) == (["A B"], "https://p")
+    cr = {
+        "message": {"DOI": "10.1234/x", "title": ["T"], "author": [{"given": "Ada", "family": "L"}, {"name": "Team"}]}
+    }
+    assert lit.parse_crossref(json.dumps(cr))[0].authors == ["Ada L", "Team"]
+    atom = """<feed xmlns="http://www.w3.org/2005/Atom"><entry><id>http://arxiv.org/abs/2305.12345v2</id>
+      <title>T</title><author><name>Ann One</name></author><author><name>Bo Two</name></author></entry></feed>"""
+    (a,) = lit.parse_arxiv(atom)
+    assert (a.authors, a.oa_url) == (["Ann One", "Bo Two"], "https://arxiv.org/pdf/2305.12345")
+    ep = {
+        "resultList": {
+            "result": [{"title": "T", "authorString": "Doe J, Roe R.", "pmcid": "PMC9", "isOpenAccess": "Y"}]
+        }
+    }
+    (e,) = lit.parse_europepmc(json.dumps(ep))
+    assert (e.authors, e.oa_url) == (["Doe J", "Roe R"], "https://europepmc.org/article/PMC/PMC9")
+    (closed,) = lit.parse_europepmc(json.dumps({"resultList": {"result": [{"title": "T", "pmcid": "PMC9"}]}}))
+    assert closed.oa_url == ""
+    w = oa_work("10.1234/a") | {"best_oa_location": None}
+    assert lit.parse_openalex(json.dumps(w))[0].oa_url == "https://example.org/landing"
+
+
+def test_a_doi_get_asks_europepmc_last():
+    assert [s for s, _ in lit.get_urls("10.1234/x")] == ["openalex", "s2", "crossref", "europepmc"]
+    assert 'DOI:"10.1234/x"' in urllib.parse.unquote(lit.get_urls("10.1234/x")[-1][1])
+
+
+@given(
+    a=st.lists(st.text(max_size=3), max_size=3),
+    b=st.lists(st.text(max_size=3), max_size=3),
+    ta=st.text(max_size=5),
+    tb=st.text(max_size=5),
+)
+def test_fill_never_drops_a_field_either_record_had(a, b, ta, tb):
+    p = lit.Paper("T", authors=list(a), abstract=ta, oa_url=tb)
+    q = lit.Paper("T", authors=list(b), abstract=tb, oa_url=ta)
+    lit.fill(p, q)
+    assert p.authors == (a or b) and p.abstract == (ta or tb) and p.oa_url == (tb or ta)
+
+
+def test_dev_lit_get_takes_several_ids_and_exits_1_when_one_is_missing(tmp_path, monkeypatch, capsys):
+    from devkit import cli
+
+    net = FakeNet({OA: [(200, {}, json.dumps({"results": [oa_work("10.1234/a")]}))]})
+    monkeypatch.setattr(lit, "client", lambda: make(tmp_path, net))
+    assert cli.run_lit(cli.build().parse_args(["lit", "get", "10.1234/a", "10.1234/zz"])) == 1
+    out = capsys.readouterr().out
+    assert "authors: Ada Lovelace" in out and "note: not found: 10.1234/zz" in out
+
+
+def test_lit_bypass_script_counts_direct_api_calls_per_run(tmp_path):
+    """scripts/lit_bypass.py, the #174 re-measure: curl or WebFetch to an index API counts; dev lit and greps do not."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("lit_bypass", Path(__file__).parents[1] / "scripts/lit_bypass.py")
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.apis_called("Bash", {"command": 'curl -s "https://api.openalex.org/works/doi:10.1/x"'}) == ["openalex"]
+    assert mod.apis_called("WebFetch", {"url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search?q"}) == [
+        "europepmc"
+    ]
+    assert mod.apis_called("Bash", {"command": "uv run dev lit get 10.1/x"}) == []
+    assert mod.apis_called("Bash", {"command": "grep -n api.crossref.org devkit/lit.py"}) == []
+    sub = tmp_path / "p" / "s1" / "subagents"
+    sub.mkdir(parents=True)
+
+    def run(name: str, atype: str, day: str, tools: list[tuple[str, dict]]) -> None:
+        (sub / f"{name}.meta.json").write_text(json.dumps({"agentType": atype}))
+        recs = [{"timestamp": f"{day}T10:00:00Z", "message": {"content": "go"}}]
+        recs += [{"message": {"content": [{"type": "tool_use", "name": n, "input": i}]}} for n, i in tools]
+        (sub / f"{name}.jsonl").write_text("\n".join(map(json.dumps, recs)) + "\nnot json\n")
+
+    curl = ("Bash", {"command": "curl https://api.crossref.org/works/10.1/x"})
+    run("a", "harness-ops:researcher", "2026-10-12", [curl, curl])
+    run("b", "harness-ops:researcher", "2026-10-15", [("Bash", {"command": "uv run dev lit get 10.1/x"})])
+    run("c", "harness-ops:research-auditor", "2026-10-15", [curl])
+    res = mod.measure(tmp_path / "p")
+    assert (res["harness-ops:researcher"]["runs"], res["harness-ops:researcher"]["bypass_runs"]) == (2, 1)
+    assert res["harness-ops:researcher"]["calls"]["crossref"] == 2
+    after = mod.measure(tmp_path / "p", since="2026-10-14")
+    assert (after["harness-ops:researcher"]["runs"], after["harness-ops:researcher"]["bypass_runs"]) == (1, 0)
+    assert after["harness-ops:research-auditor"]["bypass_runs"] == 1

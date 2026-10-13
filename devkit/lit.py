@@ -16,7 +16,9 @@ fell back to weaker sources. Every call here goes through one client:
   pool, and only holds callers of that pool off;
 - a fallback chain (`--source auto`, the default): OpenAlex and S2, then Crossref, Europe PMC and arXiv in turn
   until n papers are in hand, with a note naming the fallbacks that answered;
-- compact output: one record per paper (title, year, venue, citations, ids, abstract snippet), capped;
+- compact output: one record per paper (title, year, venue, citations, ids, abstract snippet), capped; `get`
+  adds authors, an open-access link and the full abstract, asks the next source only while the abstract or
+  authors are missing, and batches several DOIs or W-ids into one OpenAlex call (#30, #174);
 - `dev lit status`: each source's health from a live probe; OK while at least one default source answers (partial
   names the ones down), DEGRADED and exit 1 only when all are down, so a research round never starts on the weaker
   fallbacks alone without knowing it (#8, #23).
@@ -51,6 +53,7 @@ UA = "agent-harness-devkit-lit/0.1 (research tooling; mailto:noreply@example.inv
 CACHE_DAYS = 7
 MAX_N = 25
 DEFAULT_N = 8
+MAX_AUTHORS = 25  # `get` names this many authors, then counts the rest
 SNIPPET = 240  # characters of abstract per record
 MAX_WAIT = 60.0  # seconds: a longer Retry-After (a spent daily budget) gives up on that source for this call
 TRIES = 4
@@ -225,6 +228,8 @@ class Paper:
     ids: dict[str, str] = field(default_factory=dict)  # doi, arxiv, openalex, s2
     abstract: str = ""
     source: str = ""
+    authors: list[str] = field(default_factory=list)
+    oa_url: str = ""  # an open-access PDF when the source names one, else an open-access landing page
 
     def key(self) -> str:
         if doi := self.ids.get("doi"):
@@ -249,6 +254,23 @@ class Paper:
             text = " ".join(self.abstract.split())
             out += "\n  " + (text if len(text) <= snippet else text[: snippet - 1].rstrip() + "…")
         return out
+
+    def full(self, snippet: int | None = None) -> str:
+        """The `get` record: line(), then authors, open-access link and the abstract (all of it when snippet is None)."""
+        out = [self.line(0)]
+        if names := self.authors[:MAX_AUTHORS]:
+            more = len(self.authors) - len(names)
+            out.append("  authors: " + ", ".join(names) + (f" (+{more} more)" if more else ""))
+        if self.oa_url:
+            out.append("  open access: " + self.oa_url)
+        text = " ".join(self.abstract.split())
+        if text and snippet != 0:
+            cut = snippet is not None and len(text) > snippet
+            out.append("  " + (text[: snippet - 1].rstrip() + "…" if cut else text))
+        return "\n".join(out)
+
+    def complete(self) -> bool:
+        return bool(self.abstract and self.authors)
 
 
 def _strip_doi(doi: str | None) -> str:
@@ -275,6 +297,7 @@ def parse_openalex(body: str) -> list[Paper]:
         loc = w.get("primary_location") or {}
         doi = _strip_doi(w.get("doi") or (w.get("ids") or {}).get("doi"))
         ids = {"doi": doi, "arxiv": _arxiv_from_doi(doi), "openalex": (w.get("id") or "").rsplit("/", 1)[-1]}
+        best = w.get("best_oa_location") or {}
         out.append(
             Paper(
                 title=w.get("title") or w.get("display_name") or "",
@@ -284,6 +307,8 @@ def parse_openalex(body: str) -> list[Paper]:
                 ids=ids,
                 abstract=inverted_to_text(w.get("abstract_inverted_index")),
                 source="openalex",
+                authors=[n for a in w.get("authorships") or [] if (n := (a.get("author") or {}).get("display_name"))],
+                oa_url=best.get("pdf_url") or (w.get("open_access") or {}).get("oa_url") or "",
             )
         )
     return out
@@ -303,6 +328,8 @@ def parse_s2(body: str) -> list[Paper]:
                 ids={"doi": ext.get("DOI") or "", "arxiv": ext.get("ArXiv") or "", "s2": p.get("paperId") or ""},
                 abstract=p.get("abstract") or "",
                 source="s2",
+                authors=[n for a in p.get("authors") or [] if (n := a.get("name"))],
+                oa_url=(p.get("openAccessPdf") or {}).get("url") or "",
             )
         )
     return out
@@ -323,9 +350,14 @@ def parse_crossref(body: str) -> list[Paper]:
                 ids={"doi": it.get("DOI") or "", "arxiv": _arxiv_from_doi(it.get("DOI") or "")},
                 abstract=abstract,
                 source="crossref",
+                authors=[n for a in it.get("author") or [] if (n := a.get("name") or _person(a))],
             )
         )
     return out
+
+
+def _person(a: dict) -> str:
+    return " ".join(x for x in (a.get("given"), a.get("family")) if x)
 
 
 def parse_arxiv(body: str) -> list[Paper]:
@@ -344,6 +376,8 @@ def parse_arxiv(body: str) -> list[Paper]:
                 ids={"doi": e.findtext("x:doi", "", ns) or "", "arxiv": aid},
                 abstract=e.findtext("a:summary", "", ns) or "",
                 source="arxiv",
+                authors=[n for a in e.findall("a:author", ns) if (n := " ".join(a.findtext("a:name", "", ns).split()))],
+                oa_url=f"https://arxiv.org/pdf/{aid}",
             )
         )
     return out
@@ -364,6 +398,10 @@ def parse_europepmc(body: str) -> list[Paper]:
                 ids={"doi": r.get("doi") or "", "pmid": r.get("pmid") or "", "pmcid": r.get("pmcid") or ""},
                 abstract=html.unescape(re.sub(r"<[^>]+>", " ", r.get("abstractText") or "")),
                 source="europepmc",
+                authors=[a.strip() for a in (r.get("authorString") or "").rstrip(".").split(",") if a.strip()],
+                oa_url=f"https://europepmc.org/article/PMC/{r['pmcid']}"
+                if r.get("pmcid") and r.get("isOpenAccess") == "Y"
+                else "",
             )
         )
     return out
@@ -426,6 +464,12 @@ def search_url(source: str, query: str, n: int, years: str = "") -> str:
     raise ValueError(f"unknown source {source!r}; one of {', '.join(SOURCES)}")
 
 
+S2_GET_FIELDS = "fields=title,year,venue,citationCount,externalIds,abstract,authors,openAccessPdf"
+OA_GET_SELECT = (
+    "select=id,doi,title,publication_year,primary_location,cited_by_count,abstract_inverted_index,"
+    "authorships,open_access,best_oa_location"
+)
+OA_BATCH = 50  # ids per OpenAlex OR-filter call (its documented cap is 100 values)
 ARXIV_ID = re.compile(r"^(?:arxiv:)?(\d{4}\.\d{4,5})(?:v\d+)?$", re.I)
 DOI_ID = re.compile(r"^(?:doi:|https?://(?:dx\.)?doi\.org/)?(10\.\d{4,9}/\S+)$", re.I)
 
@@ -433,8 +477,8 @@ DOI_ID = re.compile(r"^(?:doi:|https?://(?:dx\.)?doi\.org/)?(10\.\d{4,9}/\S+)$",
 def get_urls(ident: str) -> list[tuple[str, str]]:
     """(source, url) candidates for one paper id, best first: DOI, arXiv id, OpenAlex W-id or S2 paper id."""
     ident = ident.strip()
-    s2_fields = "fields=title,year,venue,citationCount,externalIds,abstract"
-    oa_sel = "select=id,doi,title,publication_year,primary_location,cited_by_count,abstract_inverted_index"
+    s2_fields = S2_GET_FIELDS
+    oa_sel = OA_GET_SELECT
     if m := ARXIV_ID.match(ident):
         aid = m.group(1)
         return [
@@ -447,12 +491,29 @@ def get_urls(ident: str) -> list[tuple[str, str]]:
             ("openalex", f"https://api.openalex.org/works/doi:{doi}?{oa_sel}"),
             ("s2", f"https://api.semanticscholar.org/graph/v1/paper/DOI:{doi}?{s2_fields}"),
             ("crossref", f"https://api.crossref.org/works/{doi}"),
+            ("europepmc", search_url("europepmc", f'DOI:"{m.group(1)}"', 1)),
         ]
     if re.fullmatch(r"W\d+", ident, flags=re.I):
         return [("openalex", f"https://api.openalex.org/works/{ident.upper()}?{oa_sel}")]
     if re.fullmatch(r"[0-9a-f]{40}", ident):
         return [("s2", f"https://api.semanticscholar.org/graph/v1/paper/{ident}?{s2_fields}")]
     raise ValueError(f"not a DOI, arXiv id, OpenAlex W-id or S2 paper id: {ident!r}")
+
+
+def openalex_key(ident: str) -> tuple[str, str] | None:
+    """(OpenAlex filter field, value) for an id an OpenAlex OR-filter can batch: a DOI (without `|` or `,`, which the
+    filter syntax reserves) or a W-id. None for any other id."""
+    ident = ident.strip()
+    if (m := DOI_ID.match(ident)) and not re.search(r"[|,]", m.group(1)):
+        return "doi", m.group(1).lower()
+    if re.fullmatch(r"W\d+", ident, flags=re.I):
+        return "openalex", ident.upper()
+    return None
+
+
+def batch_url(field_name: str, values: list[str]) -> str:
+    q = urllib.parse.quote("|".join(values), safe="/")
+    return f"https://api.openalex.org/works?filter={field_name}:{q}&per_page={len(values)}&{OA_GET_SELECT}"
 
 
 def parse_secrets(text: str) -> dict[str, str]:
@@ -659,9 +720,17 @@ class Client:
             return None
         return [p for p in papers if p.title]
 
-    def lookup(self, ident: str) -> tuple[Paper | None, list[str]]:
-        notes = []
+    def lookup(
+        self, ident: str, found: Paper | None = None, skip: tuple[str, ...] = ()
+    ) -> tuple[Paper | None, list[str]]:
+        """One paper by id: each source in get_urls order (but `skip`) fills what the record still lacks, until it has
+        an abstract and authors. `found` is a record already in hand."""
+        notes: list[str] = []
         for src, url in get_urls(ident):
+            if found and found.complete():
+                break
+            if src in skip:
+                continue
             try:
                 papers = PARSE[src](self.fetch(src, url))
             except SourceError as exc:
@@ -671,8 +740,39 @@ class Client:
                 notes.append(f"{src}: unreadable answer ({type(exc).__name__})")
                 continue
             if papers and papers[0].title:
-                return papers[0], notes
-        return None, notes
+                found = fill(found, papers[0]) if found else papers[0]
+        return found, notes
+
+    def lookup_many(self, idents: list[str]) -> tuple[list[Paper | None], list[str]]:
+        """Papers for several ids, in order (None where none was found, with a note). Two or more DOIs or W-ids go to
+        OpenAlex in OR-filter batches; each id still incomplete then goes through lookup() without OpenAlex."""
+        for ident in idents:
+            get_urls(ident)  # a bad id fails before any call
+        notes: list[str] = []
+        keys = {i: openalex_key(i) for i in idents}
+        batched = {k for k in keys.values() if k} if len(set(filter(None, keys.values()))) > 1 else set()
+        found: dict[object, Paper] = {}
+        for name in ("doi", "openalex"):
+            values = sorted(v for f, v in batched if f == name)
+            for i in range(0, len(values), OA_BATCH):
+                try:
+                    papers = parse_openalex(self.fetch("openalex", batch_url(name, values[i : i + OA_BATCH])))
+                except SourceError as exc:
+                    notes.append(str(exc))
+                    continue
+                except ValueError as exc:
+                    notes.append(f"openalex: unreadable answer ({type(exc).__name__})")
+                    continue
+                for p in papers:
+                    found[(name, p.ids["doi"].lower() if name == "doi" else p.ids["openalex"].upper())] = p
+        done: dict[object, Paper | None] = {}  # one lookup per paper, however often its id repeats
+        for ident in idents:
+            if (k := keys[ident] or ident) not in done:
+                # a failed batch is not retried per id either: OpenAlex is limited or down
+                skip = ("openalex",) if keys[ident] in batched else ()
+                done[k], more = self.lookup(ident, found.get(keys[ident]), skip)
+                notes += more + ([] if done[k] else [f"not found: {ident}"])
+        return [done[keys[i] or i] for i in idents], notes
 
 
 def _merge(merged: dict[str, Paper], p: Paper) -> None:
@@ -682,12 +782,19 @@ def _merge(merged: dict[str, Paper], p: Paper) -> None:
     if alt is None:
         merged[k] = p
         return
-    q = merged[alt]
+    fill(merged[alt], p)
+
+
+def fill(q: Paper, p: Paper) -> Paper:
+    """Merge p into q: the union of ids, the higher citation count, and each field q lacks taken from p."""
     q.ids = {**{a: b for a, b in p.ids.items() if b}, **{a: b for a, b in q.ids.items() if b}}
     q.cites = max(q.cites or 0, p.cites or 0) if q.cites is not None or p.cites is not None else None
     q.abstract = q.abstract or p.abstract
     q.venue = q.venue or p.venue
     q.year = q.year or p.year
+    q.authors = q.authors or p.authors
+    q.oa_url = q.oa_url or p.oa_url
+    return q
 
 
 def _same_title(a: Paper, b: Paper) -> bool:
@@ -704,6 +811,13 @@ def client() -> Client:
 
 def render(papers: list[Paper], notes: list[str], snippet: int = SNIPPET) -> str:
     lines = [p.line(snippet) for p in papers] or ["no results"]
+    lines += [f"note: {n}" for n in notes]
+    return "\n".join(lines)
+
+
+def render_full(papers: list[Paper], notes: list[str], snippet: int | None = None) -> str:
+    """`dev lit get`: each paper's full record (Paper.full)."""
+    lines = [p.full(snippet) for p in papers] or ["no results"]
     lines += [f"note: {n}" for n in notes]
     return "\n".join(lines)
 

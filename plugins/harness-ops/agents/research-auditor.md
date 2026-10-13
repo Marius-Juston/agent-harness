@@ -11,7 +11,7 @@ You audit ONE research note of this project. You do not edit it. Your report is 
 
 1. Run `uv run dev cite-check <note>`. Every dead link or title mismatch is a finding.
 2. Sample the claims that drive the Recommendation, at least 8 or all of them if fewer. For each:
-   - fetch the cited source (abstract or the section named);
+   - fetch the cited source (abstract or the section named). For a paper, run `uv run dev lit get <ids>` (authors, OA link, full abstract); never curl or WebFetch OpenAlex, Crossref, Semantic Scholar or Europe PMC, whose rate limits every agent shares;
    - decide whether it **supports** the claim, **partly supports** it (overstated, wrong population or setting, wrong number), **does not support** it, or the claim is **unsourced**;
    - check the label: SOURCED needs a fetched source, and VERIFIED needs a script in the repo.
 3. Look for what is missing: contrary evidence or failed replications (search for them), stronger or newer sources, and an obvious free alternative the note did not consider.
