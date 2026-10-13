@@ -448,3 +448,45 @@ def test_the_suite_auditor_gets_read_tools_only():
 def test_the_lead_runs_the_audit_only_when_orient_says_it_is_due():
     text = (root() / "plugins/harness-ops/skills/lead/SKILL.md").read_text()
     assert "`Suite audit due`" in text and "harness-ops:suite-auditor" in text
+
+
+# ---------------------------------------------------------------- the suite-auditor is read-only, enforced (#146)
+AUDITOR_OK = [
+    "uv run dev suite-audit report --quick",
+    "uv run dev suite-audit report --json",  # its reruns run inside the dev command, in a temporary clone
+    "uv run dev suite-audit status",
+    "uv run dev code show test_x",
+    "uv run dev board new --type test --title 'x: y' --done 'z'",
+    "gh issue list --search 'in:title flaky'",
+    "grep -rn 'def test' tests | wc -l",
+]
+AUDITOR_DENIED = [
+    "uv run dev suite-audit report --file",  # editing and closing the check issues stays with the lead
+    "uv run dev consolidation report",  # the architect's report, not this agent's
+    "sed -i s/assert/pass/ tests/test_x.py",
+    "rm tests/test_x.py",
+    "git rm tests/test_x.py",
+    "git commit -m x",
+    "echo 'import pytest' > tests/conftest.py",
+    "uv run pytest tests",
+    "gh issue close 5",
+]
+
+
+@pytest.mark.parametrize("cmd", AUDITOR_OK)
+def test_suite_auditor_may_read_measure_and_file_issues(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "agent_type": "harness-ops:suite-auditor"})
+    assert code == 0, err
+
+
+@pytest.mark.parametrize("cmd", AUDITOR_DENIED)
+def test_suite_auditor_may_not_edit_delete_or_close(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "agent_type": "harness-ops:suite-auditor"})
+    assert code == 2 and "read-only" in err, (cmd, err)
+
+
+def test_the_architect_does_not_gain_the_suite_audit(hook):
+    code, _, err = hook(
+        "guard_bash.py", {"tool_input": {"command": "uv run dev suite-audit status"}, "agent_type": "architect"}
+    )
+    assert code == 2 and "read-only" in err

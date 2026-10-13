@@ -23,9 +23,19 @@ def test_the_marketplace_lists_the_plugin_under_its_manifest_name():
     assert market["name"] == "agent-harness" and manifest["name"] == "harness-ops"
 
 
-def test_the_plugin_has_the_six_agents_and_three_skills():
-    assert AGENTS == ["builder", "research-auditor", "researcher", "reviewer", "suite-auditor", "tester"]
+def test_the_plugin_has_the_seven_agents_and_three_skills():
+    assert AGENTS == ["architect", "builder", "research-auditor", "researcher", "reviewer", "suite-auditor", "tester"]
     assert sorted(p.parent.name for p in (PLUGIN / "skills").glob("*/SKILL.md")) == ["harness", "lead", "research"]
+
+
+@pytest.mark.parametrize("agent", ["architect", "suite-auditor"])
+def test_the_read_only_agents_get_read_tools_only(agent):
+    """#113, #114: the consolidation review and the suite audit propose and never edit; Bash is held read-only by
+    guard_bash.py (READ_ONLY_AGENTS)."""
+    meta, _ = frontmatter.read(PLUGIN / f"agents/{agent}.md")
+    assert meta is not None
+    assert [t.strip() for t in str(meta["tools"]).split(",")] == ["Read", "Grep", "Glob", "Bash"]
+    assert not {"disallowedTools", "permissionMode", "hooks"} & set(meta)
 
 
 def test_every_hook_script_exists_and_is_executable():
