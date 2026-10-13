@@ -45,12 +45,12 @@ from the template carries too; `uv run dev doctor` reports each key as found or 
 What differs between projects lives in the project: `[tool.devkit]` in its pyproject.toml (the keys and defaults
 are in [devkit/config.py](devkit/config.py)), word budgets and test floors in `.devkit/ratchets.toml`, the area-label map in
 `.github/labeler.yml`, and its own CLAUDE.md. Everything generic is changed here, released as a tag, and pulled into
-a project with `uvx copier update` (which also moves the devkit and plugin pins).
+a project with `uvx copier update --data harness_ref=<tag>`, which also moves the devkit and plugin pins.
 
 ## Updating a project
 ```bash
 uvx copier check-update   # is a newer release out? (`uv run dev doctor` warns too, for the template and plugins)
-uvx copier update         # three-way: your edits to template files are kept
+uvx copier update --data harness_ref=<tag>   # three-way: your edits are kept; the flag moves the pins
 uv sync && uv run dev docs && uv run dev check
 ```
 `copier update` never touches a project's CLAUDE.md or README.md (`_skip_if_exists`); the generic agent rules are the
