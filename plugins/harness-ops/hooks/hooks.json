@@ -1,5 +1,5 @@
 {
-  "description": "agent-harness guards (fail closed): uv only, no pushes to main, no destructive git or rm, no secrets, outlines for long reads, ruff at edit time, resource gates before spawns, a completion gate on builders, worktrees beside the repository, orientation at session start",
+  "description": "agent-harness guards (fail closed): uv only, reuse gates on uv add, no pushes to main, no destructive git or rm, no secrets, outlines for long reads, ruff at edit time, resource gates before spawns, a completion gate on builders, worktrees beside the repository, orientation at session start",
   "hooks": {
     "SessionStart": [
       {
@@ -18,6 +18,16 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/guard_bash.py",
             "timeout": 10,
             "onFailure": "block"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/uv_add_guard.py",
+            "timeout": 90
           }
         ]
       },
