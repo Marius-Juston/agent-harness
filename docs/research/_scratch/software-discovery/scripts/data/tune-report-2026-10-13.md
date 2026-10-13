@@ -89,4 +89,4 @@ context7 answers cached for 27/48 needs (keyless quota); context7 arms on those 
 
 context7 answers cached for 0/16 needs (keyless quota); context7 arms on those only:
 
-per-need detail: /tmp/claude-1000/-home-marius-GitHub-TheEye/3c22b54f-6547-4098-abef-a12e0dc0770a/scratchpad/rbcache/results-tune.json
+per-need detail: <scratchpad>/rbcache/results-tune.json
