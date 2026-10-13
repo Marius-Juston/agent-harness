@@ -1,6 +1,11 @@
-"""Reuse before build: `uv run dev reuse "<need>"` finds maintained libraries and repositories for a need (#29).
+"""Reuse before build: `uv run dev reuse check <name>...` verifies the packages an agent names; `uv run dev reuse
+"<need>"` searches for maintained libraries and repositories when it knows no good candidate (#29).
 
-Agents searched GitHub, PyPI, npm and OSV by hand, each with their own queries and ranking. One command instead:
+#169 (docs/research/software-discovery.md, TEST, n = 112) measured both: the agent's own names, verified by gates
+G1-G6, hit the benchmark's answer in the top 3 for 0.83 of needs; search alone (with those names added to its pool)
+for 0.71. So check mode is the default step and search an optional recall aid. check: per name, the registry record
+(ecosyste.ms, else the registry itself), enrichment, G1-G6 and the metadata line; a name no source knows is
+NOT FOUND (the package-hallucination guard). search:
 
 - queries: the need, each `--also` paraphrase the agent writes, or `--from <file>[:<symbol>]`, which reads a
   hand-written helper's name, docstring, comments and imports (devkit.code.source) so it gets library suggestions.
@@ -10,9 +15,9 @@ Agents searched GitHub, PyPI, npm and OSV by hand, each with their own queries a
   topic expansion (topics shared by TOPIC_MIN of the TOPIC_TOP first repositories). Candidates are deduplicated by
   repository;
 - relevance R (0-1): cosine to the mean query vector with model2vec potion-base-8M (MIT; the optional extra
-  `agent-harness[semantic]`), else BM25 scaled to the best candidate. The output names the re-rank that ran. The
-  first SHORTLIST * n by R + STAR_WEIGHT * log10(1 + stars) (the lead's pilot, #169: 14/16 against 10/16 hit@10)
-  are all enriched, gated and scored before the best n by S are kept;
+  `agent-harness[semantic]`), else BM25 scaled to the best candidate. The output names the re-rank that ran;
+- shortlist (union): the n best by R plus the n most adopted (dependents, then monthly downloads) among candidates
+  within R_FLOOR of the best R. All are enriched, gated and scored before the cut to n;
 - gates (#169 note, F2), shown per candidate; a FAIL is dropped with a note, a HOLD is shown with its reason:
   G1 the name exists on its registry (PyPI, npm, crates.io) or GitHub, the package-hallucination guard (arXiv
   2406.10279), else FAIL, asked again after REGISTRY_MAX_AGE; G2 no malicious-package advisory (an OSV MAL- id on
@@ -28,7 +33,10 @@ Agents searched GitHub, PyPI, npm and OSV by hand, each with their own queries a
   unknown), popularity (monthly downloads, stars) and community (contributors, else forks); each raw signal s is
   normalised as log(1+s) / log(1+max(s, T)) with its cap T (OpenSSF criticality_score). Sources: ecosyste.ms,
   deps.dev v3, GitHub;
-- order: S = R + LAMBDA * Q. Every weight and threshold is a named constant for the #169 note to retune.
+- order (#169's R4): every PASS before every HOLD (PASS_BEFORE_HOLD), each group by S = R + LAMBDA * Q. On #169's
+  TEST split R4 beat PR #171's first order (prior shortlist, PASS and HOLD mixed, LAMBDA 0.15) by +0.09 hit@3
+  [+0.02, +0.16], and the HOLD share of the top 3 fell from 0.45 to 0.06. Every weight and threshold is a named
+  constant.
 
 Every request goes through dev lit's client: the same machine-wide token buckets, cache and backoff
 (devkit.lit.Client with this module's RATES). A source that is down is a note, never fatal.
@@ -83,9 +91,10 @@ ECOS: dict[str, tuple[str, str, Callable[[str], str]]] = {
     "npm": ("npm", "", lambda n: f"https://registry.npmjs.org/{urllib.parse.quote(n, safe='@')}/latest"),
     "cargo": ("cargo", "rust", lambda n: f"https://crates.io/api/v1/crates/{urllib.parse.quote(n, safe='')}"),
 }
+REGISTRY_HOST = {"pypi": "pypi.org", "npm": "npmjs.org", "cargo": "crates.io"}  # ecosyste.ms registry names
 LANG_ECO = {"python": "pypi", "javascript": "npm", "typescript": "npm", "rust": "cargo"}
 
-DEFAULT_N = 8
+DEFAULT_N = 10  # #169 measured every order at n = 10
 MAX_N = 25
 QUERY_TERMS = 6  # GitHub allows at most five AND/OR operators per query
 OR_FALLBACK = 5  # an AND query with fewer results is asked again with OR
@@ -95,12 +104,13 @@ KEYWORD_PER_PAGE = 50  # each record is ~13 kB; 50 stays under the client's 2 MB
 TOPIC_TOP, TOPIC_MIN, TOPIC_CAP = 10, 2, 2
 TOPIC_STOP = {"python", "python3", "javascript", "typescript", "nodejs", "rust", "hacktoberfest", "library"}
 MODEL = "minishlab/potion-base-8M"
-STAR_WEIGHT = 0.03  # shortlist prior only (pilot); popularity enters S through Q
-SHORTLIST = 2  # SHORTLIST * n candidates by that prior are enriched, gated and scored; the best n by S are shown
 BM25_K1, BM25_B = 1.5, 0.75
 NEED_WORDS = 40  # words of a --from need
 
-LAMBDA = 0.15  # S = R + LAMBDA * Q
+# Search order R4 of docs/research/software-discovery.md (#169), chosen on TUNE, confirmed on TEST.
+PASS_BEFORE_HOLD = True  # every PASS above every HOLD: the largest single effect (#169 TUNE: +0.09 hit@3)
+R_FLOOR = 0.20  # union shortlist: the adoption half draws from candidates with R >= best R - R_FLOOR (fixed, untuned)
+LAMBDA = 1.0  # S = R + LAMBDA * Q; fitted on #169's TUNE split (the cited prior was 0.15). No tier rule.
 Q_WEIGHTS = {
     "maturity": 0.242,
     "documentation": 0.199,
@@ -161,7 +171,6 @@ class Candidate:
     yanked: bool = False  # every release yanked (G4)
     verified: str = ""  # who answered for the name: "github" or the registry
     relevance: float = 0.0
-    prior: float = 0.0
     quality: float = 0.0
     score: float = 0.0
     status: str = PASS
@@ -451,7 +460,7 @@ def load_encoder() -> tuple[Encoder | None, str]:
 
 
 def rank_relevance(cands: list[Candidate], queries: list[str], encoder: Encoder | None, why: str = "") -> str:
-    """Set each candidate's relevance R (0-1) and shortlist prior; return which re-rank ran."""
+    """Set each candidate's relevance R (0-1); return which re-rank ran."""
     if not cands:
         return "none"
     if encoder is not None:
@@ -464,7 +473,6 @@ def rank_relevance(cands: list[Candidate], queries: list[str], encoder: Encoder 
         label = "bm25" + (f" ({why})" if why else "")
     for c, s in zip(cands, sims, strict=True):
         c.relevance = round(max(0.0, min(1.0, s)), 4)
-        c.prior = c.relevance + STAR_WEIGHT * math.log10(1 + (c.stars or 0))
     return label
 
 
@@ -716,6 +724,35 @@ def status(g: dict[str, str]) -> str:
     return {0: PASS, 1: HOLD, 2: FAIL}[worst]
 
 
+def adoption(c: Candidate) -> tuple[int, int]:
+    return (
+        c.dependents if c.dependents is not None else -1,
+        c.downloads_month if c.downloads_month is not None else -1,
+    )
+
+
+def judge(client: lit.Client, c: Candidate, tiers, osi, allow_copyleft: bool, notes: list[str]) -> bool:
+    """G1 (verify), then G2-G6, Q, S and flags on an enriched candidate; False when G1 fails."""
+    if not verify(client, c, notes):
+        return False
+    now = client.clock()
+    c.gates = gates(c, now, tiers, allow_copyleft)
+    c.status = status(c.gates)
+    c.quality = quality(c, now)
+    c.score = round(c.relevance + LAMBDA * c.quality, 4)
+    if flag := osi_flag(c.license, osi):
+        c.flags.append(flag)
+    return True
+
+
+def order(kept: list[Candidate]) -> list[Candidate]:
+    """By S, every PASS before every HOLD when PASS_BEFORE_HOLD (R4)."""
+    kept = sorted(kept, key=lambda c: -c.score)
+    if PASS_BEFORE_HOLD:
+        kept = [c for c in kept if c.status != HOLD] + [c for c in kept if c.status == HOLD]
+    return kept
+
+
 def search(
     client: lit.Client,
     queries: list[str],
@@ -732,27 +769,23 @@ def search(
     notes: list[str] = []
     found = list(recall(client, queries, ecosystem, notes).values())
     rerank = rank_relevance(found, queries, encoder, why)
-    found.sort(key=lambda c: -c.prior)
+    found.sort(key=lambda c: -c.relevance)
+    best = found[0].relevance if found else 0.0
+    near = [c for c in found if c.relevance >= best - R_FLOOR]
+    for c in {c.key(): c for c in found[:n] + near}.values():  # adoption needs the enriched record
+        enrich(client, c, ecosystem, notes)
+    shortlist = list({c.key(): c for c in found[:n] + sorted(near, key=adoption, reverse=True)[:n]}.values())
     tiers, osi = licence_lists(client, notes) if found else (None, None)
     kept: list[Candidate] = []
-    for c in found[: SHORTLIST * n]:  # every shortlisted candidate is scored before the cut to n
-        enrich(client, c, ecosystem, notes)
-        if not verify(client, c, notes):
+    for c in shortlist:  # every shortlisted candidate is scored before the cut to n
+        if not judge(client, c, tiers, osi, allow_copyleft, notes):
             continue
-        now = client.clock()
-        c.gates = gates(c, now, tiers, allow_copyleft)
-        c.status = status(c.gates)
         if c.status == FAIL:
             failed = "; ".join(f"{k} {v}" for k, v in c.gates.items() if v.startswith(FAIL))
             notes.append(f"dropped {c.name}: {failed}")
             continue
-        c.quality = quality(c, now)
-        c.score = round(c.relevance + LAMBDA * c.quality, 4)
-        if flag := osi_flag(c.license, osi):
-            c.flags.append(flag)
         kept.append(c)
-    kept.sort(key=lambda c: -c.score)
-    scored, kept = len(kept), kept[:n]
+    scored, kept = len(kept), order(kept)[:n]
     return {
         "scored": scored,
         "queries": queries,
@@ -760,8 +793,74 @@ def search(
         "rerank": rerank,
         "recalled": len(found),
         "date": dt.datetime.fromtimestamp(client.clock(), dt.UTC).date().isoformat(),
-        "score": f"S = R + {LAMBDA} * Q after gates G1-G6 (devkit/reuse.py docstring)",
+        "score": f"PASS before HOLD, then S = R + {LAMBDA} * Q, after gates G1-G6 (devkit/reuse.py docstring)",
         "candidates": kept,
+        "notes": list(dict.fromkeys(notes)),
+    }
+
+
+# ---- check: verify named packages ----
+
+NOT_FOUND, UNVERIFIED = "NOT FOUND", "UNVERIFIED"
+GITHUB_URL = re.compile(r"https?://(?:www\.)?github\.com/([\w.-]+/[\w.-]+)")
+
+
+def _repo_in(urls) -> str:
+    for u in urls:
+        if isinstance(u, str) and (m := GITHUB_URL.search(u)):
+            return "github.com/" + m.group(1).lower().removesuffix(".git")
+    return ""
+
+
+def from_registry(name: str, ecosystem: str, body: dict) -> Candidate:
+    """A candidate from the registry's own answer, when ecosyste.ms does not know the name."""
+    if ecosystem == "pypi":
+        info = body.get("info") or {}
+        urls, desc = [*(info.get("project_urls") or {}).values(), info.get("home_page")], info.get("summary")
+        name = info.get("name") or name
+    elif ecosystem == "npm":
+        r = body.get("repository")
+        urls, desc = [r.get("url") if isinstance(r, dict) else r, body.get("homepage")], body.get("description")
+    else:
+        crate = body.get("crate") or {}
+        urls, desc = [crate.get("repository"), crate.get("homepage")], crate.get("description")
+    return Candidate(name=name, repo=_repo_in(urls), ecosystem=ecosystem, description=desc or "", record=body)
+
+
+def named(client: lit.Client, name: str, ecosystem: str, notes: list[str]) -> Candidate | None:
+    """The package an agent named: its ecosyste.ms record, else its registry answer; None when neither knows it."""
+    url = f"{ECOSYSTEMS}registries/{REGISTRY_HOST[ecosystem]}/packages/{urllib.parse.quote(name, safe='@')}"
+    rec = _json(client, "ecosystems", url, notes, missing_ok=True)
+    if isinstance(rec, dict) and rec.get("name"):
+        c = from_record(rec)
+        c.ecosystem = ecosystem
+        return c
+    body = _json(client, ecosystem, ECOS[ecosystem][2](name), notes, missing_ok=True)
+    return from_registry(name, ecosystem, body) if isinstance(body, dict) and body else None
+
+
+def check(client: lit.Client, names: list[str], ecosystem: str = "pypi", allow_copyleft: bool = False) -> dict:
+    """The report for named packages, in the order given: existence, gates G1-G6, metadata. Nothing is dropped."""
+    if ecosystem not in ECOS:
+        raise ValueError(f"unknown ecosystem {ecosystem!r} for check: pypi, npm or cargo")
+    notes: list[str] = []
+    tiers, osi = licence_lists(client, notes) if names else (None, None)
+    out: list[Candidate] = []
+    for name in dict.fromkeys(n.strip() for n in names if n.strip()):
+        c = named(client, name, ecosystem, notes)
+        if c is not None:
+            enrich(client, c, ecosystem, notes)
+        if c is None:
+            c = Candidate(name=name, ecosystem=ecosystem, status=NOT_FOUND)
+            c.gates = {"G1": f"{FAIL} (no {ecosystem} package of this name: do not install it)"}
+        elif not judge(client, c, tiers, osi, allow_copyleft, notes):
+            c.status, c.gates = UNVERIFIED, {"G1": f"{FAIL} (not verified on {ecosystem}: see the notes)"}
+        out.append(c)
+    return {
+        "mode": "check",
+        "ecosystem": ecosystem,
+        "date": dt.datetime.fromtimestamp(client.clock(), dt.UTC).date().isoformat(),
+        "candidates": out,
         "notes": list(dict.fromkeys(notes)),
     }
 
@@ -778,36 +877,50 @@ def _v(x, unit: str) -> str:
     return f"{x if x is not None else '?'} {unit}"
 
 
+def meta(c: Candidate) -> str:
+    """The metadata line: licence, release dates and maintenance signals."""
+    return " | ".join(
+        [
+            c.license or "no licence",
+            f"first {c.first_release or '?'}, last release {c.last_release or '?'}",
+            _v(c.releases_last_year, "releases/yr"),
+            _v(c.contributors, "contributors"),
+            _v(c.dependents, "dependents"),
+            f"scorecard {c.scorecard if c.scorecard is not None else '?'}",
+            _v(c.advisories, "open advisories"),
+            _v(c.stars, "stars"),
+        ]
+    )
+
+
+def block(i: int, c: Candidate, head: str) -> list[str]:
+    where = f"[{c.ecosystem}]" if c.ecosystem else "[repo]"
+    out = [f"{i:>2}. " + " ".join(x for x in (c.name, where, c.repo) if x) + head]
+    if c.status not in (NOT_FOUND, UNVERIFIED):
+        out.append("    " + meta(c))
+    out.append("    gates: " + ", ".join(f"{k} {v}" for k, v in c.gates.items()))
+    if c.description:
+        out.append(f"    {c.description[:160]}")
+    return out + [f"    FLAG: {f}" for f in c.flags]
+
+
 def render(report: dict) -> str:
-    out = [
-        f"re-rank: {report['rerank']}; {len(report['queries'])} queries, {report['recalled']} recalled, "
-        f"{report.get('scored', len(report['candidates']))} scored, {len(report['candidates'])} shown ({report['ecosystem']}); {report['score']}"
-    ]
-    for i, c in enumerate(report["candidates"], 1):
-        where = f"[{c.ecosystem}]" if c.ecosystem else "[repo]"
-        hold = " HOLD" if c.status == HOLD else ""
-        out.append(f"{i:>2}. {c.name} {where} {c.repo}{hold}  S {c.score:.2f} (R {c.relevance:.2f}, Q {c.quality:.2f})")
-        out.append(
-            "    "
-            + " | ".join(
-                [
-                    c.license or "no licence",
-                    f"first {c.first_release or '?'}, last release {c.last_release or '?'}",
-                    _v(c.releases_last_year, "releases/yr"),
-                    _v(c.contributors, "contributors"),
-                    _v(c.dependents, "dependents"),
-                    f"scorecard {c.scorecard if c.scorecard is not None else '?'}",
-                    _v(c.advisories, "open advisories"),
-                    _v(c.stars, "stars"),
-                ]
-            )
-        )
-        out.append("    gates: " + ", ".join(f"{k} {v}" for k, v in c.gates.items()))
-        if c.description:
-            out.append(f"    {c.description[:160]}")
-        out += [f"    FLAG: {f}" for f in c.flags]
-    if not report["candidates"]:
-        out.append("no candidates")
+    if report.get("mode") == "check":
+        out = [f"check: {len(report['candidates'])} names ({report['ecosystem']}, {report['date']}); gates G1-G6"]
+        for i, c in enumerate(report["candidates"], 1):
+            q = f" Q {c.quality:.2f}" if c.status in (PASS, HOLD, FAIL) else ""
+            out += block(i, c, f"  {c.status.upper()}{q}")
+    else:
+        out = [
+            f"re-rank: {report['rerank']}; {len(report['queries'])} queries, {report['recalled']} recalled, "
+            f"{report.get('scored', len(report['candidates']))} scored, {len(report['candidates'])} shown "
+            f"({report['ecosystem']}); {report['score']}"
+        ]
+        for i, c in enumerate(report["candidates"], 1):
+            hold = " HOLD" if c.status == HOLD else ""
+            out += block(i, c, f"{hold}  S {c.score:.2f} (R {c.relevance:.2f}, Q {c.quality:.2f})")
+        if not report["candidates"]:
+            out.append("no candidates")
     out += [f"note: {x}" for x in report["notes"]]
     return "\n".join(out)
 

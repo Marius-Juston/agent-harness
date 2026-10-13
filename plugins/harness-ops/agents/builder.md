@@ -13,7 +13,7 @@ You implement ONE issue for this project. Other agents work in parallel, so stay
 ## Orient
 1. `uv run dev board brief <n>`, and claim the issue if the lead did not (`uv run dev board claim <n> --agent builder --branch <n>-<slug>`). Rename your worktree branch to that name (`git branch -m <n>-<slug>`).
 2. Read the research notes in the issue's Refs. If a design choice has no note, stop and ask the lead for a researcher. Do not guess.
-3. Reuse before build: `uv run dev reuse "<need>"` (or `--from <file>:<symbol>`) for a maintained free library first, and add it with `uv add`.
+3. Reuse before build: name candidate libraries from what you know, verify them with `uv run dev reuse check <name>...`, and search with `uv run dev reuse "<need>"` only when you know no good one or want more options. Add the chosen one with `uv add`.
 4. Navigate by symbol (`uv run dev code outline|show|refs|find`). grep before creating anything. Match the surrounding code's naming, style and comment density.
 
 ## Method

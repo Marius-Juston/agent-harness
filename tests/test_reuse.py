@@ -1,7 +1,6 @@
 """devkit.reuse (`dev reuse`): recall, re-rank, gates, quality and output against a fake network. No network."""
 
 import json
-import math
 import urllib.parse
 
 import pytest
@@ -138,11 +137,13 @@ def world(
     down=(),
     readme=None,
     registry_body=None,
+    named=None,
 ):
     """Routes for a small, consistent world. github(q) -> items; keywords[term] -> records; lookups[repo] -> records."""
     github = github or (lambda q: [gh_repo("jd/tenacity", "Retry code until it succeeds", 8000, ["retry", "python"])])
     keywords = keywords if keywords is not None else {}
     lookups = lookups if lookups is not None else {"github.com/jd/tenacity": [TENACITY]}
+    named = named if named is not None else {"tenacity": TENACITY}
 
     def routes(url: str):
         u = urllib.parse.urlsplit(url)
@@ -159,6 +160,8 @@ def world(
             if u.path.startswith("/api/v1/keywords/"):
                 term = urllib.parse.unquote(u.path.rsplit("/", 1)[1])
                 return {"name": term, "packages": keywords.get(term, [])}
+            if u.path.startswith("/api/v1/registries/"):
+                return named.get(urllib.parse.unquote(u.path.rsplit("/", 1)[1]))
             if u.path == "/api/v1/packages/lookup":
                 return lookups.get(q["repository_url"][0].removeprefix("https://"), [])
         if host == "api.deps.dev":
@@ -490,7 +493,7 @@ def test_score_is_relevance_plus_lambda_quality(tmp_path):
     rep = reuse.search(make(tmp_path, Net(world())), ["retry"], "pypi")
     c = rep["candidates"][0]
     assert c.score == pytest.approx(c.relevance + reuse.LAMBDA * c.quality, abs=1e-3)
-    assert rep["score"].startswith(f"S = R + {reuse.LAMBDA} * Q")
+    assert rep["score"].startswith(f"PASS before HOLD, then S = R + {reuse.LAMBDA} * Q")
 
 
 # ---- shared client, failures, cache ----
@@ -613,7 +616,8 @@ def test_cli_json_also_and_errors(fake_cli, capsys):
 
 def test_constants_are_sane():
     assert reuse.FRESH_DAYS < reuse.DORMANT_DAYS and reuse.NEW_DAYS < reuse.DORMANT_DAYS
-    assert reuse.STAR_WEIGHT * math.log10(1 + 1e5) == pytest.approx(reuse.LAMBDA, abs=0.001)  # #169 F1
+    # R4 of #169 (chosen.json): PASS before HOLD, union shortlist with an R floor of 0.20, lambda 1.0, no tier
+    assert (reuse.PASS_BEFORE_HOLD, reuse.R_FLOOR, reuse.LAMBDA, reuse.DEFAULT_N) == (True, 0.20, 1.0, 10)
     assert reuse.RATES["github"][0] * 60 <= 10  # below GitHub's keyless search limit
 
 
@@ -646,13 +650,18 @@ def test_the_whole_shortlist_is_scored_before_the_cut(tmp_path):
     rep = reuse.search(
         make(tmp_path, Net(world(github=lambda q: items))), ["retry"], "pypi", n=1, encoder=lambda t: [[1.0]] * len(t)
     )
-    assert [c.name for c in rep["candidates"]] == ["tenacity"]  # lower prior (stars), higher S
+    assert [c.name for c in rep["candidates"]] == ["tenacity"]  # fewer stars, higher S
     assert rep["scored"] == 2 and "2 scored, 1 shown" in reuse.render(rep)
 
 
 def test_researcher_checks_every_recommended_tool_and_names_dev_reuse():
     text = (code.root() / "plugins/harness-ops/agents/researcher.md").read_text()
     assert "every other recommended tool through the API" in text and "uv run dev reuse" in text
+    # #169: the agent's own names, verified, beat search alone; so verify first and search only for more options
+    for rel in ("agents/researcher.md", "agents/builder.md", "skills/research/SKILL.md"):
+        assert "uv run dev reuse check" in (code.root() / "plugins/harness-ops" / rel).read_text()
+    harness = (code.root() / "template/.devkit/HARNESS.md.jinja").read_text()
+    assert "uv run dev reuse check" in harness and "only when you know no good candidate" in harness
 
 
 def test_documentation_falls_back_to_readme_size(tmp_path):
@@ -707,3 +716,90 @@ def test_g1_existence_is_asked_again_after_a_day(tmp_path):
     reuse.search(c, ["retry"], "pypi")
     again = [u for u, _ in net.calls[before:]]
     assert again and all(u.startswith("https://pypi.org/") for u in again)  # deps.dev etc. still cached
+
+
+# ---- search order R4 (#169) and check mode ----
+
+VEC = {"alpha": [1.0, 0.0], "beta": [0.9, 0.4359], "gamma": [0.5, 0.866]}  # cosine to the query: 1.0, 0.9, 0.5
+
+
+def encoder(texts):
+    return [next((v for k, v in VEC.items() if k in t), [1.0, 0.0]) for t in texts]
+
+
+def three(**dependents):
+    """GitHub finds alpha, beta and gamma (relevance 1.0, 0.9, 0.5); each has a package with the given dependents."""
+    items = [gh_repo(f"o/{k}", f"{k} retry", 10) for k in VEC]
+    looks = {f"github.com/o/{k}": [record(k, f"o/{k}", f"{k} retry", dependent_repos_count=d, dependent_packages_count=0)]
+             for k, d in dependents.items()}  # fmt: skip
+    return world(github=lambda q: items, lookups=looks, registry=frozenset(VEC))
+
+
+def test_union_shortlist_adds_the_most_adopted_within_the_r_floor(tmp_path):
+    net = Net(three(alpha=1, beta=50_000, gamma=10**7))
+    rep = reuse.search(make(tmp_path, net), ["retry"], "pypi", n=1, encoder=encoder)
+    assert rep["scored"] == 2  # alpha by R, beta by adoption; gamma is outside best R - R_FLOOR
+    assert not [u for u in net.urls(reuse.ECOSYSTEMS) if "o%2Fgamma" in u or "o/gamma" in u]  # never enriched
+
+
+def test_every_pass_is_ordered_before_every_hold(tmp_path):
+    w = three(alpha=1, beta=1)
+    dormant = record("alpha", "o/alpha", "alpha retry", last=reuse.DORMANT_DAYS + 30)
+    dormant["repo_metadata"]["pushed_at"] = iso(reuse.DORMANT_DAYS + 30)
+    net = Net(lambda u: [dormant] if "o%2Falpha" in u and "lookup" in u else w(u))
+    rep = reuse.search(make(tmp_path, net), ["retry"], "pypi", n=3, encoder=encoder)
+    names = [(c.name, c.status) for c in rep["candidates"]]
+    assert names[0][1] == "pass" and names[-1] == ("alpha", "HOLD")
+    assert next(c for c in rep["candidates"] if c.name == "alpha").score > rep["candidates"][0].score
+
+
+def test_check_verifies_named_packages_and_reports_the_missing_one(tmp_path):
+    rep = reuse.check(make(tmp_path, Net(world())), ["tenacity", "tenacity-turbo", "tenacity"], "pypi")
+    ok, ghost = rep["candidates"]  # duplicates once, in the order given
+    assert ok.status == "pass" and ok.repo == "github.com/jd/tenacity" and ok.dependents == 5300
+    assert ok.gates["G1"] == "pass (pypi)" and set(ok.gates) == {"G1", "G2", "G3", "G4", "G5", "G6"}
+    assert ghost.status == "NOT FOUND" and ghost.gates["G1"].startswith("FAIL (no pypi package")
+    out = reuse.render(rep)
+    assert "1. tenacity [pypi] github.com/jd/tenacity  PASS Q " in out and "98 contributors" in out
+    assert "gates: G1 pass (pypi), G2 pass, G3 pass, G4 pass, G5 pass (MIT: Blue Oak Silver), G6 pass" in out
+    assert "2. tenacity-turbo [pypi]  NOT FOUND" in out
+
+
+def test_check_falls_back_to_the_registry_and_holds_or_fails_by_gate(tmp_path):
+    pypi = {
+        "info": {
+            "name": "Retrying",
+            "summary": "retry",
+            "project_urls": {"Source": "https://github.com/rholder/retrying"},
+        }
+    }
+    w = world(named={"backoff": record("backoff", "litl/backoff", archived=True) | {"status": "deprecated"}},
+              registry_body=lambda name: pypi, lookups={}, registry=frozenset({"retrying", "Retrying", "backoff"}))  # fmt: skip
+    rep = reuse.check(make(tmp_path, Net(w)), ["retrying", "backoff"], "pypi")
+    retrying, backoff = rep["candidates"]
+    assert (
+        retrying.name == "Retrying"
+        and retrying.repo == "github.com/rholder/retrying"
+        and retrying.gates["G1"] == "pass (pypi)"
+    )
+    assert backoff.status == "FAIL" and backoff.gates["G4"].startswith("FAIL (deprecated")
+
+
+def test_check_marks_a_known_but_unverifiable_name(tmp_path):
+    w = world(named={"tenacity-pro": record("tenacity-pro", None)})
+    rep = reuse.check(make(tmp_path, Net(w)), ["tenacity-pro"], "pypi")
+    assert rep["candidates"][0].status == "UNVERIFIED" and any("G1 FAIL" in n for n in rep["notes"])
+
+
+def test_cli_check_json_exit_codes_and_errors(fake_cli, capsys):
+    assert dev(["reuse", "check", "tenacity"]) == 0
+    assert "tenacity [pypi] github.com/jd/tenacity  PASS" in capsys.readouterr().out
+    assert dev(["reuse", "check", "tenacity", "nope-not-a-package", "--json"]) == 1
+    data = json.loads(capsys.readouterr().out)
+    assert [c["status"] for c in data["candidates"]] == ["pass", "NOT FOUND"] and data["mode"] == "check"
+    assert "record" not in data["candidates"][0]
+    assert dev(["reuse", "check"]) == 2
+    assert dev(["reuse", "check", "tenacity", "--ecosystem", "any"]) == 2
+    assert dev(["reuse", "retry", "with", "backoff"]) == 2  # an unquoted need is refused, not half-searched
+    with pytest.raises(ValueError, match="for check"):
+        reuse.check(reuse.client(), ["x"], "any")

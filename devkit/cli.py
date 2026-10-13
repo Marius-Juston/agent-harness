@@ -212,10 +212,15 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("--snippet", type=int, default=1200)
     x = sub.add_parser(
         "reuse",
-        help="reuse before build: maintained libraries and repos for a need, verified on their registry and ranked "
-        "by relevance and maintenance (GitHub, ecosyste.ms, deps.dev; shares dev lit's cache and rate limits)",
+        help="reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); "
+        '`"<need>"` searches for more (GitHub, ecosyste.ms, deps.dev; shares dev lit\'s cache and rate limits)',
     )
-    x.add_argument("need", nargs="?", default="", help="what the code must do, in a few words")
+    x.add_argument(
+        "need",
+        nargs="*",
+        default=[],
+        help="what the code must do, in a few words (one quoted argument); or `check` and package names",
+    )
     x.add_argument("--also", action="append", default=[], help="a paraphrase of the need (repeatable): better recall")
     x.add_argument(
         "--from",
@@ -411,7 +416,17 @@ def run_lit(a: argparse.Namespace) -> int:
 
 
 def run_reuse(a: argparse.Namespace) -> int:
-    queries = [q for q in (a.need, *a.also) if q.strip()]
+    if a.need[:1] == ["check"]:
+        if not a.need[1:] or a.ecosystem == "any":
+            print("error: dev reuse check takes package names and --ecosystem pypi, npm or cargo", file=sys.stderr)
+            return 2
+        report = reuse.check(reuse.client(), a.need[1:], a.ecosystem, a.allow_copyleft)
+        print(reuse.to_json(report) if a.json else reuse.render(report))
+        return 0 if all(c.status in (reuse.PASS, reuse.HOLD) for c in report["candidates"]) else 1
+    if len(a.need) > 1:
+        print('error: quote the need as one argument: dev reuse "<need>"', file=sys.stderr)
+        return 2
+    queries = [q for q in (*a.need, *a.also) if q.strip()]
     if a.from_:
         try:
             queries.append(reuse.from_spec(a.from_))
