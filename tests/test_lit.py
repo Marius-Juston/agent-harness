@@ -1210,9 +1210,26 @@ def test_chase_failures_are_notes(tmp_path):
     assert make(tmp_path / "c", net).chase("W1", "refs") == ([], ["openalex: unreadable answer (JSONDecodeError)"])
 
 
-def test_a_paper_with_no_references_is_no_results_not_a_failure(tmp_path):
+def test_a_paper_nobody_cites_is_no_results_not_a_failure(tmp_path):
     net = FakeNet({OA: [(200, {}, json.dumps({"meta": {"count": 0}, "results": []}))]})
-    assert make(tmp_path, net).chase("W1", "refs") == ([], [])
+    assert make(tmp_path, net).chase("W1", "cited-by") == ([], [])
+
+
+def test_refs_with_no_reference_list_says_why_and_where_else_to_look(tmp_path):
+    """Live 2026-10-13: OpenAlex has referenced_works_count 0 for the preprint 10.48550/arXiv.2406.10279."""
+    work = json.dumps({"id": "https://openalex.org/W4399795583", "title": "A preprint"})
+    net = FakeNet(
+        {
+            OA + "works/doi:10.48550/arXiv.2406.10279?": [(200, {}, work)],
+            OA + "works?filter=cited_by:W4399795583&": [(200, {}, json.dumps({"meta": {"count": 0}, "results": []}))],
+        }
+    )
+    papers, notes = make(tmp_path, net).chase("10.48550/arXiv.2406.10279", "refs")
+    assert papers == [] and notes == [
+        "OpenAlex lists no references for W4399795583 (common for arXiv preprints); "
+        "try the published version's DOI or the arxiv MCP"
+    ]
+    assert "note: OpenAlex lists no references for W4399795583" in lit.render(papers, notes)
 
 
 def test_dev_lit_refs_and_cited_by_over_a_local_fake_server(tmp_path, monkeypatch, capsys):

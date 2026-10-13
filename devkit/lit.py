@@ -825,6 +825,11 @@ class Client:
             return [], [str(exc)]
         except ValueError as exc:
             return [], [f"openalex: unreadable answer ({type(exc).__name__})"]
+        if not papers and direction == "refs" and count == 0:  # OpenAlex often has no reference list for a preprint
+            return [], [
+                f"OpenAlex lists no references for {target} (common for arXiv preprints); "
+                "try the published version's DOI or the arxiv MCP"
+            ]
         if not papers:
             return [], []
         return papers, [f"{len(papers)} of {count} {CHASE[direction][1]} of {target}, most cited first"]
