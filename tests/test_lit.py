@@ -936,3 +936,13 @@ def test_atomic_write_replaces_and_leaves_no_temp_on_failure(tmp_path, monkeypat
     with pytest.raises(OSError, match="disk full"):
         netsafe.atomic_write(path, "lost")
     assert path.read_text() == "new" and [p.name for p in tmp_path.iterdir()] == ["f.json"]
+
+
+def test_take_grants_when_the_wait_is_below_the_clocks_resolution():
+    """Regression (#29): at an epoch-sized clock, sleeping exactly the wait left 0.99999999 tokens and a wait of
+    8e-8 s, which the clock cannot advance by, so acquire() looped forever under a fake clock."""
+    state, now = {"tokens": 0.0, "t": 1_791_000_000.0}, 1_791_000_000.0
+    for _ in range(6):
+        state, wait = lit.take(state, now, 0.15, 2.0)
+        assert wait == 0.0 or now + wait > now
+        now += wait

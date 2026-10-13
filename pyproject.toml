@@ -27,6 +27,11 @@ Repository = "https://github.com/Marius-Juston/agent-harness"
 [project.scripts]
 dev = "devkit.cli:main"
 
+[project.optional-dependencies]
+semantic = [
+    "model2vec>=0.10",
+]
+
 [dependency-groups]
 dev = [
     "copier>=9.18.2",
