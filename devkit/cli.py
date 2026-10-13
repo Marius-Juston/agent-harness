@@ -263,12 +263,16 @@ def command_help() -> list[tuple[str, str]]:
     return rows
 
 
+_NOT_NOTES = {"INDEX.md", "README.md"}
+
+
 def _changed_notes() -> list[Path]:
     base = checks.merge_base()
     notes = f"{config.get().research_dir}/*.md"
     out = checks.git("diff", "--name-only", base or "HEAD", "--", notes, check=False).splitlines()
     out += checks.git("ls-files", "--others", "--exclude-standard", "--", notes).splitlines()
-    return [root() / f for f in sorted(set(out)) if (root() / f).exists() and not f.endswith("INDEX.md")]
+    # INDEX.md is generated and README.md ships with the template: neither is a note with citations to check.
+    return [root() / f for f in sorted(set(out)) if (root() / f).exists() and Path(f).name not in _NOT_NOTES]
 
 
 def run(a: argparse.Namespace) -> int:
