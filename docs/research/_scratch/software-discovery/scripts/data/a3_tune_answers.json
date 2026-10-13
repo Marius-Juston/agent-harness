@@ -1,0 +1,423 @@
+{
+ "AI and Agents / Agent Skills": [
+  "agentskills/agentskills",
+  "softaworks/agent-toolkit",
+  "cisco-ai-skill-scanner",
+  "nvidia/skills",
+  "sickn33/agentic-awesome-skills",
+  "google-agents-cli",
+  "scarletkc/agents",
+  "fabricioctelles/skills",
+  "adird/agent-shell-hamelech",
+  "agent-skills"
+ ],
+ "AI and Agents / Fine-tuning": [
+  "peft",
+  "trl",
+  "unsloth-zoo",
+  "m4t1ss3/deltaloop"
+ ],
+ "AI and Agents / Model Context Protocol": [
+  "mcp",
+  "fastmcp",
+  "fastapi-mcp",
+  "mcp-agent",
+  "golf-mcp"
+ ],
+ "AI and Agents / Orchestration": [
+  "langchain-ai/langgraph",
+  "langchain-ai/langchain",
+  "openai-agents",
+  "crewai",
+  "microsoft/agent-framework",
+  "run-llama/llama_index",
+  "farm-haystack",
+  "swarms"
+ ],
+ "Admin Panels": [
+  "sqladmin",
+  "flask-admin",
+  "django-grappelli",
+  "fastadmin",
+  "jet-django",
+  "jet-bridge"
+ ],
+ "Algorithms and Design Patterns / Algorithms": [
+  "networkx",
+  "sortedcontainers",
+  "algorithms"
+ ],
+ "Audio & Video Processing / Metadata": [
+  "tinytag",
+  "music-tag",
+  "metatoolkit",
+  "mp3-tagger"
+ ],
+ "CLI Tools / Database CLIs": [
+  "pgcli",
+  "mycli",
+  "litecli",
+  "harlequin",
+  "sqlit-tui",
+  "sqlite-utils",
+  "mssql-cli"
+ ],
+ "CLI Tools / Downloaders": [
+  "yt-dlp",
+  "gdown",
+  "you-get",
+  "gamdl",
+  "tiddl"
+ ],
+ "CLI Tools / Shells": [
+  "xonsh",
+  "pypyp"
+ ],
+ "Code Analysis / Type Checkers": [
+  "mypy",
+  "pyright",
+  "pyre-check",
+  "basedmypy",
+  "beartype",
+  "pedantic"
+ ],
+ "Configuration Files": [
+  "pydantic-settings",
+  "dynaconf",
+  "python-dotenv"
+ ],
+ "Cryptography": [
+  "cryptography",
+  "pynacl",
+  "pycryptodome"
+ ],
+ "Data Analysis": [
+  "pandas",
+  "polars",
+  "duckdb",
+  "statsmodels",
+  "fg-data-profiling"
+ ],
+ "Data Validation": [
+  "pydantic",
+  "marshmallow",
+  "unionai-oss/pandera",
+  "cerberus",
+  "pointblank",
+  "tensorflow-data-validation",
+  "validoopsie"
+ ],
+ "Database Drivers / ClickHouse": [
+  "clickhouse-connect",
+  "clickhouse-driver",
+  "aiochclient",
+  "chdb",
+  "clickhouse-sqlalchemy",
+  "django-clickhouse",
+  "dbt-clickhouse"
+ ],
+ "_model": "claude-opus-5-5",
+ "_date": "2026-10-13",
+ "_how": "claude -p --tools '' --strict-mcp-config --setting-sources '' --output-format json from an empty directory; prompt = a3_prompt.md body with a3_tune_input.json, batches of 16",
+ "_config": "R4",
+ "Database Drivers / NoSQL Databases": [
+  "pymongo",
+  "redis",
+  "cassandra-driver",
+  "tinydb",
+  "arangodb-community/pyarango",
+  "djongo"
+ ],
+ "Database Drivers / PostgreSQL": [
+  "psycopg",
+  "asyncpg",
+  "psycopg2",
+  "pgcli"
+ ],
+ "Database Drivers / SQLite": [
+  "aiosqlite",
+  "sqlite-utils",
+  "apsw",
+  "dataset",
+  "litecli",
+  "sqlitedict"
+ ],
+ "DevOps Tools / Cloud Providers": [
+  "boto/boto3",
+  "pulumi",
+  "apache-libcloud",
+  "oci",
+  "cloudflare"
+ ],
+ "DevOps Tools / Configuration Management": [
+  "pyinfra",
+  "fabric"
+ ],
+ "File Format Processing / Data Formats": [
+  "pyyaml",
+  "ruamel.yaml",
+  "tomlkit"
+ ],
+ "File Format Processing / PowerPoint": [
+  "python-pptx",
+  "office-oxide"
+ ],
+ "Functional Programming": [
+  "toolz",
+  "more-itertools",
+  "funcy",
+  "returns",
+  "dbrattli/expression",
+  "pyrsistent",
+  "pydash",
+  "coconut"
+ ],
+ "GUI Development / Desktop": [
+  "toga",
+  "kivy",
+  "pywebview",
+  "ttkbootstrap",
+  "pysimplegui",
+  "nicegui"
+ ],
+ "GUI Development / Web-based": [
+  "nicegui",
+  "flet-dev/flet",
+  "reflex",
+  "pywebview",
+  "textual"
+ ],
+ "Game Development / 3D Engines": [
+  "ursina",
+  "panda3d",
+  "harfang"
+ ],
+ "HTTP Clients / URL Manipulation": [
+  "yarl",
+  "furl",
+  "hyperlink",
+  "urlobject"
+ ],
+ "Image Processing / Image Serving": [
+  "thumbor",
+  "pilbox"
+ ],
+ "Implementations": [
+  "cython",
+  "pyston"
+ ],
+ "Interactive Interpreter": [
+  "ipython",
+  "ptpython",
+  "bpython"
+ ],
+ "Job Schedulers / Task Scheduling": [
+  "apscheduler",
+  "schedule",
+  "rocketry",
+  "schedium"
+ ],
+ "Microsoft Windows": [
+  "pywin32",
+  "comtypes",
+  "pywinauto",
+  "windows-tools-registry",
+  "wmi",
+  "windowsctxmenu"
+ ],
+ "Natural Language Processing / Chinese": [
+  "jieba",
+  "pypinyin",
+  "snownlp"
+ ],
+ "Package Management / Build Backends": [
+  "hatchling",
+  "pypa/setuptools",
+  "flit-core",
+  "poetry-core",
+  "pdm-backend",
+  "meson-python",
+  "py-build-cmake",
+  "build",
+  "pyproject-hooks"
+ ],
+ "Package Repositories": [
+  "devpi-server",
+  "pypiserver",
+  "bandersnatch"
+ ],
+ "Science / Core": [
+  "numpy",
+  "scipy",
+  "numba",
+  "sympy"
+ ],
+ "Science / Symbolic Mathematics": [
+  "sympy",
+  "drudgecas/drudge"
+ ],
+ "Testing / Code Coverage": [
+  "coverage",
+  "pytest-cov"
+ ],
+ "Testing / Frameworks": [
+  "pytest",
+  "hypothesis",
+  "robotframework",
+  "pytest-playwright",
+  "locust",
+  "fixtures",
+  "allure-pytest",
+  "pytest-services",
+  "molecule"
+ ],
+ "Testing / Test Runners": [
+  "pytest",
+  "nose2",
+  "unittest-xml-reporting",
+  "green",
+  "xtestrunner"
+ ],
+ "Text Processing / Fuzzy Matching": [
+  "rapidfuzz",
+  "jellyfish",
+  "thefuzz",
+  "polyfuzz",
+  "strsimpy"
+ ],
+ "Text Processing / Parser": [
+  "lark",
+  "pyparsing",
+  "parsimonious",
+  "tatsu",
+  "arpeggio",
+  "textfsm"
+ ],
+ "Text Processing / Transliteration and Slugs": [
+  "python-slugify",
+  "normality",
+  "fast-unidecode"
+ ],
+ "Text Processing / Unique identifiers": [
+  "shortuuid",
+  "sqids",
+  "nanoid",
+  "hashids"
+ ],
+ "Web Asset Management": [
+  "webassets",
+  "django-compressor",
+  "django-pipeline",
+  "django-webpack-loader"
+ ],
+ "Web Servers / WSGI": [
+  "gunicorn",
+  "waitress",
+  "hypercorn"
+ ],
+ "WebSocket": [
+  "websockets",
+  "websocket-client",
+  "python-socketio",
+  "trio-websocket",
+  "picows",
+  "simple-websocket"
+ ],
+ "pilot / computerized adaptive testing with item response theory": [
+  "catsim",
+  "adaptivetesting",
+  "py-irt",
+  "psy",
+  "girth"
+ ],
+ "pilot / convert HTML to Markdown": [
+  "markdownify",
+  "html-to-markdown",
+  "htmd-py",
+  "tomd",
+  "html2markdown"
+ ],
+ "pilot / cross-process file lock": [
+  "filelock",
+  "portalocker",
+  "fasteners",
+  "zc.lockfile"
+ ],
+ "pilot / deep difference between two python objects": [
+  "deepdiff",
+  "dictdiffer",
+  "jsondiff",
+  "deep-diff",
+  "diffx-python"
+ ],
+ "pilot / detect and anonymize personally identifiable information in text": [
+  "presidio-analyzer",
+  "datafog",
+  "scrubadub",
+  "pii-codex",
+  "pteredactyl",
+  "phileas-redact",
+  "privatiser"
+ ],
+ "pilot / detect the character encoding of bytes": [
+  "charset-normalizer",
+  "chardet",
+  "charset-normalizer-rs",
+  "bytesense"
+ ],
+ "pilot / fuzzy string matching": [
+  "rapidfuzz",
+  "thefuzz",
+  "polyfuzz",
+  "stringmatch"
+ ],
+ "pilot / parse SPDX license expressions": [
+  "license-expression",
+  "spdx-tools",
+  "py-spdx-license"
+ ],
+ "pilot / parse and compare semantic version strings": [
+  "semver",
+  "packaging",
+  "node-semver",
+  "semantic-version"
+ ],
+ "pilot / parse cron expressions and compute next run time": [
+  "croniter",
+  "cronsim",
+  "python-crontab",
+  "pycron"
+ ],
+ "pilot / property-based testing": [
+  "hypothesis",
+  "deal"
+ ],
+ "pilot / rate limiting with a token bucket": [
+  "pyrate-limiter",
+  "limits",
+  "throttled-py",
+  "ratelink"
+ ],
+ "pilot / retry a function call with exponential backoff": [
+  "tenacity",
+  "backon",
+  "redress",
+  "retrytools",
+  "pytryagain"
+ ],
+ "pilot / small fast static text embeddings": [
+  "model2vec",
+  "fastembed",
+  "sentence-transformers"
+ ],
+ "pilot / spaced repetition scheduler": [
+  "fsrs",
+  "fsrs-optimizer",
+  "maimemo/ssp-mmc"
+ ],
+ "pilot / validate JSON against a schema": [
+  "jsonschema",
+  "fastjsonschema",
+  "jsonschema-rs"
+ ]
+}

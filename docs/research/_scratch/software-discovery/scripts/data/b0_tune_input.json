@@ -1,0 +1,514 @@
+[
+ {
+  "id": "AI and Agents / Agent Skills",
+  "need": "agent skills ai and agents",
+  "also_described_as": [
+   "reusable skills for coding agents",
+   "agent skill packs for code review and security audits"
+  ]
+ },
+ {
+  "id": "AI and Agents / Fine-tuning",
+  "need": "fine-tuning ai and agents",
+  "also_described_as": [
+   "fine-tune a large language model with LoRA",
+   "parameter efficient training of transformer models"
+  ]
+ },
+ {
+  "id": "AI and Agents / Model Context Protocol",
+  "need": "model context protocol ai and agents",
+  "also_described_as": [
+   "build an MCP server",
+   "model context protocol client and server sdk"
+  ]
+ },
+ {
+  "id": "AI and Agents / Orchestration",
+  "need": "orchestration ai and agents",
+  "also_described_as": [
+   "framework for building LLM agents and chains",
+   "orchestrate multi-step LLM workflows with tools"
+  ]
+ },
+ {
+  "id": "Admin Panels",
+  "need": "admin panels",
+  "also_described_as": [
+   "admin dashboard for database models",
+   "auto-generated admin interface for a web app"
+  ]
+ },
+ {
+  "id": "Algorithms and Design Patterns / Algorithms",
+  "need": "algorithms algorithms and design patterns",
+  "also_described_as": [
+   "implementations of classic algorithms and data structures",
+   "sorted containers and graph algorithms"
+  ]
+ },
+ {
+  "id": "Audio & Video Processing / Metadata",
+  "need": "metadata audio & video processing",
+  "also_described_as": [
+   "read and write audio file tags",
+   "edit ID3 metadata of mp3 and flac files"
+  ]
+ },
+ {
+  "id": "CLI Tools / Database CLIs",
+  "need": "database clis cli tools",
+  "also_described_as": [
+   "command line client for SQL databases with autocompletion",
+   "interactive database shell with syntax highlighting"
+  ]
+ },
+ {
+  "id": "CLI Tools / Downloaders",
+  "need": "downloaders cli tools",
+  "also_described_as": [
+   "download videos from websites on the command line",
+   "command line media downloader"
+  ]
+ },
+ {
+  "id": "CLI Tools / Shells",
+  "need": "shells cli tools",
+  "also_described_as": [
+   "python-powered interactive shell",
+   "a unix shell that runs python"
+  ]
+ },
+ {
+  "id": "Code Analysis / Type Checkers",
+  "need": "type checkers code analysis",
+  "also_described_as": [
+   "static type checker for python",
+   "check type annotations"
+  ]
+ },
+ {
+  "id": "Configuration Files",
+  "need": "configuration files",
+  "also_described_as": [
+   "read configuration from files and environment variables",
+   "settings management for applications"
+  ]
+ },
+ {
+  "id": "Cryptography",
+  "need": "cryptography",
+  "also_described_as": [
+   "cryptographic primitives encryption and hashing",
+   "encrypt and sign data securely"
+  ]
+ },
+ {
+  "id": "Data Analysis",
+  "need": "data analysis",
+  "also_described_as": [
+   "dataframes for data analysis",
+   "analyze tabular data fast"
+  ]
+ },
+ {
+  "id": "Data Validation",
+  "need": "data validation",
+  "also_described_as": [
+   "validate data against a schema",
+   "check structure and types of input data"
+  ]
+ },
+ {
+  "id": "Database Drivers / ClickHouse",
+  "need": "clickhouse database drivers",
+  "also_described_as": [
+   "connect to ClickHouse and run queries",
+   "ClickHouse client driver"
+  ]
+ },
+ {
+  "id": "Database Drivers / NoSQL Databases",
+  "need": "nosql databases database drivers",
+  "also_described_as": [
+   "client for MongoDB, Redis or Cassandra",
+   "connect to a NoSQL database"
+  ]
+ },
+ {
+  "id": "Database Drivers / PostgreSQL",
+  "need": "postgresql database drivers",
+  "also_described_as": [
+   "connect to PostgreSQL",
+   "PostgreSQL database adapter"
+  ]
+ },
+ {
+  "id": "Database Drivers / SQLite",
+  "need": "sqlite database drivers",
+  "also_described_as": [
+   "work with SQLite databases",
+   "async or enhanced sqlite access"
+  ]
+ },
+ {
+  "id": "DevOps Tools / Cloud Providers",
+  "need": "cloud providers devops tools",
+  "also_described_as": [
+   "manage cloud resources from code",
+   "cloud provider SDK and infrastructure as code"
+  ]
+ },
+ {
+  "id": "DevOps Tools / Configuration Management",
+  "need": "configuration management devops tools",
+  "also_described_as": [
+   "automate server configuration and provisioning",
+   "infrastructure automation over ssh"
+  ]
+ },
+ {
+  "id": "File Format Processing / Data Formats",
+  "need": "data formats file format processing",
+  "also_described_as": [
+   "parse YAML and TOML files",
+   "read and write configuration data formats"
+  ]
+ },
+ {
+  "id": "File Format Processing / PowerPoint",
+  "need": "powerpoint file format processing",
+  "also_described_as": [
+   "create PowerPoint presentations",
+   "read and write pptx files"
+  ]
+ },
+ {
+  "id": "Functional Programming",
+  "need": "functional programming",
+  "also_described_as": [
+   "functional programming utilities for iterables",
+   "composable functions, currying and immutable data"
+  ]
+ },
+ {
+  "id": "GUI Development / Desktop",
+  "need": "desktop gui development",
+  "also_described_as": [
+   "build desktop GUI applications",
+   "cross-platform native windows and widgets"
+  ]
+ },
+ {
+  "id": "GUI Development / Web-based",
+  "need": "web-based gui development",
+  "also_described_as": [
+   "build a GUI that runs in the browser",
+   "desktop app with a web view frontend"
+  ]
+ },
+ {
+  "id": "Game Development / 3D Engines",
+  "need": "3d engines game development",
+  "also_described_as": [
+   "3D game engine",
+   "render 3D scenes and games"
+  ]
+ },
+ {
+  "id": "HTTP Clients / URL Manipulation",
+  "need": "url manipulation http clients",
+  "also_described_as": [
+   "parse and build URLs",
+   "manipulate URL query strings and paths"
+  ]
+ },
+ {
+  "id": "Image Processing / Image Serving",
+  "need": "image serving image processing",
+  "also_described_as": [
+   "on-the-fly image resizing server",
+   "serve thumbnails and cropped images over http"
+  ]
+ },
+ {
+  "id": "Implementations",
+  "need": "implementations",
+  "also_described_as": [
+   "alternative python interpreter",
+   "faster implementation of the python language"
+  ]
+ },
+ {
+  "id": "Interactive Interpreter",
+  "need": "interactive interpreter",
+  "also_described_as": [
+   "enhanced interactive python shell",
+   "better REPL with autocompletion"
+  ]
+ },
+ {
+  "id": "Job Schedulers / Task Scheduling",
+  "need": "task scheduling job schedulers",
+  "also_described_as": [
+   "schedule periodic jobs in process",
+   "run a function every day at a given time"
+  ]
+ },
+ {
+  "id": "Microsoft Windows",
+  "need": "microsoft windows",
+  "also_described_as": [
+   "access Windows APIs from python",
+   "windows specific python tooling"
+  ]
+ },
+ {
+  "id": "Natural Language Processing / Chinese",
+  "need": "chinese natural language processing",
+  "also_described_as": [
+   "Chinese text segmentation",
+   "convert Chinese characters to pinyin"
+  ]
+ },
+ {
+  "id": "Package Management / Build Backends",
+  "need": "build backends package management",
+  "also_described_as": [
+   "build backend for python packages",
+   "pyproject build system for wheels"
+  ]
+ },
+ {
+  "id": "Package Repositories",
+  "need": "package repositories",
+  "also_described_as": [
+   "host a private PyPI server",
+   "local package index mirror"
+  ]
+ },
+ {
+  "id": "Science / Core",
+  "need": "core science",
+  "also_described_as": [
+   "numerical arrays and scientific computing",
+   "linear algebra and scientific routines"
+  ]
+ },
+ {
+  "id": "Science / Symbolic Mathematics",
+  "need": "symbolic mathematics science",
+  "also_described_as": [
+   "symbolic math and algebra",
+   "computer algebra system"
+  ]
+ },
+ {
+  "id": "Testing / Code Coverage",
+  "need": "code coverage testing",
+  "also_described_as": [
+   "measure test code coverage",
+   "report which lines tests execute"
+  ]
+ },
+ {
+  "id": "Testing / Frameworks",
+  "need": "frameworks testing",
+  "also_described_as": [
+   "testing framework",
+   "write and run tests with fixtures and plugins"
+  ]
+ },
+ {
+  "id": "Testing / Test Runners",
+  "need": "test runners testing",
+  "also_described_as": [
+   "run unit tests with fixtures",
+   "test framework and runner"
+  ]
+ },
+ {
+  "id": "Text Processing / Fuzzy Matching",
+  "need": "fuzzy matching text processing",
+  "also_described_as": [
+   "fuzzy string matching",
+   "string similarity with edit distance"
+  ]
+ },
+ {
+  "id": "Text Processing / Parser",
+  "need": "parser text processing",
+  "also_described_as": [
+   "write parsers for text formats",
+   "parsing library for grammars"
+  ]
+ },
+ {
+  "id": "Text Processing / Transliteration and Slugs",
+  "need": "transliteration and slugs text processing",
+  "also_described_as": [
+   "convert unicode text to ascii slugs",
+   "make url friendly slugs from titles"
+  ]
+ },
+ {
+  "id": "Text Processing / Unique identifiers",
+  "need": "unique identifiers text processing",
+  "also_described_as": [
+   "short unique ids",
+   "generate concise url-safe uuids"
+  ]
+ },
+ {
+  "id": "Web Asset Management",
+  "need": "web asset management",
+  "also_described_as": [
+   "bundle and compress static assets for web apps",
+   "manage css and javascript assets"
+  ]
+ },
+ {
+  "id": "Web Servers / WSGI",
+  "need": "wsgi web servers",
+  "also_described_as": [
+   "WSGI HTTP server for production",
+   "serve a python web app with workers"
+  ]
+ },
+ {
+  "id": "WebSocket",
+  "need": "websocket",
+  "also_described_as": [
+   "websocket server and client",
+   "real-time bidirectional communication over websockets"
+  ]
+ },
+ {
+  "id": "pilot / computerized adaptive testing with item response theory",
+  "need": "computerized adaptive testing with item response theory",
+  "also_described_as": [
+   "IRT item selection simulation",
+   "adaptive test engine"
+  ]
+ },
+ {
+  "id": "pilot / convert HTML to Markdown",
+  "need": "convert HTML to Markdown",
+  "also_described_as": [
+   "html to markdown converter",
+   "turn web page html into markdown text"
+  ]
+ },
+ {
+  "id": "pilot / cross-process file lock",
+  "need": "cross-process file lock",
+  "also_described_as": [
+   "file locking",
+   "lock a file between processes"
+  ]
+ },
+ {
+  "id": "pilot / deep difference between two python objects",
+  "need": "deep difference between two python objects",
+  "also_described_as": [
+   "compare nested dicts and lists",
+   "diff of data structures"
+  ]
+ },
+ {
+  "id": "pilot / detect and anonymize personally identifiable information in text",
+  "need": "detect and anonymize personally identifiable information in text",
+  "also_described_as": [
+   "PII redaction",
+   "de-identification of names emails phone numbers"
+  ]
+ },
+ {
+  "id": "pilot / detect the character encoding of bytes",
+  "need": "detect the character encoding of bytes",
+  "also_described_as": [
+   "charset detection",
+   "guess text encoding of a file"
+  ]
+ },
+ {
+  "id": "pilot / fuzzy string matching",
+  "need": "fuzzy string matching",
+  "also_described_as": [
+   "string similarity levenshtein",
+   "approximate text match ratio"
+  ]
+ },
+ {
+  "id": "pilot / parse SPDX license expressions",
+  "need": "parse SPDX license expressions",
+  "also_described_as": [
+   "license expression parser",
+   "normalize open source license identifiers"
+  ]
+ },
+ {
+  "id": "pilot / parse and compare semantic version strings",
+  "need": "parse and compare semantic version strings",
+  "also_described_as": [
+   "semver",
+   "version number comparison"
+  ]
+ },
+ {
+  "id": "pilot / parse cron expressions and compute next run time",
+  "need": "parse cron expressions and compute next run time",
+  "also_described_as": [
+   "cron schedule iterator",
+   "next occurrence of a crontab line"
+  ]
+ },
+ {
+  "id": "pilot / property-based testing",
+  "need": "property-based testing",
+  "also_described_as": [
+   "generate random test inputs and shrink failures",
+   "quickcheck for python"
+  ]
+ },
+ {
+  "id": "pilot / rate limiting with a token bucket",
+  "need": "rate limiting with a token bucket",
+  "also_described_as": [
+   "rate limiter",
+   "throttle calls per second leaky bucket"
+  ]
+ },
+ {
+  "id": "pilot / retry a function call with exponential backoff",
+  "need": "retry a function call with exponential backoff",
+  "also_described_as": [
+   "retrying decorator",
+   "retry transient failures with jitter"
+  ]
+ },
+ {
+  "id": "pilot / small fast static text embeddings",
+  "need": "small fast static text embeddings",
+  "also_described_as": [
+   "sentence embeddings without a gpu",
+   "distilled embedding model"
+  ]
+ },
+ {
+  "id": "pilot / spaced repetition scheduler",
+  "need": "spaced repetition scheduler",
+  "also_described_as": [
+   "flashcard review interval algorithm",
+   "memory model for scheduling reviews"
+  ]
+ },
+ {
+  "id": "pilot / validate JSON against a schema",
+  "need": "validate JSON against a schema",
+  "also_described_as": [
+   "JSON Schema validator",
+   "check json documents follow a schema"
+  ]
+ }
+]

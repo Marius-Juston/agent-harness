@@ -1,0 +1,162 @@
+{
+ "migration / aiohttp": [
+  "aiohttp",
+  "aio-libs/aiohttp"
+ ],
+ "migration / bottle": [
+  "bottle",
+  "bottlepy/bottle"
+ ],
+ "migration / bunch": [
+  "bunch",
+  "dsc/bunch"
+ ],
+ "migration / chardet": [
+  "chardet",
+  "chardet/chardet"
+ ],
+ "migration / click": [
+  "click",
+  "pallets/click"
+ ],
+ "migration / django": [
+  "django",
+  "django/django"
+ ],
+ "migration / django-rest-swagger": [
+  "django-rest-swagger",
+  "marcgibbons/django-rest-swagger"
+ ],
+ "migration / ed25519": [
+  "ed25519",
+  "warner/python-ed25519"
+ ],
+ "migration / fabric3": [
+  "fabric3",
+  "mathiasertl/fabric"
+ ],
+ "migration / flask": [
+  "flask",
+  "pallets/flask"
+ ],
+ "migration / flask-restful": [
+  "flask-restful",
+  "flask-restful/flask-restful"
+ ],
+ "migration / flask-restplus": [
+  "flask-restplus",
+  "noirbizarre/flask-restplus"
+ ],
+ "migration / gcloud-aio-core": [
+  "gcloud-aio-core",
+  "talkiq/gcloud-aio"
+ ],
+ "migration / guzzle-sphinx-theme": [
+  "guzzle-sphinx-theme",
+  "guzzle/guzzle_sphinx_theme"
+ ],
+ "migration / httplib2": [
+  "httplib2",
+  "httplib2/httplib2"
+ ],
+ "migration / hubstorage": [
+  "hubstorage",
+  ""
+ ],
+ "migration / huey": [
+  "huey",
+  "coleifer/huey"
+ ],
+ "migration / ipaddr": [
+  "ipaddr",
+  "google/ipaddr-py"
+ ],
+ "migration / kafka-python": [
+  "kafka-python",
+  "dpkp/kafka-python"
+ ],
+ "migration / lockfile": [
+  "lockfile",
+  ""
+ ],
+ "migration / mechanize": [
+  "mechanize",
+  "python-mechanize/mechanize"
+ ],
+ "migration / multiprocessing": [
+  "multiprocessing",
+  ""
+ ],
+ "migration / netaddr": [
+  "netaddr",
+  "netaddr/netaddr"
+ ],
+ "migration / prettytable": [
+  "prettytable",
+  "prettytable/prettytable"
+ ],
+ "migration / progressbar": [
+  "progressbar",
+  ""
+ ],
+ "migration / pycryptodome": [
+  "pycryptodome",
+  "legrandin/pycryptodome"
+ ],
+ "migration / pymilvus-orm": [
+  "pymilvus-orm",
+  "milvus-io/pymilvus-orm"
+ ],
+ "migration / pyopenssl": [
+  "pyopenssl",
+  "pyca/pyopenssl"
+ ],
+ "migration / pypcap": [
+  "pypcap",
+  "pynetwork/pypcap"
+ ],
+ "migration / pyside2": [
+  "pyside2",
+  ""
+ ],
+ "migration / python-ldap": [
+  "python-ldap",
+  "python-ldap/python-ldap"
+ ],
+ "migration / pyuserinput": [
+  "pyuserinput",
+  "pyuserinput/pyuserinput"
+ ],
+ "migration / pyyaml": [
+  "pyyaml",
+  "yaml/pyyaml"
+ ],
+ "migration / requests": [
+  "requests",
+  "psf/requests"
+ ],
+ "migration / requests-oauth2": [
+  "requests-oauth2",
+  "maraujop/requests-oauth2"
+ ],
+ "migration / restkit": [
+  "restkit",
+  ""
+ ],
+ "migration / rpi.gpio": [
+  "rpi.gpio",
+  ""
+ ],
+ "migration / simplejson": [
+  "simplejson",
+  "simplejson/simplejson"
+ ],
+ "migration / sphinx-rtd-theme": [
+  "sphinx-rtd-theme",
+  "readthedocs/sphinx_rtd_theme"
+ ],
+ "migration / suds-py3": [
+  "suds-py3",
+  "cackharot/suds-py3"
+ ]
+}

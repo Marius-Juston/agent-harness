@@ -1,0 +1,99 @@
+{
+ "protocol": "PROTOCOL.md steps 4-5, 9-17; rules declared in r3-tuning.md before scoring",
+ "written": "2026-10-13 by the round-3 researcher, on TUNE only; no TEST need was scored or read",
+ "ranking_config": {
+  "id": "R4",
+  "complexity": 3,
+  "pass_before_hold": true,
+  "shortlist": "union",
+  "lambda": 1.0,
+  "tier_delta": null
+ },
+ "choice_rule": "highest TUNE hit@3 on the A2 pool; ties to lower complexity, then lower id",
+ "choice_order_on_A2_pool": [
+  "R4",
+  "R3",
+  "R6",
+  "R2",
+  "R1",
+  "R5",
+  "R0",
+  "R7"
+ ],
+ "fitted": "lambda = 1.0 is chosen on TUNE (the cited prior is 0.15); R4 vs R3 on the A2 pool +0.05 [-0.02, +0.11], within noise",
+ "tune_n": 64,
+ "tune_hit3": {
+  "A2 R4": [
+   0.88,
+   0.8,
+   0.95
+  ],
+  "A2 R3": [
+   0.83,
+   0.73,
+   0.92
+  ],
+  "A1 R4": [
+   0.61,
+   0.48,
+   0.72
+  ],
+  "A1 R0": [
+   0.45,
+   0.33,
+   0.58
+  ],
+  "B0": [
+   0.97,
+   0.92,
+   1.0
+  ],
+  "B1": [
+   0.97,
+   0.92,
+   1.0
+  ],
+  "A3 (re-rank of A2 R4)": [
+   0.97,
+   0.92,
+   1.0
+  ]
+ },
+ "tune_harm_share_top3": {
+  "A1 R0": 0.41,
+  "A1 R4": 0.05,
+  "A2 R4": 0.03,
+  "B0": 0.21,
+  "B1": 0.13,
+  "A3": 0.11
+ },
+ "headroom": {
+  "P1_vs_A2_pool": "3/64 = 0.047",
+  "P1_vs_A1_pool": "18/64 = 0.281",
+  "threshold": 0.1,
+  "decision": "below 10%: stop at A3, build no GPU index (PROTOCOL 16); P1 is not a TEST arm"
+ },
+ "test_arms": {
+  "B0": "fresh tool-less claude -p, data/b0_prompt.md, the TEST needs as input, one batch per 16 needs",
+  "B1": "B0 without FAIL, UNVERIFIED and unknown names (add_named.py gates)",
+  "A1 R0": "PR #171 as merged (baseline)",
+  "A1 R4": "PR #171 recall, ranked by R4",
+  "S6": "the pilot's S6 (recall_bench.py)",
+  "A2 R4": "A1 pool + B0 names (always shortlisted), ranked by R4",
+  "A3": "data/a3_prompt.md over A2 R4's n=10 shortlist (at most 20 lines), batches of 16, names off the shortlist dropped"
+ },
+ "decision_rule": "PROTOCOL 10 and 13: A2 or A3 adopted only if it beats B1 on TEST hit@3 with the 95% paired bootstrap interval above 0 and no higher harm share",
+ "sha256": {
+  "data/split.json": "0a3a85c523bc7d0956401cda33981bda50d0311c0defcd99bd5d621e02b7ba04",
+  "data/configs.json": "f6b2376aa62db2a3510965bea7617121f9aee806b32e8e88f268d155a235ba69",
+  "data/b0_prompt.md": "895543744ca52c3e145e8c37203978181014d9bb43a87177001a39481f66de62",
+  "data/a3_prompt.md": "128c9d4d019f50431f2f8a46f82a041bdb8ce610a24aa79a4983560f55b9e026",
+  "r3_score.py": "f28104d51e01173952cc84ccb80b3b27ea40a59e85e801ab10659a5bbb6d1b46",
+  "add_named.py": "445e0e96faa1ddc0222436fac93bc98388a428db03a1a2d4c2dea36d58b185a1",
+  "run_agent.py": "407ad009721ab4da95b219942aae14f6b52437f726250e8440856aac455519f0"
+ },
+ "snapshot": {
+  "path": "<git-common-dir>/devkit/bench/snapshot-2026-10-13-r3.tar.gz",
+  "sha256": "bbfed5dd1dc33fddd7c9b7fedd0529c651f2dada1e666948dde751eb26799625"
+ }
+}

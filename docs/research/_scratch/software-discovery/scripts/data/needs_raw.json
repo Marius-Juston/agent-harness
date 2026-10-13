@@ -1,0 +1,1544 @@
+[
+ {
+  "section": "AI and Agents",
+  "sub": "Agent Skills",
+  "desc": "Libraries for building AI applications, LLM integrations, and autonomous agents.",
+  "gold": [
+   "vintasoftware/django-ai-plugins",
+   "getsentry/skills",
+   "trailofbits/skills"
+  ],
+  "id": "AI and Agents / Agent Skills",
+  "q0": "agent skills ai and agents",
+  "batch": 1
+ },
+ {
+  "section": "AI and Agents",
+  "sub": "Data Layer",
+  "desc": "Libraries for building AI applications, LLM integrations, and autonomous agents.",
+  "gold": [
+   "567-labs/instructor",
+   "run-llama/llama_index",
+   "mem0ai/mem0",
+   "volcengine/openviking",
+   "semantica-agi/semantica"
+  ],
+  "id": "AI and Agents / Data Layer",
+  "q0": "data layer ai and agents",
+  "batch": 1
+ },
+ {
+  "section": "AI and Agents",
+  "sub": "Fine-tuning",
+  "desc": "Libraries for building AI applications, LLM integrations, and autonomous agents.",
+  "gold": [
+   "huggingface/peft",
+   "huggingface/trl",
+   "unslothai/unsloth",
+   "axolotl-ai-cloud/axolotl"
+  ],
+  "id": "AI and Agents / Fine-tuning",
+  "q0": "fine-tuning ai and agents",
+  "batch": 1
+ },
+ {
+  "section": "AI and Agents",
+  "sub": "LLM Inference and Serving",
+  "desc": "Libraries for building AI applications, LLM integrations, and autonomous agents.",
+  "gold": [
+   "sgl-project/sglang",
+   "vllm-project/vllm",
+   "ml-explore/mlx-lm"
+  ],
+  "id": "AI and Agents / LLM Inference and Serving",
+  "q0": "llm inference and serving ai and agents",
+  "batch": 2
+ },
+ {
+  "section": "AI and Agents",
+  "sub": "Model Context Protocol",
+  "desc": "Libraries for building AI applications, LLM integrations, and autonomous agents.",
+  "gold": [
+   "modelcontextprotocol/python-sdk",
+   "prefecthq/fastmcp"
+  ],
+  "id": "AI and Agents / Model Context Protocol",
+  "q0": "model context protocol ai and agents",
+  "batch": 2
+ },
+ {
+  "section": "AI and Agents",
+  "sub": "Orchestration",
+  "desc": "Libraries for building AI applications, LLM integrations, and autonomous agents.",
+  "gold": [
+   "langchain-ai/langchain",
+   "langchain-ai/langgraph",
+   "pydantic/pydantic-ai",
+   "crewaiinc/crewai"
+  ],
+  "id": "AI and Agents / Orchestration",
+  "q0": "orchestration ai and agents",
+  "batch": 2
+ },
+ {
+  "section": "AI and Agents",
+  "sub": "Personal Assistants",
+  "desc": "Libraries for building AI applications, LLM integrations, and autonomous agents.",
+  "gold": [
+   "nousresearch/hermes-agent",
+   "astrbotdevs/astrbot"
+  ],
+  "id": "AI and Agents / Personal Assistants",
+  "q0": "personal assistants ai and agents",
+  "batch": 2
+ },
+ {
+  "section": "AI and Agents",
+  "sub": "Speech",
+  "desc": "Libraries for building AI applications, LLM integrations, and autonomous agents.",
+  "gold": [
+   "systran/faster-whisper",
+   "openai/whisper",
+   "pndurette/gtts",
+   "modelscope/funasr"
+  ],
+  "id": "AI and Agents / Speech",
+  "q0": "speech ai and agents",
+  "batch": 1
+ },
+ {
+  "section": "AI and Agents",
+  "sub": "Vendor Agent SDKs",
+  "desc": "Libraries for building AI applications, LLM integrations, and autonomous agents.",
+  "gold": [
+   "anthropics/claude-agent-sdk-python",
+   "openai/openai-agents-python",
+   "google/adk-python"
+  ],
+  "id": "AI and Agents / Vendor Agent SDKs",
+  "q0": "vendor agent sdks ai and agents",
+  "batch": 2
+ },
+ {
+  "section": "Admin Panels",
+  "sub": null,
+  "desc": "Libraries for administrative interfaces.",
+  "gold": [
+   "pallets-eco/flask-admin",
+   "unfoldadmin/django-unfold",
+   "smithyhq/sqladmin",
+   "sehmaschine/django-grappelli"
+  ],
+  "id": "Admin Panels",
+  "q0": "admin panels",
+  "batch": 2
+ },
+ {
+  "section": "Algorithms and Design Patterns",
+  "sub": "Algorithms",
+  "desc": "Python implementation of data structures, algorithms and design patterns. Also see awesome-algorithms.",
+  "gold": [
+   "grantjenks/python-sortedcontainers",
+   "keon/algorithms",
+   "thealgorithms/python"
+  ],
+  "id": "Algorithms and Design Patterns / Algorithms",
+  "q0": "algorithms algorithms and design patterns",
+  "batch": 2
+ },
+ {
+  "section": "Audio & Video Processing",
+  "sub": "Audio",
+  "desc": "Libraries for manipulating audio, video, and their metadata.",
+  "gold": [
+   "bastibe/python-soundfile",
+   "librosa/librosa",
+   "jiaaro/pydub"
+  ],
+  "id": "Audio & Video Processing / Audio",
+  "q0": "audio audio & video processing",
+  "batch": 2
+ },
+ {
+  "section": "Audio & Video Processing",
+  "sub": "Metadata",
+  "desc": "Libraries for manipulating audio, video, and their metadata.",
+  "gold": [
+   "quodlibet/mutagen",
+   "tinytag/tinytag",
+   "beetbox/beets"
+  ],
+  "id": "Audio & Video Processing / Metadata",
+  "q0": "metadata audio & video processing",
+  "batch": 1
+ },
+ {
+  "section": "Audio & Video Processing",
+  "sub": "Video",
+  "desc": "Libraries for manipulating audio, video, and their metadata.",
+  "gold": [
+   "pyav-org/pyav",
+   "zulko/moviepy"
+  ],
+  "id": "Audio & Video Processing / Video",
+  "q0": "video audio & video processing",
+  "batch": 1
+ },
+ {
+  "section": "Authentication",
+  "sub": "JWT",
+  "desc": "Libraries for implementing authentication schemes.",
+  "gold": [
+   "jpadilla/pyjwt"
+  ],
+  "id": "Authentication / JWT",
+  "q0": "jwt authentication",
+  "batch": 1
+ },
+ {
+  "section": "Authentication",
+  "sub": "OAuth",
+  "desc": "Libraries for implementing authentication schemes.",
+  "gold": [
+   "oauthlib/oauthlib",
+   "authlib/authlib",
+   "pennersr/django-allauth",
+   "django-oauth/django-oauth-toolkit"
+  ],
+  "id": "Authentication / OAuth",
+  "q0": "oauth authentication",
+  "batch": 1
+ },
+ {
+  "section": "Build Tools",
+  "sub": null,
+  "desc": "Task runners and software build tools. If you're looking for Python packaging/build tools, see Package Management.",
+  "gold": [
+   "pyinvoke/invoke",
+   "nat-n/poethepoet",
+   "scons/scons",
+   "pydoit/doit"
+  ],
+  "id": "Build Tools",
+  "q0": "build tools",
+  "batch": 2
+ },
+ {
+  "section": "Built-in Classes Enhancement",
+  "sub": null,
+  "desc": "Libraries for enhancing Python built-in classes.",
+  "gold": [
+   "python-attrs/attrs",
+   "jab/bidict",
+   "aminalaee/uuid-utils",
+   "cdgriffith/box"
+  ],
+  "id": "Built-in Classes Enhancement",
+  "q0": "built-in classes enhancement",
+  "batch": 1
+ },
+ {
+  "section": "CLI Development",
+  "sub": "Terminal Rendering",
+  "desc": "Libraries for building command-line applications.",
+  "gold": [
+   "textualize/rich",
+   "tqdm/tqdm",
+   "tartley/colorama",
+   "rsalmei/alive-progress"
+  ],
+  "id": "CLI Development / Terminal Rendering",
+  "q0": "terminal rendering cli development",
+  "batch": 1
+ },
+ {
+  "section": "CLI Tools",
+  "sub": "Database CLIs",
+  "desc": "Useful CLI-based tools.",
+  "gold": [
+   "dbcli/pgcli",
+   "dbcli/mycli",
+   "dbcli/litecli",
+   "laixintao/iredis"
+  ],
+  "id": "CLI Tools / Database CLIs",
+  "q0": "database clis cli tools",
+  "batch": 1
+ },
+ {
+  "section": "CLI Tools",
+  "sub": "Downloaders",
+  "desc": "Useful CLI-based tools.",
+  "gold": [
+   "yt-dlp/yt-dlp"
+  ],
+  "id": "CLI Tools / Downloaders",
+  "q0": "downloaders cli tools",
+  "batch": 2
+ },
+ {
+  "section": "CLI Tools",
+  "sub": "Project Scaffolding",
+  "desc": "Useful CLI-based tools.",
+  "gold": [
+   "cookiecutter/cookiecutter",
+   "copier-org/copier"
+  ],
+  "id": "CLI Tools / Project Scaffolding",
+  "q0": "project scaffolding cli tools",
+  "batch": 2
+ },
+ {
+  "section": "CLI Tools",
+  "sub": "Shells",
+  "desc": "Useful CLI-based tools.",
+  "gold": [
+   "xonsh/xonsh"
+  ],
+  "id": "CLI Tools / Shells",
+  "q0": "shells cli tools",
+  "batch": 1
+ },
+ {
+  "section": "CMS",
+  "sub": null,
+  "desc": "Content Management Systems.",
+  "gold": [
+   "wagtail/wagtail",
+   "django-cms/django-cms"
+  ],
+  "id": "CMS",
+  "q0": "cms",
+  "batch": 1
+ },
+ {
+  "section": "Caching",
+  "sub": null,
+  "desc": "Libraries for caching data.",
+  "gold": [
+   "tkem/cachetools",
+   "grantjenks/python-diskcache",
+   "karpetrosyan/hishel",
+   "suor/django-cacheops",
+   "sqlalchemy/dogpile.cache"
+  ],
+  "id": "Caching",
+  "q0": "caching",
+  "batch": 1
+ },
+ {
+  "section": "Code Analysis",
+  "sub": "Git Hooks",
+  "desc": "Tools of static analysis, linters and code quality checkers. Also see awesome-static-analysis.",
+  "gold": [
+   "pre-commit/pre-commit"
+  ],
+  "id": "Code Analysis / Git Hooks",
+  "q0": "git hooks code analysis",
+  "batch": 2
+ },
+ {
+  "section": "Code Analysis",
+  "sub": "Linters and Formatters",
+  "desc": "Tools of static analysis, linters and code quality checkers. Also see awesome-static-analysis.",
+  "gold": [
+   "astral-sh/ruff",
+   "psf/black",
+   "pycqa/isort",
+   "pylint-dev/pylint",
+   "pycqa/flake8",
+   "dmytrolitvinov/awesome-flake8-extensions",
+   "pycqa/bandit"
+  ],
+  "id": "Code Analysis / Linters and Formatters",
+  "q0": "linters and formatters code analysis",
+  "batch": 2
+ },
+ {
+  "section": "Code Analysis",
+  "sub": "Refactoring",
+  "desc": "Tools of static analysis, linters and code quality checkers. Also see awesome-static-analysis.",
+  "gold": [
+   "python-rope/rope"
+  ],
+  "id": "Code Analysis / Refactoring",
+  "q0": "refactoring code analysis",
+  "batch": 1
+ },
+ {
+  "section": "Code Analysis",
+  "sub": "Type Checkers",
+  "desc": "Tools of static analysis, linters and code quality checkers. Also see awesome-static-analysis.",
+  "gold": [
+   "python/mypy",
+   "astral-sh/ty",
+   "microsoft/pyright",
+   "facebook/pyrefly"
+  ],
+  "id": "Code Analysis / Type Checkers",
+  "q0": "type checkers code analysis",
+  "batch": 2
+ },
+ {
+  "section": "Computer Vision",
+  "sub": "OCR",
+  "desc": "Libraries for image and video analysis, object detection, and OCR.",
+  "gold": [
+   "madmaze/pytesseract",
+   "jaidedai/easyocr",
+   "paddlepaddle/paddleocr"
+  ],
+  "id": "Computer Vision / OCR",
+  "q0": "ocr computer vision",
+  "batch": 1
+ },
+ {
+  "section": "Configuration Files",
+  "sub": null,
+  "desc": "Libraries for storing and parsing configuration options.",
+  "gold": [
+   "theskumar/python-dotenv",
+   "pydantic/pydantic-settings",
+   "hydra-ecosystem/hydra",
+   "dynaconf/dynaconf"
+  ],
+  "id": "Configuration Files",
+  "q0": "configuration files",
+  "batch": 2
+ },
+ {
+  "section": "Cryptography",
+  "sub": null,
+  "desc": "Libraries for cryptographic primitives and secure protocols.",
+  "gold": [
+   "pyca/cryptography",
+   "pyca/pynacl",
+   "paramiko/paramiko",
+   "pallets/itsdangerous"
+  ],
+  "id": "Cryptography",
+  "q0": "cryptography",
+  "batch": 1
+ },
+ {
+  "section": "Data Analysis",
+  "sub": null,
+  "desc": "Libraries for data analysis.",
+  "gold": [
+   "pandas-dev/pandas",
+   "pola-rs/polars",
+   "ibis-project/ibis"
+  ],
+  "id": "Data Analysis",
+  "q0": "data analysis",
+  "batch": 2
+ },
+ {
+  "section": "Data Validation",
+  "sub": null,
+  "desc": "Libraries for validating data.",
+  "gold": [
+   "pydantic/pydantic",
+   "python-jsonschema/jsonschema",
+   "fivetran/great_expectations",
+   "unionai-oss/pandera"
+  ],
+  "id": "Data Validation",
+  "q0": "data validation",
+  "batch": 1
+ },
+ {
+  "section": "Data Visualization",
+  "sub": "Dashboards and Apps",
+  "desc": "Libraries for visualizing data. Also see awesome-javascript.",
+  "gold": [
+   "streamlit/streamlit",
+   "plotly/dash",
+   "gradio-app/gradio"
+  ],
+  "id": "Data Visualization / Dashboards and Apps",
+  "q0": "dashboards and apps data visualization",
+  "batch": 2
+ },
+ {
+  "section": "Data Visualization",
+  "sub": "Plotting",
+  "desc": "Libraries for visualizing data. Also see awesome-javascript.",
+  "gold": [
+   "matplotlib/matplotlib",
+   "plotly/plotly.py",
+   "mwaskom/seaborn",
+   "vega/altair",
+   "bokeh/bokeh"
+  ],
+  "id": "Data Visualization / Plotting",
+  "q0": "plotting data visualization",
+  "batch": 2
+ },
+ {
+  "section": "Data Visualization",
+  "sub": "Specialized",
+  "desc": "Libraries for visualizing data. Also see awesome-javascript.",
+  "gold": [
+   "xflr6/graphviz",
+   "scitools/cartopy",
+   "graphify-labs/graphify"
+  ],
+  "id": "Data Visualization / Specialized",
+  "q0": "specialized data visualization",
+  "batch": 2
+ },
+ {
+  "section": "Database",
+  "sub": "Analytical",
+  "desc": "In-process databases usable directly from Python.",
+  "gold": [
+   "duckdb/duckdb",
+   "chdb-io/chdb"
+  ],
+  "id": "Database / Analytical",
+  "q0": "analytical database",
+  "batch": 2
+ },
+ {
+  "section": "Database",
+  "sub": "Key-Value & Document",
+  "desc": "In-process databases usable directly from Python.",
+  "gold": [
+   "msiemens/tinydb"
+  ],
+  "id": "Database / Key-Value & Document",
+  "q0": "key-value & document database",
+  "batch": 1
+ },
+ {
+  "section": "Database Drivers",
+  "sub": "ClickHouse",
+  "desc": "Libraries for connecting and operating databases.",
+  "gold": [
+   "clickhouse/clickhouse-connect",
+   "mymarilyn/clickhouse-driver"
+  ],
+  "id": "Database Drivers / ClickHouse",
+  "q0": "clickhouse database drivers",
+  "batch": 1
+ },
+ {
+  "section": "Database Drivers",
+  "sub": "MySQL",
+  "desc": "Libraries for connecting and operating databases.",
+  "gold": [
+   "pymysql/pymysql",
+   "pymysql/mysqlclient"
+  ],
+  "id": "Database Drivers / MySQL",
+  "q0": "mysql database drivers",
+  "batch": 1
+ },
+ {
+  "section": "Database Drivers",
+  "sub": "NoSQL Databases",
+  "desc": "Libraries for connecting and operating databases.",
+  "gold": [
+   "redis/redis-py",
+   "mongodb/mongo-python-driver",
+   "apache/cassandra-python-driver"
+  ],
+  "id": "Database Drivers / NoSQL Databases",
+  "q0": "nosql databases database drivers",
+  "batch": 2
+ },
+ {
+  "section": "Database Drivers",
+  "sub": "Other Relational Databases",
+  "desc": "Libraries for connecting and operating databases.",
+  "gold": [
+   "mkleehammer/pyodbc",
+   "oracle/python-oracledb",
+   "microsoft/mssql-python"
+  ],
+  "id": "Database Drivers / Other Relational Databases",
+  "q0": "other relational databases database drivers",
+  "batch": 1
+ },
+ {
+  "section": "Database Drivers",
+  "sub": "PostgreSQL",
+  "desc": "Libraries for connecting and operating databases.",
+  "gold": [
+   "psycopg/psycopg",
+   "magicstack/asyncpg"
+  ],
+  "id": "Database Drivers / PostgreSQL",
+  "q0": "postgresql database drivers",
+  "batch": 2
+ },
+ {
+  "section": "Database Drivers",
+  "sub": "SQLite",
+  "desc": "Libraries for connecting and operating databases.",
+  "gold": [
+   "simonw/sqlite-utils"
+  ],
+  "id": "Database Drivers / SQLite",
+  "q0": "sqlite database drivers",
+  "batch": 2
+ },
+ {
+  "section": "Date and Time",
+  "sub": null,
+  "desc": "Libraries for working with dates and times.",
+  "gold": [
+   "dateutil/dateutil",
+   "scrapinghub/dateparser",
+   "python-pendulum/pendulum",
+   "ariebovenberg/whenever"
+  ],
+  "id": "Date and Time",
+  "q0": "date and time",
+  "batch": 1
+ },
+ {
+  "section": "Debugging Tools",
+  "sub": "Tracing",
+  "desc": "Libraries for debugging code.",
+  "gold": [
+   "gaogaotiantian/viztracer"
+  ],
+  "id": "Debugging Tools / Tracing",
+  "q0": "tracing debugging tools",
+  "batch": 1
+ },
+ {
+  "section": "Debugging Tools",
+  "sub": "pdb-like Debugger",
+  "desc": "Libraries for debugging code.",
+  "gold": [
+   "gotcha/ipdb",
+   "inducer/pudb"
+  ],
+  "id": "Debugging Tools / pdb-like Debugger",
+  "q0": "pdb-like debugger debugging tools",
+  "batch": 1
+ },
+ {
+  "section": "Deep Learning",
+  "sub": "Frameworks",
+  "desc": "Frameworks for Neural Networks and Deep Learning. Also see awesome-deep-learning.",
+  "gold": [
+   "pytorch/pytorch",
+   "lightning-ai/pytorch-lightning",
+   "jax-ml/jax",
+   "keras-team/keras",
+   "tensorflow/tensorflow"
+  ],
+  "id": "Deep Learning / Frameworks",
+  "q0": "frameworks deep learning",
+  "batch": 2
+ },
+ {
+  "section": "Deep Learning",
+  "sub": "Reinforcement Learning",
+  "desc": "Frameworks for Neural Networks and Deep Learning. Also see awesome-deep-learning.",
+  "gold": [
+   "farama-foundation/gymnasium",
+   "dlr-rm/stable-baselines3"
+  ],
+  "id": "Deep Learning / Reinforcement Learning",
+  "q0": "reinforcement learning deep learning",
+  "batch": 1
+ },
+ {
+  "section": "DevOps Tools",
+  "sub": "Cloud Providers",
+  "desc": "Software and libraries for DevOps.",
+  "gold": [
+   "boto/boto3",
+   "aws/aws-cli",
+   "azure/azure-sdk-for-python",
+   "googleapis/google-cloud-python"
+  ],
+  "id": "DevOps Tools / Cloud Providers",
+  "q0": "cloud providers devops tools",
+  "batch": 2
+ },
+ {
+  "section": "DevOps Tools",
+  "sub": "Configuration Management",
+  "desc": "Software and libraries for DevOps.",
+  "gold": [
+   "ansible/ansible",
+   "canonical/cloud-init",
+   "pyinfra-dev/pyinfra",
+   "saltstack/salt"
+  ],
+  "id": "DevOps Tools / Configuration Management",
+  "q0": "configuration management devops tools",
+  "batch": 1
+ },
+ {
+  "section": "Distributed Computing",
+  "sub": null,
+  "desc": "Frameworks and libraries for Distributed Computing.",
+  "gold": [
+   "apache/spark",
+   "dask/dask",
+   "ray-project/ray",
+   "joblib/joblib",
+   "mpi4py/mpi4py"
+  ],
+  "id": "Distributed Computing",
+  "q0": "distributed computing",
+  "batch": 2
+ },
+ {
+  "section": "Distribution",
+  "sub": "Executables",
+  "desc": "Libraries to create packaged executables for release distribution.",
+  "gold": [
+   "pyinstaller/pyinstaller",
+   "nuitka/nuitka",
+   "pex-tool/pex",
+   "marcelotduarte/cx_freeze"
+  ],
+  "id": "Distribution / Executables",
+  "q0": "executables distribution",
+  "batch": 2
+ },
+ {
+  "section": "Distribution",
+  "sub": "Obfuscation",
+  "desc": "Libraries to create packaged executables for release distribution.",
+  "gold": [
+   "dashingsoft/pyarmor"
+  ],
+  "id": "Distribution / Obfuscation",
+  "q0": "obfuscation distribution",
+  "batch": 2
+ },
+ {
+  "section": "ERP",
+  "sub": null,
+  "desc": "Enterprise resource planning frameworks.",
+  "gold": [
+   "odoo/odoo"
+  ],
+  "id": "ERP",
+  "q0": "erp",
+  "batch": 1
+ },
+ {
+  "section": "Email",
+  "sub": null,
+  "desc": "Libraries for sending email.",
+  "gold": [
+   "cole/aiosmtplib",
+   "anymail/django-anymail",
+   "kootenpv/yagmail"
+  ],
+  "id": "Email",
+  "q0": "email",
+  "batch": 2
+ },
+ {
+  "section": "Environment Management",
+  "sub": null,
+  "desc": "Libraries for Python version and virtual environment management.",
+  "gold": [
+   "pypa/virtualenv",
+   "astral-sh/uv",
+   "pyenv/pyenv"
+  ],
+  "id": "Environment Management",
+  "q0": "environment management",
+  "batch": 1
+ },
+ {
+  "section": "File Format Processing",
+  "sub": "Data Formats",
+  "desc": "Libraries for parsing and manipulating specific file formats.",
+  "gold": [
+   "yaml/pyyaml"
+  ],
+  "id": "File Format Processing / Data Formats",
+  "q0": "data formats file format processing",
+  "batch": 1
+ },
+ {
+  "section": "File Format Processing",
+  "sub": "File Conversion",
+  "desc": "Libraries for parsing and manipulating specific file formats.",
+  "gold": [
+   "microsoft/markitdown",
+   "docling-project/docling"
+  ],
+  "id": "File Format Processing / File Conversion",
+  "q0": "file conversion file format processing",
+  "batch": 2
+ },
+ {
+  "section": "File Format Processing",
+  "sub": "Markdown",
+  "desc": "Libraries for parsing and manipulating specific file formats.",
+  "gold": [
+   "executablebooks/markdown-it-py",
+   "python-markdown/markdown",
+   "lepture/mistune"
+  ],
+  "id": "File Format Processing / Markdown",
+  "q0": "markdown file format processing",
+  "batch": 1
+ },
+ {
+  "section": "File Format Processing",
+  "sub": "PowerPoint",
+  "desc": "Libraries for parsing and manipulating specific file formats.",
+  "gold": [
+   "scanny/python-pptx"
+  ],
+  "id": "File Format Processing / PowerPoint",
+  "q0": "powerpoint file format processing",
+  "batch": 2
+ },
+ {
+  "section": "File Format Processing",
+  "sub": "Word",
+  "desc": "Libraries for parsing and manipulating specific file formats.",
+  "gold": [
+   "python-openxml/python-docx"
+  ],
+  "id": "File Format Processing / Word",
+  "q0": "word file format processing",
+  "batch": 2
+ },
+ {
+  "section": "File Manipulation",
+  "sub": null,
+  "desc": "Libraries for file manipulation.",
+  "gold": [
+   "samuelcolvin/watchfiles",
+   "gorakhargosh/watchdog",
+   "ahupp/python-magic"
+  ],
+  "id": "File Manipulation",
+  "q0": "file manipulation",
+  "batch": 1
+ },
+ {
+  "section": "Functional Programming",
+  "sub": null,
+  "desc": "Functional Programming with Python.",
+  "gold": [
+   "more-itertools/more-itertools",
+   "pytoolz/toolz",
+   "suor/funcy",
+   "dry-python/returns"
+  ],
+  "id": "Functional Programming",
+  "q0": "functional programming",
+  "batch": 1
+ },
+ {
+  "section": "GUI Development",
+  "sub": "Desktop",
+  "desc": "Libraries for working with graphical user interface applications.",
+  "gold": [
+   "gnome/pygobject",
+   "hoffstadt/dearpygui",
+   "kivy/kivy",
+   "wxwidgets/phoenix",
+   "beeware/toga"
+  ],
+  "id": "GUI Development / Desktop",
+  "q0": "desktop gui development",
+  "batch": 1
+ },
+ {
+  "section": "GUI Development",
+  "sub": "Qt",
+  "desc": "Libraries for working with graphical user interface applications.",
+  "gold": [
+   "pyside/pyside-setup"
+  ],
+  "id": "GUI Development / Qt",
+  "q0": "qt gui development",
+  "batch": 2
+ },
+ {
+  "section": "GUI Development",
+  "sub": "Tkinter",
+  "desc": "Libraries for working with graphical user interface applications.",
+  "gold": [
+   "tomschimansky/customtkinter"
+  ],
+  "id": "GUI Development / Tkinter",
+  "q0": "tkinter gui development",
+  "batch": 2
+ },
+ {
+  "section": "GUI Development",
+  "sub": "Web-based",
+  "desc": "Libraries for working with graphical user interface applications.",
+  "gold": [
+   "r0x0r/pywebview",
+   "zauberzeug/nicegui",
+   "flet-dev/flet"
+  ],
+  "id": "GUI Development / Web-based",
+  "q0": "web-based gui development",
+  "batch": 2
+ },
+ {
+  "section": "Game Development",
+  "sub": "3D Engines",
+  "desc": "Awesome game development libraries.",
+  "gold": [
+   "panda3d/panda3d"
+  ],
+  "id": "Game Development / 3D Engines",
+  "q0": "3d engines game development",
+  "batch": 2
+ },
+ {
+  "section": "Game Development",
+  "sub": "Visual Novels",
+  "desc": "Awesome game development libraries.",
+  "gold": [
+   "renpy/renpy"
+  ],
+  "id": "Game Development / Visual Novels",
+  "q0": "visual novels game development",
+  "batch": 1
+ },
+ {
+  "section": "HTML Manipulation",
+  "sub": null,
+  "desc": "Libraries for working with HTML and XML.",
+  "gold": [
+   "lxml/lxml",
+   "martinblech/xmltodict",
+   "pallets/markupsafe",
+   "emilstenstrom/justhtml"
+  ],
+  "id": "HTML Manipulation",
+  "q0": "html manipulation",
+  "batch": 1
+ },
+ {
+  "section": "HTTP Clients",
+  "sub": "URL Manipulation",
+  "desc": "Libraries for working with HTTP.",
+  "gold": [
+   "aio-libs/yarl"
+  ],
+  "id": "HTTP Clients / URL Manipulation",
+  "q0": "url manipulation http clients",
+  "batch": 1
+ },
+ {
+  "section": "Hardware",
+  "sub": null,
+  "desc": "Libraries for programming with hardware.",
+  "gold": [
+   "pyserial/pyserial",
+   "moses-palmer/pynput",
+   "hbldh/bleak",
+   "jumpstarter-dev/jumpstarter"
+  ],
+  "id": "Hardware",
+  "q0": "hardware",
+  "batch": 2
+ },
+ {
+  "section": "Image Processing",
+  "sub": "Barcodes and QR Codes",
+  "desc": "Libraries for manipulating images.",
+  "gold": [
+   "lincolnloop/python-qrcode",
+   "whynothugo/python-barcode"
+  ],
+  "id": "Image Processing / Barcodes and QR Codes",
+  "q0": "barcodes and qr codes image processing",
+  "batch": 1
+ },
+ {
+  "section": "Image Processing",
+  "sub": "Image Serving",
+  "desc": "Libraries for manipulating images.",
+  "gold": [
+   "thumbor/thumbor"
+  ],
+  "id": "Image Processing / Image Serving",
+  "q0": "image serving image processing",
+  "batch": 1
+ },
+ {
+  "section": "Implementations",
+  "sub": null,
+  "desc": "Implementations of Python.",
+  "gold": [
+   "python/cpython",
+   "micropython/micropython",
+   "pypy/pypy",
+   "cython/cython",
+   "pyodide/pyodide"
+  ],
+  "id": "Implementations",
+  "q0": "implementations",
+  "batch": 1
+ },
+ {
+  "section": "Interactive Interpreter",
+  "sub": null,
+  "desc": "Interactive Python interpreters (REPL).",
+  "gold": [
+   "ipython/ipython",
+   "jupyter/notebook",
+   "markusschanta/awesome-jupyter",
+   "marimo-team/marimo",
+   "prompt-toolkit/ptpython"
+  ],
+  "id": "Interactive Interpreter",
+  "q0": "interactive interpreter",
+  "batch": 2
+ },
+ {
+  "section": "Job Schedulers",
+  "sub": "Task Scheduling",
+  "desc": "Libraries for scheduling jobs.",
+  "gold": [
+   "agronholm/apscheduler",
+   "dbader/schedule"
+  ],
+  "id": "Job Schedulers / Task Scheduling",
+  "q0": "task scheduling job schedulers",
+  "batch": 2
+ },
+ {
+  "section": "Job Schedulers",
+  "sub": "Workflow Orchestration",
+  "desc": "Libraries for scheduling jobs.",
+  "gold": [
+   "temporalio/sdk-python",
+   "dagster-io/dagster",
+   "apache/airflow",
+   "prefecthq/prefect"
+  ],
+  "id": "Job Schedulers / Workflow Orchestration",
+  "q0": "workflow orchestration job schedulers",
+  "batch": 2
+ },
+ {
+  "section": "Logging",
+  "sub": null,
+  "desc": "Libraries for generating and working with logs.",
+  "gold": [
+   "hynek/structlog",
+   "delgan/loguru",
+   "pydantic/logfire"
+  ],
+  "id": "Logging",
+  "q0": "logging",
+  "batch": 1
+ },
+ {
+  "section": "Machine Learning",
+  "sub": "Gradient Boosting",
+  "desc": "Libraries for Machine Learning. Also see awesome-machine-learning.",
+  "gold": [
+   "dmlc/xgboost",
+   "lightgbm-org/lightgbm",
+   "catboost/catboost"
+  ],
+  "id": "Machine Learning / Gradient Boosting",
+  "q0": "gradient boosting machine learning",
+  "batch": 1
+ },
+ {
+  "section": "Machine Learning",
+  "sub": "Time Series Forecasting",
+  "desc": "Libraries for Machine Learning. Also see awesome-machine-learning.",
+  "gold": [
+   "facebook/prophet",
+   "nixtla/statsforecast",
+   "sktime/sktime",
+   "google-research/timesfm"
+  ],
+  "id": "Machine Learning / Time Series Forecasting",
+  "q0": "time series forecasting machine learning",
+  "batch": 2
+ },
+ {
+  "section": "Microsoft Windows",
+  "sub": null,
+  "desc": "Python programming on Microsoft Windows.",
+  "gold": [
+   "mhammond/pywin32",
+   "pythonnet/pythonnet",
+   "pyenv-win/pyenv-win",
+   "winpython/winpython"
+  ],
+  "id": "Microsoft Windows",
+  "q0": "microsoft windows",
+  "batch": 1
+ },
+ {
+  "section": "Natural Language Processing",
+  "sub": "Chinese",
+  "desc": "Libraries for working with human languages.",
+  "gold": [
+   "fxsjy/jieba",
+   "mozillazg/python-pinyin",
+   "vinta/pangu.py"
+  ],
+  "id": "Natural Language Processing / Chinese",
+  "q0": "chinese natural language processing",
+  "batch": 2
+ },
+ {
+  "section": "ORM",
+  "sub": "NoSQL Databases",
+  "desc": "Libraries that implement Object-Relational Mapping or data mapping techniques.",
+  "gold": [
+   "pynamodb/pynamodb",
+   "mongoengine/mongoengine",
+   "beanieodm/beanie",
+   "mongodb/django-mongodb-backend"
+  ],
+  "id": "ORM / NoSQL Databases",
+  "q0": "nosql databases orm",
+  "batch": 1
+ },
+ {
+  "section": "Package Management",
+  "sub": "Build Backends",
+  "desc": "Libraries for package and dependency management.",
+  "gold": [
+   "pypa/setuptools",
+   "pypa/hatch",
+   "python-poetry/poetry-core",
+   "astral-sh/uv"
+  ],
+  "id": "Package Management / Build Backends",
+  "q0": "build backends package management",
+  "batch": 2
+ },
+ {
+  "section": "Package Management",
+  "sub": "Package Managers",
+  "desc": "Libraries for package and dependency management.",
+  "gold": [
+   "pypa/pip",
+   "astral-sh/uv",
+   "python-poetry/poetry",
+   "pypa/hatch",
+   "pypa/pipx",
+   "conda/conda"
+  ],
+  "id": "Package Management / Package Managers",
+  "q0": "package managers package management",
+  "batch": 1
+ },
+ {
+  "section": "Package Repositories",
+  "sub": null,
+  "desc": "Local PyPI repository servers, proxies, and mirrors.",
+  "gold": [
+   "pypiserver/pypiserver",
+   "devpi/devpi",
+   "pypa/bandersnatch"
+  ],
+  "id": "Package Repositories",
+  "q0": "package repositories",
+  "batch": 1
+ },
+ {
+  "section": "Quantum Computing",
+  "sub": null,
+  "desc": "Libraries for quantum computing.",
+  "gold": [
+   "qiskit/qiskit",
+   "qutip/qutip",
+   "pennylaneai/pennylane",
+   "quantumlib/cirq"
+  ],
+  "id": "Quantum Computing",
+  "q0": "quantum computing",
+  "batch": 2
+ },
+ {
+  "section": "Science",
+  "sub": "Biology and Chemistry",
+  "desc": "Libraries for scientific computing. Also see Python-for-Scientists.",
+  "gold": [
+   "rdkit/rdkit",
+   "biopython/biopython"
+  ],
+  "id": "Science / Biology and Chemistry",
+  "q0": "biology and chemistry science",
+  "batch": 2
+ },
+ {
+  "section": "Science",
+  "sub": "Core",
+  "desc": "Libraries for scientific computing. Also see Python-for-Scientists.",
+  "gold": [
+   "numpy/numpy",
+   "scipy/scipy",
+   "numba/numba"
+  ],
+  "id": "Science / Core",
+  "q0": "core science",
+  "batch": 1
+ },
+ {
+  "section": "Science",
+  "sub": "Graphs and Networks",
+  "desc": "Libraries for scientific computing. Also see Python-for-Scientists.",
+  "gold": [
+   "networkx/networkx"
+  ],
+  "id": "Science / Graphs and Networks",
+  "q0": "graphs and networks science",
+  "batch": 2
+ },
+ {
+  "section": "Science",
+  "sub": "Physics and Engineering",
+  "desc": "Libraries for scientific computing. Also see Python-for-Scientists.",
+  "gold": [
+   "hgrecco/pint",
+   "astropy/astropy",
+   "obspy/obspy"
+  ],
+  "id": "Science / Physics and Engineering",
+  "q0": "physics and engineering science",
+  "batch": 1
+ },
+ {
+  "section": "Science",
+  "sub": "Simulation and Modeling",
+  "desc": "Libraries for scientific computing. Also see Python-for-Scientists.",
+  "gold": [
+   "pymc-devs/pymc",
+   "mesa/mesa"
+  ],
+  "id": "Science / Simulation and Modeling",
+  "q0": "simulation and modeling science",
+  "batch": 1
+ },
+ {
+  "section": "Science",
+  "sub": "Statistics",
+  "desc": "Libraries for scientific computing. Also see Python-for-Scientists.",
+  "gold": [
+   "statsmodels/statsmodels"
+  ],
+  "id": "Science / Statistics",
+  "q0": "statistics science",
+  "batch": 1
+ },
+ {
+  "section": "Science",
+  "sub": "Symbolic Mathematics",
+  "desc": "Libraries for scientific computing. Also see Python-for-Scientists.",
+  "gold": [
+   "sympy/sympy"
+  ],
+  "id": "Science / Symbolic Mathematics",
+  "q0": "symbolic mathematics science",
+  "batch": 2
+ },
+ {
+  "section": "Static Site Generators",
+  "sub": null,
+  "desc": "Static site generator is a software that takes some text + templates as input and produces HTML files on the output.",
+  "gold": [
+   "getpelican/pelican",
+   "getnikola/nikola"
+  ],
+  "id": "Static Site Generators",
+  "q0": "static site generators",
+  "batch": 2
+ },
+ {
+  "section": "Task Queues",
+  "sub": null,
+  "desc": "Libraries for working with task queues.",
+  "gold": [
+   "celery/celery",
+   "rq/rq",
+   "bogdanp/dramatiq",
+   "coleifer/huey",
+   "taskiq-python/taskiq"
+  ],
+  "id": "Task Queues",
+  "q0": "task queues",
+  "batch": 1
+ },
+ {
+  "section": "Template Engines",
+  "sub": null,
+  "desc": "Libraries for rendering text and HTML from templates.",
+  "gold": [
+   "pallets/jinja",
+   "sqlalchemy/mako"
+  ],
+  "id": "Template Engines",
+  "q0": "template engines",
+  "batch": 2
+ },
+ {
+  "section": "Testing",
+  "sub": "Code Coverage",
+  "desc": "Libraries for testing codebases and generating test data. Also see awesome-python-testing.",
+  "gold": [
+   "coveragepy/coveragepy"
+  ],
+  "id": "Testing / Code Coverage",
+  "q0": "code coverage testing",
+  "batch": 2
+ },
+ {
+  "section": "Testing",
+  "sub": "Fake Data",
+  "desc": "Libraries for testing codebases and generating test data. Also see awesome-python-testing.",
+  "gold": [
+   "joke2k/faker",
+   "lk-geimfari/mimesis"
+  ],
+  "id": "Testing / Fake Data",
+  "q0": "fake data testing",
+  "batch": 2
+ },
+ {
+  "section": "Testing",
+  "sub": "Frameworks",
+  "desc": "Libraries for testing codebases and generating test data. Also see awesome-python-testing.",
+  "gold": [
+   "pytest-dev/pytest",
+   "augustogoulart/awesome-pytest",
+   "hypothesisworks/hypothesis",
+   "robotframework/robotframework"
+  ],
+  "id": "Testing / Frameworks",
+  "q0": "frameworks testing",
+  "batch": 2
+ },
+ {
+  "section": "Testing",
+  "sub": "Load Testing",
+  "desc": "Libraries for testing codebases and generating test data. Also see awesome-python-testing.",
+  "gold": [
+   "locustio/locust"
+  ],
+  "id": "Testing / Load Testing",
+  "q0": "load testing testing",
+  "batch": 1
+ },
+ {
+  "section": "Testing",
+  "sub": "Test Runners",
+  "desc": "Libraries for testing codebases and generating test data. Also see awesome-python-testing.",
+  "gold": [
+   "tox-dev/tox",
+   "wntrblm/nox"
+  ],
+  "id": "Testing / Test Runners",
+  "q0": "test runners testing",
+  "batch": 1
+ },
+ {
+  "section": "Text Processing",
+  "sub": "Fuzzy Matching",
+  "desc": "Libraries for parsing and manipulating plain texts.",
+  "gold": [
+   "rapidfuzz/rapidfuzz"
+  ],
+  "id": "Text Processing / Fuzzy Matching",
+  "q0": "fuzzy matching text processing",
+  "batch": 1
+ },
+ {
+  "section": "Text Processing",
+  "sub": "Internationalization",
+  "desc": "Libraries for parsing and manipulating plain texts.",
+  "gold": [
+   "python-babel/babel"
+  ],
+  "id": "Text Processing / Internationalization",
+  "q0": "internationalization text processing",
+  "batch": 2
+ },
+ {
+  "section": "Text Processing",
+  "sub": "Parser",
+  "desc": "Libraries for parsing and manipulating plain texts.",
+  "gold": [
+   "pygments/pygments",
+   "pyparsing/pyparsing",
+   "andialbrecht/sqlparse",
+   "daviddrysdale/python-phonenumbers",
+   "python-parsy/parsy"
+  ],
+  "id": "Text Processing / Parser",
+  "q0": "parser text processing",
+  "batch": 2
+ },
+ {
+  "section": "Text Processing",
+  "sub": "Transliteration and Slugs",
+  "desc": "Libraries for parsing and manipulating plain texts.",
+  "gold": [
+   "un33k/python-slugify",
+   "avian2/unidecode"
+  ],
+  "id": "Text Processing / Transliteration and Slugs",
+  "q0": "transliteration and slugs text processing",
+  "batch": 1
+ },
+ {
+  "section": "Text Processing",
+  "sub": "Unique identifiers",
+  "desc": "Libraries for parsing and manipulating plain texts.",
+  "gold": [
+   "skorokithakis/shortuuid"
+  ],
+  "id": "Text Processing / Unique identifiers",
+  "q0": "unique identifiers text processing",
+  "batch": 1
+ },
+ {
+  "section": "Web APIs",
+  "sub": "Django",
+  "desc": "Libraries for building RESTful, GraphQL, and RPC APIs.",
+  "gold": [
+   "encode/django-rest-framework",
+   "vitalik/django-ninja",
+   "strawberry-graphql/strawberry-django",
+   "wemake-services/django-modern-rest"
+  ],
+  "id": "Web APIs / Django",
+  "q0": "django web apis",
+  "batch": 2
+ },
+ {
+  "section": "Web APIs",
+  "sub": "Flask",
+  "desc": "Libraries for building RESTful, GraphQL, and RPC APIs.",
+  "gold": [
+   "python-restx/flask-restx",
+   "marshmallow-code/flask-smorest",
+   "apiflask/apiflask"
+  ],
+  "id": "Web APIs / Flask",
+  "q0": "flask web apis",
+  "batch": 1
+ },
+ {
+  "section": "Web APIs",
+  "sub": "Framework Agnostic",
+  "desc": "Libraries for building RESTful, GraphQL, and RPC APIs.",
+  "gold": [
+   "fastapi/fastapi",
+   "strawberry-graphql/strawberry",
+   "spec-first/connexion"
+  ],
+  "id": "Web APIs / Framework Agnostic",
+  "q0": "framework agnostic web apis",
+  "batch": 1
+ },
+ {
+  "section": "Web Asset Management",
+  "sub": null,
+  "desc": "Tools for managing, storing, compressing and minifying website assets.",
+  "gold": [
+   "evansd/whitenoise",
+   "jschneier/django-storages",
+   "django-compressor/django-compressor"
+  ],
+  "id": "Web Asset Management",
+  "q0": "web asset management",
+  "batch": 2
+ },
+ {
+  "section": "Web Frameworks",
+  "sub": "Asynchronous",
+  "desc": "Traditional full stack web frameworks. Also see Web APIs.",
+  "gold": [
+   "kludex/starlette",
+   "tornadoweb/tornado",
+   "litestar-org/litestar",
+   "reflex-dev/reflex"
+  ],
+  "id": "Web Frameworks / Asynchronous",
+  "q0": "asynchronous web frameworks",
+  "batch": 2
+ },
+ {
+  "section": "Web Scraping",
+  "sub": "Frameworks",
+  "desc": "Libraries to automate web scraping and extract web content.",
+  "gold": [
+   "browser-use/browser-use",
+   "scrapy/scrapy",
+   "unclecode/crawl4ai",
+   "browserbase/stagehand",
+   "browser-use/jev-ultrafast"
+  ],
+  "id": "Web Scraping / Frameworks",
+  "q0": "frameworks web scraping",
+  "batch": 1
+ },
+ {
+  "section": "Web Security",
+  "sub": null,
+  "desc": "Libraries for application-layer web security.",
+  "gold": [
+   "messense/nh3",
+   "typeerror/secure"
+  ],
+  "id": "Web Security",
+  "q0": "web security",
+  "batch": 2
+ },
+ {
+  "section": "Web Servers",
+  "sub": "ASGI",
+  "desc": "ASGI and WSGI compatible web servers.",
+  "gold": [
+   "kludex/uvicorn",
+   "emmett-framework/granian",
+   "pgjones/hypercorn"
+  ],
+  "id": "Web Servers / ASGI",
+  "q0": "asgi web servers",
+  "batch": 1
+ },
+ {
+  "section": "Web Servers",
+  "sub": "WSGI",
+  "desc": "ASGI and WSGI compatible web servers.",
+  "gold": [
+   "benoitc/gunicorn",
+   "pylons/waitress"
+  ],
+  "id": "Web Servers / WSGI",
+  "q0": "wsgi web servers",
+  "batch": 2
+ },
+ {
+  "section": "WebSocket",
+  "sub": null,
+  "desc": "Libraries for working with WebSocket.",
+  "gold": [
+   "python-websockets/websockets",
+   "django/channels",
+   "miguelgrinberg/flask-socketio",
+   "crossbario/autobahn-python"
+  ],
+  "id": "WebSocket",
+  "q0": "websocket",
+  "batch": 2
+ }
+]

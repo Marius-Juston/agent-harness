@@ -1,0 +1,29 @@
+{
+ "protocol": "PROTOCOL.md steps 3, 4 and 17 (at most 12 configurations across amendments 1-4)",
+ "written": "2026-10-13 by the round-1 benchmark researcher, before any tuning run; no TUNE or TEST ranking result of dev reuse had been seen",
+ "primary_metric": "hit@3 on TUNE (split.json); ties go to the lower `complexity`",
+ "dimensions": {
+  "pass_before_hold": "true: every PASS candidate is ordered before every HOLD candidate (gaps-r1 cause 1)",
+  "shortlist": "prior2n: the 2n candidates with the best prior (R + 0.03*log10(1+stars)) are enriched, as in PR #171; union: the n best by R plus the n best by adoption (ecosyste.ms dependents, then downloads) among candidates with R >= best R - 0.20 (gaps-r1 cause 3). The 0.20 floor is fixed here, not tuned (BELIEVED)",
+  "lambda": "S = R + lambda*Q (r1-ranking F1; 0.15 is the cited prior)",
+  "tier_delta": "null: order by S. A number d: candidates with R >= best R - d form the top tier, ordered by Q; the rest follow, ordered by S (gaps-r1 cause 2)"
+ },
+ "ranking_configs": [
+  {"id": "R0", "complexity": 0, "pass_before_hold": false, "shortlist": "prior2n", "lambda": 0.15, "tier_delta": null, "note": "PR #171 as built (the baseline)"},
+  {"id": "R1", "complexity": 1, "pass_before_hold": true, "shortlist": "prior2n", "lambda": 0.15, "tier_delta": null},
+  {"id": "R2", "complexity": 2, "pass_before_hold": true, "shortlist": "union", "lambda": 0.15, "tier_delta": null},
+  {"id": "R3", "complexity": 3, "pass_before_hold": true, "shortlist": "union", "lambda": 0.5, "tier_delta": null},
+  {"id": "R4", "complexity": 3, "pass_before_hold": true, "shortlist": "union", "lambda": 1.0, "tier_delta": null},
+  {"id": "R5", "complexity": 4, "pass_before_hold": true, "shortlist": "union", "lambda": 0.15, "tier_delta": 0.10},
+  {"id": "R6", "complexity": 4, "pass_before_hold": true, "shortlist": "union", "lambda": 0.15, "tier_delta": 0.20},
+  {"id": "R7", "complexity": 3, "pass_before_hold": false, "shortlist": "union", "lambda": 0.15, "tier_delta": 0.10}
+ ],
+ "recall_arms": {
+  "note": "PROTOCOL amendment 4: each index arm is unioned with the A2 pool and ranked with the ranking config chosen on TUNE; they are not tuned, so they take the remaining 4 of the 12 slots",
+  "P1": "BM25 (bm25s) + potion-retrieval-32M, RRF k=60, CPU",
+  "P2": "BM25 + Qwen3-Embedding-0.6B, RRF k=60",
+  "P3": "P2 re-ranked by Qwen3-Reranker-4B",
+  "P4": "P2 over LLM-generated package profiles"
+ },
+ "total_configurations": 12
+}
