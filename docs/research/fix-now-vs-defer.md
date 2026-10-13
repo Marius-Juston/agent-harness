@@ -130,7 +130,7 @@ The exact replacements are in [wording_budget.py](_scratch/fix-now-vs-defer/scri
 | builder.md | outside-Owns edits allowed "when the issue needs it end to end or it is a fix-now"; the PR body adds `Fixed in passing`, and each follow-up names "the fix-now condition it failed"; the reply adds "fixes in passing" | 419 -> 438 (600) |
 | tester.md | "A small defect inside the issue's Owns, or a fix-now (multi-agent.md §3): fix it." | 229 -> 234 (600) |
 | researcher.md | the gaps line adds "batch fix-ready edits (file, change, check) into one build issue"; scripts go in `_scratch/<slug>/scripts/`. Paid for by cutting the ML venue list and the `research_dir` clause | 599 -> 598 (600) |
-| lead SKILL.md | new step 2.4 (below). Cuts: the agent-type list (derived in `agent-surface.md`), two parentheticals, and a shorter `RESULT-JSON` sentence | 647 -> 649 (650) |
+| lead SKILL.md | new step 2.4 (below). Cuts: the agent-type list (derived in `agent-surface.md`), two parentheticals, and a shorter `RESULT-JSON` sentence | 647 -> 649 (650); 648 -> 650 after #158 (VERIFIED at `cf935af`) |
 
 **Integrate-time triage step** (lead skill, step 2, before `uv run dev integrate`):
 > 4. Triage the PR's follow-ups: a fix-now (multi-agent.md §3) or a defect in its own new code returns to the worker; the rest need a reason.
