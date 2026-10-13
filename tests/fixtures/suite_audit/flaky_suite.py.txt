@@ -1,0 +1,17 @@
+import os
+from pathlib import Path
+
+
+def test_steady():
+    assert True
+
+
+def test_alternates():
+    p = Path(os.environ["SUITE_AUDIT_COUNTER"])
+    n = int(p.read_text()) if p.exists() else 0
+    p.write_text(str(n + 1))
+    assert n % 2 == 0
+
+
+def test_needs_an_untracked_file():
+    assert (Path(__file__).parent / "local.txt").exists()

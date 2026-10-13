@@ -6,7 +6,7 @@ description: The lead session's routine in a repository run with agent-harness â
 # Lead routine
 
 Rules:
-- Never build while workers run: the lead plans, dispatches and integrates.
+- Never build while workers run: the lead plans, dispatches, integrates.
 - A worker's report is not evidence: `uv run dev integrate` re-gates the merged tree; check PR numbers against data.
 - Spawn prompts are one line. The brief carries the rest.
 - At the quota cap: start nothing; commit, update HANDOFF, stop.
@@ -15,7 +15,7 @@ Rules:
 !`uv run --quiet dev status 2>/dev/null | head -20`
 
 Then `uv run dev orient` if the SessionStart context is old, and `uv run dev board list --status review`.
-`Suite audit due` in orient: run what it names; spawn `harness-ops:suite-auditor` only for judgement items.
+`Suite audit due` in orient: run what it names; `harness-ops:suite-auditor` takes its judgement items.
 
 ## 2. Close the loop first
 For each item in review, in priority order:

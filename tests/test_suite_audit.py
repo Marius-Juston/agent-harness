@@ -15,6 +15,7 @@ from devkit.paths import root
 from devkit.suite_audit import Static, scan
 
 NOW = 1_800_000_000.0
+FIXTURES = Path(__file__).parent / "fixtures/suite_audit"  # .txt: the weakening check reads them as text
 DAY = 86400
 
 
@@ -81,58 +82,7 @@ def test_tier_never_falls_as_the_suite_grows(a, b, gate_s):
 # ---------------------------------------------------------------- the static scan
 
 
-SUITE = """import pytest
-
-pytestmark = pytest.mark.e2e
-
-
-def helper():
-    assert True
-
-
-def test_one():
-    assert 1
-
-
-def test_two():
-    assert 1
-    with pytest.raises(ValueError):
-        int("x")
-
-
-def test_none():
-    helper()
-
-
-@pytest.mark.slow
-def test_slow():
-    m.assert_called_once()
-
-
-@pytest.mark.flaky(reason="#12 timing")
-def test_quarantined():
-    assert 1
-
-
-@pytest.mark.flaky  # no issue named
-def test_quarantined_bare():
-    assert 1
-
-
-@pytest.mark.xfail(reason="later")
-def test_x():
-    assert 0
-
-
-class TestGroup:
-    pytestmark = [pytest.mark.slow]
-
-    def test_in_class(self):
-        assert 1
-
-    def helper(self):
-        pass
-"""
+SUITE = (FIXTURES / "suite.py.txt").read_text()
 
 
 def test_scan_counts_oracles_markers_and_quarantine_per_test():
@@ -351,47 +301,26 @@ def test_orient_lines_are_empty_outside_a_repository_and_never_raise(tmp_path, m
     assert "skipped: over 0.2 s" in suite_audit.orient_lines(repo.path, budget_s=0.2)[0]
 
 
-def test_orient_shows_a_due_audit_with_what_the_lead_runs(monkeypatch, repo):
+def test_dev_orient_shows_a_due_audit_with_what_the_lead_runs(monkeypatch, repo):
     repo.commit({"tests/test_a.py": suite_of(1)})
-    monkeypatch.setattr(suite_audit, "last_snapshot", lambda: (None, None))
-    monkeypatch.setattr(suite_audit, "ci_runs", lambda: [ci_run("ci", "success", 1)])
-    monkeypatch.setattr(suite_audit, "state_dir", lambda *a: repo.path / ".git")
-    lines = suite_audit._orient(repo.path)
-    assert lines[0].startswith("## Suite audit due (no audit recorded)")
-    assert "uv run dev suite-audit report --file" in lines[0] and "harness-ops:suite-auditor" in lines[0]
-
-
-def test_dev_orient_includes_the_suite_audit_lines(monkeypatch, tmp_path):
+    runs = json.dumps([ci_run("ci", "success", 1)])
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board, "gh", lambda *a, input=None: runs if a[:2] == ("run", "list") else "[]")
+    monkeypatch.setattr(suite_audit, "state_dir", lambda *a: repo.path / ".git")  # not this machine's test history
     monkeypatch.setattr(board, "sync", lambda: [])
     monkeypatch.setattr(board, "fetch", lambda *a, **k: [])
     monkeypatch.setattr(board, "closed_numbers", lambda: set())
-    monkeypatch.setattr(workflow, "root", lambda: tmp_path)
+    monkeypatch.setattr(workflow, "root", lambda: repo.path)
     monkeypatch.setattr(workflow, "status", lambda: "")
-    monkeypatch.setattr(workflow, "orient_lines", lambda r: ["## Suite audit due (x): run it"])
-    assert "## Suite audit due (x): run it" in workflow.orient()
+    line = next(x for x in workflow.orient().splitlines() if x.startswith("## Suite audit due"))
+    assert "(no audit recorded)" in line and "uv run dev suite-audit report --file" in line
+    assert "harness-ops:suite-auditor" in line
 
 
 # ---------------------------------------------------------------- runs in a fresh clone
 
 
-FLAKY_SUITE = """import os
-from pathlib import Path
-
-
-def test_steady():
-    assert True
-
-
-def test_alternates():
-    p = Path(os.environ["SUITE_AUDIT_COUNTER"])
-    n = int(p.read_text()) if p.exists() else 0
-    p.write_text(str(n + 1))
-    assert n % 2 == 0
-
-
-def test_needs_an_untracked_file():
-    assert (Path(__file__).parent / "local.txt").exists()
-"""
+FLAKY_SUITE = (FIXTURES / "flaky_suite.py.txt").read_text()
 
 
 def test_reruns_in_a_fresh_clone_find_a_flaky_test_and_a_tree_only_pass(repo, tmp_path, monkeypatch):
