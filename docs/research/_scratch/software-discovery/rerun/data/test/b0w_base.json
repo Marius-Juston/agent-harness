@@ -1,0 +1,633 @@
+{
+ "AI and Agents / Prompt Optimization": [
+  "dspy",
+  "textgrad",
+  "adalflow"
+ ],
+ "_model": "claude-opus-5-5",
+ "_calls": {
+  "AI and Agents / Prompt Optimization": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0235426,
+   "error": false
+  },
+  "Algorithms and Design Patterns / Design Patterns": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0271586,
+   "error": false
+  },
+  "Asynchronous Programming / Async I/O": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0217066,
+   "error": false
+  },
+  "Authentication / Permissions": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0214306,
+   "error": false
+  },
+  "CLI Development / TUI Frameworks": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0215506,
+   "error": false
+  },
+  "CLI Tools / HTTP Clients": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0244826,
+   "error": false
+  },
+  "CLI Tools / Terminal Workflow": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.029474599999999997,
+   "error": false
+  },
+  "Data Ingestion / ETL / Financial Data": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0260466,
+   "error": false
+  },
+  "Debugging Tools / Profiler": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0214666,
+   "error": false
+  },
+  "DevOps Tools / Deployment": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0215706,
+   "error": false
+  },
+  "Documentation": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.021206600000000003,
+   "error": false
+  },
+  "File Format Processing / Excel": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.021546600000000003,
+   "error": false
+  },
+  "Game Development / Game Frameworks": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0214026,
+   "error": false
+  },
+  "Geolocation": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0212866,
+   "error": false
+  },
+  "Network Virtualization": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.021358600000000002,
+   "error": false
+  },
+  "ORM / Relational Databases": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0215226,
+   "error": false
+  },
+  "Penetration Testing": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.023846600000000003,
+   "error": false
+  },
+  "Science / Computational Geometry": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0246066,
+   "error": false
+  },
+  "Testing / Mock": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0214386,
+   "error": false
+  },
+  "Testing / Object Factories": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0215466,
+   "error": false
+  },
+  "Text Processing / Encoding and Unicode": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0236306,
+   "error": false
+  },
+  "Web APIs / RPC": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0251826,
+   "error": false
+  },
+  "Web Frameworks / Synchronous": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0215386,
+   "error": false
+  },
+  "M2-02": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.022586600000000002,
+   "error": false
+  },
+  "M2-04": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0222666,
+   "error": false
+  },
+  "M2-05": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0231186,
+   "error": false
+  },
+  "M2-06": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0236346,
+   "error": false
+  },
+  "M2-07": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0231306,
+   "error": false
+  },
+  "M2-10": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0218066,
+   "error": false
+  },
+  "M2-13": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0210626,
+   "error": false
+  },
+  "M2-16": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0211986,
+   "error": false
+  },
+  "M2-17": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.021206600000000003,
+   "error": false
+  },
+  "M2-18": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.023286599999999998,
+   "error": false
+  },
+  "M2-19": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0248506,
+   "error": false
+  },
+  "M2-20": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0235426,
+   "error": false
+  },
+  "M2-22": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0210546,
+   "error": false
+  },
+  "M2-23": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0213266,
+   "error": false
+  },
+  "M2-25": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.025782600000000003,
+   "error": false
+  },
+  "M2-26": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0213706,
+   "error": false
+  },
+  "M2-27": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0211866,
+   "error": false
+  },
+  "M2-30": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.021342600000000003,
+   "error": false
+  },
+  "M2-31": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0211746,
+   "error": false
+  },
+  "M2-32": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.021126600000000002,
+   "error": false
+  },
+  "M2-36": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.021434599999999998,
+   "error": false
+  },
+  "M2-37": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0213426,
+   "error": false
+  },
+  "M2-39": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0211826,
+   "error": false
+  },
+  "M2-40": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0213426,
+   "error": false
+  },
+  "M2-41": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0236706,
+   "error": false
+  },
+  "M2-45": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0215546,
+   "error": false
+  },
+  "M2-46": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0253066,
+   "error": false
+  },
+  "M2-48": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0211626,
+   "error": false
+  },
+  "M2-49": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0212546,
+   "error": false
+  },
+  "M2-50": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.026322599999999998,
+   "error": false
+  },
+  "M2-51": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0228266,
+   "error": false
+  },
+  "M2-52": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0254746,
+   "error": false
+  },
+  "M2-55": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0216226,
+   "error": false
+  },
+  "M2-56": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.024670599999999997,
+   "error": false
+  }
+ },
+ "_date": "2026-10-13",
+ "_how": "claude -p --model claude-opus-5-5 --tools WebSearch,WebFetch --allowedTools WebSearch,WebFetch --strict-mcp-config --setting-sources '' --output-format json from an empty directory; prompt = b0w_prompt.md body with test_base.json, batches of 1",
+ "Algorithms and Design Patterns / Design Patterns": [
+  "pypattyrn",
+  "transitions",
+  "dependency-injector"
+ ],
+ "Asynchronous Programming / Async I/O": [
+  "uvloop",
+  "trio",
+  "anyio"
+ ],
+ "Authentication / Permissions": [
+  "Authlib",
+  "PyJWT",
+  "django-allauth"
+ ],
+ "CLI Development / TUI Frameworks": [
+  "textual",
+  "urwid",
+  "prompt-toolkit"
+ ],
+ "CLI Tools / HTTP Clients": [
+  "httpie",
+  "http-prompt",
+  "httpstat"
+ ],
+ "CLI Tools / Terminal Workflow": [
+  "httpie",
+  "thefuck",
+  "tmuxp"
+ ],
+ "Data Ingestion / ETL / Financial Data": [
+  "openbb",
+  "yfinance",
+  "pandas-datareader"
+ ],
+ "Debugging Tools / Profiler": [
+  "py-spy",
+  "line_profiler",
+  "scalene"
+ ],
+ "DevOps Tools / Deployment": [
+  "ansible",
+  "fabric",
+  "pyinfra"
+ ],
+ "Documentation": [
+  "sphinx",
+  "mkdocs",
+  "pdoc"
+ ],
+ "File Format Processing / Excel": [
+  "openpyxl",
+  "xlsxwriter",
+  "xlrd"
+ ],
+ "Game Development / Game Frameworks": [
+  "pygame",
+  "arcade",
+  "pyglet"
+ ],
+ "Geolocation": [
+  "geopy",
+  "geocoder",
+  "geojson"
+ ],
+ "Network Virtualization": [
+  "scapy",
+  "netmiko",
+  "napalm"
+ ],
+ "ORM / Relational Databases": [
+  "SQLAlchemy",
+  "django",
+  "peewee"
+ ],
+ "Penetration Testing": [
+  "impacket",
+  "pwntools",
+  "scapy"
+ ],
+ "Science / Computational Geometry": [
+  "shapely",
+  "trimesh",
+  "scipy"
+ ],
+ "Testing / Mock": [
+  "pytest-mock",
+  "responses",
+  "freezegun"
+ ],
+ "Testing / Object Factories": [
+  "factory-boy",
+  "model-bakery",
+  "polyfactory"
+ ],
+ "Text Processing / Encoding and Unicode": [
+  "ftfy",
+  "charset-normalizer",
+  "Unidecode"
+ ],
+ "Web APIs / RPC": [
+  "fastapi",
+  "djangorestframework",
+  "grpcio"
+ ],
+ "Web Frameworks / Synchronous": [
+  "Django",
+  "Flask",
+  "pyramid"
+ ],
+ "M2-02": [
+  "asyncio-redis",
+  "redis",
+  "aioredis"
+ ],
+ "M2-04": [
+  "botocore",
+  "aiobotocore",
+  "ibm-cos-sdk-core"
+ ],
+ "M2-05": [
+  "Cheetah3",
+  "Jinja2",
+  "Mako"
+ ],
+ "M2-06": [
+  "cloud_sptheme",
+  "furo",
+  "sphinx-rtd-theme"
+ ],
+ "M2-07": [
+  "configparser",
+  "configupdater",
+  "configobj"
+ ],
+ "M2-10": [
+  "dill",
+  "cloudpickle",
+  "jsonpickle"
+ ],
+ "M2-13": [
+  "gevent",
+  "trio",
+  "eventlet"
+ ],
+ "M2-16": [
+  "gunicorn",
+  "uWSGI",
+  "waitress"
+ ],
+ "M2-17": [
+  "html5lib",
+  "selectolax",
+  "html5-parser"
+ ],
+ "M2-18": [
+  "netaddr",
+  "IPy",
+  "ipaddress"
+ ],
+ "M2-19": [
+  "jsonpath-ng",
+  "jsonpath-rw",
+  "python-jsonpath"
+ ],
+ "M2-20": [
+  "kafka-python",
+  "aiokafka",
+  "kafka-python-ng"
+ ],
+ "M2-22": [
+  "loguru",
+  "structlog",
+  "logbook"
+ ],
+ "M2-23": [
+  "lxml",
+  "xmltodict",
+  "defusedxml"
+ ],
+ "M2-25": [
+  "nomad",
+  "yoyo-migrations",
+  "alembic"
+ ],
+ "M2-26": [
+  "msgpack",
+  "msgspec",
+  "ormsgpack"
+ ],
+ "M2-27": [
+  "napalm",
+  "netmiko",
+  "nornir"
+ ],
+ "M2-30": [
+  "openpyxl",
+  "xlsxwriter",
+  "pylightxl"
+ ],
+ "M2-31": [
+  "paramiko",
+  "asyncssh",
+  "ssh2-python"
+ ],
+ "M2-32": [
+  "pillow",
+  "opencv-python",
+  "scikit-image"
+ ],
+ "M2-36": [
+  "pycurl",
+  "curl_cffi",
+  "requests"
+ ],
+ "M2-37": [
+  "pydot",
+  "graphviz",
+  "pygraphviz"
+ ],
+ "M2-39": [
+  "pymemcache",
+  "python-memcached",
+  "aiomcache"
+ ],
+ "M2-40": [
+  "pytz",
+  "tzdata",
+  "python-dateutil"
+ ],
+ "M2-41": [
+  "sentry-sdk",
+  "raven",
+  "structlog-sentry"
+ ],
+ "M2-45": [
+  "smbus",
+  "smbus2",
+  "smbus-cffi"
+ ],
+ "M2-46": [
+  "suds-community",
+  "suds-jurko",
+  "zeep"
+ ],
+ "M2-48": [
+  "tomlkit",
+  "tomli",
+  "toml"
+ ],
+ "M2-49": [
+  "toolz",
+  "more-itertools",
+  "funcy"
+ ],
+ "M2-50": [
+  "trollius",
+  "asyncio"
+ ],
+ "M2-51": [
+  "twitter",
+  "tweepy",
+  "python-twitter"
+ ],
+ "M2-52": [
+  "fonttools",
+  "ufoLib2",
+  "defcon"
+ ],
+ "M2-55": [
+  "watchdog",
+  "watchfiles",
+  "inotify-simple"
+ ],
+ "M2-56": [
+  "webapp2",
+  "tipfy",
+  "Flask"
+ ]
+}

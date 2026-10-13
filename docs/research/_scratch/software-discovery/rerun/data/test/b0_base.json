@@ -1,0 +1,296 @@
+{
+ "AI and Agents / Prompt Optimization": [
+  "dspy",
+  "textgrad",
+  "promptify"
+ ],
+ "Algorithms and Design Patterns / Design Patterns": [
+  "transitions",
+  "pypattyrn",
+  "python-patterns"
+ ],
+ "Asynchronous Programming / Async I/O": [
+  "uvloop",
+  "trio",
+  "anyio"
+ ],
+ "Authentication / Permissions": [
+  "django-guardian",
+  "django-rules",
+  "casbin"
+ ],
+ "CLI Development / TUI Frameworks": [
+  "textual",
+  "urwid",
+  "prompt-toolkit"
+ ],
+ "CLI Tools / HTTP Clients": [
+  "httpie",
+  "http-prompt",
+  "httpx"
+ ],
+ "CLI Tools / Terminal Workflow": [
+  "thefuck",
+  "tldr",
+  "xonsh"
+ ],
+ "Data Ingestion / ETL / Financial Data": [
+  "yfinance",
+  "pandas-datareader",
+  "akshare"
+ ],
+ "Debugging Tools / Profiler": [
+  "py-spy",
+  "scalene",
+  "pyinstrument"
+ ],
+ "DevOps Tools / Deployment": [
+  "fabric",
+  "ansible",
+  "pyinfra"
+ ],
+ "Documentation": [
+  "sphinx",
+  "mkdocs",
+  "pdoc"
+ ],
+ "File Format Processing / Excel": [
+  "openpyxl",
+  "xlsxwriter",
+  "xlrd"
+ ],
+ "Game Development / Game Frameworks": [
+  "pygame",
+  "arcade",
+  "pyglet"
+ ],
+ "Geolocation": [
+  "geopy",
+  "geoip2",
+  "geojson"
+ ],
+ "Network Virtualization": [
+  "scapy",
+  "netmiko",
+  "napalm"
+ ],
+ "ORM / Relational Databases": [
+  "sqlalchemy",
+  "peewee",
+  "tortoise-orm"
+ ],
+ "Penetration Testing": [
+  "impacket",
+  "pwntools",
+  "sqlmap"
+ ],
+ "Science / Computational Geometry": [
+  "shapely",
+  "trimesh",
+  "scikit-geometry"
+ ],
+ "Testing / Mock": [
+  "pytest-mock",
+  "responses",
+  "freezegun"
+ ],
+ "Testing / Object Factories": [
+  "factory-boy",
+  "model-bakery",
+  "mixer"
+ ],
+ "Text Processing / Encoding and Unicode": [
+  "charset-normalizer",
+  "chardet",
+  "ftfy"
+ ],
+ "Web APIs / RPC": [
+  "grpcio",
+  "rpyc",
+  "zerorpc"
+ ],
+ "Web Frameworks / Synchronous": [
+  "django",
+  "flask",
+  "pyramid"
+ ],
+ "M2-02": [
+  "asyncio-redis",
+  "redis",
+  "aioredis"
+ ],
+ "M2-04": [
+  "botocore",
+  "boto3",
+  "aiobotocore"
+ ],
+ "M2-05": [
+  "Cheetah3",
+  "jinja2",
+  "mako"
+ ],
+ "M2-06": [
+  "cloud-sptheme",
+  "sphinx-rtd-theme",
+  "furo"
+ ],
+ "M2-07": [
+  "configparser",
+  "configobj",
+  "iniconfig"
+ ],
+ "M2-10": [
+  "dill",
+  "cloudpickle",
+  "jsonpickle"
+ ],
+ "M2-13": [
+  "eventlet",
+  "gevent",
+  "trio"
+ ],
+ "M2-16": [
+  "gunicorn",
+  "uwsgi",
+  "waitress"
+ ],
+ "M2-17": [
+  "html5lib",
+  "html5-parser",
+  "selectolax"
+ ],
+ "M2-18": [
+  "ipaddress",
+  "netaddr",
+  "ipaddr"
+ ],
+ "M2-19": [
+  "jsonpath-ng",
+  "jsonpath-rw",
+  "python-jsonpath"
+ ],
+ "M2-20": [
+  "kafka-python",
+  "confluent-kafka",
+  "aiokafka"
+ ],
+ "M2-22": [
+  "logbook",
+  "loguru",
+  "structlog"
+ ],
+ "M2-23": [
+  "lxml",
+  "xmltodict",
+  "defusedxml"
+ ],
+ "M2-25": [
+  "yoyo-migrations",
+  "alembic",
+  "dbmate"
+ ],
+ "M2-26": [
+  "msgpack",
+  "ormsgpack",
+  "u-msgpack-python"
+ ],
+ "M2-27": [
+  "napalm",
+  "netmiko",
+  "nornir"
+ ],
+ "M2-30": [
+  "openpyxl",
+  "xlsxwriter",
+  "pyexcel-xlsx"
+ ],
+ "M2-31": [
+  "paramiko",
+  "asyncssh",
+  "ssh2-python"
+ ],
+ "M2-32": [
+  "pillow",
+  "PIL",
+  "wand"
+ ],
+ "M2-36": [
+  "pycurl",
+  "requests",
+  "httpx"
+ ],
+ "M2-37": [
+  "pydot",
+  "graphviz",
+  "pygraphviz"
+ ],
+ "M2-39": [
+  "python-memcached",
+  "pymemcache",
+  "pylibmc"
+ ],
+ "M2-40": [
+  "pytz",
+  "tzdata",
+  "python-dateutil"
+ ],
+ "M2-41": [
+  "raven",
+  "sentry-sdk"
+ ],
+ "M2-45": [
+  "smbus",
+  "smbus2",
+  "smbus-cffi"
+ ],
+ "M2-46": [
+  "suds-community",
+  "zeep",
+  "suds-jurko"
+ ],
+ "M2-48": [
+  "toml",
+  "tomli",
+  "tomlkit"
+ ],
+ "M2-49": [
+  "toolz",
+  "more-itertools",
+  "funcy"
+ ],
+ "M2-50": [
+  "trollius",
+  "asyncio"
+ ],
+ "M2-51": [
+  "twitter",
+  "tweepy",
+  "python-twitter"
+ ],
+ "M2-52": [
+  "ufoLib2",
+  "fonttools",
+  "defcon"
+ ],
+ "M2-55": [
+  "watchdog",
+  "watchfiles",
+  "pyinotify"
+ ],
+ "M2-56": [
+  "webapp2",
+  "flask",
+  "webob"
+ ],
+ "_model": "claude-opus-5-5",
+ "_calls": {
+  "AI and Agents / Prompt Optimization": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.08265900000000001,
+   "error": false
+  }
+ },
+ "_date": "2026-10-13",
+ "_how": "claude -p --model claude-opus-5-5 --tools '' --strict-mcp-config --setting-sources '' --output-format json from an empty directory; prompt = b0_prompt.md body with test_base.json, batches of 64"
+}

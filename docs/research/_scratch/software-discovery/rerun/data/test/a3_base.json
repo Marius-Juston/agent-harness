@@ -1,0 +1,358 @@
+{
+ "AI and Agents / Prompt Optimization": [
+  "dspy",
+  "textgrad",
+  "promptolution",
+  "skillberry-ai/cap-evolve",
+  "llm-prompt-optimizer",
+  "gptswarm"
+ ],
+ "Algorithms and Design Patterns / Design Patterns": [
+  "algorithms",
+  "transitions",
+  "python-pantry"
+ ],
+ "Asynchronous Programming / Async I/O": [
+  "anyio",
+  "trio",
+  "uvloop"
+ ],
+ "Authentication / Permissions": [
+  "casbin",
+  "django-guardian",
+  "oauthlib",
+  "guardpost",
+  "axioms-io/axioms-fastapi",
+  "streamlit-authenticator",
+  "authomatic",
+  "sanic-jwt",
+  "fastapi-auth0"
+ ],
+ "CLI Development / TUI Frameworks": [
+  "textual",
+  "prompt_toolkit",
+  "urwid",
+  "typer",
+  "fire"
+ ],
+ "CLI Tools / HTTP Clients": [
+  "httpie",
+  "httpx",
+  "httpstat",
+  "uplink",
+  "http-prompt"
+ ],
+ "CLI Tools / Terminal Workflow": [
+  "xonsh",
+  "tldr",
+  "shell-gpt",
+  "thefuck",
+  "click",
+  "typer",
+  "textual",
+  "fire",
+  "kopipasta"
+ ],
+ "Data Ingestion / ETL / Financial Data": [
+  "yfinance",
+  "pandas-datareader",
+  "akshare",
+  "dlt",
+  "dagster-io/dagster",
+  "mage-ai",
+  "docetl"
+ ],
+ "Debugging Tools / Profiler": [
+  "py-spy",
+  "pyinstrument",
+  "scalene",
+  "viztracer",
+  "snoop",
+  "icecream",
+  "hunter",
+  "stackprinter"
+ ],
+ "DevOps Tools / Deployment": [
+  "pyinfra",
+  "fabric",
+  "st2client",
+  "sh"
+ ],
+ "Documentation": [
+  "sphinx",
+  "mkdocs",
+  "pdoc",
+  "portray"
+ ],
+ "File Format Processing / Excel": [
+  "openpyxl",
+  "xlsxwriter",
+  "xlrd",
+  "datagrunt",
+  "excel-mcp-server"
+ ],
+ "Game Development / Game Frameworks": [
+  "pygame",
+  "arcade",
+  "pyglet"
+ ],
+ "Geolocation": [
+  "geopy",
+  "geoip2",
+  "timezonefinder",
+  "geojson",
+  "pgeocode",
+  "ip2geotools"
+ ],
+ "Network Virtualization": [
+  "netmiko",
+  "napalm",
+  "suzieq",
+  "trigger",
+  "networklab"
+ ],
+ "ORM / Relational Databases": [
+  "sqlalchemy",
+  "peewee",
+  "tortoise-orm",
+  "datajoint"
+ ],
+ "_model": "claude-opus-5-5",
+ "_calls": {
+  "AI and Agents / Prompt Optimization": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.24146700000000001,
+   "error": false
+  },
+  "Penetration Testing": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.22381500000000001,
+   "error": false
+  },
+  "M2-18": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.188871,
+   "error": false
+  },
+  "M2-45": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.122511,
+   "error": false
+  }
+ },
+ "_date": "2026-10-13",
+ "_how": "claude -p --model claude-opus-5-5 --tools '' --strict-mcp-config --setting-sources '' --output-format json from an empty directory; prompt = a3_prompt.md body with a3_in_base.json, batches of 16",
+ "_config": "shipped-R4",
+ "Penetration Testing": [
+  "impacket",
+  "nettacker",
+  "pwntools",
+  "strix-sandbox",
+  "nebula-ai"
+ ],
+ "Science / Computational Geometry": [
+  "shapely",
+  "scipy",
+  "trimesh",
+  "freud-analysis",
+  "geomstats"
+ ],
+ "Testing / Mock": [
+  "pytest-mock",
+  "responses",
+  "vcrpy",
+  "freezegun",
+  "pook",
+  "flexmock",
+  "django-mock-queries",
+  "mock-ssh-server"
+ ],
+ "Testing / Object Factories": [
+  "factory-boy",
+  "model-bakery",
+  "faker",
+  "mixer"
+ ],
+ "Text Processing / Encoding and Unicode": [
+  "charset-normalizer",
+  "chardet",
+  "ftfy",
+  "unidecode",
+  "pylatexenc"
+ ],
+ "Web APIs / RPC": [
+  "grpcio",
+  "rpyc",
+  "zerorpc",
+  "spyne"
+ ],
+ "Web Frameworks / Synchronous": [
+  "django",
+  "flask",
+  "falcon",
+  "pyramid",
+  "zope"
+ ],
+ "M2-02": [
+  "redis"
+ ],
+ "M2-04": [
+  "boto/boto3"
+ ],
+ "M2-05": [
+  "jinja2",
+  "mako"
+ ],
+ "M2-06": [
+  "furo",
+  "sphinx-rtd-theme",
+  "sphinxawesome-theme",
+  "pallets-sphinx-themes",
+  "sphinx_design"
+ ],
+ "M2-07": [
+  "configupdater",
+  "configobj",
+  "iniconfig"
+ ],
+ "M2-10": [
+  "cloudpickle",
+  "jsonpickle"
+ ],
+ "M2-13": [
+  "gevent",
+  "trio"
+ ],
+ "M2-16": [
+  "waitress",
+  "hypercorn",
+  "uwsgi"
+ ],
+ "M2-17": [
+  "html5-parser",
+  "selectolax"
+ ],
+ "M2-18": [
+  "netaddr",
+  "aggregate6"
+ ],
+ "M2-19": [
+  "jsonpath-ng",
+  "python-jsonpath"
+ ],
+ "M2-20": [
+  "aiokafka",
+  "confluent-kafka",
+  "afkak"
+ ],
+ "M2-22": [
+  "loguru",
+  "structlog"
+ ],
+ "M2-23": [
+  "xmltodict",
+  "defusedxml"
+ ],
+ "M2-25": [
+  "yoyo-migrations",
+  "alembic",
+  "teamhg-memex/agnostic"
+ ],
+ "M2-26": [
+  "msgspec",
+  "ormsgpack",
+  "srsly",
+  "u-msgpack-python"
+ ],
+ "M2-27": [
+  "napalm",
+  "nornir",
+  "netmiko"
+ ],
+ "M2-30": [
+  "pyexcel-xlsx",
+  "pyexcel",
+  "xlsxwriter",
+  "pyexcelerate"
+ ],
+ "M2-31": [
+  "asyncssh",
+  "ssh2-python"
+ ],
+ "M2-32": [
+  "pillow",
+  "wand",
+  "scikit-image"
+ ],
+ "M2-36": [
+  "requests",
+  "httpx",
+  "urllib3",
+  "httplib2"
+ ],
+ "M2-37": [
+  "pydot",
+  "graphviz",
+  "pygraphviz"
+ ],
+ "M2-39": [
+  "pymemcache",
+  "python-memcached",
+  "meta-memcache",
+  "memcachio"
+ ],
+ "M2-40": [
+  "tzdata",
+  "python-dateutil"
+ ],
+ "M2-41": [
+  "sentry-sdk"
+ ],
+ "M2-45": [
+  "smbus2",
+  "adafruit-pureio",
+  "smbus3",
+  "smbus"
+ ],
+ "M2-46": [
+  "zeep",
+  "suds-jurko"
+ ],
+ "M2-48": [
+  "tomlkit",
+  "tomli",
+  "dom-toml"
+ ],
+ "M2-49": [
+  "more-itertools",
+  "funcy",
+  "pydash",
+  "pyfunctional",
+  "fnc",
+  "extratools"
+ ],
+ "M2-50": [],
+ "M2-51": [
+  "tweepy",
+  "twarc"
+ ],
+ "M2-52": [
+  "fonttools",
+  "ufolib2",
+  "defcon"
+ ],
+ "M2-55": [
+  "watchfiles",
+  "pyinotify"
+ ],
+ "M2-56": [
+  "appengine-python-standard",
+  "flask",
+  "webob",
+  "moraes/webapp-improved"
+ ]
+}

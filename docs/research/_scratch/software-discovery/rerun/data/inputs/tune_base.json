@@ -1,0 +1,250 @@
+[
+ {
+  "id": "AI and Agents / Image and Video Generation",
+  "need": "image and video generation ai and agents",
+  "also_described_as": [
+   "Libraries for building AI applications, LLM integrations, and autonomous agents."
+  ]
+ },
+ {
+  "id": "AI and Agents / LLM Gateways",
+  "need": "llm gateways ai and agents",
+  "also_described_as": [
+   "Libraries for building AI applications, LLM integrations, and autonomous agents."
+  ]
+ },
+ {
+  "id": "AI and Agents / Pre-trained Models",
+  "need": "pre-trained models ai and agents",
+  "also_described_as": [
+   "Libraries for building AI applications, LLM integrations, and autonomous agents."
+  ]
+ },
+ {
+  "id": "Database / Vector",
+  "need": "vector database",
+  "also_described_as": [
+   "In-process databases usable directly from Python."
+  ]
+ },
+ {
+  "id": "DevOps Tools / Monitoring and Processes",
+  "need": "monitoring and processes devops tools",
+  "also_described_as": [
+   "Software and libraries for DevOps."
+  ]
+ },
+ {
+  "id": "File Format Processing / HTML-to-PDF",
+  "need": "html-to-pdf file format processing",
+  "also_described_as": [
+   "Libraries for parsing and manipulating specific file formats."
+  ]
+ },
+ {
+  "id": "File Format Processing / PDF",
+  "need": "pdf file format processing",
+  "also_described_as": [
+   "Libraries for parsing and manipulating specific file formats."
+  ]
+ },
+ {
+  "id": "Messaging",
+  "need": "messaging",
+  "also_described_as": [
+   "Libraries for working with message brokers and event streaming."
+  ]
+ },
+ {
+  "id": "Recommender Systems",
+  "need": "recommender systems",
+  "also_described_as": [
+   "Libraries for building recommender systems."
+  ]
+ },
+ {
+  "id": "Search",
+  "need": "search",
+  "also_described_as": [
+   "Libraries and software for indexing and performing search queries on data."
+  ]
+ },
+ {
+  "id": "Serialization",
+  "need": "serialization",
+  "also_described_as": [
+   "Libraries for serializing complex data types."
+  ]
+ },
+ {
+  "id": "Supply Chain Security",
+  "need": "supply chain security",
+  "also_described_as": [
+   "Tools for auditing dependencies against known vulnerabilities."
+  ]
+ },
+ {
+  "id": "Testing / API Testing",
+  "need": "api testing testing",
+  "also_described_as": [
+   "Libraries for testing codebases and generating test data. Also see awesome-python-testing."
+  ]
+ },
+ {
+  "id": "Testing / Browser Automation",
+  "need": "browser automation testing",
+  "also_described_as": [
+   "Libraries for testing codebases and generating test data. Also see awesome-python-testing."
+  ]
+ },
+ {
+  "id": "Web Scraping / Content Extraction",
+  "need": "content extraction web scraping",
+  "also_described_as": [
+   "Libraries to automate web scraping and extract web content."
+  ]
+ },
+ {
+  "id": "M2-01",
+  "need": "Python command-line parsing library",
+  "also_described_as": [
+   "argparse command line parser parsing"
+  ]
+ },
+ {
+  "id": "M2-03",
+  "need": "Classes Without Boilerplate",
+  "also_described_as": [
+   "attribute  boilerplate  class"
+  ]
+ },
+ {
+  "id": "M2-08",
+  "need": "Fast CSV Parser for Python",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-09",
+  "need": "Python library for extract property from data.",
+  "also_described_as": [
+   "data  library  property"
+  ]
+ },
+ {
+  "id": "M2-11",
+  "need": "Pythonic argument parser, that will make you smile",
+  "also_described_as": [
+   "option arguments parsing optparse argparse getopt"
+  ]
+ },
+ {
+  "id": "M2-12",
+  "need": "Robust enumerated type support in Python.",
+  "also_described_as": [
+   "enum enumerated enumeration"
+  ]
+ },
+ {
+  "id": "M2-14",
+  "need": "Fuzzy string matching in python",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-15",
+  "need": "Coroutine-based network library",
+  "also_described_as": [
+   "greenlet coroutine cooperative multitasking light threads monkey"
+  ]
+ },
+ {
+  "id": "M2-21",
+  "need": "Python bindings for leveldb database library",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-24",
+  "need": "A Python crypto and SSL toolkit",
+  "also_described_as": [
+   "cryptography  openssl"
+  ]
+ },
+ {
+  "id": "M2-28",
+  "need": "port of node-semver",
+  "also_described_as": [
+   "version semver node-semver"
+  ]
+ },
+ {
+  "id": "M2-29",
+  "need": "library for OAuth version 1.9",
+  "also_described_as": [
+   "oauth"
+  ]
+ },
+ {
+  "id": "M2-33",
+  "need": "bcrypt password hashing and key derivation",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-34",
+  "need": "Python wrapper for Pandoc - the universal document converter",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-35",
+  "need": "Cryptographic modules for Python.",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-38",
+  "need": "[DEPRECATED] Please use astropy.io.fits instead.",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-42",
+  "need": "Python client for Redis database and key-value store",
+  "also_described_as": [
+   "Redis  database  key-value-store"
+  ]
+ },
+ {
+  "id": "M2-43",
+  "need": "Retrying",
+  "also_described_as": [
+   "decorator  decorators  retry  retrying  exception  exponential  backoff"
+  ]
+ },
+ {
+  "id": "M2-44",
+  "need": "ruamel.yaml is a YAML parser/emitter that supports roundtrip preservation of comments, seq/map flow style, and map key order",
+  "also_described_as": [
+   "yaml 1.2 parser round-trip preserve quotes order config"
+  ]
+ },
+ {
+  "id": "M2-47",
+  "need": "Hierarchical datasets for Python",
+  "also_described_as": [
+   "hdf5"
+  ]
+ },
+ {
+  "id": "M2-53",
+  "need": "DEPRECATED",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-54",
+  "need": "HTTP library with thread-safe connection pooling, file post, and more.",
+  "also_described_as": [
+   "filepost  http  httplib  https  pooling  ssl  threadsafe  urllib"
+  ]
+ },
+ {
+  "id": "M2-57",
+  "need": "pure python download utility",
+  "also_described_as": []
+ }
+]

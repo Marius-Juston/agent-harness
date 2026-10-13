@@ -1,0 +1,415 @@
+[
+ {
+  "id": "L-002",
+  "need": "A Braille terminal map with live weather, aircraft, and earthquake layers.",
+  "also_described_as": [
+   "braille curses flight-tracking map opensky terminal tui weather"
+  ]
+ },
+ {
+  "id": "L-003",
+  "need": "The animation engine for agents: blazingly fast math and 3D videos with Manim's Python API, on a Rust GPU core.",
+  "also_described_as": []
+ },
+ {
+  "id": "L-006",
+  "need": "Browser automation with cited answers, structured output and code-controlled credentials and authorization.",
+  "also_described_as": []
+ },
+ {
+  "id": "L-007",
+  "need": "MCP server for Kronos stock price forecasting — China A-shares",
+  "also_described_as": [
+   "a-share finance forecast model-context-protocol quant stock timeseries"
+  ]
+ },
+ {
+  "id": "L-008",
+  "need": "Evidence-grounded repository audit CLI: deterministic scanner, MCP server, live dashboard, and a GitHub Action that posts PR diffs.",
+  "also_described_as": [
+   "code-review static-analysis secrets-detection dependency-vulnerabilities mcp-server"
+  ]
+ },
+ {
+  "id": "L-009",
+  "need": "Speculative programmatic tool calling for CodeAct/RLM-style harnesses",
+  "also_described_as": []
+ },
+ {
+  "id": "L-011",
+  "need": "Identity-scoped schema selection for text-to-SQL: give the model only the tables this caller may read, and 75% fewer prompt tokens",
+  "also_described_as": [
+   "ai-agent anthropic bm25 data-catalog database gemini hybrid-search langchain llm mcp model-context-protocol nl2sql openai oracle oracle-23ai postgresql prompt-engineering rag rls row-level-security schema-linking schema-retrieval schema-selection sql-generation sql-server sqlalchemy text-to-sql text2sql vector-search vpd"
+  ]
+ },
+ {
+  "id": "L-014",
+  "need": "Run hard optimization, scientific, and decision workloads with explicit assurance — JSON in, verified result out. Agent-first CLI + Python API, zero setup.",
+  "also_described_as": [
+   "optimization combinatorial-optimization operations-research constraint-solver solver qubo ising maxcut tsp qap milp scheduling routing assignment-problem decision-engine ai-agent agent-first llm-tools mcp cli sdk"
+  ]
+ },
+ {
+  "id": "L-016",
+  "need": "The simplest, thinnest harness that gives an LLM complete freedom to control a Mac.",
+  "also_described_as": [
+   "accessibility agent automation cdp computer-use macos"
+  ]
+ },
+ {
+  "id": "L-019",
+  "need": "Citation integrity as a CI gate: verify BibTeX references against Crossref, OpenAlex, and DBLP, catch fabricated citations, and get alerted when a paper you cite is retracted.",
+  "also_described_as": [
+   "bibtex citations references hallucination retraction crossref openalex dblp ci research-integrity"
+  ]
+ },
+ {
+  "id": "L-023",
+  "need": "Zero-leak online detection of LLM decoding corruption in production streams",
+  "also_described_as": [
+   "llm llm-safety guardrails streaming hallucination anomaly-detection inference vllm openai-api online-learning"
+  ]
+ },
+ {
+  "id": "L-025",
+  "need": "A reproducibility linter, experiment recorder, lockfile system, and drift detector for LLM research.",
+  "also_described_as": [
+   "audit llm lockfile machine-learning reproducibility research"
+  ]
+ },
+ {
+  "id": "L-026",
+  "need": "微信 4.x Windows 客户端自动化库（wxauto 复刻版）：SQLCipher 数据库解密读取 + UIA/坐标-OCR 混合发送，支持消息监听、媒体下载、朋友圈读取",
+  "also_described_as": [
+   "wechat weixin wechat4 wxauto wechatauto uiautomation sqlcipher ocr rpa automation wechat-automation"
+  ]
+ },
+ {
+  "id": "L-027",
+  "need": "Open source background removal models for image matting",
+  "also_described_as": [
+   "background-removal deep-learning huggingface matting pytorch"
+  ]
+ },
+ {
+  "id": "L-029",
+  "need": "Local MoE-offload LLM inference runtime with OpenAI- and Anthropic-compatible APIs",
+  "also_described_as": []
+ },
+ {
+  "id": "L-030",
+  "need": "🛍️ The TUI app store — browse, search, and one-key install hundreds of terminal apps, right from your terminal",
+  "also_described_as": [
+   "tui terminal textual app-store package-manager awesome-tuis"
+  ]
+ },
+ {
+  "id": "L-032",
+  "need": "Hunt for C2 beacons, DNS anomalies, and cloud-account weirdness in your own logs - between grep and a SIEM.",
+  "also_described_as": [
+   "security threat-hunting log-analysis network-security zeek syslog pihole dnsmasq cloudtrail beacon-detection dns anomaly-detection blue-team"
+  ]
+ },
+ {
+  "id": "L-034",
+  "need": "Local-first macOS Runtime for screen-context memory, personal modeling, and MCP.",
+  "also_described_as": [
+   "accessibility agent macos mcp memory"
+  ]
+ },
+ {
+  "id": "L-036",
+  "need": "Can AI engines cite your site, and do they? A free 0-100 readiness score against an open GEO rubric, plus citation checks through the AI engines' APIs with your own keys.",
+  "also_described_as": [
+   "geo aeo generative-engine-optimization ai-visibility llm-citations seo rubric mcp"
+  ]
+ },
+ {
+  "id": "L-037",
+  "need": "A Python library for running thousands of MuJoCo simulations in parallel on CPU.",
+  "also_described_as": [
+   "mujoco physics simulation batched reinforcement-learning"
+  ]
+ },
+ {
+  "id": "L-039",
+  "need": "Your work, already underway - a personal AI assistant for your job: your agents do the work, you approve. Runs on your machine.",
+  "also_described_as": [
+   "ai agents automation claude coding-agent email local-first task-management"
+  ]
+ },
+ {
+  "id": "L-040",
+  "need": "Big QMT RPC bridge and MiniQMT-compatible adapter layer (redis/zmq/mysql transports)",
+  "also_described_as": [
+   "qmt quant trading rpc redis zmq bigqmt miniqmt"
+  ]
+ },
+ {
+  "id": "L-041",
+  "need": "Audit release artifacts and generate evidence-bounded Codex maintenance tasks.",
+  "also_described_as": [
+   "ai-agents codex npm packaging python release rust supply-chain"
+  ]
+ },
+ {
+  "id": "L-043",
+  "need": "Durable workspace for governing context across AI agents",
+  "also_described_as": []
+ },
+ {
+  "id": "L-046",
+  "need": "high-security, fully offline, encrypted vector memory for AI agents (MCP)",
+  "also_described_as": [
+   "mcp model-context-protocol memory agent-memory vector-database semantic-search encryption offline local-first claude claude-code privacy rag"
+  ]
+ },
+ {
+  "id": "L-048",
+  "need": "See where your Azure money goes, as a treemap in one offline HTML page.",
+  "also_described_as": [
+   "azure cost cost-management finops treemap"
+  ]
+ },
+ {
+  "id": "L-049",
+  "need": "Local Laya typed decisions on Apple Core ML and Neural Engine, with a live Snake demo",
+  "also_described_as": [
+   "apple-silicon coreml decision-model laya local-ai neural-engine"
+  ]
+ },
+ {
+  "id": "L-050",
+  "need": "Native MLX inference for Laya typed decision models on Apple silicon",
+  "also_described_as": [
+   "apple-silicon decision-model laya local-ai mlx typed-decisions"
+  ]
+ },
+ {
+  "id": "L-051",
+  "need": "Runtime evidence that helps agents trace, profile, and burn down hotspots in application and native code, GPU kernels, and inference stacks.",
+  "also_described_as": []
+ },
+ {
+  "id": "L-052",
+  "need": "Networked serial console + USB HID keyboard injection for a fleet of headless machines — hub server, client SDK, and wire protocol.",
+  "also_described_as": [
+   "serial console kvm homelab raspberry-pi pico circuitpython hid keyboard out-of-band fastapi"
+  ]
+ },
+ {
+  "id": "L-054",
+  "need": "Typed decisions from a frozen language model and a small physics engine: calibrated probabilities, conformal sets, 73k context, images.",
+  "also_described_as": [
+   "typed-decisions calibration conformal-prediction decision-model long-context"
+  ]
+ },
+ {
+  "id": "L-055",
+  "need": "Community Python SDK for Microsoft Purview Unified Catalog APIs and data governance automation",
+  "also_described_as": [
+   "microsoft-purview purview unified-catalog python-sdk data-governance data-catalog data-quality metadata-management automation azure"
+  ]
+ },
+ {
+  "id": "L-060",
+  "need": "Pretrained tabular classification and regression",
+  "also_described_as": []
+ },
+ {
+  "id": "L-061",
+  "need": "Agent evals and guardrails that run in one request, built on System One models (Jev, Kev, Laya).",
+  "also_described_as": [
+   "agents evals guardrails jev llm system-one typesafe"
+  ]
+ },
+ {
+  "id": "L-063",
+  "need": "Give any agent a video input: watch, index, ask, and iterate on video via MCP, CLI, REST, and Python.",
+  "also_described_as": [
+   "agent-observability agent-tools agents ai-agent computer-vision evidence ffmpeg local-first mcp model-context-protocol multimodal ocr receipts screen-recording speech-to-text timestamps transcription verification video video-analysis video-understanding vision whisper yt-dlp"
+  ]
+ },
+ {
+  "id": "L-066",
+  "need": "Lightweight vector index extension for the open lakehouse stack",
+  "also_described_as": [
+   "vector-search lakehouse parquet arrow"
+  ]
+ },
+ {
+  "id": "L-067",
+  "need": "A pure-stdlib hybrid Code-as-Action scientific research agent.",
+  "also_described_as": [
+   "agent scientific-computing code-as-action llm"
+  ]
+ },
+ {
+  "id": "L-071",
+  "need": "Research engine that builds structured knowledge graphs from any topic",
+  "also_described_as": [
+   "research knowledge-graph ai mcp deep-research"
+  ]
+ },
+ {
+  "id": "L-072",
+  "need": "Generate portable task-specific LoRA adapters across language models",
+  "also_described_as": [
+   "adapters llm lora machine-learning peft"
+  ]
+ },
+ {
+  "id": "L-073",
+  "need": "Experimental Python charting engine with a native Rust core, binary columnar transport, and a GPU render client",
+  "also_described_as": []
+ },
+ {
+  "id": "L-076",
+  "need": "One CLI for all your robots. Connect them, command them, and let them work together, each with an LLM for a brain. Microduck, Open Duck Mini, LeRobot arms, XLeRobot carts, AlohaMini, ToddlerBot and ROS bases.",
+  "also_described_as": [
+   "alohamini claude cohere deepseek embodied-ai gemini glm grok humanoid jetson jev kev kimi laya lerobot llama-cpp llm-agents local-llm mcp meta microduck mistral model-context-protocol mujoco multi-robot ollama open-duck-mini openai opendecision openjev openrouter physical-ai qwen robot-fleet robotics ros ros2 rosbridge so-101 toddlerbot vllm von xlerobot"
+  ]
+ },
+ {
+  "id": "L-078",
+  "need": "Open-source local implementation of MiniMax H3 Context-IR. Turn simple prompts into structured, validated H3 video briefs.",
+  "also_described_as": [
+   "minimax-h3 minimax h3 context-ir video-generation prompt-compiler comfyui local-llm"
+  ]
+ },
+ {
+  "id": "L-079",
+  "need": "SDK and CLI for building, deploying and running agent environments and the tasks that grade agents in them.",
+  "also_described_as": [
+   "a2a agent-evaluation ai-agents llm-agents mcp model-context-protocol reinforcement-learning rl-environments sandbox"
+  ]
+ },
+ {
+  "id": "L-080",
+  "need": "A Controllable Robotic Manipulation Benchmark",
+  "also_described_as": []
+ },
+ {
+  "id": "L-081",
+  "need": "Let an agent drive a real phone: an iPhone through macOS iPhone Mirroring, an Android over adb, a rented cloud Android, or a cloud iPhone over HTTPS",
+  "also_described_as": [
+   "adb agent android automation cloud-phone iphone iphone-mirroring"
+  ]
+ },
+ {
+  "id": "L-083",
+  "need": "Superfast action layer for computer-use agents, powered by decision models, with a standalone macOS driver",
+  "also_described_as": [
+   "accessibility agents automation computer-use decision-models macos mcp"
+  ]
+ },
+ {
+  "id": "L-084",
+  "need": "Agentic CAD for 3D printing",
+  "also_described_as": [
+   "cad 3d-printing parametric build123d occt"
+  ]
+ },
+ {
+  "id": "L-087",
+  "need": "Evidence-grounded temporal memory for AI agents",
+  "also_described_as": []
+ },
+ {
+  "id": "L-088",
+  "need": "A remote registry that turns team skills into shareable, callable tools via a credential-injecting proxy.",
+  "also_described_as": [
+   "agents api cli credentials proxy registry secrets tools"
+  ]
+ },
+ {
+  "id": "L-090",
+  "need": "One API for prediction markets. Kalshi and Polymarket, normalized, with every price labelled by source and time.",
+  "also_described_as": [
+   "prediction-markets kalshi polymarket unified-api trading market-data"
+  ]
+ },
+ {
+  "id": "L-091",
+  "need": "Make AI-generated scientific figures editable without losing the code behind them.",
+  "also_described_as": [
+   "figure layout matplotlib pdf publication 科研绘图"
+  ]
+ },
+ {
+  "id": "L-092",
+  "need": "Open-source, license-free MCP server for RTL waveform debug (FST + SystemVerilog static analysis), an Indago/Verisium Debug MCP alternative.",
+  "also_described_as": [
+   "mcp waveform fst vcd verilog systemverilog rtl uvm debug eda"
+  ]
+ },
+ {
+  "id": "L-093",
+  "need": "Natural language to shell command. Runs on your own machine on CPU, no GPU and no network; optionally any OpenAI-compatible endpoint.",
+  "also_described_as": [
+   "shell cli llm local local-first privacy bash command-generation llama-cpp offline openai"
+  ]
+ },
+ {
+  "id": "L-095",
+  "need": "A tile-based, agentic platform for automatic high-performance program generation across hardware.",
+  "also_described_as": []
+ },
+ {
+  "id": "L-096",
+  "need": "Type-Safe Decoding for Autoregressive LLMs",
+  "also_described_as": []
+ },
+ {
+  "id": "L-097",
+  "need": "Drop-in TypeSafeClient replacement backed by LLM APIs",
+  "also_described_as": [
+   "typesafe llm openai anthropic gemini ai"
+  ]
+ },
+ {
+  "id": "L-098",
+  "need": "Python SDK for API.",
+  "also_described_as": [
+   "api ai"
+  ]
+ },
+ {
+  "id": "L-099",
+  "need": "Evaluate, benchmark, and A/B-test AI coding agents (Claude Code, Codex, Gemini/Antigravity, OpenCode, Pi, Delegate) with sandboxed, reproducible YAML task suites.",
+  "also_described_as": [
+   "agent agent-evaluation agent-skills agent-testing ai ai-evaluation anthropic antigravity benchmark claude claude-code claude-code-skills claude-skills code-generation codex coding-agent delegate eval evals evaluation gemini llm llm-eval llm-evaluation llmops opencode pi sandbox skills-evaluation skillsbench swe-bench"
+  ]
+ },
+ {
+  "id": "L-100",
+  "need": "The open-source System One decision model. Sub-25ms, local, calibrated decision primitives in homage to John Neumann and Ludwig Mises.",
+  "also_described_as": []
+ },
+ {
+  "id": "L-101",
+  "need": "Migrate native coding-agent sessions across eighteen terminal harnesses",
+  "also_described_as": [
+   "antigravity claude codex copilot cursor devin-cli grok hermes-agent kilo-code kimi-code mastracode mistral muse-code opencode openhands pi qwen-code session-migration vibe"
+  ]
+ },
+ {
+  "id": "L-102",
+  "need": "Evidence-grounded agent for verifiable computational paper reproduction",
+  "also_described_as": [
+   "ai-agent arxiv paper-reproduction reproducibility research scientific-computing"
+  ]
+ },
+ {
+  "id": "L-103",
+  "need": "Drive the stealth Chromium engine with a CloakBrowser-compatible API.",
+  "also_described_as": [
+   "chromium stealth browser automation anti-bot cloakbrowser"
+  ]
+ },
+ {
+  "id": "L-104",
+  "need": "Generate narrated movie recap videos from a single prompt.",
+  "also_described_as": []
+ }
+]

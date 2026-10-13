@@ -1,0 +1,16 @@
+{
+ "protocol": "rerun/PROTOCOL.md rule R8 (#169 PROTOCOL step 3: at most 12 configurations, declared before any run)",
+ "written": "2026-10-13 by the #176 researcher, before any rerun arm ran; no rerun answer or snapshot existed",
+ "tuned": "nothing: every constant below is fixed in advance (most are #169's or the shipped devkit's), so TUNE is a dry run that checks the pipeline, measures cost and decides rule R10 (index headroom) only",
+ "configurations": [
+  {"id": "B0", "arm": "agent names from memory", "prompt": "../../scripts/data/b0_prompt.md (A2, M2); b0_latest_prompt.md (L)", "tools": "none", "batch": 64, "names_scored": 3},
+  {"id": "B1", "arm": "B0 gated by `dev reuse check` (FAIL, UNVERIFIED, NOT FOUND dropped; HOLD kept)", "derived_from": "B0"},
+  {"id": "B0W", "arm": "agent names with its own WebSearch and WebFetch", "prompt": "b0w_prompt.md (A2, M2); b0w_latest_prompt.md (L)", "tools": "WebSearch,WebFetch", "batch": 1, "workers": 4, "names_scored": 3},
+  {"id": "B1W", "arm": "B0W gated by `dev reuse check`", "derived_from": "B0W"},
+  {"id": "A1", "arm": "`dev reuse` search alone, shipped order (R4: PASS before HOLD, union shortlist, R_FLOOR 0.20, LAMBDA 1.0)", "n": 10},
+  {"id": "A2", "arm": "A1's judged shortlist (before the cut to n) plus the B0 names, checked, R and S = R + LAMBDA*Q computed, FAIL/UNVERIFIED/NOT FOUND dropped, shipped order", "n": 10},
+  {"id": "A3", "arm": "agent pick from A2's top 20", "prompt": "../../scripts/data/a3_prompt.md (A2, M2); a3_latest_prompt.md (L)", "tools": "none", "batch": 16, "shortlist": 20},
+  {"id": "P1", "arm": "#169's CPU index (BM25 + potion-retrieval-32M, RRF k=60) over the 2026-10-13 PyPI corpus; TUNE headroom only (rule R10); a TEST arm only if headroom >= 0.10, then as A2's list plus P1's top 10 names checked (tag p1), shipped order", "top": 100}
+ ],
+ "total_configurations": 8
+}

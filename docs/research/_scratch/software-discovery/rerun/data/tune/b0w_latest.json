@@ -1,0 +1,448 @@
+{
+ "L-001": [
+  "reverify"
+ ],
+ "_model": "claude-haiku-5-5,claude-opus-5-5",
+ "_calls": {
+  "L-001": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.06578510000000001,
+   "error": false
+  },
+  "L-004": {
+   "turns": 4,
+   "web_search_requests": 1,
+   "cost_usd": 0.070187,
+   "error": false
+  },
+  "L-005": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.0647658,
+   "error": false
+  },
+  "L-010": {
+   "turns": 4,
+   "web_search_requests": 1,
+   "cost_usd": 0.0651476,
+   "error": false
+  },
+  "L-012": {
+   "turns": 6,
+   "web_search_requests": 3,
+   "cost_usd": 0.12116959999999999,
+   "error": false
+  },
+  "L-013": {
+   "turns": 4,
+   "web_search_requests": 1,
+   "cost_usd": 0.06465770000000001,
+   "error": false
+  },
+  "L-015": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.058079599999999995,
+   "error": false
+  },
+  "L-017": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.0664043,
+   "error": false
+  },
+  "L-018": {
+   "turns": 5,
+   "web_search_requests": 1,
+   "cost_usd": 0.0772545,
+   "error": false
+  },
+  "L-020": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.048343,
+   "error": false
+  },
+  "L-021": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.051969600000000005,
+   "error": false
+  },
+  "L-022": {
+   "turns": 4,
+   "web_search_requests": 1,
+   "cost_usd": 0.07969300000000001,
+   "error": false
+  },
+  "L-024": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.07592370000000001,
+   "error": false
+  },
+  "L-028": {
+   "turns": 8,
+   "web_search_requests": 1,
+   "cost_usd": 0.11835859999999998,
+   "error": false
+  },
+  "L-031": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0234186,
+   "error": false
+  },
+  "L-033": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.0707767,
+   "error": false
+  },
+  "L-035": {
+   "turns": 10,
+   "web_search_requests": 3,
+   "cost_usd": 0.1443521,
+   "error": false
+  },
+  "L-038": {
+   "turns": 7,
+   "web_search_requests": 3,
+   "cost_usd": 0.1462408,
+   "error": false
+  },
+  "L-042": {
+   "turns": 5,
+   "web_search_requests": 2,
+   "cost_usd": 0.10203709999999999,
+   "error": false
+  },
+  "L-044": {
+   "turns": 9,
+   "web_search_requests": 1,
+   "cost_usd": 0.09647679999999999,
+   "error": false
+  },
+  "L-045": {
+   "turns": 6,
+   "web_search_requests": 2,
+   "cost_usd": 0.09504610000000001,
+   "error": false
+  },
+  "L-047": {
+   "turns": 3,
+   "web_search_requests": 2,
+   "cost_usd": 0.0769602,
+   "error": false
+  },
+  "L-053": {
+   "turns": 8,
+   "web_search_requests": 1,
+   "cost_usd": 0.0812004,
+   "error": false
+  },
+  "L-056": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.0505389,
+   "error": false
+  },
+  "L-057": {
+   "turns": 12,
+   "web_search_requests": 5,
+   "cost_usd": 0.22402370000000002,
+   "error": false
+  },
+  "L-058": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.06524579999999999,
+   "error": false
+  },
+  "L-059": {
+   "turns": 5,
+   "web_search_requests": 2,
+   "cost_usd": 0.08366879999999999,
+   "error": false
+  },
+  "L-062": {
+   "turns": 4,
+   "web_search_requests": 2,
+   "cost_usd": 0.09165480000000001,
+   "error": false
+  },
+  "L-064": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.056766399999999995,
+   "error": false
+  },
+  "L-065": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0238066,
+   "error": false
+  },
+  "L-068": {
+   "turns": 6,
+   "web_search_requests": 1,
+   "cost_usd": 0.08201200000000002,
+   "error": false
+  },
+  "L-069": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.0564799,
+   "error": false
+  },
+  "L-070": {
+   "turns": 4,
+   "web_search_requests": 1,
+   "cost_usd": 0.0653156,
+   "error": false
+  },
+  "L-074": {
+   "turns": 4,
+   "web_search_requests": 1,
+   "cost_usd": 0.0668252,
+   "error": false
+  },
+  "L-075": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.0669915,
+   "error": false
+  },
+  "L-077": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.0542854,
+   "error": false
+  },
+  "L-082": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.0545586,
+   "error": false
+  },
+  "L-085": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.0557389,
+   "error": false
+  },
+  "L-086": {
+   "turns": 5,
+   "web_search_requests": 2,
+   "cost_usd": 0.0998607,
+   "error": false
+  },
+  "L-089": {
+   "turns": 4,
+   "web_search_requests": 2,
+   "cost_usd": 0.08651410000000001,
+   "error": false
+  },
+  "L-094": {
+   "turns": 4,
+   "web_search_requests": 1,
+   "cost_usd": 0.0698906,
+   "error": false
+  },
+  "L-105": {
+   "turns": 6,
+   "web_search_requests": 1,
+   "cost_usd": 0.09252649999999998,
+   "error": false
+  }
+ },
+ "_date": "2026-10-13",
+ "_how": "claude -p --model claude-opus-5-5 --tools WebSearch,WebFetch --allowedTools WebSearch,WebFetch --strict-mcp-config --setting-sources '' --output-format json from an empty directory; prompt = b0w_latest_prompt.md body with tune_latest.json, batches of 1",
+ "L-004": [
+  "terrahour",
+  "world-wall-clock"
+ ],
+ "L-005": [
+  "mcptoon",
+  "mcp2cli",
+  "mcp-cli"
+ ],
+ "L-010": [
+  "kifly-storefront-backend"
+ ],
+ "L-012": [
+  "wikiskill",
+  "hermes-agent"
+ ],
+ "L-013": [
+  "agentdescent",
+  "gepa",
+  "openevolve"
+ ],
+ "L-015": [
+  "backlot"
+ ],
+ "L-017": [
+  "ema-lightning",
+  "anka-tts",
+  "turkish-tts"
+ ],
+ "L-018": [
+  "cayu",
+  "deepagents",
+  "langgraph"
+ ],
+ "L-020": [
+  "pickledb",
+  "diskcache",
+  "sqlitedict"
+ ],
+ "L-021": [
+  "miniverl",
+  "trl",
+  "unsloth"
+ ],
+ "L-022": [
+  "openworkproof",
+  "noirebox",
+  "clearsigned-mcp"
+ ],
+ "L-024": [
+  "nativeprompt"
+ ],
+ "L-028": [
+  "qanat-fdtl",
+  "openbb-mcp-server",
+  "edgartools"
+ ],
+ "L-031": [
+  "typer",
+  "cyclopts",
+  "click"
+ ],
+ "L-033": [
+  "hmz"
+ ],
+ "L-035": [
+  "sharelint",
+  "prepublish-guard",
+  "metascout"
+ ],
+ "L-038": [
+  "agent-skill-sync",
+  "add-skills",
+  "find-skill"
+ ],
+ "L-042": [
+  "lm-resiliency",
+  "nvidia-resiliency-ext",
+  "torchft"
+ ],
+ "L-044": [
+  "zero-slop",
+  "slopvac",
+  "slopscore-lint"
+ ],
+ "L-045": [
+  "whiteboard-animator",
+  "handanim",
+  "sketchpy"
+ ],
+ "L-047": [
+  "agentacct",
+  "code-meter",
+  "aiburn"
+ ],
+ "L-053": [
+  "yourmt3",
+  "mt3-audio2midi",
+  "transkun"
+ ],
+ "L-056": [
+  "bioai-evidence-validator",
+  "linkml-reference-validator",
+  "linkml-term-validator"
+ ],
+ "L-057": [
+  "claude-autopilot",
+  "orcho-core",
+  "claude-code-orchestrator"
+ ],
+ "L-058": [
+  "anyjev"
+ ],
+ "L-059": [
+  "activity-frames"
+ ],
+ "L-062": [
+  "optim-agent",
+  "opik-optimizer",
+  "optuna"
+ ],
+ "L-064": [
+  "openreview-py",
+  "arxiv-latex-cleaner",
+  "arxiv-collector"
+ ],
+ "L-065": [
+  "python-docx",
+  "docxtpl",
+  "docx2python"
+ ],
+ "L-068": [
+  "plasma-fractal",
+  "sagent"
+ ],
+ "L-069": [
+  "agent-wiki-kb",
+  "kindex",
+  "agent-brain-cli"
+ ],
+ "L-070": [
+  "verifiers",
+  "openenv-core",
+  "reasoning-gym"
+ ],
+ "L-074": [
+  "trackinizer"
+ ],
+ "L-075": [
+  "oh-my-subagents",
+  "crewai",
+  "langgraph"
+ ],
+ "L-077": [
+  "py-idp",
+  "extract-thinker",
+  "langextract"
+ ],
+ "L-082": [
+  "waku-agent",
+  "smolagents",
+  "pydantic-ai"
+ ],
+ "L-085": [
+  "mcp-explorer",
+  "mcp-cli",
+  "fastmcp"
+ ],
+ "L-086": [
+  "rustwright"
+ ],
+ "L-089": [
+  "jev-align",
+  "gepa",
+  "dspy"
+ ],
+ "L-094": [
+  "phi-boundary-gate",
+  "phi-redactor",
+  "presidio-analyzer"
+ ],
+ "L-105": [
+  "zerotts",
+  "vieneu",
+  "neutts"
+ ]
+}

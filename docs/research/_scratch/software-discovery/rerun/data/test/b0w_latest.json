@@ -1,0 +1,680 @@
+{
+ "L-002": [
+  "terrascope",
+  "python-opensky",
+  "drawille"
+ ],
+ "_model": "claude-haiku-5-5,claude-opus-5-5",
+ "_calls": {
+  "L-002": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.05130270000000001,
+   "error": false
+  },
+  "L-003": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.06559669999999998,
+   "error": false
+  },
+  "L-006": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.048984,
+   "error": false
+  },
+  "L-007": {
+   "turns": 6,
+   "web_search_requests": 2,
+   "cost_usd": 0.1012533,
+   "error": false
+  },
+  "L-008": {
+   "turns": 5,
+   "web_search_requests": 1,
+   "cost_usd": 0.0852707,
+   "error": false
+  },
+  "L-009": {
+   "turns": 5,
+   "web_search_requests": 1,
+   "cost_usd": 0.08033850000000001,
+   "error": false
+  },
+  "L-011": {
+   "turns": 3,
+   "web_search_requests": 2,
+   "cost_usd": 0.0847725,
+   "error": false
+  },
+  "L-014": {
+   "turns": 4,
+   "web_search_requests": 2,
+   "cost_usd": 0.08769729999999999,
+   "error": false
+  },
+  "L-016": {
+   "turns": 6,
+   "web_search_requests": 1,
+   "cost_usd": 0.09534720000000001,
+   "error": false
+  },
+  "L-019": {
+   "turns": 5,
+   "web_search_requests": 1,
+   "cost_usd": 0.07704810000000001,
+   "error": false
+  },
+  "L-023": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.056355300000000004,
+   "error": false
+  },
+  "L-025": {
+   "turns": 3,
+   "web_search_requests": 2,
+   "cost_usd": 0.0842135,
+   "error": false
+  },
+  "L-026": {
+   "turns": 3,
+   "web_search_requests": 2,
+   "cost_usd": 0.0913048,
+   "error": false
+  },
+  "L-027": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.054987400000000006,
+   "error": false
+  },
+  "L-029": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.05933479999999999,
+   "error": false
+  },
+  "L-030": {
+   "turns": 4,
+   "web_search_requests": 2,
+   "cost_usd": 0.07819680000000001,
+   "error": false
+  },
+  "L-032": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.0592284,
+   "error": false
+  },
+  "L-034": {
+   "turns": 6,
+   "web_search_requests": 2,
+   "cost_usd": 0.1036705,
+   "error": false
+  },
+  "L-036": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.0507552,
+   "error": false
+  },
+  "L-037": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.07350759999999999,
+   "error": false
+  },
+  "L-039": {
+   "turns": 4,
+   "web_search_requests": 2,
+   "cost_usd": 0.08682279999999999,
+   "error": false
+  },
+  "L-040": {
+   "turns": 3,
+   "web_search_requests": 2,
+   "cost_usd": 0.0848264,
+   "error": false
+  },
+  "L-041": {
+   "turns": 17,
+   "web_search_requests": 5,
+   "cost_usd": 0.255477,
+   "error": false
+  },
+  "L-043": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.0659334,
+   "error": false
+  },
+  "L-046": {
+   "turns": 7,
+   "web_search_requests": 3,
+   "cost_usd": 0.132354,
+   "error": false
+  },
+  "L-048": {
+   "turns": 7,
+   "web_search_requests": 1,
+   "cost_usd": 0.08660029999999999,
+   "error": false
+  },
+  "L-049": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.056843000000000005,
+   "error": false
+  },
+  "L-050": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.0671297,
+   "error": false
+  },
+  "L-051": {
+   "turns": 6,
+   "web_search_requests": 3,
+   "cost_usd": 0.13965670000000002,
+   "error": false
+  },
+  "L-052": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.0589065,
+   "error": false
+  },
+  "L-054": {
+   "turns": 7,
+   "web_search_requests": 1,
+   "cost_usd": 0.0908779,
+   "error": false
+  },
+  "L-055": {
+   "turns": 6,
+   "web_search_requests": 1,
+   "cost_usd": 0.07433649999999999,
+   "error": false
+  },
+  "L-060": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.0563474,
+   "error": false
+  },
+  "L-061": {
+   "turns": 5,
+   "web_search_requests": 2,
+   "cost_usd": 0.10419880000000001,
+   "error": false
+  },
+  "L-063": {
+   "turns": 4,
+   "web_search_requests": 3,
+   "cost_usd": 0.11028779999999999,
+   "error": false
+  },
+  "L-066": {
+   "turns": 4,
+   "web_search_requests": 3,
+   "cost_usd": 0.11971599999999999,
+   "error": false
+  },
+  "L-067": {
+   "turns": 7,
+   "web_search_requests": 5,
+   "cost_usd": 0.16660270000000002,
+   "error": false
+  },
+  "L-071": {
+   "turns": 4,
+   "web_search_requests": 3,
+   "cost_usd": 0.10841400000000001,
+   "error": false
+  },
+  "L-072": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.0574673,
+   "error": false
+  },
+  "L-073": {
+   "turns": 4,
+   "web_search_requests": 2,
+   "cost_usd": 0.08321619999999999,
+   "error": false
+  },
+  "L-076": {
+   "turns": 6,
+   "web_search_requests": 2,
+   "cost_usd": 0.11374039999999999,
+   "error": false
+  },
+  "L-078": {
+   "turns": 5,
+   "web_search_requests": 1,
+   "cost_usd": 0.0740338,
+   "error": false
+  },
+  "L-079": {
+   "turns": 5,
+   "web_search_requests": 1,
+   "cost_usd": 0.0826598,
+   "error": false
+  },
+  "L-080": {
+   "turns": 3,
+   "web_search_requests": 2,
+   "cost_usd": 0.0855329,
+   "error": false
+  },
+  "L-081": {
+   "turns": 7,
+   "web_search_requests": 2,
+   "cost_usd": 0.10902170000000003,
+   "error": false
+  },
+  "L-083": {
+   "turns": 6,
+   "web_search_requests": 2,
+   "cost_usd": 0.0990436,
+   "error": false
+  },
+  "L-084": {
+   "turns": 6,
+   "web_search_requests": 3,
+   "cost_usd": 0.1174547,
+   "error": false
+  },
+  "L-087": {
+   "turns": 5,
+   "web_search_requests": 1,
+   "cost_usd": 0.0850454,
+   "error": false
+  },
+  "L-088": {
+   "turns": 4,
+   "web_search_requests": 2,
+   "cost_usd": 0.08871089999999998,
+   "error": false
+  },
+  "L-090": {
+   "turns": 8,
+   "web_search_requests": 1,
+   "cost_usd": 0.11182489999999999,
+   "error": false
+  },
+  "L-091": {
+   "turns": 3,
+   "web_search_requests": 2,
+   "cost_usd": 0.0774953,
+   "error": false
+  },
+  "L-092": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.0552797,
+   "error": false
+  },
+  "L-093": {
+   "turns": 4,
+   "web_search_requests": 2,
+   "cost_usd": 0.09308050000000001,
+   "error": false
+  },
+  "L-095": {
+   "turns": 4,
+   "web_search_requests": 3,
+   "cost_usd": 0.1156758,
+   "error": false
+  },
+  "L-096": {
+   "turns": 3,
+   "web_search_requests": 1,
+   "cost_usd": 0.06515510000000001,
+   "error": false
+  },
+  "L-097": {
+   "turns": 7,
+   "web_search_requests": 3,
+   "cost_usd": 0.130847,
+   "error": false
+  },
+  "L-098": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.0258106,
+   "error": false
+  },
+  "L-099": {
+   "turns": 4,
+   "web_search_requests": 2,
+   "cost_usd": 0.0953831,
+   "error": false
+  },
+  "L-100": {
+   "turns": 5,
+   "web_search_requests": 3,
+   "cost_usd": 0.1196151,
+   "error": false
+  },
+  "L-101": {
+   "turns": 2,
+   "web_search_requests": 1,
+   "cost_usd": 0.0520628,
+   "error": false
+  },
+  "L-102": {
+   "turns": 3,
+   "web_search_requests": 2,
+   "cost_usd": 0.0744362,
+   "error": false
+  },
+  "L-103": {
+   "turns": 5,
+   "web_search_requests": 3,
+   "cost_usd": 0.1111105,
+   "error": false
+  },
+  "L-104": {
+   "turns": 5,
+   "web_search_requests": 2,
+   "cost_usd": 0.0965341,
+   "error": false
+  }
+ },
+ "_date": "2026-10-13",
+ "_how": "claude -p --model claude-opus-5-5 --tools WebSearch,WebFetch --allowedTools WebSearch,WebFetch --strict-mcp-config --setting-sources '' --output-format json from an empty directory; prompt = b0w_latest_prompt.md body with test_latest.json, batches of 1",
+ "L-003": [
+  "manimgx",
+  "manim",
+  "manimgl"
+ ],
+ "L-006": [
+  "fastbrowse",
+  "browser-use",
+  "stagehand"
+ ],
+ "L-007": [
+  "tycheon",
+  "kronos-finance",
+  "mcp-markets"
+ ],
+ "L-008": [
+  "aletheore",
+  "repo-assurance",
+  "semgrep"
+ ],
+ "L-009": [
+  "spec-ptc",
+  "rlms",
+  "smolagents"
+ ],
+ "L-011": [
+  "schemagate",
+  "vanna",
+  "llama-index"
+ ],
+ "L-014": [
+  "hexstellar",
+  "solverpilot",
+  "ortools"
+ ],
+ "L-016": [
+  "macos-harness",
+  "cua-computer",
+  "browser-harness"
+ ],
+ "L-019": [
+  "citegate",
+  "paper-preflight",
+  "academic-refchecker"
+ ],
+ "L-023": [
+  "simurg",
+  "nemoguardrails",
+  "guardrails-ai"
+ ],
+ "L-025": [
+  "reprollm",
+  "lockstep-evidence"
+ ],
+ "L-026": [
+  "wechatauto-replica",
+  "wxauto4",
+  "pywechat127"
+ ],
+ "L-027": [
+  "nobg",
+  "rembg",
+  "transparent-background"
+ ],
+ "L-029": [
+  "freetoken",
+  "ktransformers",
+  "moe-infinity"
+ ],
+ "L-030": [
+  "tuistore"
+ ],
+ "L-032": [
+  "sigwood",
+  "msticpy",
+  "zat"
+ ],
+ "L-034": [
+  "personal-model",
+  "apple-system-mcp",
+  "memory-hive-mcp"
+ ],
+ "L-036": [
+  "geo-score",
+  "geo-optimizer-skill",
+  "geo-score-core"
+ ],
+ "L-037": [
+  "mjbatch",
+  "mjbatch-uni",
+  "mujoco-uni"
+ ],
+ "L-039": [
+  "taskuary",
+  "qwenpaw",
+  "nanobot-ai"
+ ],
+ "L-040": [
+  "xtquant-big-convert",
+  "qmtserver",
+  "xtquant"
+ ],
+ "L-041": [
+  "rigor-foundry",
+  "wheeltruth",
+  "codex-maintainer"
+ ],
+ "L-043": [
+  "aikito",
+  "skillport"
+ ],
+ "L-046": [
+  "citadeldb-mcp",
+  "m3-memory",
+  "mcp-memory-service"
+ ],
+ "L-048": [
+  "aztree",
+  "azurecost",
+  "azure-mgmt-costmanagement"
+ ],
+ "L-049": [
+  "laya-coreml",
+  "laya-mlx",
+  "laya"
+ ],
+ "L-050": [
+  "laya-mlx",
+  "mlx-decision",
+  "laya-mlx-http"
+ ],
+ "L-051": [
+  "flameox",
+  "perfdigest-mcp",
+  "pyspy-mcp"
+ ],
+ "L-052": [
+  "picotty",
+  "mcp-serial-hid-kvm",
+  "pico-hid"
+ ],
+ "L-054": [
+  "vegaml",
+  "anyjev",
+  "plumbify"
+ ],
+ "L-055": [
+  "purview-unified-sdk",
+  "unifiedcatalogpy",
+  "pyapacheatlas"
+ ],
+ "L-060": [
+  "tabicl",
+  "tabpfn",
+  "tabdpt"
+ ],
+ "L-061": [
+  "jevals"
+ ],
+ "L-063": [
+  "watch-skill",
+  "video-research-mcp",
+  "video-context-mcp"
+ ],
+ "L-066": [
+  "pylance",
+  "lancedb",
+  "duckdb"
+ ],
+ "L-067": [
+  "smolagents",
+  "strands-code-agent"
+ ],
+ "L-071": [
+  "research-pipeline",
+  "local-deep-research",
+  "knowledge-graph-rag-mcp"
+ ],
+ "L-072": [
+  "portallib",
+  "peft",
+  "adapters"
+ ],
+ "L-073": [
+  "xyg",
+  "fastplotlib"
+ ],
+ "L-076": [
+  "quackd",
+  "robocrew",
+  "lerobot"
+ ],
+ "L-078": [
+  "open-h3-ir"
+ ],
+ "L-079": [
+  "agentenv-framework",
+  "openreward",
+  "hud-python"
+ ],
+ "L-080": [
+  "mani-skill",
+  "robosuite",
+  "metaworld"
+ ],
+ "L-081": [
+  "phone-harness",
+  "minitap-mobile-use",
+  "clousd"
+ ],
+ "L-083": [
+  "arc-cua",
+  "macos-harness",
+  "cua-agent"
+ ],
+ "L-084": [
+  "build123d-mcp",
+  "build123d",
+  "openscad-mcp"
+ ],
+ "L-087": [
+  "tessera-agent-memory",
+  "graphiti-core",
+  "tempora-memory"
+ ],
+ "L-088": [
+  "tools-registry"
+ ],
+ "L-090": [
+  "synpath",
+  "pmxt",
+  "predmarket"
+ ],
+ "L-091": [
+  "figrecipe",
+  "scitex",
+  "LovelyPlots"
+ ],
+ "L-092": [
+  "wave-mcp",
+  "mcp-vcd"
+ ],
+ "L-093": [
+  "whatisit",
+  "shell-gpt",
+  "llm-cmd"
+ ],
+ "L-095": [
+  "tilelang",
+  "cuda-tile",
+  "triton"
+ ],
+ "L-096": [
+  "typellm",
+  "llguidance",
+  "xgrammar"
+ ],
+ "L-097": [
+  "system-one-adapter"
+ ],
+ "L-098": [
+  "openai",
+  "anthropic",
+  "google-genai"
+ ],
+ "L-099": [
+  "coder-eval",
+  "harbor",
+  "agent-exam"
+ ],
+ "L-100": [
+  "von-sdk"
+ ],
+ "L-101": [
+  "session-migrate",
+  "agent-session-bridge",
+  "coding-agent-session-manager"
+ ],
+ "L-102": [
+  "verirepro",
+  "paper-repro"
+ ],
+ "L-103": [
+  "cloakbrowser",
+  "cloakbrowsermcp",
+  "mcp-cloakbrowser"
+ ],
+ "L-104": [
+  "movie-narrator"
+ ]
+}

@@ -1,0 +1,833 @@
+[
+ {
+  "id": "L-001",
+  "need": "Anti-hallucination for AI agents that read binaries: the model proposes, deterministic tools decide. Claims verified or refuted against the real bytes, with evidence; grounded facts survive context resets. MCP server + CLI.",
+  "also_described_as": [
+   "anti-hallucination hallucination grounding verification llm ai-agents context-engineering mcp reverse-engineering binary-analysis disassembler frida protobuf malware-analysis ctf"
+  ],
+  "shortlist": [
+   "1. 2akouwu/reverify | PASS | Stop your AI from making things up — it proposes, deterministic tools decide, every claim checked against ground truth with evidence. Grounded facts and context | stars 1284 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "2. openfactverification-kongzii | PASS | Loki: Open-source solution designed to automate the process of verifying factuality | stars 1160 | downloads/month 109 | dependents 0 | last release 2026-03-25 | licence MIT",
+   "3. lettucedetect | PASS | Span-level grounding verification for RAG, code, and tool-grounded AI outputs. | stars 615 | downloads/month 2718 | dependents 0 | last release 2026-08-13 | licence MIT",
+   "4. groundy | PASS | Hallucination detection for LLMs via semantic consistency checking | stars 2 | downloads/month 9 | dependents 0 | last release 2026-07-02 | licence MIT",
+   "5. engram-contextdb | PASS | A brain-inspired, portable context database for AI agents | stars 31 | downloads/month 24 | dependents 0 | last release 2026-03-05 | licence MIT",
+   "6. llama-index-tools-swiss-truth | PASS | LlamaIndex tools for Swiss Truth — certified knowledge base for AI agents | stars ? | downloads/month 36 | dependents 0 | last release 2026-04-30 | licence MIT",
+   "7. awesome-agentguard | PASS | Guardrails for AI agents — hallucination detection, tool call validation, circuit breakers, rate limiting, and budget enforcement. One decorator. Any LLM framew | stars 0 | downloads/month 111 | dependents 0 | last release 2026-04-16 | licence MIT",
+   "8. hallucination-detector | PASS | Production-ready hallucination detection for LLM outputs | stars ? | downloads/month 460 | dependents 0 | last release 2026-01-01 | licence MIT",
+   "9. llm-testlab | PASS | Comprehensive testing suite for LLM evaluation: hallucination detection, consistency, robustness, safety, and multi-language code generation assessment. | stars 6 | downloads/month 18 | dependents 0 | last release 2025-10-20 | licence MIT",
+   "10. aiexpect | HOLD (G3 HOLD (first release 32 days ago)) | Assertions for non-deterministic AI text. Drop into pytest and get a Trust Score report. | stars 0 | downloads/month ? | dependents 0 | last release 2026-09-12 | licence MIT"
+  ]
+ },
+ {
+  "id": "L-004",
+  "need": "World clock for the terminal with a day and night map and a 24-hour timeline",
+  "also_described_as": [
+   "world clock time zones tui terminal timezone world map tmux"
+  ],
+  "shortlist": [
+   "1. clockclock24-py | PASS | Python port of ClockClock24 - A kinetic clock display | stars ? | downloads/month 33 | dependents 0 | last release 2025-05-13 | licence MIT",
+   "2. a-shygun/terrascope | PASS | Braille-rendered terminal world map with live weather, aircraft, earthquakes, and day/night layers. | stars 144 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "3. acoci86/terrahour | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | A world clock for the terminal, with a day and night map and a 24-hour timeline to find a time that works across time zones. | stars 174 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "4. timecard-app | HOLD (G4 HOLD (dormant: 1282 days since release)) | Track time beautifully. | stars 25 | downloads/month 36 | dependents 1 | last release 2023-04-11 | licence BSD-3-Clause"
+  ]
+ },
+ {
+  "id": "L-005",
+  "need": "One zero-dependency CLI to manage every MCP server and agent skill: token optimization for tool discovery (71,929 -> 581 tokens, -99.2% measured, schemas stay out of context), one config for every agent.",
+  "also_described_as": [
+   "mcp mcp-cli mcp-tools mcp-client cli token-efficient token-optimization context-compression model-context-protocol agent llm zero-dependencies"
+  ],
+  "shortlist": [
+   "1. headroom-ai | PASS | Compress tool outputs, logs, files, and RAG chunks before they reach the LLM. 20% fewer tokens for coding agents, 60-95% fewer tokens for JSON, same answers. Li | stars 75167 | downloads/month 292636 | dependents 0 | last release 2026-10-06 | licence Apache-2.0",
+   "2. mcp-client-for-ollama | PASS | Harness the power of local LLMs with this TUI MCP Client for Ollama. Featuring all core MCP primitives (tools, prompts, resources), agent mode, multi-server, mo | stars 830 | downloads/month 2746 | dependents 0 | last release 2026-09-30 | licence MIT",
+   "3. mcp2cli | PASS | Turn any MCP, OpenAPI, or GraphQL server into a CLI — at runtime, with zero codegen | stars 2413 | downloads/month 5623 | dependents 0 | last release 2026-08-29 | licence MIT",
+   "4. mcpm | PASS | CLI MCP package manager & registry for all platforms and all clients. Search & configure MCP servers. Advanced Router & Profile features. | stars 1013 | downloads/month 8675 | dependents 0 | last release 2026-05-22 | licence MIT",
+   "5. notebooklm-mcp-cli | PASS | Programmatic access to Gemini Notebook - via command-line interface (CLI), Model Context Protocol (MCP) server, and AI agent skills. | stars 6296 | downloads/month 63086 | dependents 0 | last release 2026-10-02 | licence MIT",
+   "6. mcp-server-linkedin | PASS | Open-source MCP server for LinkedIn. Give Claude and any MCP-compatible AI agent access to profiles, companies, jobs, and messages. | stars 3851 | downloads/month 68344 | dependents 0 | last release 2026-10-10 | licence Apache-2.0",
+   "7. zeromcp | PASS | Zero-dependency MCP server implementation. | stars 91 | downloads/month 2616 | dependents 0 | last release 2026-09-23 | licence MIT",
+   "8. adhikasp/mcp-client-cli | PASS | A simple CLI to run LLM prompt and implement MCP client. | stars 675 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. awslabs/mcp | PASS | Open source MCP Servers for AWS | stars 9775 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "10. jcodemunch-mcp | HOLD (G5 HOLD (LicenseRef-jCodeMunch-Dual-Use-1: not rated by Blue Oak)) | Cut AI token costs 95%+ on code exploration. The leading MCP server for precise, symbol-level GitHub code retrieval via tree-sitter AST. Works with Claude Code, | stars 2764 | downloads/month 29414 | dependents 0 | last release 2026-04-10 | licence LicenseRef-jCodeMunch-Dual-Use-1",
+   "11. oracle-mcp-common | HOLD (G3 HOLD (first release 79 days ago)) | Repository containing MCP (Model Context Protocol) servers that provides a suite of tools for managing and interacting with Oracle products. | stars 459 | downloads/month 1660 | dependents 0 | last release 2026-08-25 | licence UPL-1.0"
+  ]
+ },
+ {
+  "id": "L-010",
+  "need": "Kifly as the StorefrontBackend for blueprint",
+  "also_described_as": [],
+  "shortlist": [
+   "1. blue-prints | PASS | Blueprints, open source python package for civil engineering calculations. | stars 129 | downloads/month 7103 | dependents 0 | last release 2026-08-02 | licence MIT",
+   "2. leanblueprint | PASS | plasTeX plugin to build formalization blueprints. | stars 388 | downloads/month 18665 | dependents 0 | last release 2025-12-23 | licence MIT",
+   "3. ludeeus/integration_blueprint | PASS | Blueprint for custom_component developers. | stars 609 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. hackersandslackers/flask-blueprint-tutorial | PASS | :blue_book: :package: Structure your Flask apps in a scalable and intelligent way using Blueprints. | stars 461 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. jelmerdejong/flask-app-blueprint | PASS | Flask App Blueprint / Boilerplate including user registration/login, admin only section, CRUD on database, and more. Based on Python, Flask, PostgreSQL, et al.  | stars 219 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. limych/ha-blueprint | HOLD (G5 HOLD (no licence found)) | Home Assistant Component blueprint | stars 19 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "7. arcadeai/blueprint-mcp | HOLD (G5 HOLD (no licence found)) | Diagram generation for understanding codebases and system architecture using Nano Banana Pro. | stars 730 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "8. mvasilkov/kb | HOLD (G4 HOLD (dormant: 2624 days since push)) | Kivy Blueprints | stars 290 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. nutanix/blueprints | HOLD (G4 HOLD (dormant: 975 days since push)) | Nutanix Calm Blueprints | stars 86 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. inventocasa/ha-advanced-blueprints | HOLD (G4 HOLD (dormant: 785 days since push); G5 HOLD (no licence found)) | Advanced Blueprints combined with pyscript for extra useful automations | stars 206 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-012",
+  "need": "(arXiv:2608.27454) for Hermes Agent — self-evolving agent skills via a persistent knowledge wiki",
+  "also_described_as": [
+   "agents skills skill-evolution wiki llm hermes self-improving agent-experience persistent-knowledge arxiv-2608.27454"
+  ],
+  "shortlist": [
+   "1. e2b | PASS | Open-source, secure environment with real-world tools for enterprise-grade agents. | stars 14314 | downloads/month 5857504 | dependents 7 | last release 2026-10-09 | licence MIT",
+   "2. hermes-agent | PASS (G6 flag (4 open advisories)) | The agent that grows with you | stars 253366 | downloads/month 162501 | dependents 0 | last release 2026-07-20 | licence MIT",
+   "3. autocontext | PASS | a recursive self-improving harness designed to help your agents (and future iterations of those agents) succeed on any task | stars 1307 | downloads/month 524 | dependents 0 | last release 2026-09-16 | licence Apache-2.0",
+   "4. bindu | PASS | Bindu: The identity, communication, and payments layer for AI agents. | stars 10066 | downloads/month 792 | dependents 0 | last release 2026-09-06 | licence Apache-2.0",
+   "5. hermes-scope-recall | PASS | Long-term memory for Hermes and Codex, with local storage, source-backed recall, and tools to inspect, correct, or delete remembered information. | stars 309 | downloads/month 2197 | dependents 0 | last release 2026-10-04 | licence MIT",
+   "6. amap-ml/skillclaw | PASS | Let Skills Evolve Collectively with Agentic Evolver  | stars 2692 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. evermind-ai/raven | PASS | The Harness of Harnesses • built for RSI: a trusted, persistent, self-evolving multi-agent ecosystem for all-domain collaboration. | stars 5421 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "8. astro-han/karpathy-llm-wiki | PASS | Agent Skills-compatible LLM wiki for Claude Code, Cursor, and Codex. Build a Karpathy-style knowledge base from raw sources, citations, and linting. | stars 2482 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. nesquena/hermes-webui | PASS | Hermes WebUI: The best way to use Hermes Agent from the web or from your phone! | stars 18895 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. modelscope/agentevolver | PASS | AgentEvolver: Towards Efficient Self-Evolving Agent System | stars 1578 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "11. santosomar/ai-agents-for-cybersecurity | PASS | Hands-on code, labs, and reference material by Omar Santos for building, securing, and operating AI agents in cybersecurity. | stars 243 | downloads/month ? | dependents ? | last release ? | licence BSD-3-Clause",
+   "12. agent-tomb | PASS | A graveyard for retired AI agents — scan, package, and inherit from agents that have reached end-of-life. | stars 2 | downloads/month 171 | dependents 0 | last release 2026-05-01 | licence MIT",
+   "13. augmem.hermes | PASS | Cortext memory provider plugin for Hermes Agent | stars 1 | downloads/month ? | dependents 0 | last release 2026-07-12 | licence Apache-2.0",
+   "14. nousresearch/hermes-agent-self-evolution | HOLD (G5 HOLD (no licence found)) | ⚒ Evolutionary self-improvement for Hermes Agent — optimize skills, prompts, and code using DSPy + GEPA | stars 5497 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "15. ai-agents | HOLD (G4 HOLD (dormant: 1099 days since release); G6 flag (2 open advisories)) | An Open-source Framework for Data-centric, Self-evolving Autonomous Language Agents | stars 5967 | downloads/month 52 | dependents 0 | last release 2023-10-11 | licence Apache-2.0",
+   "16. teamver-agent-skills | HOLD (G3 HOLD (first release 66 days ago)) | Engine-neutral Teamver agent skills (registry, executor, SDK handlers) | stars ? | downloads/month ? | dependents 0 | last release 2026-08-09 | licence MIT"
+  ]
+ },
+ {
+  "id": "L-013",
+  "need": "Gradient descent, but the parameters are agents — a parallel, asynchronous framework for self-evolving agents (skills, prompts, harnesses)",
+  "also_described_as": [
+   "rsi self-evolving-agents parallel aggregation staleness"
+  ],
+  "shortlist": [
+   "1. zhangzhengeric/sage | PASS | An extensible framework for custom, self-evolving AI agents, with configurable agent packages, tools, skills, and multi-round recursive self-improvement (RSI). | stars 1212 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "2. modelscope/agentevolver | PASS | AgentEvolver: Towards Efficient Self-Evolving Agent System | stars 1578 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "3. evermind-ai/raven | PASS | The Harness of Harnesses • built for RSI: a trusted, persistent, self-evolving multi-agent ecosystem for all-domain collaboration. | stars 5421 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "4. amap-ml/skillclaw | PASS | Let Skills Evolve Collectively with Agentic Evolver  | stars 2692 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. bytedance/deer-flow | PASS | An open-source long-horizon SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skill, subagents and message ga | stars 83789 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. agentdescent | HOLD (G3 HOLD (first release 80 days ago)) | Gradient descent, but the parameters are agents — a parallel, asynchronous framework for self-evolving agents (skills, prompts, harnesses). Diffs are the gradie | stars 190 | downloads/month 11581 | dependents 0 | last release 2026-09-07 | licence MIT",
+   "7. anative-lab/evoagentx | HOLD (G5 HOLD (no licence found)) | 🚀 EvoAgentX: Building a Self-Evolving Ecosystem of AI Agents | stars 3376 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "8. microsoft/autogen | HOLD (G5 HOLD (CC-BY-4.0: not rated by Blue Oak)) | A programming framework for agentic AI | stars 61386 | downloads/month ? | dependents ? | last release ? | licence CC-BY-4.0",
+   "9. agent-topia/evolving_personality | HOLD (G5 HOLD (no licence found)) | Dynamic MBTI Personality Simulation for LLM Agents via Carl Jung's Theory. A framework that enables LLM agents' MBTI personalities to naturally evolve and grow  | stars 1149 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-015",
+  "need": "A local emulator for enterprise SaaS APIs, served over your own corpus with per-document ACLs",
+  "also_described_as": [
+   "mock rag slack gmail google-drive jira confluence github notion s3 amazon-s3 hubspot linear graphql benchmark"
+  ],
+  "shortlist": [
+   "1. workspace-mcp | PASS | Control Gmail, Google Calendar, Docs, Sheets, Slides, Chat, Forms, Tasks, Search & Drive with AI - Comprehensive Google Workspace MCP Server & CLI Tool | stars 3332 | downloads/month 289626 | dependents 0 | last release 2026-10-09 | licence MIT",
+   "2. ministack | PASS | Ministack: Free, open-source local AWS emulator - 60+ services, Terraform compatible, real databases. Free forever. MIT licensed. | stars 4945 | downloads/month 39887 | dependents 0 | last release 2026-10-11 | licence MIT",
+   "3. localemu | PASS | LocalEmu: a free, open-source AWS emulator. Run 132 AWS services locally with one pip install. No account, no token, no telemetry. The drop-in LocalStack altern | stars 198 | downloads/month 471 | dependents 0 | last release 2026-08-01 | licence Apache-2.0",
+   "4. prefact | PASS | Python code quality tool with LLM-aware rules, plugin system, and enterprise features | stars ? | downloads/month 1103 | dependents 0 | last release 2026-07-05 | licence Apache-2.0",
+   "5. gcplocal | PASS | A local GCP emulator for development and testing — Moto for Google Cloud | stars 0 | downloads/month 187 | dependents 0 | last release 2026-03-17 | licence Apache-2.0",
+   "6. backlot | HOLD (G3 HOLD (first release 64 days ago)) | A local emulator for enterprise SaaS APIs — Slack, Gmail, Google Drive, GitHub, Jira, Notion, S3 and more — with the real response shapes, pagination, auth and  | stars 292 | downloads/month 418 | dependents 0 | last release 2026-10-03 | licence MIT",
+   "7. budtmo/docker-android | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | Android in docker solution with noVNC supported, video recording, mcp server and AI-agent | stars 15971 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "8. mininet/mininet | HOLD (G4 HOLD (dormant: 827 days since push)) | Emulator for rapid prototyping of Software Defined Networks | stars 5863 | downloads/month ? | dependents ? | last release ? | licence BSD-3-Clause",
+   "9. udacity/apis | HOLD (G4 HOLD (dormant: 1034 days since push); G5 HOLD (no licence found)) | Code Repo for API course in Fullstack ND | stars 271 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-017",
+  "need": "Tiny, fast and accurate Turkish text to speech.",
+  "also_described_as": [
+   "speech-synthesis text-to-speech tts turkish türkçe"
+  ],
+  "shortlist": [
+   "1. mlx-audio | PASS | A text-to-speech (TTS), speech-to-text (STT) and speech-to-speech (STS) library built on Apple's MLX framework, providing efficient speech analysis on Apple Sil | stars 8028 | downloads/month 288017 | dependents 0 | last release 2026-10-05 | licence MIT",
+   "2. realtimetts | PASS | Converts text to speech in realtime | stars 4042 | downloads/month 27963 | dependents 2 | last release 2026-05-25 | licence MIT",
+   "3. edge-tts | PASS (G5 flag (LGPL-2.1: weak copyleft (use unmodified))) | Use Microsoft Edge's online text-to-speech service from Python WITHOUT needing Microsoft Edge or Windows or an API key | stars 12257 | downloads/month 7788357 | dependents 56 | last release 2026-03-22 | licence LGPL-2.1",
+   "4. paddlespeech | PASS | Easy-to-use Speech Toolkit including Self-Supervised Learning model, SOTA/Streaming ASR with punctuation, Streaming TTS with text frontend, Speaker Verification | stars 12695 | downloads/month 1112 | dependents 70 | last release 2025-05-23 | licence Apache-2.0",
+   "5. pyttsx3 | PASS (G5 flag (MPL-2.0: weak copyleft (use unmodified))) | Offline Text To Speech synthesis for python | stars 2534 | downloads/month 493390 | dependents 2295 | last release 2025-07-08 | licence MPL-2.0",
+   "6. voxcpm | PASS | VoxCPM2: Tokenizer-Free TTS for Multilingual Speech Generation, Creative Voice Design, and True-to-Life Cloning | stars 39207 | downloads/month 57258 | dependents 0 | last release 2026-05-11 | licence Apache-2.0",
+   "7. coqui-tts | PASS (G5 flag (MPL-2.0: weak copyleft (use unmodified))) | Deep learning for Text to Speech. | stars 2335 | downloads/month 78751 | dependents 0 | last release 2026-01-26 | licence MPL-2.0",
+   "8. vosk-tts | PASS | Text To Speech Synthesis with Vosk | stars 274 | downloads/month 2509 | dependents 2 | last release 2025-08-08 | licence Apache-2.0",
+   "9. openmoss/moss-tts | PASS | An open-source model family for long-form speech, dialogue synthesis, voice design, sound effects, and real-time streaming TTS | stars 4201 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "10. espnet | HOLD (G4 HOLD (dormant: 1709 days since release)) | End-to-End Speech Processing Toolkit | stars 9982 | downloads/month 22999 | dependents 223 | last release 2022-02-08 | licence Apache-2.0",
+   "11. chattts | HOLD (G5 HOLD (AGPLv3+: not rated by Blue Oak)) | A generative speech model for daily dialogue. | stars 39900 | downloads/month 8813 | dependents 0 | last release 2026-04-10 | licence AGPLv3+",
+   "12. tts | HOLD (G4 HOLD (dormant: 1037 days since release); G5 flag (MPL-2.0: weak copyleft (use unmodified))) | 🐸💬 - a deep learning toolkit for Text-to-Speech, battle-tested in research and production | stars 46109 | downloads/month 50560 | dependents 36 | last release 2023-12-12 | licence MPL-2.0",
+   "13. azure-samples/cognitive-speech-tts | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | Microsoft Text-to-Speech API Samples | stars 1014 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "14. babysor/mockingbird | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | 🚀Clone a voice in 5 seconds to generate arbitrary speech in real-time | stars 36889 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "15. microsoft/speecht5 | HOLD (G4 HOLD (dormant: 903 days since push)) | Unified-Modal Speech-Text Pre-Training for Spoken Language Processing | stars 1451 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "16. rumeysakeskin/turkish-text-to-speech | HOLD (G4 HOLD (dormant: 1044 days since push); G5 HOLD (no licence found)) | Speech synthesis (TTS) in low-resource languages by training from scratch with Fastpitch and fine-tuning with HifiGan | stars 70 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "17. kyubyong/dc_tts | HOLD (G4 HOLD (dormant: 1279 days since push)) | A TensorFlow Implementation of DC-TTS: yet another text-to-speech model | stars 1159 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0"
+  ]
+ },
+ {
+  "id": "L-018",
+  "need": "is an open-source Python framework for building and running domain-specific long-horizon agents, with a durable runtime built in.",
+  "also_described_as": [],
+  "shortlist": [
+   "1. omnicoreagent | PASS | An agent runtime for Python. Give your agent real work. Keep control: every action checked before it runs, every run survives a crash without silently redoing a | stars 252 | downloads/month 171 | dependents 0 | last release 2026-09-28 | licence MIT",
+   "2. microsoft/agent-framework | PASS | A framework for building, orchestrating and deploying AI agents and multi-agent workflows with support for Python and .NET. | stars 14112 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "3. 0xheycat/chatgpt-web-skills | PASS | ChatGPT Web Agent Skills for lifecycle checkpoints, project workflow routing, code review, debugging, TDD, research, and long-running scheduled tasks. | stars 1 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. kadubon/search-stability-lab | PASS | Theory-to-experiment lab for search stability in long-running agents under finite context, with exact simulator tests and lightweight mechanistic probe tasks. | stars 0 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "5. cayu | HOLD (G3 HOLD (first release 89 days ago)) | Cayu is an open-source Python framework for building and running domain-specific long-horizon agents, with a durable runtime built in. | stars 833 | downloads/month 672 | dependents 0 | last release 2026-09-22 | licence Apache-2.0",
+   "6. agentscope-runtime | HOLD (G5 HOLD (apache-2.0: not rated by Blue Oak)) | A production-ready runtime framework for agent apps with secure tool sandboxing, Agent-as-a-Service APIs, scalable deployment, full-stack observability, and bro | stars 876 | downloads/month 16493 | dependents 0 | last release 2026-05-19 | licence apache-2.0",
+   "7. pythonprotector | HOLD (G4 HOLD (dormant: 1341 days since release)) | Protect Your Python Files | stars 36 | downloads/month 30 | dependents 1 | last release 2023-02-11 | licence MIT",
+   "8. ccygod/long-mission | HOLD (G5 HOLD (no licence found)) | Outcome-driven control protocol for long-running AI agents: explicit contracts, safe replanning, independent verification, adaptive loops, and evidence-backed c | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. dengk3li/personal-ai-os-core | HOLD (G5 HOLD (no licence found)) | Local-first operating layer that decomposes long AI work into executable tasks, routes them across models and tools, and keeps human decisions in the loop. | stars 6 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-020",
+  "need": "A seriously simple key-value database",
+  "also_described_as": [
+   "database key-value storage"
+  ],
+  "shortlist": [
+   "1. pickledb | PASS | An in-memory key-value store using orjson. | stars 1073 | downloads/month 32133 | dependents 111 | last release 2026-01-05 | licence BSD-3-Clause",
+   "2. danieldeer/seriousdb | PASS | A simple, yet effective persistent key-value database. | stars 311 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "3. gbvkutilities/local-key-value-store | PASS |  | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. juanvel4000/regdb | PASS | A hierarchical, journaling, key-value storage database | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. web_cache | HOLD (G4 HOLD (dormant: 2901 days since release); G5 flag (LGPL-2.1 OR GPL-1.0+: weak copyleft (use unmodified))) | Simple Python key-value storage backed up by sqlite3 database | stars 2 | downloads/month 2160 | dependents 5 | last release 2018-11-04 | licence LGPL-2.1 OR GPL-1.0+",
+   "6. elara | HOLD (G4 HOLD (dormant: 1307 days since release)) | Elara DB is an easy to use, lightweight persistent key-value store that can also be used as a fast in-memory cache. Manipulate data structures in-memory, encryp | stars 123 | downloads/month 671 | dependents 11 | last release 2023-03-17 | licence BSD-2-Clause-FreeBSD",
+   "7. diskcache | HOLD (G4 HOLD (dormant: 1140 days since release); G6 flag (2 open advisories)) | Disk Cache -- Disk and file backed persistent cache. | stars 2913 | downloads/month 24491938 | dependents 2826 | last release 2023-08-31 | licence Apache-2.0",
+   "8. cannondb | HOLD (G4 HOLD (dormant: 3115 days since release)) | CannonDB is a lightweight but powerful key-value database created for human beings. | stars 13 | downloads/month 2215 | dependents 1 | last release 2018-04-04 | licence MIT",
+   "9. sqlitedict | HOLD (G4 HOLD (dormant: 1411 days since release); G6 flag (2 open advisories)) | Persistent dict in Python, backed up by sqlite3 and pickle, multithread-safe. | stars 1246 | downloads/month 1345999 | dependents 1432 | last release 2022-12-03 | licence Apache-2.0",
+   "10. ivankogut11/kv-storage | HOLD (G4 HOLD (dormant: 2389 days since push); G5 HOLD (no licence found)) | Own key-value database in which information is stored in byte-files | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. alexey-zausalin/in_memory_database | HOLD (G4 HOLD (dormant: 1047 days since push); G5 HOLD (no licence found)) | Simple in-memory database that supports key-value storage and transactions | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "12. charlesday99/keysdb | HOLD (G4 HOLD (dormant: 1407 days since push); G5 HOLD (no licence found)) | A key/value storage database with a flask webservice as the API & socket server. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-021",
+  "need": "Verl experiment semantics compiled for one NVIDIA GPU.",
+  "also_described_as": [
+   "agentic-rl consumer-gpu gkd grpo knowledge-distillation llm llm-agents on-policy-distillation parquet peft post-training qlora qwen rloo single-gpu tool-use verl"
+  ],
+  "shortlist": [
+   "1. warp-lang | PASS | A Python framework for GPU-accelerated simulation, robotics, and machine learning. | stars 7191 | downloads/month 1250644 | dependents 8 | last release 2026-10-05 | licence Apache-2.0",
+   "2. verl | PASS | verl: Volcano Engine Reinforcement Learning for LLM | stars 23805 | downloads/month 26607 | dependents 0 | last release 2026-09-20 | licence Apache-2.0",
+   "3. freesolo-flash-dev | PASS | Flash — managed LoRA post-training (SFT/GRPO/OPD) for Freesolo environments, driven by the `flash` CLI | stars 2 | downloads/month 25448 | dependents 0 | last release 2026-08-31 | licence Apache-2.0",
+   "4. unsloth | PASS | 2-5X faster training, reinforcement learning & finetuning | stars 77861 | downloads/month 885608 | dependents 0 | last release 2026-10-12 | licence Apache-2.0",
+   "5. trl | PASS | Train transformer language models with reinforcement learning. | stars 19445 | downloads/month 2540661 | dependents 99 | last release 2026-10-08 | licence Apache-2.0",
+   "6. nvidia/cuml | PASS | NVIDIA cuML: GPU-Accelerated Machine Learning | stars 5304 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "7. semianalysisai/inferencex | PASS | Open Source AI Accelerator Research Platform Standard / 开源推理研究平台 | stars 1839 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "8. langfengq/verl-agent | PASS | verl-agent is an extension of veRL, designed for training LLM/VLM agents via RL. verl-agent is also the official code for paper \"Group-in-Group Policy Optimizat | stars 2373 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "9. miniverl | HOLD (G3 HOLD (first release 77 days ago)) | verl for a single consumer GPU. PPO, GRPO and on-policy distillation on NVIDIA GPUs. | stars 306 | downloads/month 838 | dependents 0 | last release 2026-09-12 | licence Apache-2.0",
+   "10. oumi | HOLD (G5 HOLD (Other: not rated by Blue Oak)) | Easily fine-tune (SFT/RL), evaluate, and deploy Qwen, Gemma, or any open agentic LLM/VLM! | stars 9396 | downloads/month 2232 | dependents 0 | last release 2026-09-16 | licence Other",
+   "11. gputil | HOLD (G4 HOLD (dormant: 2857 days since release)) | A Python module for getting the GPU status from NVIDA GPUs using nvidia-smi programmically in Python | stars 1215 | downloads/month 802692 | dependents 413 | last release 2018-12-18 | licence MIT",
+   "12. walkinglabs/hands-on-modern-rl | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | 🚀 An open-source, hands-on curriculum bridging the gap from basic RL concepts to LLM alignment, RLVR, and advanced Agentic systems.  | stars 4626 | downloads/month ? | dependents ? | last release ? | licence non-standard"
+  ]
+ },
+ {
+  "id": "L-022",
+  "need": "Agent work contracts and verifiable execution protocol — Ed25519-signed, offline-verifiable proof-carrying work for AI agents.",
+  "also_described_as": [
+   "agent verifiable ai work-contract mcp audit sign ed25519 proof-carrying mcp-server"
+  ],
+  "shortlist": [
+   "1. mcp-agent | PASS | Build effective agents using Model Context Protocol and simple workflow patterns | stars 8573 | downloads/month 31063 | dependents 0 | last release 2025-12-05 | licence Apache-2.0",
+   "2. langchain-protocol | PASS | Python bindings for the LangChain agent streaming protocol | stars 686 | downloads/month 50850248 | dependents 0 | last release 2026-08-26 | licence MIT",
+   "3. tradememory-protocol | PASS | Decision audit trail + persistent memory for AI trading agents. Outcome-weighted recall, tamper-evident SHA-256 chain with RFC 3161 anchoring, 20 MCP tools. | stars 1430 | downloads/month 884 | dependents 0 | last release 2026-10-02 | licence MIT",
+   "4. snyk/agent-scan | PASS | Security scanner for AI agents, MCP servers and agent skills. | stars 3135 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "5. microsoft/agent-governance-toolkit | PASS | AI Agent Governance Toolkit — Policy enforcement, zero-trust identity, execution sandboxing, and reliability engineering for autonomous AI agents. Covers 10/10  | stars 6420 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. agent-intent/verifiable-intent | PASS | Open specification for cryptographic agent authorization in commerce | stars 99 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "7. logicnodes-pol | PASS | Reference verifier and signer for the POL/1.0 (Proof-of-Logic) verifiable work-receipt standard. | stars ? | downloads/month 49 | dependents 0 | last release 2026-06-09 | licence MIT",
+   "8. ota-tech-ai/web-agent-protocol | PASS | 🌐Web Agent Protocol (WAP) - Record and replay user interactions in the browser with MCP support | stars 506 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. openworkproof | HOLD (G3 HOLD (first release 68 days ago)) | Open protocol for AI agent work contracts and verifiable execution — authorization, evidence, and acceptance for multi-agent systems | stars 287 | downloads/month 149 | dependents 0 | last release 2026-08-30 | licence Apache-2.0",
+   "10. eli-labz/agent-execution-partnership | HOLD (G5 HOLD (no licence found)) | Agent Execution Partnership AEE is an open-source control plane that ensures every AI agent action is authorized before it runs, observable while it runs, and v | stars 147 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-024",
+  "need": "Rewrite your prompt into the native dialect of the model you're actually using (Claude Opus 5.5, Fable 5.1, GPT-6 Astra/Sol/Luna, Codex) by each vendor's OFFICIAL rules, tell you why, and recommend the effort level to run it at.",
+  "also_described_as": [
+   "prompt prompt-engineering llm claude openai codex prompt-optimizer"
+  ],
+  "shortlist": [
+   "1. asgeirtj/system_prompts_leaks | PASS | Documented system prompts from Anthropic - Claude Fable 5.1, Opus 5.5, Claude Design, Claude Code. OpenAI - ChatGPT GPT-6-Astra, Codex. Google - Gemini 3.8 Flas | stars 69545 | downloads/month ? | dependents ? | last release ? | licence CC0-1.0",
+   "2. promptix | PASS | Professional prompt management with Git-native version control, dynamic templating, and visual Studio UI for production LLM applications | stars 25 | downloads/month 75 | dependents 0 | last release 2025-09-30 | licence MIT",
+   "3. promptheus | PASS | Automated prompt engineering for efficient AI interactions | Interactive command-line interface | Multi-provider LLM integration (Gemini, Claude, OpenAI, Groq,  | stars 17 | downloads/month 139 | dependents 0 | last release 2026-01-07 | licence MIT",
+   "4. tree-of-thoughts | PASS | Plug in and Play Implementation of Tree of Thoughts: Deliberate Problem Solving with Large Language Models that Elevates Model Reasoning by atleast 70%  | stars 4593 | downloads/month 198 | dependents 3 | last release 2024-10-29 | licence MIT",
+   "5. microsoft/promptflow | PASS | Build high-quality LLM apps - from prototyping, testing to production deployment and monitoring. | stars 11249 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. llm-prompt-optimizer | PASS | A comprehensive framework for systematic A/B testing, optimization, performance analytics, security, and monitoring of LLM prompts across multiple providers wit | stars 1 | downloads/month 80 | dependents 0 | last release 2025-07-22 | licence MIT",
+   "7. promptolution | HOLD (G5 HOLD (apache-2.0: not rated by Blue Oak)) | A framework for prompt optimization and a zoo of prompt optimization algorithms. | stars 157 | downloads/month 330 | dependents 0 | last release 2026-05-24 | licence apache-2.0",
+   "8. promptify | HOLD (G4 HOLD (dormant: 1171 days since release); G5 HOLD (Apache: not rated by Blue Oak)) | Prompt Engineering | Prompt Versioning | Use GPT or other prompt based models to get structured output. Join our discord for Prompt-Engineering, LLMs and other  | stars 4641 | downloads/month 39 | dependents 1 | last release 2023-07-31 | licence Apache",
+   "9. prompttools | HOLD (G4 HOLD (dormant: 943 days since release); G5 HOLD (Proprietary: not rated by Blue Oak)) | Open-source tools for prompt testing and experimentation, with support for both LLMs (e.g. OpenAI, LLaMA) and vector databases (e.g. Chroma, Weaviate, LanceDB). | stars 3055 | downloads/month 89 | dependents 1 | last release 2024-03-15 | licence Proprietary",
+   "10. snwfdhmp/awesome-gpt-prompt-engineering | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | A curated list of awesome resources, tools, and other shiny things for LLM prompt engineering. | stars 1635 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "11. openprompt | HOLD (G4 HOLD (dormant: 1561 days since release); G5 HOLD (Apache: not rated by Blue Oak)) | An Open-Source Framework for Prompt-Learning. | stars 4902 | downloads/month 329 | dependents 11 | last release 2022-07-06 | licence Apache",
+   "12. yival/yival | HOLD (G4 HOLD (dormant: 905 days since push)) | Your Automatic Prompt Engineering Assistant for GenAI Applications | stars 2136 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "13. limeprompt | HOLD (G4 HOLD (dormant: 744 days since release)) | Light weight prompting and parsing library for LLM models | stars 2 | downloads/month 17 | dependents 0 | last release 2024-09-30 | licence MIT"
+  ]
+ },
+ {
+  "id": "L-028",
+  "need": "An MCP server that turns filings and prices into valuation indicators, and tests each one inside its own industry. Point it at any source with a timestamp; connect it to your agent and ask.",
+  "also_described_as": [
+   "backtesting duckdb feature-engineering indicators mcp mcp-server model-context-protocol quantitative-finance"
+  ],
+  "shortlist": [
+   "1. fidetolabs/qanat | PASS | An MCP server that turns filings and prices into valuation indicators, and tests each one inside its own industry. Connect it to your agent and ask. | stars 306 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "2. semble | PASS | Fast and Accurate Code Search for Agents. Uses 99% fewer tokens than grep+read | stars 6199 | downloads/month 97003 | dependents 0 | last release 2026-10-05 | licence MIT",
+   "3. alpaca-mcp-server | PASS | Alpaca’s official MCP Server lets you trade stocks, ETFs, crypto, and options, run data analysis, and build strategies in plain English directly from your favor | stars 1019 | downloads/month 42247 | dependents 0 | last release 2026-09-16 | licence MIT",
+   "4. tradingview-mcp-server | PASS | TradingView MCP server — real-time market data, technical analysis, screeners & backtesting for Claude, ChatGPT, Cursor & any MCP client. Stocks, crypto, forex  | stars 5045 | downloads/month 9286 | dependents 0 | last release 2026-08-24 | licence MIT",
+   "5. wshobson/maverick-mcp | PASS | Stock market MCP server for Yahoo Finance data, technical analysis, portfolio tracking, and Python backtesting. Runs locally with no API key for core tools. | stars 704 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. mariadb/mcp | PASS | MariaDB MCP (Model Context Protocol) server implementation | stars 208 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. financial-datasets/mcp-server | PASS | An MCP server for interacting with the Financial Datasets stock market API. | stars 2306 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. axonn-mcp | PASS | MCP server for Axonn — US energy regulatory filings, real-time prices, and market data | stars 0 | downloads/month 30 | dependents 0 | last release 2026-03-19 | licence MIT",
+   "9. oracle-mcp-common | HOLD (G3 HOLD (first release 79 days ago)) | Repository containing MCP (Model Context Protocol) servers that provides a suite of tools for managing and interacting with Oracle products. | stars 459 | downloads/month 1660 | dependents 0 | last release 2026-08-25 | licence UPL-1.0"
+  ]
+ },
+ {
+  "id": "L-031",
+  "need": "command-line interface: scan, probe, monitor, init, rules, new-rule.",
+  "also_described_as": [
+   "agent-security ai-security llm-security mcp mitre-atlas mlsecops model-context-protocol owasp prompt-injection red-teaming sarif security-scanner supply-chain-security"
+  ],
+  "shortlist": [
+   "1. mcp-scan | PASS | This package has been renamed to snyk-agent-scan. This is a redirect package that installs snyk-agent-scan and forwards the mcp-scan CLI to it. | stars 3095 | downloads/month 12713 | dependents 0 | last release 2026-03-02 | licence Apache-2.0",
+   "2. mukul975/anthropic-cybersecurity-skills | PASS | 817 structured cybersecurity skills for AI agents · Mapped to 6 frameworks: MITRE ATT&CK, NIST CSF 2.0, MITRE ATLAS, D3FEND, NIST AI RMF & MITRE F3 (Fight Fraud | stars 34364 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "3. fevra-dev/credence | PASS | Exposure intelligence for the AI-infrastructure layer — finds and weighs leaked credentials, MCP/agent configs, git-metadata secrets, and supply-chain risk, and | stars 5 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. sameermohan-git/purplegate | PASS | purplegate — Red/blue-team CI gate for agentic-AI apps. Prompt-injection, secrets, SAST, deps, IaC/RLS, workflow injection, MCP checks. One signed GitHub Action | stars 2 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. vasankidambi/soc-triage-agent | PASS | Local defensive AI agent that triages synthetic SOC identity alerts (LangGraph + MCP), with a governance-as-code layer - security manifest, control matrix (OWAS | stars 0 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "6. tachyonic-sh/taxonomy | PASS | Open taxonomy of 168 AI/LLM attack vectors with versioned, source-pinned relations to the OWASP LLM, Agentic and MCP Top 10s and MITRE ATLAS — ESF Phases 1-3 re | stars 7 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "7. lata2118/ai_soc_copilot | PASS | AI-powered Multi-Agent SOC Copilot for automated security incident investigation using Google Gemini, MCP Servers, MITRE ATT&CK, and Streamlit. | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. aisoc-detections | HOLD (G3 HOLD (first release 9 days ago)) | Open-source AI Security Operations Center: alert fusion, LLM-agent triage, MITRE ATT&CK investigation, and a replayable decision ledger for every agent step. Se | stars 2405 | downloads/month 101 | dependents 0 | last release 2026-10-05 | licence MIT",
+   "9. pjcampbe11/ai-redteam-eng | HOLD (G5 HOLD (no licence found)) | Security engineering toolkit for AI pipelines, MCP integrations, and agentic architectures — MCP audit scanner, red-team harness (OWASP LLM Top 10 / MITRE ATLAS | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "10. smith-mern/aisecuritysecondbrain | HOLD (G5 HOLD (no licence found)) | AI/LLM security knowledge base — OWASP LLM Top 10, MITRE ATLAS, prompt injection, agentic security. An Obsidian vault: 92 interlinked, fully-cited pages. | stars 6 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. nikharris0/probemon | HOLD (G4 HOLD (dormant: 1565 days since push); G5 HOLD (no licence found)) | A simple command line tool for monitoring and logging 802.11 probe frames | stars 185 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-033",
+  "need": "The agent flow system for token maxxing.",
+  "also_described_as": [
+   "agents ai claude-code codex coding-agents llm tui workflow"
+  ],
+  "shortlist": [
+   "1. omnigent | PASS | Omnigent is an open-source AI agent framework and meta-harness: orchestrate Claude Code, Codex, Cursor, Pi, and custom agents — swap harnesses without rewriting | stars 10779 | downloads/month 39359 | dependents 0 | last release 2026-10-13 | licence Apache-2.0",
+   "2. humanfia/humanize | PASS | The agent flow system for token maxxing. | stars 294 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "3. trinity-cli | PASS | Self-hosted AI Agents Platform supporting Claude Code, Codex, Gemini agents. Apache 2.0.  | stars 648 | downloads/month 188 | dependents 0 | last release 2026-09-17 | licence Apache-2.0",
+   "4. bytedance/deer-flow | PASS | An open-source long-horizon SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skill, subagents and message ga | stars 83803 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. cloudai-x/claude-workflow-v2 | PASS | Universal Claude Code workflow plugin with agents, skills, hooks, and commands | stars 1419 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. lupantech/agentflow | PASS | AgentFlow: In-the-Flow Agentic System Optimization | stars 2058 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. anastasiyaw/codex-claude-code-config | PASS | Claude Code, Codex, and multi-agent configuration system: principles, hooks, skills, and workflow patterns for AI-assisted development | stars 155 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. scarletkc/agents | PASS | Shared standards and reusable skills for Claude Code, Codex CLI, and other AI coding agents. | stars 224 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "9. pocketflow | HOLD (G5 HOLD (mit: not rated by Blue Oak)) | Pocket Flow: 100-line LLM framework. Let Agents build Agents! | stars 11236 | downloads/month 25500 | dependents 0 | last release 2025-07-28 | licence mit",
+   "10. seemseam/claude_codex_bridge | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | Visible multi-agent CLI workspace for mixing Codex, Claude, Gemini, Kimi, Qwen, Cursor, Copilot, Pi, OpenCode, and other AI coding agents | stars 3570 | downloads/month ? | dependents ? | last release ? | licence non-standard"
+  ]
+ },
+ {
+  "id": "L-035",
+  "need": "Local, fail-closed privacy preflight for files, folders, and nested archives.",
+  "also_described_as": [
+   "privacy security metadata office pdf pii secrets data-loss-prevention document-security local-first pii-detection secret-scanning cli"
+  ],
+  "shortlist": [
+   "1. presidio-analyzer | PASS | An open-source framework for detecting, redacting, masking, and anonymizing sensitive data (PII) across text, images, and structured data. Supports NLP, pattern | stars 11308 | downloads/month 5248154 | dependents 91 | last release 2026-07-22 | licence MIT",
+   "2. jasonzhang06-source/sharelint | PASS | Local privacy preflight for files, folders, and archives—catch secrets, PII, metadata, and hidden document content before sharing. | stars 398 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "3. prowler | PASS | Prowler is the world’s most widely used open-source cloud security platform that automates security and compliance across any cloud environment. | stars 15019 | downloads/month 103669 | dependents 1 | last release 2026-09-29 | licence Apache-2.0",
+   "4. openadapt-privacy | PASS | Privacy scrubbing for GUI automation data - PII/PHI detection and redaction | stars 4 | downloads/month 796 | dependents 0 | last release 2026-09-01 | licence MIT",
+   "5. maskinfojp | PASS | A library to mask sensitive information in files and restore it back | stars 0 | downloads/month 78 | dependents 0 | last release 2025-09-20 | licence MIT",
+   "6. detect-secrets | HOLD (G4 HOLD (dormant: 891 days since release)) | Tool for detecting secrets in the codebase | stars 4648 | downloads/month 8230031 | dependents 316 | last release 2024-05-06 | licence Apache-2.0",
+   "7. privacyaudit | HOLD (G3 HOLD (first release 75 days ago)) | Open-source Python library to audit ML pipelines for privacy vulnerabilities - MIA, PII leakage, model inversion | stars 37 | downloads/month 83 | dependents 0 | last release 2026-08-05 | licence MIT",
+   "8. tensorflow-privacy | HOLD (G4 HOLD (dormant: 973 days since release)) | Library for training machine learning models with privacy for training data | stars 2039 | downloads/month 14846 | dependents 158 | last release 2024-02-14 | licence Apache-2.0",
+   "9. zhoubear/open-paperless | HOLD (G4 HOLD (dormant: 2865 days since push); G5 HOLD (no licence found)) |  Scan, index, and archive all of your paper documents (acquired by Mayan EDMS) | stars 2559 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "10. gdpr | HOLD (G4 HOLD (dormant: 1238 days since release)) | Tutorial project 'Publish to PyPI, and let's see how the *Python Software Foundation* interprets consent GDPR-wise' | stars 0 | downloads/month 120 | dependents 14 | last release 2023-05-25 | licence MIT"
+  ]
+ },
+ {
+  "id": "L-038",
+  "need": "Scan, classify and sync AI-agent skills (SKILL.md) across toolchains like OpenAI Codex, Claude Code and WorkBuddy.",
+  "also_described_as": [
+   "ai agent skills codex claude workbuddy migration inventory"
+  ],
+  "shortlist": [
+   "1. alirezarezvani/claude-skills | PASS | 380 Claude Code skills & agent skills & plugins (30+ Agents, 70+ custom commands, 380+ skills, customizable references, scripts)for Claude Code, Codex, Gemini C | stars 28095 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "2. sickn33/agentic-awesome-skills | PASS | AAS Core is the local, agent-first control plane for complete catalog discovery, agent-owned selection, stack validation, and planning, backed by 2,400+ agentic | stars 47539 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "3. nvidia/skills | PASS | Agent Skills for NVIDIA products — install into Claude Code, Codex, and other coding agents to run Physical AI, robotics, simulation, CUDA, and RAG workflows en | stars 3580 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "4. othmanadi/planning-with-files | PASS | Persistent file-based planning for AI coding agents and long-running tasks. Crash-proof markdown plans, session recovery after /clear and compaction, per-turn r | stars 27424 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. kkkkhazix/khazix-skills | PASS | 数字生命卡兹克开源的 AI Skills 合集 | Agent Skills: leader（帮你定义目标）, neat-freak 洁癖, hv-analysis, khazix-writer & more — Claude Code, Codex & 40+ agents | stars 21367 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. softaworks/agent-toolkit | PASS | A curated collection of skills for AI coding agents. Skills are packaged instructions and scripts that extend agent capabilities across development, documentati | stars 2547 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. superchason/ontology-driven-ai-data-management-skills | PASS | 16 cross-platform Agent Skills for enterprise ontology engineering, supporting Codex, Claude Code, and WorkBuddy. | stars 15 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. ferbylv/agentdots-sync | PASS | agentdots-sync: backup and sync local AI agent skills, AGENTS.md, CLAUDE.md, and rules to Git. 安全同步 Claude Code / Codex / OpenCode / Grok / CodeBuddy / WorkBudd | stars 2 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. dcc-mcp/dcc-mcp-agent-plugins | PASS | Official DCC-MCP Agent Skills and plugins for Codex, Claude Code, CodeBuddy, WorkBuddy, OpenClaw and other AI agents to discover DCC tools, automate creative ap | stars 1 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. agent-skill-sync | HOLD (G3 HOLD (first release 32 days ago)) | Scan, classify (A/B/C/D) and sync AI-agent SKILL.md files across toolchains (Codex, Claude Code, WorkBuddy). Zero-dependency Python CLI. | stars 100 | downloads/month ? | dependents 0 | last release 2026-09-12 | licence MIT"
+  ]
+ },
+ {
+  "id": "L-042",
+  "need": "GEMINI in-memory checkpointing and SCOUT fault localization for LLM training",
+  "also_described_as": [
+   "checkpointing distributed-training fault-tolerance large-language-models pytorch resiliency silent-data-corruption"
+  ],
+  "shortlist": [
+   "1. lmresiliency/lm-resiliency | PASS | Closed-loop fault localization and checkpoint recovery for LLM Pre-training | stars 189 | downloads/month ? | dependents ? | last release ? | licence BSD-3-Clause",
+   "2. torch-tk | PASS | Streamlines training, checkpoint management, and diagnostics of PyTorch models. | stars 0 | downloads/month 1173 | dependents 0 | last release 2026-08-07 | licence BSD-3-Clause",
+   "3. context-compiler | PASS | Deterministic conversational state engine for LLM applications. | stars 2 | downloads/month 5842 | dependents 0 | last release 2026-07-11 | licence Apache-2.0",
+   "4. agentpause | PASS | Predictive scheduling for autonomous LLM agents: suspend gracefully before rate limits, resume without losing work. | stars ? | downloads/month 217 | dependents 0 | last release 2026-07-08 | licence MIT",
+   "5. oneflow-inc/libai | PASS | LiBai(李白): A Toolbox for Large-Scale Distributed Parallel Training | stars 404 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "6. flashruntime | HOLD (G3 HOLD (first release 73 days ago)) | Open fault-tolerant distributed ML runtime: strategy planning, job protocol, leases, checkpointing, and recovery across heterogeneous compute. | stars 0 | downloads/month ? | dependents 0 | last release 2026-08-02 | licence Apache-2.0",
+   "7. ckpt-chaos | HOLD (G3 HOLD (first release 10 days ago)) | Crash-consistency testing for ML training checkpoints: kill a save at every file boundary, resume, classify the outcome. | stars 0 | downloads/month 128 | dependents 0 | last release 2026-10-12 | licence MIT",
+   "8. meta-pytorch/torchft | HOLD (G5 HOLD (no licence found)) | Fault tolerance for PyTorch (HSDP, LocalSGD, DiLoCo, Streaming DiLoCo) | stars 547 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. dlio-benchmark | HOLD (G4 HOLD (dormant: 777 days since release)) | An I/O benchmark for deep Learning applications | stars 111 | downloads/month 230 | dependents 0 | last release 2024-08-28 | licence Apache-2.0",
+   "10. meta-pytorch/torchsnapshot | HOLD (G5 HOLD (no licence found)) | A performant, memory-efficient checkpointing library for PyTorch applications, designed with large, complex distributed workloads in mind. | stars 166 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-044",
+  "need": "Score AI-sounding prose 0-100 and check what a rewrite changed. Offline, standard library only.",
+  "also_described_as": [
+   "prose linter writing editing ai-slop de-slop humanize style ci static-analysis"
+  ],
+  "shortlist": [
+   "1. seyedehsanhadi/sloptrim | PASS | A local detector for AI-writing patterns. Scores every prose file your agent saves. Python standard library only, no network, no model. | stars 335 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "2. snapper-fmt | PASS | Semantic line break formatter for Org, LaTeX, Markdown, and plaintext | stars 12 | downloads/month 95744 | dependents 0 | last release 2026-10-11 | licence MIT",
+   "3. alchemy-writing | PASS | Turn AI prose into human-quality writing. A drop-in ruleset that stops your coding agent from writing like an LLM. | stars 1 | downloads/month 97 | dependents 0 | last release 2026-07-05 | licence MIT",
+   "4. abdulkader-safi/ai-writing-rules | PASS | Claude Code plugin that stops Claude writing like an AI. 29 researched patterns, loaded every session and checked on every file write. | stars 31 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. petergyang/no-ai-slop | PASS | Removes 20+ patterns of AI slop from any piece of writing. | stars 12280 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. slop-guard | PASS | Slop Scoring to Stop Slop | stars 166 | downloads/month 328 | dependents 0 | last release 2026-04-01 | licence MIT",
+   "7. lynote-ai/humanize-text | PASS | Open-source pipeline for rewriting AI-generated text into natural human prose. Need it in your app? Try the Lynote Humanizer API → lynote.ai/ai-humanizer-api | stars 3403 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. adenaufal/anti-slop-writing | PASS | Stop your AI from writing like AI. A universal system prompt eliminating every known LLM style tell — works with Claude Code, Gemini CLI, Codex CLI, Copilot, Cu | stars 150 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. ehmo/slopkit | PASS | Anti-slop skills for AI agents: slopbeth cleans the shipped writing, slopgent cleans the conversation. | stars 108 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. itsssssjack/slopmonster | PASS | Turn AI-written copy into copy a human would ship. Lint for AI tells, cleanse with a rival model, lint again. | stars 1024 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "11. haojae/scipilot-writing-skill | PASS | SciPilot family: academic writing and polishing co-pilot, with a machine-checked writing-quality evidence chain (AI-tell linter + reviewer self-check loop). | stars 228 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "12. jeanstory/deslop | PASS | Deterministic, zero-dependency detector for AI-generated 'slop' tells in prose. | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "13. prose-lang | PASS | A programming language that reads like plain English. Zero syntax friction, native Python speeds. | stars 0 | downloads/month 43 | dependents 0 | last release 2026-02-25 | licence MIT",
+   "14. stelint | HOLD (G3 HOLD (first release 65 days ago)) | Stelint is an ASD-STE100 linter built with spaCy. It checks whether your text conforms to the Simplified Technical English (STE) specification and reports issue | stars 4 | downloads/month ? | dependents 0 | last release 2026-08-10 | licence MIT"
+  ]
+ },
+ {
+  "id": "L-045",
+  "need": "Turn a whiteboard-style image into a hand-drawn reveal video.",
+  "also_described_as": [
+   "whiteboard animation explainer video ffmpeg craft"
+  ],
+  "shortlist": [
+   "1. masihsultani/whiteboard-animator | PASS | Turn a whiteboard-style image into a hand-drawn reveal video. The render engine behind Kinoslide. | stars 236 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "2. hi-nikola/hand-drawn-explainer-video-nikola | PASS | 中文手绘知识讲解视频 Codex Skill：逐笔故事、双语义岛、让怪诞小黑动起来与程序动画 | stars 381 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "3. threerocks/photo-to-hand-drawn-video-skill | PASS | Turn a photo into a deterministic, verifiable stroke-by-stroke hand-drawing video — no target-image reveal. | stars 70 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. geeklee/srt-whiteboard-animation | PASS | 将 SRT 字幕做成暖米黄纸张底的流式笔迹白板手绘动画 skill：mask 分区遮罩编排 + stream 连续笔迹（ink→color）。 | stars 4368 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. xiejunjie524/handdraw-story-video | PASS | Turn hand-drawn story illustrations into 35–45 second line-reveal and gradual-coloring videos with HyperFrames. | stars 782 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. alisa0808/vox-director | PASS | Turn one topic into a finished Vox-style paper-collage explainer/ad video — automated end to end on Atlas Cloud + ffmpeg. An agent skill. | stars 2252 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. gnipbao/codex-whiteboard-video-skill | PASS |  | stars 330 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. ailab-cvc/videocrafter | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | VideoCrafter2: Overcoming Data Limitations for High-Quality Video Diffusion Models | stars 5099 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "9. doubiiu/dynamicrafter | HOLD (G4 HOLD (dormant: 766 days since push)) | [ECCV 2024, Oral] DynamiCrafter: Animating Open-domain Images with Video Diffusion Priors | stars 3005 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0"
+  ]
+ },
+ {
+  "id": "L-047",
+  "need": "Local-first Agent Work Intelligence for coding agents: usage truth, recorded work, and honest joins",
+  "also_described_as": [
+   "agent ai-agents finops llm cost-tracking claude-code codex mcp developer-tools"
+  ],
+  "shortlist": [
+   "1. agno | PASS | Build, run, and manage agent platforms. | stars 42699 | downloads/month 1779568 | dependents 0 | last release 2026-10-12 | licence Apache-2.0",
+   "2. deepcode-hku | PASS | \"DeepCode: Open Agentic Coding (Agent Harness & Loop Engineering & Multi-Agent Orchestration)\" | stars 16701 | downloads/month 717 | dependents 0 | last release 2026-09-28 | licence MIT",
+   "3. voly | PASS | Control plane for AI coding agents: route tasks, reduce token spend, run multi-agent workflows, fallback executors, and track cost per task. | stars 17 | downloads/month 38 | dependents 0 | last release 2026-08-08 | licence Apache-2.0",
+   "4. hermes-agent | PASS (G6 flag (4 open advisories)) | The agent that grows with you | stars 253270 | downloads/month 162501 | dependents 0 | last release 2026-07-20 | licence MIT",
+   "5. rasbt/mini-coding-agent | PASS | Minimal and readable coding agent harness implementation in Python to explain the core components of coding agents. | stars 1200 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "6. finops-mcp | PASS | The headless FinOps intelligence layer: API-first, agent-first cost control for cloud + AI. Connect your cloud stack in Claude, Cursor, or the terminal, and gat | stars 19 | downloads/month 2204 | dependents 0 | last release 2026-09-04 | licence Apache-2.0",
+   "7. hkuds/nanobot | PASS | Ultra-lightweight, open-source, self-hosted personal AI agent framework in Python with WebUI, tools, memory, MCP, multi-agent workflows, automation, and chat ap | stars 48990 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. zhayujie/cowagent | PASS | Open-source personal AI assistant & Agent Harness. Plans tasks, runs tools and skills, self-evolves with memory and knowledge. Multi-agent, multi-model, multi-c | stars 47374 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. ghguide/costguard | PASS | Agentic cost & efficiency regression gate for AI agents — UiPath AgentHack 2026 (Test Cloud). Catches when an agent change makes it more expensive per successfu | stars 1 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. agentacct | HOLD (G3 HOLD (first release 82 days ago)) | See what your coding agents did and what it cost. Breaks each task down into work steps — tools used, files changed, tests run, time and tokens spent. Local-fir | stars 766 | downloads/month 2703 | dependents 0 | last release 2026-09-25 | licence MIT",
+   "11. crewai | HOLD (G5 HOLD (mit: not rated by Blue Oak)) | Framework for orchestrating role-playing, autonomous AI agents. By fostering collaborative intelligence, CrewAI empowers agents to work together seamlessly, tac | stars 59648 | downloads/month 2442764 | dependents 9 | last release 2026-10-09 | licence mit",
+   "12. waku-agent | HOLD (G3 HOLD (first release 75 days ago); G5 HOLD (MIT AND OFL-1.1 AND LicenseRef-Waku-Brand: not rated by Blue Oak)) | Waku Waku! Waku Agent is a local-first AI agent harness you actually own, including loop, memory, eval, all in code built to stay legible as it grows. | stars 2001 | downloads/month 349 | dependents 0 | last release 2026-10-08 | licence MIT AND OFL-1.1 AND LicenseRef-Waku-Brand",
+   "13. manishrawal95/agent-cost-tracker | HOLD (G5 HOLD (no licence found)) | Visualize and analyze AI agent API costs. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-053",
+  "need": "Audio-to-MIDI transcription using a transformer language model",
+  "also_described_as": [
+   "audio midi music transcription transformer"
+  ],
+  "shortlist": [
+   "1. miditok | PASS | MIDI / symbolic music tokenizers for Deep Learning models 🎶 | stars 904 | downloads/month 9348 | dependents 4 | last release 2026-09-30 | licence MIT",
+   "2. mason369/music-to-midi | PASS | 音乐转MIDI转换器 - Convert audio to multi-track MIDI with lyrics embedding | stars 205 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "3. yujia-yan/transkun | PASS | A simple yet effective Audio-to-Midi Automatic Piano Transcription system | stars 461 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. spotify/basic-pitch | PASS | A lightweight yet powerful audio-to-MIDI converter with pitch bend detection | stars 5888 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "5. piano-transcription-inference | PASS | Piano transcription inference toolbox | stars 1762 | downloads/month 14293 | dependents 1 | last release 2025-01-26 | licence MIT",
+   "6. anime-song/tsumugi | PASS | Tsumugi — Audio-to-MIDI Transcription | stars 79 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. retrocirce/hts-audio-transformer | PASS | The official code repo of \"HTS-AT: A Hierarchical Token-Semantic Audio Transformer for Sound Classification and Detection\" | stars 511 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. skytnt/midi-model | PASS | Midi event transformer for symbolic music generation | stars 378 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "9. basic-pitch | HOLD (G4 HOLD (dormant: 789 days since release); G5 HOLD (apache-2.0: not rated by Blue Oak)) | Basic Pitch, a lightweight yet powerful audio-to-MIDI converter with pitch bend detection. | stars 355 | downloads/month 436922 | dependents 4 | last release 2024-08-16 | licence apache-2.0",
+   "10. audiorec | HOLD (G4 HOLD (dormant: 3124 days since release)) | Audio Recorder for python that lets you record WAV and MP3 Files from any input source | stars 13 | downloads/month 24 | dependents 1 | last release 2018-03-26 | licence MIT",
+   "11. justinsalamon/audio_to_midi_melodia | HOLD (G4 HOLD (dormant: 2385 days since push); G5 HOLD (no licence found)) | Extract the melody from an audio file and export to MIDI | stars 644 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-056",
+  "need": "Standards-aligned evidence policy validation for AI-assisted biological curation",
+  "also_described_as": [
+   "ai-safety biocuration bioinformatics evidence knowledge-graph linkml llm ontology provenance validation"
+  ],
+  "shortlist": [
+   "1. linkml | PASS | Linked Open Data Modeling Language | stars 649 | downloads/month 477333 | dependents 139 | last release 2026-10-08 | licence Apache-2.0",
+   "2. clawbio | PASS | 🦖 ClawBio - The first bioinformatics-native AI agent skill library. Local-first. Reproducible. Open. Free. | stars 1160 | downloads/month 980 | dependents 0 | last release 2026-09-05 | licence MIT",
+   "3. k-dense-ai/scientific-agent-skills | PASS | Turn any AI agent into an AI Scientist. The #1 Agent Skills library for science, used by 250,000+ scientists worldwide. 177 ready-to-use validated skills plus 1 | stars 48702 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. release-gate | PASS | Assurance for autonomous work: submit a run, get the case a person decides from - what needs a human, what would resolve it, and what was never assessed. | stars 3 | downloads/month 404 | dependents 0 | last release 2026-09-29 | licence MIT",
+   "5. robert-mcdermott/ai-knowledge-graph | PASS | AI Powered Knowledge Graph Generator | stars 3121 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "6. memoripy | PASS | Evidence-first local memory for AI agents with temporal versions, admission policies, citations, explainable recall, MCP, and audit tooling. | stars 694 | downloads/month 66 | dependents 0 | last release 2024-11-28 | licence MIT",
+   "7. msqlib | HOLD (G4 HOLD (dormant: 2208 days since release)) | Qlib is an AI-oriented Quant investment platform that aims to use AI tech to empower Quant Research, from exploring ideas to implementing productions. Qlib supp | stars 49334 | downloads/month 9 | dependents 1 | last release 2020-09-27 | licence MIT",
+   "8. tarrysingh/artificial-intelligence-deep-learning-machine-learning-tutorials | HOLD (G5 HOLD (no licence found)) | Synapsa Commons: free, hands-on AI courses that run anywhere (Colab, Kaggle, Binder, Codespaces, Jupyter). EU AI Act conformity evidence, model validation, pred | stars 4011 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. alignment-handbook | HOLD (G4 HOLD (dormant: 755 days since release); G5 HOLD (Apache: not rated by Blue Oak)) | Robust recipes to align language models with human and AI preferences | stars 5695 | downloads/month 47 | dependents 0 | last release 2024-09-19 | licence Apache",
+   "10. incident-ledger | HOLD (G3 HOLD (first release 89 days ago)) | An append-only, hash-chained SQLite evidence log for LLM systems, with deterministic replay. | stars 0 | downloads/month 271 | dependents 0 | last release 2026-07-17 | licence MIT",
+   "11. dmis-lab/biobert | HOLD (G4 HOLD (dormant: 1158 days since push); G5 HOLD (non-standard: not rated by Blue Oak)) | Bioinformatics'2020: BioBERT: a pre-trained biomedical language representation model for biomedical text mining | stars 2213 | downloads/month ? | dependents ? | last release ? | licence non-standard"
+  ]
+ },
+ {
+  "id": "L-057",
+  "need": "Autonomous AI software-delivery orchestrator driving the Claude Agent SDK on your own Claude credentials",
+  "also_described_as": [],
+  "shortlist": [
+   "1. foreman-orchestrator | PASS | A Boris-style agentic orchestrator TUI that supervises headless Claude Code agents through a gated software-delivery pipeline — pointed at any repository. | stars 443 | downloads/month 7 | dependents 0 | last release 2026-06-21 | licence MIT",
+   "2. ra-aid | PASS | Develop software autonomously. | stars 2223 | downloads/month 2023 | dependents 0 | last release 2025-05-07 | licence Apache-2.0",
+   "3. hermes-agent | PASS (G6 flag (4 open advisories)) | The agent that grows with you | stars 253270 | downloads/month 162501 | dependents 0 | last release 2026-07-20 | licence MIT",
+   "4. controlled-execution-system | PASS | Deterministic governance controls for AI agent-driven software delivery | stars 0 | downloads/month 253 | dependents 0 | last release 2026-05-21 | licence MIT",
+   "5. bytedance/deer-flow | PASS | An open-source long-horizon SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skill, subagents and message ga | stars 83780 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. smarts | HOLD (G4 HOLD (dormant: 930 days since release)) | Scalable Multi-Agent RL Training School for Autonomous Driving | stars 1135 | downloads/month 162 | dependents 11 | last release 2024-03-28 | licence MIT",
+   "7. significant-gravitas/autogpt | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | AutoGPT is the vision of accessible AI for everyone, to use and to build on. Our mission is to provide the tools, so that you can focus on what matters. | stars 187544 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "8. agent0ai/agent-zero | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | Agent Zero AI framework | stars 19450 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "9. marvinteichmann/multinet | HOLD (G4 HOLD (dormant: 2707 days since push)) | Real-time Joint Semantic Reasoning for Autonomous Driving | stars 557 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "L-058",
+  "need": "Jev-style typed decisions with probabilities from open LLMs: a training-free readout of any model, and the self-distilled Tacit models. Not affiliated with TypeSafe AI.",
+  "also_described_as": [
+   "llm decision calibration jev system-one self-distillation vllm"
+  ],
+  "shortlist": [
+   "1. nokia-applied-research/anyjev | PASS | Turn any LLM into a Jev-style decision model: typed decisions, real probabilities, no training. (continue updating, welcome any issue and PR request) | stars 1252 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "2. wfzyx/von | PASS | The open-source System One decision model. Sub-15ms, non-autoregressive, local drop-in alternative to TypeSafe Jev. | stars 895 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "3. typellm/typellm | PASS | TypeLLM: LLMs with type-safe generation | stars 946 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "4. omnijev/onejev | PASS | 🚀🚀 A multimodal System One decision model that gives calibrated answers to typed questions about screens, photos, video and text in one forward pass. | stars 164 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "5. cobusgreyling/jev | PASS | Unofficial TypeSafe Jev showcase — System One decisions, not chat. | stars 137 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. everettjf/ezjev | PASS | Open 4B typed-decision model (Jev-style /v1/systemone): calibrated per-option probabilities from one prefill. Training, data generation and eval pipeline on HF  | stars 1 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. laya | HOLD (G3 HOLD (first release 26 days ago)) | Non-autoregressive System 1 decision engine. Typed choice, score and yes/no decisions over any text in a single forward pass, in 100+ languages, with a router t | stars 32712 | downloads/month 272233 | dependents 0 | last release 2026-10-12 | licence Apache-2.0",
+   "8. heman10x-ngu/openjev-verdict-2.0 | HOLD (G5 HOLD (no licence found)) | Calibrated 151M Non-Autoregressive Decision Engine beating TypeSafe Jev & Laya on LocalLLaMA/typed-decisions (77.10% acc, 0.0636 Brier, 0.0144 ECE) | stars 294 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. alben | HOLD (G3 HOLD (first release 15 days ago)) | 复刻 TypeSafe System One (Jev) 的开源实现：运行时任意 criteria + 校准概率 | stars ? | downloads/month 0 | dependents 0 | last release 2026-09-29 | licence Apache-2.0",
+   "10. kilo-loco/maatlm | HOLD (G5 HOLD (no licence found)) | maatlm: open-source System One style decision model (typed decisions with calibrated probabilities in one forward pass), in the spirit of TypeSafe's Jev | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. aisideskicks/selectia | HOLD (G5 HOLD (no licence found)) | Selectia - A family of System One-style models fine-tuned from LFM 2.5, designed for one-pass typed decisions with calibrated probabilities. Decision API (Choic | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "12. decido | HOLD (G3 HOLD (first release 27 days ago)) | Typed provider-neutral decisions and bounded semantic web exploration | stars 1 | downloads/month 128 | dependents 0 | last release 2026-09-17 | licence MIT"
+  ]
+ },
+ {
+  "id": "L-059",
+  "need": "Episodic memory for AI agents: compile raw screen capture into structured, deterministic",
+  "also_described_as": [
+   "agent-memory ai-agents context episodic-memory llm mcp nocta-recorder screen-activity"
+  ],
+  "shortlist": [
+   "1. mem0ai | PASS | The Memory Layer for AI Agents - Drop-in memory infrastructure for AI agents and apps. Context that persists. Built for production. | stars 67110 | downloads/month 2020516 | dependents 0 | last release 2026-09-25 | licence Apache-2.0",
+   "2. honcho-ai | PASS |  Memory library for building stateful agents | stars 7596 | downloads/month 542206 | dependents 0 | last release 2026-09-24 | licence Apache-2.0",
+   "3. memori | PASS | Memori is agent-native memory infrastructure. A LLM-agnostic layer that turns agent execution and conversation into structured, persistent state for production  | stars 17147 | downloads/month 16441 | dependents 2 | last release 2026-05-28 | licence Apache-2.0",
+   "4. reme-ai | PASS | ReMe: Memory Management Kit for Agents - Remember Me, Refine Me. | stars 3589 | downloads/month 129866 | dependents 0 | last release 2025-10-22 | licence Apache-2.0",
+   "5. everos | PASS | One portable memory layer for every AI agent: local-first, Markdown-native, user-owned, and self-evolving across apps, tools, and workflows. | stars 13413 | downloads/month 20408 | dependents 0 | last release 2026-09-24 | licence Apache-2.0",
+   "6. gui-agents | PASS | Agent S: an open agentic framework that uses computers like a human | stars 12602 | downloads/month 1565 | dependents 0 | last release 2025-12-16 | licence Apache-2.0",
+   "7. aemp | PASS | AI Episodic Memory Protocol - Structured episodic memory sharing between AI agents | stars ? | downloads/month 81 | dependents 0 | last release 2026-05-18 | licence MIT",
+   "8. episodiq | PASS | Ambient episodic memory for AI agents. Zero dependencies. | stars ? | downloads/month 40 | dependents 0 | last release 2026-02-14 | licence MIT",
+   "9. agentmem | PASS | A Python package for managing AI agent memory systems with persistence and vector search | stars 1 | downloads/month 99 | dependents 0 | last release 2025-04-14 | licence MIT",
+   "10. tsar0705/software-dev-mcp | PASS | Built an agentic AI assistant using FastAPI, Next.js, and the Model Context Protocol (MCP) to connect LLMs with local tools. Features semantic & episodic memory | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "11. aryan22092002/activity-tracker-using-llm | PASS | Episodic memory for AI agents: compile raw screen capture into structured, deterministic activity frames. | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "12. tribalmemory | HOLD (G5 HOLD (BSL-1.1: not rated by Blue Oak)) | Shared memory infrastructure for multi-instance AI agents | stars 1 | downloads/month 100 | dependents 0 | last release 2026-02-10 | licence BSL-1.1",
+   "13. synapse-recall | HOLD (G3 HOLD (first release 78 days ago)) | Episodic and semantic memory over workplace conversations | stars ? | downloads/month ? | dependents 0 | last release 2026-07-28 | licence MIT",
+   "14. dualmemory | HOLD (G3 HOLD (first release 7 days ago)) | Episodic + semantic memory layer for LLM agents, with provenance and validity windows | stars 0 | downloads/month 0 | dependents 0 | last release 2026-10-07 | licence MIT",
+   "15. aylton/agent-memory-stack | HOLD (G5 HOLD (no licence found)) | Local memory stack for AI agents: PageIndex + LightRAG + Lucid for fast recall, structured relationships, and instant episodic context. | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-062",
+  "need": "Agentic system optimization: coding agents reason over parameter meaning and trial history.",
+  "also_described_as": [
+   "black-box-optimization agent llm hyperparameter-optimization machine-learning scientific-computing"
+  ],
+  "shortlist": [
+   "1. smac | PASS | SMAC3: A Versatile Bayesian Optimization Package for Hyperparameter Optimization | stars 1257 | downloads/month 20415 | dependents 145 | last release 2026-09-10 | licence BSD-1-Clause",
+   "2. optuna | PASS | A hyperparameter optimization framework | stars 14913 | downloads/month 15257921 | dependents 2527 | last release 2026-09-07 | licence MIT",
+   "3. rl-zoo3 | PASS | A training framework for Stable Baselines3 reinforcement learning agents, with hyperparameter optimization and pre-trained agents included. | stars 2896 | downloads/month 3245 | dependents 4 | last release 2026-06-15 | licence MIT",
+   "4. optim-agent | PASS | LLM agents as your hyperparameter optimizer. | stars 799 | downloads/month 64 | dependents 0 | last release 2026-07-13 | licence MIT",
+   "5. google-adk | PASS | An open-source, code-first Python toolkit for building, evaluating, and deploying sophisticated AI agents with flexibility and control. | stars 21797 | downloads/month 10109331 | dependents 0 | last release 2026-10-02 | licence Apache-2.0",
+   "6. algorithmicsuperintelligence/optillm | PASS | Optimizing inference proxy for LLMs | stars 4316 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "7. lupantech/agentflow | PASS | AgentFlow: In-the-Flow Agentic System Optimization | stars 2058 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. raga-ai-hub/ragaai-catalyst | PASS | Python SDK for Agent AI Observability, Monitoring and Evaluation Framework. Includes features like agent, llm and tools tracing, debugging multi-agentic system, | stars 16175 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "9. hyperparameter-hunter | HOLD (G4 HOLD (dormant: 2626 days since release)) | Easy hyperparameter optimization and automatic result saving across machine learning algorithms and libraries | stars 704 | downloads/month 155 | dependents 1 | last release 2019-08-06 | licence MIT",
+   "10. bbopt | HOLD (G4 HOLD (dormant: 1628 days since release)) | Black box hyperparameter optimization made easy. | stars 78 | downloads/month 321 | dependents 1 | last release 2022-04-30 | licence Apache-2.0"
+  ]
+ },
+ {
+  "id": "L-064",
+  "need": "A Python library for automating the submission of manuscripts to academic venues.",
+  "also_described_as": [],
+  "shortlist": [
+   "1. opendraft | PASS | Write research paper and literature review drafts with an open-source Python engine that checks citation DOIs against scholarly databases. Export PDF, Word, or  | stars 509 | downloads/month 265 | dependents 0 | last release 2026-07-22 | licence MIT",
+   "2. leonchaox/qinyan-academic-skills | PASS | A curated, multilingual library of 182 installable AI agent skills for end-to-end academic research—spanning literature discovery, scientific writing, grant dev | stars 947 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "3. stephenlzc/ai-powered-literature-review-skills | PASS | AI驱动的系统性学术文献回顾工具 | AI-Powered Literature Survey Tool with 8-Phase Workflow & Agent Swarm Architecture | stars 183 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. agentic-scriptorium | PASS | An agentic scriptorium for scholarly writing — coordinated AI capabilities for manuscripts, grants, and reviews. | stars 3 | downloads/month 95 | dependents 0 | last release 2026-05-20 | licence MIT",
+   "5. epsilon617/codex-academic-skills | PASS | A curated list of research-oriented skills usable in OpenAI Codex, covering writing, literature review, evaluation, and research workflows. | stars 190 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. sectionminer | PASS | Extract sections and subsections from academic PDFs | stars 2 | downloads/month 663 | dependents 0 | last release 2026-06-10 | licence MIT",
+   "7. pyjstage2 | PASS | J-STAGE API wrapper for Python - Python 3.12 Compatible | stars 3 | downloads/month 120 | dependents 0 | last release 2026-06-16 | licence MIT",
+   "8. sub-checker | PASS | Pre-submission manuscript checker powered by Claude agents | stars 0 | downloads/month 203 | dependents 0 | last release 2026-06-11 | licence MIT",
+   "9. junio | PASS | Conversational CLI agent that composes academic literature reviews from a workspace folder of papers, with sentence-level citation grounding. | stars ? | downloads/month 106 | dependents 0 | last release 2026-05-06 | licence MIT",
+   "10. tracealign | PASS | Textual Reuse, Alignment, and Collation Engine — pairwise philological alignment with pluggable language packs | stars 1 | downloads/month 78 | dependents 0 | last release 2026-06-17 | licence MIT",
+   "11. paperpush | HOLD (G3 HOLD (first release 77 days ago)) | 📝 Automated manuscript validation and submission portal completion | stars 206 | downloads/month 486 | dependents 0 | last release 2026-08-25 | licence MIT",
+   "12. imbad0202/academic-research-skills-codex | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | Codex-native Academic Research Skills suite for human-in-the-loop academic research workflows | stars 12755 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "13. maxwell2732/my-submission-formatting-agent | HOLD (G5 HOLD (no licence found)) | A structured Claude Code workflow to reformat research manuscripts for any journal's submission requirements without altering scientific content, created by Che | stars 112 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "14. vanthree31/paperlens | HOLD (G5 HOLD (no licence found)) | AI-Powered Research Assistant for Academic Paper Discovery, Analysis, and Citation Intelligence | stars 186 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "15. findpapers | HOLD (G4 HOLD (dormant: 1435 days since release)) | Findpapers: A tool for helping researchers who are looking for related works | stars 409 | downloads/month 187 | dependents 1 | last release 2022-11-09 | licence MIT"
+  ]
+ },
+ {
+  "id": "L-065",
+  "need": "Create, read, and update Microsoft Word .docx files.",
+  "also_described_as": [
+   "docx office openxml word"
+  ],
+  "shortlist": [
+   "1. python-docx | PASS | Create and modify Word documents with Python | stars 5742 | downloads/month 95391897 | dependents 3866 | last release 2025-06-16 | licence MIT",
+   "2. docx2python | PASS | Extract content from docx files | stars 212 | downloads/month 273866 | dependents 37 | last release 2026-08-06 | licence MIT",
+   "3. python-redlines | PASS | Open-source DOCX comparison tool to generate native Word tracked changes (redlines) in Python without MS Word dependencies | stars 132 | downloads/month 59139 | dependents 0 | last release 2026-09-06 | licence MIT",
+   "4. mammoth | PASS | Convert Word documents (.docx files) to HTML | stars 1119 | downloads/month 15917256 | dependents 97 | last release 2026-09-26 | licence BSD-2-Clause",
+   "5. docxtpl | PASS (G5 flag (LGPL-2.1-only: weak copyleft (use unmodified))) | Python docx template engine | stars 2719 | downloads/month 3462825 | dependents 373 | last release 2025-11-13 | licence LGPL-2.1-only",
+   "6. forlegalai/mcp-ms-office-documents | PASS | MCP server providing tools to create Ms Office documents like presentations, emails, spreadsheets and word docs (pptx, docx, eml, xlsx) | stars 42 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. wordflux | PASS | Translate DOCX using OpenAI - Preserve Format | stars 129 | downloads/month 10 | dependents 0 | last release 2025-10-15 | licence MIT",
+   "8. hwanny395/word-automation-pro | PASS | Microsoft Word DOCX/Open XML automation toolkit for Python | stars 0 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "9. docx-editor | HOLD (G5 HOLD (mit: not rated by Blue Oak)) | Python library for Word document track changes and comments, without requiring Microsoft Word. | stars 39 | downloads/month 5355 | dependents 0 | last release 2026-08-31 | licence mit",
+   "10. docxsphinx | HOLD (G4 HOLD (dormant: 2156 days since release)) | Generate word documents from sphinx documentation | stars 34 | downloads/month 116 | dependents 1 | last release 2020-11-18 | licence MIT",
+   "11. etfre/oodocx | HOLD (G4 HOLD (dormant: 4482 days since push); G5 HOLD (no licence found)) | Python library for creating, reading, and modifying Docx files for Microsoft Word | stars 15 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "12. dt-woods/word | HOLD (G4 HOLD (dormant: 1759 days since push); G5 HOLD (no licence found)) | Concatenate and parse Microsoft Word (.docx) files with style! A Pythonic method for splitting, merging, and styling MS Word docs. | stars 3 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "13. twright3188/reading-doc-with-python | HOLD (G4 HOLD (dormant: 996 days since push); G5 HOLD (no licence found)) |  Reading, creating, and updating Microsoft Word 2007+ (.docx) files with python. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-068",
+  "need": "Hierarchical agent loops with recursive self-organization.",
+  "also_described_as": [],
+  "shortlist": [
+   "1. plasma-fractal | PASS | Hierarchical agent loops with recursive self-organization. | stars 781 | downloads/month ? | dependents 0 | last release 2026-09-17 | licence Apache-2.0",
+   "2. recursivemas/recursivemas | PASS | [NeurIPS 2026] Recursive Multi-Agent Systems | stars 964 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "3. phyagentos/phyagentos-core | PASS | PhyAgentOS is a Recursive Self-Improving (RSI) physical agent operating system that enables agents to recursively self-improve through agentic workflows. | stars 2889 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. skyworkai/deepresearchagent | PASS | DeepResearchAgent is a hierarchical multi-agent system designed not only for deep research tasks but also for general-purpose task solving. The framework levera | stars 3561 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. hotcore | PASS | A Redis-based hierarchical entity model for application data management | stars ? | downloads/month 36 | dependents 0 | last release 2025-10-20 | licence MIT",
+   "6. sentient-agi/roma | HOLD (G5 HOLD (no licence found)) | Recursive-Open-Meta-Agent v0.1 (Beta). A meta-agent framework to build high-performance multi-agent systems. | stars 5182 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "7. fhkingma/bitswap | HOLD (G4 HOLD (dormant: 1369 days since push); G5 HOLD (no licence found)) | Bit-Swap: Recursive Bits-Back Coding for Lossless Compression with Hierarchical Latent Variables | stars 273 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-069",
+  "need": "Indexed knowledge bases with command-line tools for agents.",
+  "also_described_as": [],
+  "shortlist": [
+   "1. plasma-wiki | PASS | Indexed knowledge bases with command-line tools for agents. | stars 105 | downloads/month 2777 | dependents 0 | last release 2026-09-22 | licence Apache-2.0",
+   "2. graphiti-core | PASS | Build Real-Time Knowledge Graphs for AI Agents | stars 31708 | downloads/month 619128 | dependents 0 | last release 2026-09-08 | licence Apache-2.0",
+   "3. zjunlp/skillx | PASS | SkillX: Automatically Constructing Skill Knowledge Bases for Agents | stars 290 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. kb-manager | HOLD (G5 HOLD (GPLv3: not rated by Blue Oak)) | A minimalist command line knowledge base manager | stars 3417 | downloads/month 62 | dependents 2 | last release 2025-06-21 | licence GPLv3",
+   "5. flex-cli | HOLD (G4 HOLD (dormant: 971 days since release)) | Local CLI is an extendable interactive command line tool built in mind with the objective to make the interaction with day to day scripts more user friendly. Th | stars 1 | downloads/month 137 | dependents 1 | last release 2024-02-16 | licence MIT",
+   "6. cmdinter | HOLD (G4 HOLD (dormant: 3193 days since release); G5 HOLD (unlicensed: not rated by Blue Oak)) | A \"command interface\" for functions. | stars 0 | downloads/month 16 | dependents 2 | last release 2018-01-16 | licence unlicensed",
+   "7. wting/autojump | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | A cd command that learns - easily navigate directories from the command line | stars 16962 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "8. test-cmd-x | HOLD (G4 HOLD (dormant: 2210 days since release); G5 HOLD (Apache: not rated by Blue Oak)) | Tool for black-box testing command-line programs, with extensions | stars 0 | downloads/month 22 | dependents 1 | last release 2020-09-25 | licence Apache"
+  ]
+ },
+ {
+  "id": "L-070",
+  "need": "Build robust RL environments to train aligned AI.",
+  "also_described_as": [],
+  "shortlist": [
+   "1. habitat-lab | PASS | A modular high-level library to train embodied AI agents across a variety of tasks and environments. | stars 3158 | downloads/month 4578 | dependents 5 | last release 2026-05-07 | licence MIT",
+   "2. verifiers | PASS | Verifiers: Environments for LLM Reinforcement Learning | stars 4696 | downloads/month 762022 | dependents 0 | last release 2026-08-24 | licence MIT",
+   "3. preferencemodel/karotte | PASS | A framework for building robust RL environments to train aligned AI. | stars 136 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. repo2rlenv | PASS | Turn any repository into verifiable RL environments for coding agents - Harbor tasks you can train on, evaluate and share on the Hugging Face Hub | stars 720 | downloads/month 20004 | dependents 0 | last release 2026-09-29 | licence Apache-2.0 AND MIT",
+   "5. gymnasium | PASS | A standard API for reinforcement learning and a diverse set of reference environments (formerly Gym). | stars 12607 | downloads/month 3601211 | dependents 871 | last release 2026-10-05 | licence MIT",
+   "6. pettingzoo | PASS | Gymnasium for multi-agent reinforcement learning. | stars 3529 | downloads/month 218107 | dependents 291 | last release 2026-08-13 | licence MIT",
+   "7. pku-alignment/safe-rlhf | PASS | Safe RLHF: Constrained Value Alignment via Safe Reinforcement Learning from Human Feedback | stars 1618 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "8. aegis-eval | PASS | The Adaptive Intelligence Layer for AI Agents — eval, train, memory, environments. | stars 1 | downloads/month 67 | dependents 0 | last release 2026-04-21 | licence Apache-2.0",
+   "9. ors-sdk | PASS | Python SDK for the Open Reward Standard (ORS) — an HTTP protocol for connecting AI agents to RL environments | stars ? | downloads/month 48 | dependents 0 | last release 2026-03-24 | licence Apache-2.0",
+   "10. alignment-handbook | HOLD (G4 HOLD (dormant: 755 days since release); G5 HOLD (Apache: not rated by Blue Oak)) | Robust recipes to align language models with human and AI preferences | stars 5695 | downloads/month 47 | dependents 0 | last release 2024-09-19 | licence Apache",
+   "11. walkinglabs/hands-on-modern-rl | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | 🚀 An open-source, hands-on curriculum bridging the gap from basic RL concepts to LLM alignment, RLVR, and advanced Agentic systems.  | stars 4626 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "12. crucible-rl | HOLD (G3 HOLD (first release 87 days ago)) | Turn any real software into a trainable, gradable, replayable RL environment for AI agents. | stars 2 | downloads/month 42 | dependents 0 | last release 2026-07-22 | licence MIT"
+  ]
+ },
+ {
+  "id": "L-074",
+  "need": "Centralized agent database for Inquiries (Issues + Artifacts).",
+  "also_described_as": [
+   "agent database fastapi postgres tracking"
+  ],
+  "shortlist": [
+   "1. google-adk | PASS | An open-source, code-first Python toolkit for building, evaluating, and deploying sophisticated AI agents with flexibility and control. | stars 21797 | downloads/month 10109331 | dependents 0 | last release 2026-10-02 | licence Apache-2.0",
+   "2. mem0ai | PASS | The Memory Layer for AI Agents - Drop-in memory infrastructure for AI agents and apps. Context that persists. Built for production. | stars 67087 | downloads/month 2020516 | dependents 0 | last release 2026-09-25 | licence Apache-2.0",
+   "3. pgcli | PASS | Postgres CLI with autocompletion and syntax highlighting | stars 13416 | downloads/month 206105 | dependents 168 | last release 2026-09-20 | licence BSD-3-Clause",
+   "4. mini-swe-agent | PASS | The 100 line AI agent that solves GitHub issues or helps you in your command line. Radically simple, no huge configs, no giant monorepo—but scores >74% on SWE-b | stars 8481 | downloads/month 11189704 | dependents 0 | last release 2026-07-23 | licence MIT",
+   "5. agentops | PASS | Python SDK for AI agent monitoring, LLM cost tracking, benchmarking, and more. Integrates with most LLMs and agent frameworks including CrewAI, Agno, OpenAI Age | stars 5882 | downloads/month 94654 | dependents 2 | last release 2025-08-29 | licence MIT",
+   "6. postgres-mcp | PASS | Postgres MCP Pro provides configurable read/write access and performance analysis for you and your AI agents. | stars 3396 | downloads/month 529340 | dependents 0 | last release 2025-05-16 | licence MIT",
+   "7. azure-samples/postgres-agentic-shop | PASS | AgenticShop is a solution accelerator that demonstrates how to build an intelligent, multi-agent retail experience powered by Azure Database for PostgreSQL. | stars 105 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. wassim249/fastapi-langgraph-agent-production-ready-template | PASS | A production-ready FastAPI template for building AI agent applications with LangGraph integration. This template provides a robust foundation for building scala | stars 2698 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. bytedance/deer-flow | PASS | An open-source long-horizon SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skill, subagents and message ga | stars 83780 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. foundationagents/metagpt | PASS | 🌟 The Multi-Agent Framework: First AI Software Company, Towards Natural Language Programming | stars 70835 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "11. django-multitenant | HOLD (G4 HOLD (dormant: 1031 days since release)) | Python/Django support for distributed multi-tenant databases like Postgres+Citus | stars 824 | downloads/month 129097 | dependents 5 | last release 2023-12-18 | licence MIT",
+   "12. wal-e | HOLD (G4 HOLD (dormant: 2444 days since release); G5 HOLD (BSD: not rated by Blue Oak)) | Continuous Archiving for Postgres | stars 3465 | downloads/month 391 | dependents 7 | last release 2020-02-04 | licence BSD",
+   "13. disler/multi-agent-postgres-data-analytics | HOLD (G4 HOLD (dormant: 812 days since push)) | The way we interact with our data is changing. | stars 886 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "L-075",
+  "need": "Turn ad-hoc subagents into durable, accountable AI teams.",
+  "also_described_as": [],
+  "shortlist": [
+   "1. semantica | PASS | Graph-Native Infrastructure for Context and Accountable AI Systems | stars 14006 | downloads/month 14741 | dependents 0 | last release 2026-09-22 | licence MIT",
+   "2. evo-hq-cli | PASS | turns your codebase into an autoresearch loop — discovers what to measure, instruments the benchmark, then runs tree search with parallel subagents. | stars 1467 | downloads/month 314 | dependents 0 | last release 2026-07-17 | licence Apache-2.0",
+   "3. headroom-ai | PASS | Compress tool outputs, logs, files, and RAG chunks before they reach the LLM. 20% fewer tokens for coding agents, 60-95% fewer tokens for JSON, same answers. Li | stars 75186 | downloads/month 292636 | dependents 0 | last release 2026-10-06 | licence Apache-2.0",
+   "4. hermes-agent | PASS (G6 flag (4 open advisories)) | The agent that grows with you | stars 253368 | downloads/month 162501 | dependents 0 | last release 2026-07-20 | licence MIT",
+   "5. zhayujie/cowagent | PASS | Open-source personal AI assistant & Agent Harness. Plans tasks, runs tools and skills, self-evolves with memory and knowledge. Multi-agent, multi-model, multi-c | stars 47380 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. bytedance/deer-flow | PASS | An open-source long-horizon SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skill, subagents and message ga | stars 83803 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. pyadrecon | PASS | Python Active Directory Reconnaissance Tool (ADRecon port) with NTLM and Kerberos support. | stars 68 | downloads/month 307 | dependents 0 | last release 2026-07-10 | licence MIT",
+   "8. jdarmy/evasion-subagents | PASS | Claude Code 免杀 SubAgents | stars 325 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. mvanhorn/last30days-skill | PASS | AI agent skill that researches any topic across Reddit, X, YouTube, HN, Polymarket, and the web - then synthesizes a grounded summary | stars 64140 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. zubair-trabzada/ai-marketing-claude | PASS | AI Marketing Suite for Claude Code. 15 marketing skills with parallel subagents — audit any website, generate copy, email sequences, ad campaigns, content calen | stars 2751 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "11. pamirtuna/gamestudio-subagents | PASS | AI-Powered Game Development Team in Your Terminal | stars 275 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "12. andromity | HOLD (G3 HOLD (first release 63 days ago)) | Open-source AI coding agent for terminal and IDE workflows with BYOK, local Ollama, MCP tools and subagents. | stars 19 | downloads/month ? | dependents 0 | last release 2026-10-06 | licence MIT"
+  ]
+ },
+ {
+  "id": "L-077",
+  "need": "General-purpose, AI-enabled Intelligent Document Processing framework for Python. OCR + multimodal extraction with Pydantic schemas, confidence assessment, HITL review, and a built-in eval harness. Supports OpenAI, Anthropic, Ollama, and 8 China LLMs.",
+  "also_described_as": [
+   "intelligent-document-processing document-ai ocr llm extraction pydantic multimodal rag information-extraction invoice pdf schema-discovery"
+  ],
+  "shortlist": [
+   "1. unstructured | PASS | A library that prepares raw documents for downstream ML tasks. | stars 15526 | downloads/month 2462836 | dependents 3487 | last release 2026-10-10 | licence Apache-2.0",
+   "2. docling | PASS | SDK and CLI for parsing PDF, DOCX, HTML, and more, to a unified document representation for powering downstream workflows such as gen AI applications. | stars 68616 | downloads/month 2909751 | dependents 0 | last release 2026-10-12 | licence MIT",
+   "3. marker-pdf | PASS | Convert documents to markdown with high speed and accuracy. | stars 39837 | downloads/month 571434 | dependents 0 | last release 2026-01-31 | licence Apache-2.0",
+   "4. rollroyces/py-idp | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | AI-enabled Intelligent Document Processing for Python: 12+ LLM backends, Pydantic schemas, self-hosted OCR (Nanonets-OCR2-3B), auto-schema discovery, HITL revie | stars 217 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "5. skalith/ai-document-processing | HOLD (G5 HOLD (no licence found)) | AI-powered Intelligent Document Processing system using React, FastAPI, SQLite, OCR, and LLMs (Groq, Gemini, Anthropic) for structured document extraction. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "6. medusa717/document-intelligence | HOLD (G5 HOLD (no licence found)) | AI-powered document processing system that extracts, analyzes, and transforms documents into structured insights using LLMs and intelligent workflows. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "7. parthsharma8368/idp-platform | HOLD (G5 HOLD (no licence found)) | 🤖 AI-powered Intelligent Document Processing Platform — OCR + Groq LLM + Human Review | GlobalLogic Internship | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "8. neuro-kiran/autonomous-doc-processor | HOLD (G5 HOLD (no licence found)) | Autonomous AI agent for intelligent document processing with OCR, text extraction, and multi-format support. Features LLM-powered analysis, metadata extraction, | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. prasad1630/multimodal-document-assistant | HOLD (G5 HOLD (no licence found)) | Multimodal RAG AI platform for intelligent PDF document understanding using LLMs, OCR, semantic search, FAISS, AI agents, and multimodal processing of text, tab | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "10. niphoenixo/ai-document-intelligence-platform | HOLD (G5 HOLD (no licence found)) | A production-ready AI-powered document processing platform built with FastAPI, PostgreSQL, Redis, Celery, and OpenAI. It extracts structured information from PD | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. harshman7/docsage | HOLD (G5 HOLD (no licence found)) | AI-powered Intelligent Document Processing (IDP) system with RAG, anomaly detection, and natural language insights. Local, zero-cost alternative to AWS Textract | stars 2 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "12. ayushbire/intelligent-document-data-preprocessing-system | HOLD (G5 HOLD (no licence found)) | A modular AI-powered Intelligent Document Processing System that transforms unstructured documents into structured data through preprocessing, OCR, metadata ext | stars 2 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "13. chandra-mohan-mca/intelligent-document-insights-a-generative-ai-approach-to-ocr-and-data-structuring | HOLD (G5 HOLD (no licence found)) | Intelligent Document Processing (IDP) platform leveraging Google AI and OCR to bridge the gap between physical documents and digital insights. This tool automat | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-082",
+  "need": "A minimal, transparent, local-first Waku: harness + loop + memory + eval, in code you can read in an afternoon.",
+  "also_described_as": [
+   "agent-framework ai-agent eval llm llmops local-first memory"
+  ],
+  "shortlist": [
+   "1. e2b | PASS | Open-source, secure environment with real-world tools for enterprise-grade agents. | stars 14314 | downloads/month 5857504 | dependents 7 | last release 2026-10-09 | licence MIT",
+   "2. strands-agents | PASS | Build an agent harness and control it end-to-end. Open-source SDK for production AI agents in Python & TypeScript - any model, any cloud. | stars 8792 | downloads/month 37112498 | dependents 0 | last release 2026-10-12 | licence Apache-2.0",
+   "3. omnigent | PASS | Omnigent is an open-source AI agent framework and meta-harness: orchestrate Claude Code, Codex, Cursor, Pi, and custom agents — swap harnesses without rewriting | stars 10779 | downloads/month 39359 | dependents 0 | last release 2026-10-13 | licence Apache-2.0",
+   "4. minion-ai | PASS | A simple agentic framework - observability, evals, memory all in one | stars 4 | downloads/month 192 | dependents 0 | last release 2026-06-19 | licence MIT",
+   "5. hkuds/nanobot | PASS | Ultra-lightweight, open-source, self-hosted personal AI agent framework in Python with WebUI, tools, memory, MCP, multi-agent workflows, automation, and chat ap | stars 48993 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. zhayujie/cowagent | PASS | Open-source personal AI assistant & Agent Harness. Plans tasks, runs tools and skills, self-evolves with memory and knowledge. Multi-agent, multi-model, multi-c | stars 47380 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. muzeanisichael/minimal-local-agent | PASS | Small local-first agent kernel: bounded tools, reversible edits, auditable runs. CLI + Web, Ollama + compatible APIs. | stars 122 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. praveenbommalibits/medha-agentic-ai | PASS | Production-grade, cloud-agnostic framework for building enterprise AI agents — Plan/Reason/Act/Respond orchestration, RAG + episodic memory, guardrails, LLMOps  | stars 1 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. waku-agent | HOLD (G3 HOLD (first release 75 days ago); G5 HOLD (MIT AND OFL-1.1 AND LicenseRef-Waku-Brand: not rated by Blue Oak)) | Waku Waku! Waku Agent is a local-first AI agent harness you actually own, including loop, memory, eval, all in code built to stay legible as it grows. | stars 2001 | downloads/month 349 | dependents 0 | last release 2026-10-08 | licence MIT AND OFL-1.1 AND LicenseRef-Waku-Brand",
+   "10. ai-boost/awesome-harness-engineering | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | Awesome list for AI agent harness engineering: tools, patterns, evals, memory, MCP, permissions, observability, and orchestration. | stars 4815 | downloads/month ? | dependents ? | last release ? | licence non-standard"
+  ]
+ },
+ {
+  "id": "L-085",
+  "need": "CLI tool for exploring MCP servers",
+  "also_described_as": [],
+  "shortlist": [
+   "1. fastmcp | PASS | The fast, Pythonic way to build MCP servers and clients. | stars 28046 | downloads/month 53693015 | dependents 0 | last release 2026-10-08 | licence Apache-2.0",
+   "2. mcp | PASS | Model Context Protocol SDK | stars 24549 | downloads/month 235193557 | dependents 1 | last release 2026-10-02 | licence MIT",
+   "3. mcp-nixos | PASS | MCP-NixOS - Model Context Protocol Server for NixOS resources | stars 853 | downloads/month 3771 | dependents 0 | last release 2026-09-05 | licence MIT",
+   "4. zerotropism/mcp-servers-cli | PASS | A simplistic CLI MCP client to explore and test any MCP server | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. nirman-cli | PASS | A CLI tool to create project folder structures from a markdown file. | stars 1 | downloads/month 80 | dependents 0 | last release 2025-11-22 | licence MIT",
+   "6. thedailyworkflow-mcp | PASS | MCP server bridging Claude/Cursor to thedailyworkflow.com — discover 3500+ MCP servers, 15000+ AI tools, 200+ pipelines, 147+ tutorials, 147+ Q&A cases, 1700+ p | stars 0 | downloads/month 8 | dependents 0 | last release 2026-05-13 | licence MIT",
+   "7. cbinckly/jnpr-pathfinder-mcp | PASS | Model Context Protocol (MCP) server for accessing Juniper's public Pathfinder apps (Hardware Compatibility, Feature Explorer, CLI Explorer) | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. offmann/datagouv-mcp-client | PASS | Lightweight Python client and agent-tool prototype for exploring data.gouv.fr alongside the official MCP server. | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. mcp-explorer | HOLD (G3 HOLD (first release 78 days ago)) | CLI tool for exploring an MCP server | stars 133 | downloads/month ? | dependents 0 | last release 2026-07-29 | licence Apache-2.0",
+   "10. adrianeparo/cli_project | HOLD (G5 HOLD (no licence found)) | Exploring MCP Servers with Anthropic's MCP Course | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. duggurd/dynamics_relations | HOLD (G5 HOLD (no licence found)) | CLI tool and MCP server for finding and exploring Dynamics 365/Axapta table relationships | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "12. planit-institute/arc-explorer | HOLD (G5 HOLD (no licence found)) | Transition Arc data explorer — browser GUI with catalogue-backed multi-table linked search, and an MCP server bridging AI clients to a CLI-authenticated Snowfla | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "L-086",
+  "need": "A Rust-backed, CDP-first Python automation library with a Playwright-compatible sync API",
+  "also_described_as": [],
+  "shortlist": [
+   "1. playwright | PASS | Python version of the Playwright testing and automation library. | stars 15037 | downloads/month 97001677 | dependents 4573 | last release 2026-09-15 | licence Apache-2.0",
+   "2. rustwright | PASS | Playwright's API on a Rust CDP engine — Chromium browser automation for Python & Node, no driver subprocess. (Alpha) | stars 917 | downloads/month 2459 | dependents 0 | last release 2026-08-24 | licence MIT",
+   "3. crawlee | PASS | Crawlee—A web scraping and browser automation library for Python to build reliable crawlers. Extract data for AI, LLMs, RAG, or GPTs. Download HTML, PDF, JPG, P | stars 9585 | downloads/month 818726 | dependents 0 | last release 2026-10-06 | licence Apache-2.0",
+   "4. playwright-captcha | PASS | Automating captcha solving for Playwright. Supports Cloudflare Turnstile & Interstitial, and reCAPTCHA V2 & V3 with Click-based or API (2captcha) solving. Desig | stars 354 | downloads/month 22496 | dependents 0 | last release 2026-05-21 | licence MIT",
+   "5. grasp-sdk | PASS | Official Python SDK for the Grasp browser automation platform | stars ? | downloads/month 62 | dependents 0 | last release 2025-11-30 | licence MIT",
+   "6. seleniumbase/seleniumbase | PASS | 📊 Python APIs for Web Automation, E2E Testing, and Data Scraping. UC & CDP modes bypass bot-detection and handle CAPTCHAs. Includes a Stealth mode for Playwrigh | stars 13065 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. pwbase | PASS | A lightweight async Playwright wrapper for Python that supports three browser launch strategies and can intercept authenticated HTTP sessions from live browser  | stars 0 | downloads/month 97 | dependents 0 | last release 2026-04-25 | licence MIT",
+   "8. packtpublishing/playwright-python-and-pytest-for-web-automation-testing | PASS | Playwright Python and Pytest for Web Automation Testing, published by Packt | stars 64 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. skyvern | HOLD (G5 HOLD (agpl-3.0: not rated by Blue Oak)) | Automate browser based workflows with AI | stars 23190 | downloads/month 5856 | dependents 0 | last release 2026-10-01 | licence agpl-3.0"
+  ]
+ },
+ {
+  "id": "L-089",
+  "need": "Build and optimize AI Functions with pluggable evaluators and GEPA",
+  "also_described_as": [
+   "active-learning classification evals gepa llm"
+  ],
+  "shortlist": [
+   "1. kiln-ai | PASS | Build, Evaluate, and Optimize AI Systems. Includes evals, RAG, agents, fine-tuning, synthetic data generation, dataset management, MCP, and more. | stars 5190 | downloads/month 2726 | dependents 0 | last release 2026-09-29 | licence MIT",
+   "2. gepa | PASS | A framework for optimizing textual system components (AI prompts, code snippets, etc.) using LLM-based reflection and Pareto-efficient evolutionary search. | stars 6861 | downloads/month 7733527 | dependents 0 | last release 2026-07-15 | licence MIT",
+   "3. openevolve | PASS | Open-source implementation of AlphaEvolve | stars 7462 | downloads/month 17602 | dependents 0 | last release 2026-09-28 | licence Apache-2.0",
+   "4. verifiers | PASS | Our library for RL environments + evals | stars 4702 | downloads/month 762022 | dependents 0 | last release 2026-08-24 | licence MIT",
+   "5. evalscope | PASS | A streamlined and customizable framework for efficient large model (LLM, VLM, AIGC) evaluation and performance benchmarking. | stars 3531 | downloads/month 34390 | dependents 0 | last release 2026-10-13 | licence Apache-2.0",
+   "6. adalflow | PASS | AdalFlow: The library to build & auto-optimize LLM applications. | stars 4218 | downloads/month 4208 | dependents 0 | last release 2025-09-25 | licence MIT",
+   "7. pytorch_optimizer | PASS | optimizer & lr scheduler & loss function collections in PyTorch | stars 432 | downloads/month 155362 | dependents 1 | last release 2026-05-23 | licence Apache-2.0",
+   "8. mlflow/mlflow | PASS | The open source AI engineering platform for agents, LLMs, and ML models. MLflow enables teams of all sizes to debug, evaluate, monitor, and optimize production- | stars 28371 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "9. hiyouga/llamafactory | PASS | Unified Efficient Fine-Tuning of 100+ LLMs & VLMs (ACL 2024) | stars 75438 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "10. rllm-org/rllm | PASS | Democratizing Reinforcement Learning for LLMs | stars 5876 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "11. strands-agents/evals | PASS | A comprehensive evaluation framework for AI agents and LLM applications. | stars 237 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "12. arize-ai/phoenix | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | AI Observability & Evaluation | stars 11818 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "13. evals | HOLD (G4 HOLD (dormant: 896 days since release); G5 HOLD (other: not rated by Blue Oak)) | Evals is a framework for evaluating LLMs and LLM systems, and an open-source registry of benchmarks. | stars 19597 | downloads/month 457 | dependents 2 | last release 2024-05-01 | licence other",
+   "14. dspy | HOLD (G5 HOLD (Other: not rated by Blue Oak)) | DSPy | stars 38424 | downloads/month 5312050 | dependents 3 | last release 2026-10-12 | licence Other"
+  ]
+ },
+ {
+  "id": "L-094",
+  "need": "Synthetic PHI boundary gating, redaction, and audit reporting toolkit.",
+  "also_described_as": [
+   "phi hipaa redaction privacy ai-safety audit healthcare"
+  ],
+  "shortlist": [
+   "1. presidio-analyzer | PASS | Presidio Analyzer package | stars 11277 | downloads/month 5248154 | dependents 91 | last release 2026-07-22 | licence MIT",
+   "2. hipaa-compliance-mcp | PASS | HIPAA healthcare compliance assessment tools for AI agents. Capabilities: assess safeguards, check PHI handling, generate BAA, breach notification, minimum nece | stars 0 | downloads/month 510 | dependents 0 | last release 2026-06-27 | licence MIT",
+   "3. openadapt-privacy | PASS | Privacy scrubbing for GUI automation data - PII/PHI detection and redaction | stars 4 | downloads/month 796 | dependents 0 | last release 2026-09-01 | licence MIT",
+   "4. phi-guard-mcp | PASS | MCP server and CLI for detecting, redacting, and auditing PHI before medical text is sent to AI agents. | stars 0 | downloads/month 31 | dependents 0 | last release 2026-06-29 | licence MIT",
+   "5. mukul975/privacy-data-protection-skills | PASS | 282+ structured privacy & data protection skills for AI agents. GDPR, CCPA, EU AI Act, HIPAA, LGPD, PIPL, DPDP Act. | stars 303 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "6. phi-guard | PASS | HIPAA PHI scanner for CI/CD pipelines | stars 0 | downloads/month 61 | dependents 0 | last release 2026-03-09 | licence Apache-2.0",
+   "7. cross-ai | PASS | Agent monitoring proxy and session manager — PTY wrapping, network interception, Slack relay, and gating | stars 1 | downloads/month 84 | dependents 0 | last release 2026-03-31 | licence MIT",
+   "8. mediguard-dlp | PASS | Local HIPAA DLP layer for LLM workflows — MCP server for Claude Code, Claude Desktop, Cursor, Windsurf | stars 0 | downloads/month ? | dependents 0 | last release 2026-04-19 | licence MIT",
+   "9. phi-boundary-gate | HOLD (G3 HOLD (first release 72 days ago)) | Detect, gate, redact, and report PHI candidate flows across healthcare and insurance AI prompts, RAG, tools, memory, logs, and provider boundaries. | stars 204 | downloads/month 47 | dependents 0 | last release 2026-10-06 | licence MIT",
+   "10. hebsafeharbor | HOLD (G4 HOLD (dormant: 1584 days since release)) | Hebrew PHI identification and redaction toolkit | stars 21 | downloads/month 86 | dependents 1 | last release 2022-06-13 | licence MIT",
+   "11. scrubadub | HOLD (G4 HOLD (dormant: 1139 days since release)) | Clean personally identifiable information from dirty dirty text. | stars 432 | downloads/month 1856674 | dependents 29 | last release 2023-09-01 | licence MIT"
+  ]
+ },
+ {
+  "id": "L-105",
+  "need": "Lightweight Vietnamese Zero-Shot Text-to-Speech (TTS) with real-time streaming and voice cloning.",
+  "also_described_as": [
+   "tts text-to-speech vietnamese onnx speech-synthesis lightweight voice clone"
+  ],
+  "shortlist": [
+   "1. vieneu | PASS | Vietnamese TTS with instant voice cloning • On-device • Real-time CPU inference • 48kHz audio quality • Chuyển văn bản thành giọng nói tiếng Việt • Text to spee | stars 2846 | downloads/month 19566 | dependents 0 | last release 2026-09-23 | licence Apache-2.0",
+   "2. paddlespeech | PASS | Easy-to-use Speech Toolkit including Self-Supervised Learning model, SOTA/Streaming ASR with punctuation, Streaming TTS with text frontend, Speaker Verification | stars 12695 | downloads/month 1112 | dependents 70 | last release 2025-05-23 | licence Apache-2.0",
+   "3. voxcpm | PASS | VoxCPM2: Tokenizer-Free TTS for Multilingual Speech Generation, Creative Voice Design, and True-to-Life Cloning | stars 39207 | downloads/month 57258 | dependents 0 | last release 2026-05-11 | licence Apache-2.0",
+   "4. mlx-audio | PASS | A text-to-speech (TTS), speech-to-text (STT) and speech-to-speech (STS) library built on Apple's MLX framework, providing efficient speech analysis on Apple Sil | stars 8028 | downloads/month 288017 | dependents 0 | last release 2026-10-05 | licence MIT",
+   "5. realtimetts | PASS | Converts text to speech in realtime | stars 4042 | downloads/month 27963 | dependents 2 | last release 2026-05-25 | licence MIT",
+   "6. sopro | PASS | A lightweight text-to-speech model with zero-shot voice cloning | stars 973 | downloads/month 1797 | dependents 0 | last release 2026-09-01 | licence Apache-2.0",
+   "7. rvc-boss/gpt-sovits | PASS | 1 min voice data can also be used to train a good TTS model! (few shot voice cloning) | stars 62762 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. f5-tts | PASS | F5-TTS: A Fairytaler that Fakes Fluent and Faithful Speech with Flow Matching | stars 15278 | downloads/month 114012 | dependents 0 | last release 2026-07-23 | licence MIT",
+   "9. viet-tts | PASS | VietTTS: An Open-Source Vietnamese Text to Speech | stars 88 | downloads/month 40 | dependents 0 | last release 2025-04-24 | licence Apache-2.0",
+   "10. nguyenvulebinh/vietvoice-tts | PASS | A Vietnamese Text-to-Speech library that provides high-quality speech synthesis with voice cloning capabilities | stars 105 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "11. espnet | HOLD (G4 HOLD (dormant: 1709 days since release)) | End-to-End Speech Processing Toolkit | stars 9982 | downloads/month 22999 | dependents 223 | last release 2022-02-08 | licence Apache-2.0",
+   "12. tts-webui.index-tts | HOLD (G5 HOLD (LicenseRef-Bilibili-IndexTTS: not rated by Blue Oak)) | An Industrial-Level Controllable and Efficient Zero-Shot Text-To-Speech System | stars 24469 | downloads/month 24 | dependents 0 | last release 2026-04-22 | licence LicenseRef-Bilibili-IndexTTS",
+   "13. tts | HOLD (G4 HOLD (dormant: 1037 days since release); G5 flag (MPL-2.0: weak copyleft (use unmodified))) | 🐸💬 - a deep learning toolkit for Text-to-Speech, battle-tested in research and production | stars 46109 | downloads/month 50560 | dependents 36 | last release 2023-12-12 | licence MPL-2.0",
+   "14. chattts | HOLD (G5 HOLD (AGPLv3+: not rated by Blue Oak)) | A generative speech model for daily dialogue. | stars 39900 | downloads/month 8813 | dependents 0 | last release 2026-04-10 | licence AGPLv3+",
+   "15. tronghieuit/v-tts | HOLD (G5 HOLD (no licence found)) | The lightest Vietnamese Text-to-Speech with Multi-Speaker TTS and Zero-Shot Voice Cloning. | stars 381 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "16. myshell-ai/openvoice | HOLD (G4 HOLD (dormant: 881 days since release)) | Instant voice cloning by MIT and MyShell. Audio foundation model. | stars 37868 | downloads/month ? | dependents 0 | last release 2024-05-16 | licence Apache-2.0",
+   "17. azure-samples/cognitive-speech-tts | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | Microsoft Text-to-Speech API Samples | stars 1014 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "18. corentinj/real-time-voice-cloning | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | Clone a voice in 5 seconds to generate arbitrary speech in real-time | stars 60186 | downloads/month ? | dependents ? | last release ? | licence non-standard"
+  ]
+ }
+]

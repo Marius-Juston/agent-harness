@@ -1,0 +1,359 @@
+[
+ {
+  "id": "AI and Agents / Prompt Optimization",
+  "need": "prompt optimization ai and agents",
+  "also_described_as": [
+   "Libraries for building AI applications, LLM integrations, and autonomous agents."
+  ]
+ },
+ {
+  "id": "Algorithms and Design Patterns / Design Patterns",
+  "need": "design patterns algorithms and design patterns",
+  "also_described_as": [
+   "Python implementation of data structures, algorithms and design patterns. Also see awesome-algorithms."
+  ]
+ },
+ {
+  "id": "Asynchronous Programming / Async I/O",
+  "need": "async i/o asynchronous programming",
+  "also_described_as": [
+   "Libraries for asynchronous, concurrent and parallel execution. Also see awesome-asyncio."
+  ]
+ },
+ {
+  "id": "Authentication / Permissions",
+  "need": "permissions authentication",
+  "also_described_as": [
+   "Libraries for implementing authentication schemes."
+  ]
+ },
+ {
+  "id": "CLI Development / TUI Frameworks",
+  "need": "tui frameworks cli development",
+  "also_described_as": [
+   "Libraries for building command-line applications."
+  ]
+ },
+ {
+  "id": "CLI Tools / HTTP Clients",
+  "need": "http clients cli tools",
+  "also_described_as": [
+   "Useful CLI-based tools."
+  ]
+ },
+ {
+  "id": "CLI Tools / Terminal Workflow",
+  "need": "terminal workflow cli tools",
+  "also_described_as": [
+   "Useful CLI-based tools."
+  ]
+ },
+ {
+  "id": "Data Ingestion / ETL / Financial Data",
+  "need": "financial data data ingestion / etl",
+  "also_described_as": [
+   "Libraries for data extraction, transformation, and loading pipelines across multiple sources and destinations."
+  ]
+ },
+ {
+  "id": "Debugging Tools / Profiler",
+  "need": "profiler debugging tools",
+  "also_described_as": [
+   "Libraries for debugging code."
+  ]
+ },
+ {
+  "id": "DevOps Tools / Deployment",
+  "need": "deployment devops tools",
+  "also_described_as": [
+   "Software and libraries for DevOps."
+  ]
+ },
+ {
+  "id": "Documentation",
+  "need": "documentation",
+  "also_described_as": [
+   "Libraries for generating project documentation."
+  ]
+ },
+ {
+  "id": "File Format Processing / Excel",
+  "need": "excel file format processing",
+  "also_described_as": [
+   "Libraries for parsing and manipulating specific file formats."
+  ]
+ },
+ {
+  "id": "Game Development / Game Frameworks",
+  "need": "game frameworks game development",
+  "also_described_as": [
+   "Awesome game development libraries."
+  ]
+ },
+ {
+  "id": "Geolocation",
+  "need": "geolocation",
+  "also_described_as": [
+   "Libraries for geocoding addresses and working with latitudes and longitudes."
+  ]
+ },
+ {
+  "id": "Network Virtualization",
+  "need": "network virtualization",
+  "also_described_as": [
+   "Tools and libraries for packet manipulation and network device automation."
+  ]
+ },
+ {
+  "id": "ORM / Relational Databases",
+  "need": "relational databases orm",
+  "also_described_as": [
+   "Libraries that implement Object-Relational Mapping or data mapping techniques."
+  ]
+ },
+ {
+  "id": "Penetration Testing",
+  "need": "penetration testing",
+  "also_described_as": [
+   "Frameworks and tools for penetration testing."
+  ]
+ },
+ {
+  "id": "Science / Computational Geometry",
+  "need": "computational geometry science",
+  "also_described_as": [
+   "Libraries for scientific computing. Also see Python-for-Scientists."
+  ]
+ },
+ {
+  "id": "Testing / Mock",
+  "need": "mock testing",
+  "also_described_as": [
+   "Libraries for testing codebases and generating test data. Also see awesome-python-testing."
+  ]
+ },
+ {
+  "id": "Testing / Object Factories",
+  "need": "object factories testing",
+  "also_described_as": [
+   "Libraries for testing codebases and generating test data. Also see awesome-python-testing."
+  ]
+ },
+ {
+  "id": "Text Processing / Encoding and Unicode",
+  "need": "encoding and unicode text processing",
+  "also_described_as": [
+   "Libraries for parsing and manipulating plain texts."
+  ]
+ },
+ {
+  "id": "Web APIs / RPC",
+  "need": "rpc web apis",
+  "also_described_as": [
+   "Libraries for building RESTful, GraphQL, and RPC APIs."
+  ]
+ },
+ {
+  "id": "Web Frameworks / Synchronous",
+  "need": "synchronous web frameworks",
+  "also_described_as": [
+   "Traditional full stack web frameworks. Also see Web APIs."
+  ]
+ },
+ {
+  "id": "M2-02",
+  "need": "PEP 3156 implementation of the redis protocol.",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-04",
+  "need": "Low-level, data-driven core of boto 3.",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-05",
+  "need": "Cheetah is a template engine and code generation tool",
+  "also_described_as": [
+   "template"
+  ]
+ },
+ {
+  "id": "M2-06",
+  "need": "a nice sphinx theme named 'Cloud', and some related extensions",
+  "also_described_as": [
+   "sphinx extension theme"
+  ]
+ },
+ {
+  "id": "M2-07",
+  "need": "Updated configparser from stdlib for earlier Pythons.",
+  "also_described_as": [
+   "configparser  ini  parsing  conf  cfg  configuration  file"
+  ]
+ },
+ {
+  "id": "M2-10",
+  "need": "serialize all of Python",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-13",
+  "need": "Highly concurrent networking library",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-16",
+  "need": "WSGI HTTP Server for UNIX",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-17",
+  "need": "HTML parser based on the WHATWG HTML specification",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-18",
+  "need": "IPv4/IPv6 manipulation library",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-19",
+  "need": "A robust and significantly extended implementation of JSONPath for Python, with a clear AST for metaprogramming.",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-20",
+  "need": "Pure Python client for Apache Kafka",
+  "also_described_as": [
+   "apache kafka"
+  ]
+ },
+ {
+  "id": "M2-22",
+  "need": "A logging replacement for Python",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-23",
+  "need": "Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API.",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-25",
+  "need": "A simple language agnostic database migration tool",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-26",
+  "need": "MessagePack serializer",
+  "also_described_as": [
+   "msgpack  messagepack  serializer  serialization  binary"
+  ]
+ },
+ {
+  "id": "M2-27",
+  "need": "Network Automation and Programmability Abstraction Layer with Multivendor support",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-30",
+  "need": "A Python library to read/write Excel 2010 xlsx/xlsm files",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-31",
+  "need": "SSH2 protocol library",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-32",
+  "need": "Python Imaging Library",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-36",
+  "need": "PycURL -- A Python Interface To The cURL library",
+  "also_described_as": [
+   "curl  libcurl  urllib  wget  download  file transfer  http  www"
+  ]
+ },
+ {
+  "id": "M2-37",
+  "need": "Python interface to Graphviz's Dot language",
+  "also_described_as": [
+   "graphviz dot graphs visualization"
+  ]
+ },
+ {
+  "id": "M2-39",
+  "need": "Pure python memcached client",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-40",
+  "need": "World timezone definitions, modern and historical",
+  "also_described_as": [
+   "timezone  tzinfo  datetime  olson  time"
+  ]
+ },
+ {
+  "id": "M2-41",
+  "need": "Raven is a client for Sentry (https://getsentry.com)",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-45",
+  "need": "This Python module allows SMBus access through the I2C /dev interface on Linux hosts. The host kernel must have I2C support, I2C device interface support, and a bus adapter driver.",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-46",
+  "need": "Lightweight SOAP client (community fork)",
+  "also_described_as": [
+   "SOAP  web  service  client"
+  ]
+ },
+ {
+  "id": "M2-48",
+  "need": "Python Library for Tom's Obvious, Minimal Language",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-49",
+  "need": "List processing tools and functional utilities",
+  "also_described_as": [
+   "functional  utility  itertools  functools"
+  ]
+ },
+ {
+  "id": "M2-50",
+  "need": "Deprecated, unmaintained port of the asyncio module (PEP 3156) on Python 2",
+  "also_described_as": [
+   "Deprecated Unmaintained asyncio backport"
+  ]
+ },
+ {
+  "id": "M2-51",
+  "need": "An API and command-line toolset for Twitter (twitter.com)",
+  "also_described_as": [
+   "twitter IRC command-line tools web 2.0"
+  ]
+ },
+ {
+  "id": "M2-52",
+  "need": "A low-level UFO reader and writer.",
+  "also_described_as": []
+ },
+ {
+  "id": "M2-55",
+  "need": "Filesystem events monitoring",
+  "also_described_as": [
+   "python filesystem monitoring monitor FSEvents kqueue inotify ReadDirectoryChangesW polling DirectorySnapshot"
+  ]
+ },
+ {
+  "id": "M2-56",
+  "need": "Taking Google App Engine's webapp to the next level!",
+  "also_described_as": []
+ }
+]

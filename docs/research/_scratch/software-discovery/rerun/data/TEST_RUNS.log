@@ -1,0 +1,1 @@
+2026-10-13T13:35:59 score.py TEST run (120 needs), argv=['--split', 'test', '--confirm-test-run', '--snap', '<scratchpad>/r176/test/snap', '--a3', '<scratchpad>/r176/test/a3_base.json', '--a3', '<scratchpad>/r176/test/a3_latest.json', '--p1', '<scratchpad>/r176/test/p1_top100.json', '--head', '<scratchpad>/pypi_top30k.jsonl', '--json', '<scratchpad>/r176/test/test_scores.json']

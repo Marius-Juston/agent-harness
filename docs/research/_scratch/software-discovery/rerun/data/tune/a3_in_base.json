@@ -1,0 +1,800 @@
+[
+ {
+  "id": "AI and Agents / Image and Video Generation",
+  "need": "image and video generation ai and agents",
+  "also_described_as": [
+   "Libraries for building AI applications, LLM integrations, and autonomous agents."
+  ],
+  "shortlist": [
+   "1. agentuniverse | PASS | agentUniverse is a LLM multi-agent framework that allows developers to easily build multi-agent applications.  | stars 2379 | downloads/month 653 | dependents 0 | last release 2025-11-17 | licence Apache-2.0",
+   "2. invokeai | PASS | A full-featured AI-assisted image generation environment designed for creatives and enthusiasts. | stars 28461 | downloads/month 23125 | dependents 0 | last release 2026-09-27 | licence Apache-2.0",
+   "3. llmware | PASS | Unified framework for building enterprise RAG pipelines with small, specialized models | stars 14819 | downloads/month 1442 | dependents 0 | last release 2026-10-01 | licence Apache-2.0",
+   "4. picoagents | PASS | Building LLM-Enabled Multi Agent Applications from Scratch | stars 1360 | downloads/month 261 | dependents 0 | last release 2026-08-10 | licence MIT",
+   "5. rohitg00/ai-engineering-from-scratch | PASS | Learn AI Engineering! Learn it. Build it. Ship it for others. | stars 68306 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. hkuds/nanobot | PASS | Ultra-lightweight, open-source, self-hosted personal AI agent framework in Python with WebUI, tools, memory, MCP, multi-agent workflows, automation, and chat ap | stars 48991 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. zhayujie/cowagent | PASS | Open-source personal AI assistant & Agent Harness. Plans tasks, runs tools and skills, self-evolves with memory and knowledge. Multi-agent, multi-model, multi-c | stars 47371 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. samuraigpt/open-ai-video-agent | PASS | AI agent for video production — text/image-to-video generation, avatar/UGC talking-head videos, and data-driven ad-creative remakes, powered by muapi.ai. | stars 7 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. video-db/director | PASS | AI video agents framework for next-gen video interactions and workflows. | stars 1552 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. diffusers | PASS | State-of-the-art diffusion in PyTorch. | stars 34708 | downloads/month 4970946 | dependents 5349 | last release 2026-10-06 | licence Apache-1.1",
+   "11. magichourhq/skills | PASS | AI media generation skills for Codex, Claude Code and other agents. Images, video and audio workflows using Magic Hour MCP or API. | stars 10 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "12. joshua-ranish-t/aetherlearn.ai | HOLD (G5 HOLD (no licence found)) | AetherLearn is an agentic AI-powered educational video generation platform that orchestrates multiple AI agents using LangGraph to convert text, PDFs, and image | stars 16 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "13. ashnkumar/theta-agents | HOLD (G4 HOLD (dormant: 804 days since push); G5 HOLD (no licence found)) | Python SDK for building AI agent frameworks on Theta EdgeCloud — hosted LLM reasoning, image and video generation, EdgeStore deployment. | stars 3 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "AI and Agents / LLM Gateways",
+  "need": "llm gateways ai and agents",
+  "also_described_as": [
+   "Libraries for building AI applications, LLM integrations, and autonomous agents."
+  ],
+  "shortlist": [
+   "1. litellm | PASS | Library to easily interface with LLM API providers | stars 61039 | downloads/month 92239101 | dependents 117 | last release 2026-10-11 | licence MIT",
+   "2. agentuniverse | PASS | agentUniverse is a LLM multi-agent framework that allows developers to easily build multi-agent applications.  | stars 2379 | downloads/month 653 | dependents 0 | last release 2025-11-17 | licence Apache-2.0",
+   "3. llmware | PASS | Unified framework for building enterprise RAG pipelines with small, specialized models | stars 14819 | downloads/month 1442 | dependents 0 | last release 2026-10-01 | licence Apache-2.0",
+   "4. llm | PASS | Access large language models from the command-line | stars 12620 | downloads/month 487919 | dependents 74 | last release 2026-09-22 | licence Apache-2.0",
+   "5. sentinelguard | PASS | Security first LLM gateway and guardrails for AI applications, agents and AI powered IDEs | stars 132 | downloads/month 12186 | dependents 0 | last release 2026-06-30 | licence MIT",
+   "6. portkey-ai | PASS | Python client library for the Portkey API | stars 119 | downloads/month 4111235 | dependents 1 | last release 2026-07-23 | licence MIT",
+   "7. picoagents | PASS | Building LLM-Enabled Multi Agent Applications from Scratch | stars 1360 | downloads/month 261 | dependents 0 | last release 2026-08-10 | licence MIT",
+   "8. hermes-agent | PASS (G6 flag (4 open advisories)) | The agent that grows with you | stars 253270 | downloads/month 162501 | dependents 0 | last release 2026-07-20 | licence MIT",
+   "9. authsome | PASS | Credential gateway for AI agents. Log in once via Oauth2 or API Key. Every agent stays authenticated — headless, no SaaS, agents never see your credentials. | stars 97 | downloads/month 565 | dependents 0 | last release 2026-06-17 | licence MIT",
+   "10. hkuds/nanobot | PASS | Ultra-lightweight, open-source, self-hosted personal AI agent framework in Python with WebUI, tools, memory, MCP, multi-agent workflows, automation, and chat ap | stars 48991 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "11. langchain-preloop | PASS | The open-source AI agent control plane: MCP firewall, model gateway with budgets, human approvals, runtime observability, and audit trails | stars 77 | downloads/month 33 | dependents 0 | last release 2026-07-13 | licence Apache-2.0",
+   "12. memio | PASS | Unified memory gateway for AI agents | stars 7 | downloads/month 144 | dependents 0 | last release 2026-04-03 | licence MIT",
+   "13. orchesis | PASS | Runtime Gateway for AI Agents. 17-phase security pipeline between agents and LLM APIs. Works with OpenClaw, Paperclip, Claude Code, Cursor. Open source, MIT lic | stars 6 | downloads/month 72 | dependents 0 | last release 2026-03-17 | licence MIT",
+   "14. sift-gateway | PASS | Reliability gateway for AI tool output: schema-stable, secret-safe, pagination-complete JSON for MCP and CLI agents. | stars 32 | downloads/month 155 | dependents 0 | last release 2026-03-28 | licence MIT",
+   "15. rohitg00/ai-engineering-from-scratch | PASS | Learn AI Engineering! Learn it. Build it. Ship it for others. | stars 68306 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "16. significant-gravitas/autogpt | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | AutoGPT is the vision of accessible AI for everyone, to use and to build on. Our mission is to provide the tools, so that you can focus on what matters. | stars 187544 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "17. aisuite | HOLD (G5 HOLD (mit: not rated by Blue Oak)) | Uniform access layer for LLMs | stars 16319 | downloads/month 26057 | dependents 0 | last release 2026-09-18 | licence mit",
+   "18. agent0ai/agent-zero | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | Agent Zero AI framework | stars 19451 | downloads/month ? | dependents ? | last release ? | licence non-standard"
+  ]
+ },
+ {
+  "id": "AI and Agents / Pre-trained Models",
+  "need": "pre-trained models ai and agents",
+  "also_described_as": [
+   "Libraries for building AI applications, LLM integrations, and autonomous agents."
+  ],
+  "shortlist": [
+   "1. mem0ai | PASS | The Memory Layer for AI Agents - Drop-in memory infrastructure for AI agents and apps. Context that persists. Built for production. | stars 67087 | downloads/month 2020516 | dependents 0 | last release 2026-09-25 | licence Apache-2.0",
+   "2. agentuniverse | PASS | agentUniverse is a LLM multi-agent framework that allows developers to easily build multi-agent applications.  | stars 2379 | downloads/month 653 | dependents 0 | last release 2025-11-17 | licence Apache-2.0",
+   "3. llmware | PASS | Unified framework for building enterprise RAG pipelines with small, specialized models | stars 14819 | downloads/month 1442 | dependents 0 | last release 2026-10-01 | licence Apache-2.0",
+   "4. llm | PASS | Access large language models from the command-line | stars 12620 | downloads/month 487919 | dependents 74 | last release 2026-09-22 | licence Apache-2.0",
+   "5. picoagents | PASS | Building LLM-Enabled Multi Agent Applications from Scratch | stars 1360 | downloads/month 261 | dependents 0 | last release 2026-08-10 | licence MIT",
+   "6. hermes-agent | PASS (G6 flag (4 open advisories)) | The agent that grows with you | stars 253270 | downloads/month 162501 | dependents 0 | last release 2026-07-20 | licence MIT",
+   "7. transformers | PASS | Transformers: the model-definition framework for state-of-the-art machine learning models in text, vision, audio, and multimodal models, for both inference and  | stars 166950 | downloads/month 96323619 | dependents 34389 | last release 2026-10-06 | licence Apache-1.1",
+   "8. timm | PASS | PyTorch Image Models | stars 37174 | downloads/month 10399718 | dependents 8142 | last release 2026-09-22 | licence Apache-2.0",
+   "9. rohitg00/ai-engineering-from-scratch | PASS | Learn AI Engineering! Learn it. Build it. Ship it for others. | stars 68306 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. gpt-researcher | PASS | An autonomous agent that conducts deep research on any data using any LLM providers | stars 30074 | downloads/month 40664 | dependents 0 | last release 2024-10-19 | licence MIT",
+   "11. sentence-transformers | PASS | Embeddings, Retrieval, and Reranking | stars 19163 | downloads/month 22332616 | dependents 5892 | last release 2026-09-18 | licence Apache-2.0",
+   "12. significant-gravitas/autogpt | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | AutoGPT is the vision of accessible AI for everyone, to use and to build on. Our mission is to provide the tools, so that you can focus on what matters. | stars 187544 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "13. agent0ai/agent-zero | HOLD (G5 HOLD (non-standard: not rated by Blue Oak)) | Agent Zero AI framework | stars 19451 | downloads/month ? | dependents ? | last release ? | licence non-standard",
+   "14. ai-maker-space/the-ai-engineer-challenge | HOLD (G5 HOLD (no licence found)) | Building your first LLM application with OpenAI, and AI-assisted Development, step-by-step! | stars 137 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "15. adithegeek/ai_guard_agent_ee782 | HOLD (G5 HOLD (no licence found)) | This repository contains an elaborate documentation of the process of making an AI guard agent for your room using pre trained models | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "16. victorekpo/ai-agent-pybot | HOLD (G5 HOLD (no licence found)) | AI Agents built with Python, NLP, Pre-trained models, local knowledge base, and more | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "Database / Vector",
+  "need": "vector database",
+  "also_described_as": [
+   "In-process databases usable directly from Python."
+  ],
+  "shortlist": [
+   "1. vectordb-bench | PASS | Benchmark for vector databases. | stars 1190 | downloads/month 1109 | dependents 0 | last release 2026-09-10 | licence MIT",
+   "2. pinecone | PASS | Official Python SDK for the Pinecone vector database | stars 453 | downloads/month 3879257 | dependents 7 | last release 2026-09-03 | licence Apache-2.0",
+   "3. pixeltable | PASS | The backend agents build with - Multimodal database, orchestration, and serving in one file | stars 1639 | downloads/month 4356 | dependents 0 | last release 2026-10-02 | licence Apache-2.0",
+   "4. qdrant-client | PASS | Python client for Qdrant vector search engine | stars 1372 | downloads/month 12034960 | dependents 1964 | last release 2026-09-16 | licence Apache-2.0",
+   "5. lancedb | PASS | lancedb | stars 11627 | downloads/month 7689981 | dependents 525 | last release 2026-10-07 | licence Apache-2.0",
+   "6. ainative-python | PASS | Official Python SDK for AINative Studio APIs with ZeroDB Local support | stars ? | downloads/month 67 | dependents 0 | last release 2026-01-13 | licence MIT",
+   "7. chromadb | PASS (G6 flag (8 open advisories)) | Chroma. | stars 29468 | downloads/month 6525454 | dependents 6590 | last release 2026-05-05 | licence Apache-2.0",
+   "8. nborwankar/vectordatabasebook | PASS | Code and content from my book Vector Databases published by OReilly  | stars 24 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. vearch | HOLD (G4 HOLD (dormant: 1140 days since release)) | Distributed vector search for AI-native applications | stars 2331 | downloads/month 285 | dependents 2 | last release 2023-08-31 | licence Apache-2.0",
+   "10. vectordb | HOLD (G4 HOLD (dormant: 954 days since release)) | A Python vector database you just need - no more, no less. | stars 653 | downloads/month 307 | dependents 3 | last release 2024-03-04 | licence Apache-2.0",
+   "11. objectbox | HOLD (G4 HOLD (dormant: 869 days since release)) | Superfast on-device object & vector database for Python | stars 193 | downloads/month 2874 | dependents 2 | last release 2024-05-28 | licence Apache-2.0",
+   "12. nano-vectordb | HOLD (G4 HOLD (dormant: 756 days since release)) | A simple, easy-to-hack Vector Database | stars 209 | downloads/month 185032 | dependents 0 | last release 2024-09-18 | licence MIT",
+   "13. prompttools | HOLD (G4 HOLD (dormant: 943 days since release); G5 HOLD (Proprietary: not rated by Blue Oak)) | Open-source tools for prompt testing and experimentation, with support for both LLMs (e.g. OpenAI, LLaMA) and vector databases (e.g. Chroma, Weaviate, LanceDB). | stars 3055 | downloads/month 89 | dependents 1 | last release 2024-03-15 | licence Proprietary",
+   "14. pdichone/vector-databases-course | HOLD (G5 HOLD (no licence found)) |  | stars 77 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "15. misery | HOLD (G4 HOLD (dormant: 1167 days since release); G5 HOLD (mit: not rated by Blue Oak)) | asyncio-friendly database toolkit | stars 8 | downloads/month 58 | dependents 2 | last release 2023-08-04 | licence mit",
+   "16. contextdata/vectoretl | HOLD (G4 HOLD (dormant: 739 days since push)) | Build super simple end-to-end data & ETL pipelines for your vector databases and Generative AI applications | stars 109 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "17. dataexpert-io/vector-database-example | HOLD (G4 HOLD (dormant: 845 days since push); G5 HOLD (no licence found)) |  | stars 33 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "DevOps Tools / Monitoring and Processes",
+  "need": "monitoring and processes devops tools",
+  "also_described_as": [
+   "Software and libraries for DevOps."
+  ],
+  "shortlist": [
+   "1. sh | PASS | Python process launching | stars 7245 | downloads/month 6758360 | dependents 6091 | last release 2026-07-25 | licence MIT",
+   "2. st2client | PASS | StackStorm (aka \"IFTTT for Ops\") is event-driven automation for auto-remediation, incident responses, troubleshooting, deployments, and more for DevOps and SREs | stars 6546 | downloads/month 18412 | dependents 12 | last release 2026-01-08 | licence Apache-2.0",
+   "3. psutil | PASS | Cross-platform lib for process and system monitoring. | stars 11288 | downloads/month 288255395 | dependents 82540 | last release 2026-01-28 | licence BSD-3-Clause",
+   "4. glances | PASS (G5 flag (LGPL-3.0-only: weak copyleft (use unmodified))) | An all-in-one system monitoring tool | stars 33727 | downloads/month 108532 | dependents 30 | last release 2026-10-11 | licence LGPL-3.0-only",
+   "5. odhranporter/devopsprojectop | PASS | A full CI/CD pipeline project showcasing DevOps best practices: automated GitHub Actions workflows, continuous testing, dependency monitoring with Dependabot, r | stars 0 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "6. holmesgpt | HOLD (G5 HOLD (apache-2.0: not rated by Blue Oak)) | SRE Agent - CNCF Sandbox Project | stars 3578 | downloads/month 7107 | dependents 0 | last release 2026-10-07 | licence apache-2.0",
+   "7. supervisor | HOLD (G5 HOLD (Other: not rated by Blue Oak)) | A system for controlling process state under UNIX | stars 9124 | downloads/month 7278447 | dependents 2711 | last release 2025-08-23 | licence Other",
+   "8. attaquarks/devops-monitoring-mcp | HOLD (G5 HOLD (no licence found)) | Model Context Protocol server exposing real DevOps monitoring tools for system health, networking, processes, and logs. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. venugopalareddy46/python-automation | HOLD (G5 HOLD (no licence found)) | Python automation scripts for Linux system monitoring, process management, file operations, backups, logging, and DevOps tasks. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "10. meolu/walle-web | HOLD (G4 HOLD (dormant: 1742 days since push)) | walle - 瓦力 Devops开源项目代码部署平台 | stars 11987 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "11. aakruthireddy/python-devops-automation | HOLD (G5 HOLD (no licence found)) | Python DevOps automation scripts for server health checks, API monitoring, JSON processing, and system automation. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "12. hendrikjoosten/coursera-devops-professional-certificate | HOLD (G4 HOLD (dormant: 1421 days since push); G5 HOLD (no licence found)) | IBM DevOps and Software Engineering Professional Certificate Launch your DevOps and Software Engineering Career. Master DevOps, Agile, Scrum, CI/CD and Cloud Na | stars 24 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "13. ellap1274/software-engineering-devops_project | HOLD (G5 HOLD (no licence found)) | This project is for my Software Engineering & DevOps assignment | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "14. fabiol123/python-devops-system-monitor | HOLD (G5 HOLD (no licence found)) | A Python-based DevOps system monitoring tool that tracks CPU, memory, disk usage, processes, and system health. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "15. sibsankarb4/devops-docker-jenkins-git-ci-pipeline-and-maven | HOLD (G4 HOLD (dormant: 2789 days since push); G5 HOLD (no licence found)) | DevOps, the fast-growing field that bridges the gap between software developers and operations. This repository will discuss in the principles of continuous dev | stars 4 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "16. statneutrino/model-monitor-devops | HOLD (G4 HOLD (dormant: 1722 days since push); G5 HOLD (no licence found)) | Automated model scoring and monitoring with DevOps processes | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "File Format Processing / HTML-to-PDF",
+  "need": "html-to-pdf file format processing",
+  "also_described_as": [
+   "Libraries for parsing and manipulating specific file formats."
+  ],
+  "shortlist": [
+   "1. xhtml2pdf | PASS | PDF generator using HTML and CSS | stars 2396 | downloads/month 3625421 | dependents 2296 | last release 2026-10-08 | licence Apache-2.0",
+   "2. weasyprint | PASS | The Awesome Document Factory | stars 9671 | downloads/month 31898679 | dependents 1458 | last release 2026-09-08 | licence BSD-3-Clause",
+   "3. yapf | PASS | A formatter for Python files | stars 13992 | downloads/month 5006636 | dependents 14487 | last release 2024-11-14 | licence Apache-2.0",
+   "4. condconfigparser | PASS | Python library for parsing configuration files with conditionals | stars 0 | downloads/month 531 | dependents 0 | last release 2025-04-01 | licence BSD-2-Clause",
+   "5. amiryunus/convert-pdf-files-to-markdown-format | PASS | Convert PDF, EPUB and HTML files to clean Markdown using the Datalab.to API, with asynchronous batch processing, progress tracking and robust error handling. | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. pdfkit | HOLD (G4 HOLD (dormant: 1795 days since release); G6 flag (2 open advisories)) | Wkhtmltopdf python wrapper to convert html to pdf using the webkit rendering engine and qt | stars 2046 | downloads/month 2960557 | dependents 2067 | last release 2021-11-14 | licence MIT",
+   "7. baloorm/pdfformat | HOLD (G5 HOLD (no licence found)) | This repository contains PDF files and example code that attempts to format form text fields with control for data entry. The examples have used IronPDF to crea | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "8. thehumanoidtyphoon/text-to-speech | HOLD (G4 HOLD (dormant: 1273 days since push)) | 🎤 By leveraging multiple libraries, this Python script facilitates the conversion of a range of file formats into speech-ready MP3 or WAV files. The program acc | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. apcherra/fileformatconverter | HOLD (G4 HOLD (dormant: 887 days since push); G5 HOLD (no licence found)) | Project is a universal file format converter designed to simplify the process of converting documents between different formats. The converter supports popular  | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "10. helpsmith-help-file-creator/.github | HOLD (G5 HOLD (no licence found)) | HelpSmith help file creator: A powerful tool for creating professional help systems, user manuals, and documentation. Generate CHM, HTML, PDF, and eBook formats | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. surekhasuresh/pdf-parser | HOLD (G4 HOLD (dormant: 1280 days since push); G5 HOLD (no licence found)) | A Python-based PDF parser tool that can process both searchable and non-searchable PDF files. The parser extracts title, headings, subheadings, and content whic | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "12. dhruva788/extractor | HOLD (G5 HOLD (no licence found)) | Extractor is a Flask-based web app that extracts text from PDFs, images, audio, and video files. It uses OCR and speech recognition to process content from diff | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "File Format Processing / PDF",
+  "need": "pdf file format processing",
+  "also_described_as": [
+   "Libraries for parsing and manipulating specific file formats."
+  ],
+  "shortlist": [
+   "1. pypdf | PASS | A pure-python PDF library capable of splitting, merging, cropping, and transforming the pages of PDF files | stars 10256 | downloads/month 125991621 | dependents 4199 | last release 2026-10-12 | licence BSD-3-Clause",
+   "2. pdf-craft | PASS | PDF craft can convert PDF files into various other formats. This project will focus on processing PDF files of scanned books. | stars 6369 | downloads/month 2482 | dependents 0 | last release 2026-09-30 | licence MIT",
+   "3. docling | PASS | Get your documents ready for gen AI | stars 68796 | downloads/month 2909751 | dependents 0 | last release 2026-10-12 | licence MIT",
+   "4. pdfplumber | PASS | Plumb a PDF for detailed information about each char, rectangle, line, et cetera — and easily extract text and tables. | stars 10809 | downloads/month 40689748 | dependents 1328 | last release 2026-06-15 | licence MIT",
+   "5. garch-quant/pdf-craft | PASS | PDF convert can convert PDF files into various other formats. Focus on processing PDF files of scanned books. | stars 1 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. localutilitybox | PASS | localutilitybox is a versatile command-line utility designed to streamline various image and document processing tasks. With localutilitybox, you can easily con | stars 2 | downloads/month 37 | dependents 0 | last release 2026-03-19 | licence MIT",
+   "7. pymupdf | HOLD (G5 HOLD (AGPL-3.0 OR PolyForm-Noncommercial-1.0.0: not rated by Blue Oak)) | PyMuPDF is a high performance Python library for data extraction, analysis, conversion & manipulation of PDF (and other) documents. | stars 10894 | downloads/month 83199606 | dependents 2004 | last release 2026-08-06 | licence AGPL-3.0 OR PolyForm-Noncommercial-1.0.0",
+   "8. mineru | HOLD (G5 HOLD (LicenseRef-MinerU-Open-Source-License: not rated by Blue Oak)) | Transforms complex documents like PDFs and Office docs into LLM-ready markdown/JSON for your Agentic workflows. | stars 81622 | downloads/month 109382 | dependents 0 | last release 2026-10-11 | licence LicenseRef-MinerU-Open-Source-License",
+   "9. waynekiprotich/filefix-server | HOLD (G5 HOLD (no licence found)) | Backend API for FileFix, handling file uploads, document processing and conversion between PDF, CSV and Excel formats. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "10. mervealtnsk/pdf_convert | HOLD (G5 HOLD (no licence found)) | Versatile Python tool for converting various file formats (Word, Excel, images) to PDF with batch processing and format preservation capabilities | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. samikd35/pdf_processing | HOLD (G5 HOLD (no licence found)) | A web that can be used to clean and preprocess pdf file and change them into an embedded format, then storing them in mongodb atlas, making it suitable for Vect | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "12. itwangcode/pdf-svg-png-jpg-to-tiff-converter | HOLD (G5 HOLD (no licence found)) | This is a Python scripting tool for recursively processing PDF, SVG, PNG, and JPG files in a specified directory, converting them into color images in TIFF form | stars 4 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "13. apcherra/fileformatconverter | HOLD (G4 HOLD (dormant: 887 days since push); G5 HOLD (no licence found)) | Project is a universal file format converter designed to simplify the process of converting documents between different formats. The converter supports popular  | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "14. arch2603/pythonfileprocessing | HOLD (G4 HOLD (dormant: 2344 days since push); G5 HOLD (no licence found)) | Processing different file formats such as word, pdf etc | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "Messaging",
+  "need": "messaging",
+  "also_described_as": [
+   "Libraries for working with message brokers and event streaming."
+  ],
+  "shortlist": [
+   "1. kombu | PASS | Messaging library for Python. | stars 3147 | downloads/month 44347926 | dependents 26844 | last release 2025-12-29 | licence BSD-3-Clause",
+   "2. pyfcm | PASS | Python client for FCM - Firebase Cloud Messaging (Android, iOS and Web) | stars 814 | downloads/month 211384 | dependents 3855 | last release 2026-08-18 | licence MIT",
+   "3. confluent-kafka | PASS | Confluent's Python client for Apache Kafka | stars 515 | downloads/month 41260250 | dependents 1880 | last release 2026-10-07 | licence Apache-2.0",
+   "4. pika | PASS | Pika Python AMQP Client Library | stars 3887 | downloads/month 10886906 | dependents 6218 | last release 2026-08-06 | licence BSD-3-Clause",
+   "5. ufal/whisper_streaming | PASS | Whisper realtime streaming for long speech-to-text transcription and translation | stars 3677 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. event-forge | PASS | Universal Inbox-Outbox Pattern Library for Python - reliable message delivery in distributed systems | stars 0 | downloads/month 178 | dependents 0 | last release 2026-03-06 | licence MIT",
+   "7. jamesmawm/high-frequency-trading-model-with-ib | PASS | A high-frequency trading model using Interactive Brokers API with pairs and mean-reversion in Python | stars 2935 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. ib_async | HOLD (G5 HOLD (BSD: not rated by Blue Oak)) | Python sync/async framework for Interactive Brokers API (replaces ib_insync) | stars 1757 | downloads/month 562788 | dependents 0 | last release 2025-12-08 | licence BSD",
+   "9. hangups | HOLD (G4 HOLD (dormant: 1656 days since release)) | the first third-party instant messaging client for Google Hangouts | stars 1742 | downloads/month 5209 | dependents 579 | last release 2022-04-02 | licence MIT",
+   "10. irisapi | HOLD (G4 HOLD (dormant: 1793 days since release)) | Iris is a highly configurable and flexible service for paging and messaging. | stars 846 | downloads/month 56 | dependents 1 | last release 2021-11-16 | licence BSD-3-Clause",
+   "11. wamp-proto/wamp-proto | HOLD (G5 HOLD (no licence found)) | The Web Application Messaging Protocol | stars 490 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "12. denisecase/streaming-03-rabbitmq | HOLD (G4 HOLD (dormant: 859 days since push); G5 HOLD (no licence found)) | Get started with RabbitMQ, a message broker, that enables multiple processes to communicate reliably through an intermediary | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "13. enteletaor | HOLD (G4 HOLD (dormant: 3852 days since release); G5 HOLD (BSD: not rated by Blue Oak)) | Message Queue & Broker Injection tool | stars 151 | downloads/month 15 | dependents 3 | last release 2016-03-28 | licence BSD",
+   "14. mukulhase/webwhatsapp-wrapper | HOLD (G4 HOLD (dormant: 1203 days since push)) | An API for sending and receiving messages over web.whatsapp [Working as of 18th May 2018] | stars 2081 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "15. hackingthemarkets/tradingview-interactive-brokers | HOLD (G5 HOLD (no licence found)) | TradingView Interactive Brokers Integration using Webhooks | stars 198 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "16. sipcounter | HOLD (G4 HOLD (dormant: 2270 days since release)) | SIP message counter | stars 2 | downloads/month 20 | dependents 1 | last release 2020-07-27 | licence MIT",
+   "17. geeknam/python-gcm | HOLD (G4 HOLD (dormant: 2731 days since push)) | Python client for Google Cloud Messaging for Android (GCM) | stars 460 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "Recommender Systems",
+  "need": "recommender systems",
+  "also_described_as": [
+   "Libraries for building recommender systems."
+  ],
+  "shortlist": [
+   "1. scikit-surprise | PASS | A Python scikit for building and analyzing recommender systems | stars 6818 | downloads/month 61184 | dependents 458 | last release 2026-05-30 | licence BSD-3-Clause",
+   "2. tensorflow-recommenders | PASS | TensorFlow Recommenders is a library for building recommender system models using TensorFlow. | stars 2036 | downloads/month 180917 | dependents 33 | last release 2026-01-23 | licence Apache-2.0",
+   "3. recommenders | PASS | Best Practices on Recommendation Systems | stars 21948 | downloads/month 7685 | dependents 8 | last release 2024-12-24 | licence MIT",
+   "4. implicit | PASS | Collaborative Filtering for Implicit Feedback Datasets | stars 3829 | downloads/month 221602 | dependents 207 | last release 2026-05-08 | licence MIT",
+   "5. practical-recommender-systems/moviegeek | PASS | A django website used in the book Practical Recommender Systems to illustrate how recommender algorithms can be implemented. | stars 941 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. schrann/recommender-systems | PASS | Building a Movie Recommender System Using Generative AI Models | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. caserecommender | HOLD (G4 HOLD (dormant: 1784 days since release)) | Case Recommender: A Flexible and Extensible Python Framework for Recommender Systems | stars 500 | downloads/month 177 | dependents 1 | last release 2021-11-25 | licence MIT",
+   "8. lightfm | HOLD (G4 HOLD (dormant: 1304 days since release)) | LightFM recommendation model | stars 5112 | downloads/month 42183 | dependents 253 | last release 2023-03-20 | licence MIT",
+   "9. surprise | HOLD (G4 HOLD (dormant: 3560 days since release); G5 HOLD (no licence found)) | An easy-to-use library for recommender systems. | stars ? | downloads/month 20190 | dependents 209 | last release 2017-01-14 | licence ?",
+   "10. apachecn/recommendersystems | HOLD (G4 HOLD (dormant: 2736 days since push); G5 HOLD (no licence found)) | 推荐系统 | stars 820 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. wzhe06/sparrowrecsys | HOLD (G4 HOLD (dormant: 864 days since push)) | A Deep Learning Recommender System | stars 2781 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "12. rstk | HOLD (G4 HOLD (dormant: 969 days since release)) | Lightweight toolkit for building recommender systems | stars 2 | downloads/month 15 | dependents 0 | last release 2024-02-18 | licence BSD-3-Clause",
+   "13. singto4/building-a-recommender-system | HOLD (G4 HOLD (dormant: 2436 days since push); G5 HOLD (no licence found)) | Building a recommender system | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "14. teyang-lau/googlegame_recommendersystem | HOLD (G4 HOLD (dormant: 2067 days since push); G5 HOLD (no licence found)) | Building a recommendation system for Google Play games using content-based and collaborative filtering models | stars 5 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "15. anxraggg/recommender-systems | HOLD (G4 HOLD (dormant: 747 days since push)) | Building a movie recommender system using GenAI models. | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "Search",
+  "need": "search",
+  "also_described_as": [
+   "Libraries and software for indexing and performing search queries on data."
+  ],
+  "shortlist": [
+   "1. txtai | PASS | 💡 All-in-one AI framework for semantic search, LLM orchestration and language model workflows | stars 13014 | downloads/month 13889 | dependents 27 | last release 2026-10-06 | licence Apache-2.0 OR MIT-feh",
+   "2. elasticsearch | PASS | Python client for Elasticsearch | stars 4392 | downloads/month 34064422 | dependents 16452 | last release 2026-09-09 | licence Apache-2.0",
+   "3. swirlai/swirl-search | PASS | AI Search & RAG Without Moving Your Data. Get instant answers from your company's knowledge across 100+ apps while keeping data secure. Deploy in minutes, not m | stars 3047 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "4. readloud/google-hacking-database | PASS | The GHDB is an index of search queries (we call them dorks) used to find publicly available information, intended for pentesters and security researchers. | stars 373 | downloads/month ? | dependents ? | last release ? | licence CC0-1.0",
+   "5. tantivy | PASS | Official Python bindings for the Tantivy search engine | stars 13862 | downloads/month 2690498 | dependents 11 | last release 2026-04-29 | licence MIT",
+   "6. anysearch-ai/anysearch-skill | PASS | Unified real-time search engine skill for AI agents. Supports general web search, vertical domain search, parallel batch search, and full-page content extractio | stars 6461 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "7. nlp4j-local-search | PASS | Apache Lucene based in-memory local search engine for Python | stars 1 | downloads/month 299 | dependents 0 | last release 2026-08-06 | licence Apache-2.0",
+   "8. amazon-science/esci-data | PASS | Shopping Queries Dataset: A Large-Scale ESCI Benchmark for Improving Product Search | stars 399 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "9. whoosh | HOLD (G4 HOLD (dormant: 3845 days since release)) | Fast, pure-Python full text indexing, search, and spell checking library. | stars ? | downloads/month 939809 | dependents 856 | last release 2016-04-04 | licence BSD-1-Clause"
+  ]
+ },
+ {
+  "id": "Serialization",
+  "need": "serialization",
+  "also_described_as": [
+   "Libraries for serializing complex data types."
+  ],
+  "shortlist": [
+   "1. jsonpickle | PASS | Python library for serializing any arbitrary object graph into JSON. It can take almost any Python object and turn the object into JSON. Additionally, it can re | stars 1321 | downloads/month 13880778 | dependents 9688 | last release 2026-10-02 | licence BSD-3-Clause",
+   "2. mashumaro | PASS | High-performance serialization without replacing your data model | stars 940 | downloads/month 23728729 | dependents 591 | last release 2026-09-30 | licence Apache-2.0",
+   "3. marshmallow | PASS | A lightweight library for converting complex objects to and from simple Python datatypes. | stars 7243 | downloads/month 84070514 | dependents 23582 | last release 2026-08-08 | licence MIT",
+   "4. orjson | PASS | Fast, correct Python JSON library supporting dataclasses, datetimes, and numpy | stars 8253 | downloads/month 179204025 | dependents 13843 | last release 2026-10-07 | licence MPL-2.0 AND (Apache-2.0 OR MIT)",
+   "5. cattrs | PASS | Composable complex class support for attrs and dataclasses. | stars 1055 | downloads/month 33927761 | dependents 2100 | last release 2026-09-26 | licence MIT",
+   "6. msgspec | PASS | A fast serialization and validation library, with builtin support for JSON, MessagePack, YAML, and TOML. | stars 4161 | downloads/month 29813196 | dependents 401 | last release 2026-09-29 | licence BSD-3-Clause",
+   "7. datason | PASS | A comprehensive Python package for intelligent serialization that handles complex data types with ease, especially ML/AI workflows. | stars 2 | downloads/month 182 | dependents 0 | last release 2025-08-25 | licence MIT",
+   "8. pystructs3 | PASS | Dataclass-Like Serialization Helpers for More Complex Data-Types | stars 0 | downloads/month 98 | dependents 1 | last release 2025-01-16 | licence MIT",
+   "9. colander | HOLD (G4 HOLD (dormant: 1380 days since release); G5 HOLD (Other: not rated by Blue Oak)) | A serialization/deserialization/validation library for strings, mappings and lists. | stars 460 | downloads/month 107568 | dependents 417 | last release 2023-01-03 | licence Other",
+   "10. dataclasses-json | HOLD (G4 HOLD (dormant: 857 days since release)) | Easily serialize Data Classes to and from JSON | stars 1488 | downloads/month 45379567 | dependents 7130 | last release 2024-06-09 | licence MIT",
+   "11. serializers | HOLD (G4 HOLD (dormant: 3323 days since release); G5 HOLD (mit: not rated by Blue Oak)) | A minimal port of rails' ActiveModel Serializer | stars 0 | downloads/month 14071 | dependents 159 | last release 2017-09-08 | licence mit",
+   "12. serpy | HOLD (G4 HOLD (dormant: 3242 days since release)) | ridiculously fast object serialization | stars 958 | downloads/month 61043 | dependents 94 | last release 2017-11-28 | licence MIT",
+   "13. schematics | HOLD (G4 HOLD (dormant: 1884 days since release); G5 HOLD (BSD: not rated by Blue Oak)) | Python Data Structures for Humans™. | stars 2587 | downloads/month 882430 | dependents 502 | last release 2021-08-17 | licence BSD",
+   "14. brining | HOLD (G4 HOLD (dormant: 3267 days since release)) | Python object to/from JSON serialization/deserialization module | stars 7 | downloads/month 31 | dependents 2 | last release 2017-11-03 | licence MIT",
+   "15. learn-co-curriculum/python-p4-v2-serialization | HOLD (G4 HOLD (dormant: 920 days since push); G5 HOLD (no licence found)) |  | stars 2 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "16. learn-co-curriculum/python-p4-v2-serialization-relationships | HOLD (G4 HOLD (dormant: 1059 days since push); G5 HOLD (no licence found)) |  | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "17. pramodkus/normal_serializer_api | HOLD (G5 HOLD (no licence found)) | SerializerWorks is a powerful and flexible serialization toolkit designed for building efficient APIs and data transformation layers. Built with Python and Djan | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "18. pramodkus/serializerworks | HOLD (G5 HOLD (no licence found)) | SerializerWorks is a powerful and flexible serialization toolkit designed for building efficient APIs and data transformation layers. Built with Python and Djan | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "Supply Chain Security",
+  "need": "supply chain security",
+  "also_described_as": [
+   "Tools for auditing dependencies against known vulnerabilities."
+  ],
+  "shortlist": [
+   "1. pip-audit | PASS | Audits Python environments, requirements files and dependency trees for known security vulnerabilities, and can automatically fix them | stars 1380 | downloads/month 26723596 | dependents 154 | last release 2026-06-10 | licence Apache-2.0",
+   "2. safety | PASS | Safety checks Python dependencies for known security vulnerabilities and suggests the proper remediations for vulnerabilities detected. | stars 2000 | downloads/month 3219090 | dependents 3667 | last release 2026-05-29 | licence MIT",
+   "3. owasp-depscan | PASS | OWASP dep-scan is a next-generation security and risk audit tool based on known vulnerabilities, advisories, and license limitations for project dependencies. B | stars 1298 | downloads/month 14187 | dependents 1 | last release 2026-07-23 | licence MIT",
+   "4. in-toto | PASS | in-toto is a framework to protect supply chain integrity. | stars 1051 | downloads/month 14167 | dependents 36 | last release 2026-04-25 | licence Apache-2.0",
+   "5. model-signing | PASS | Supply chain security for ML | stars 247 | downloads/month 19297 | dependents 0 | last release 2025-10-10 | licence Apache-2.0",
+   "6. osv | PASS | (ARCHIVED) This package is archived and no longer maintained. OSV is still active on https://github.com/google/osv.dev. | stars 2971 | downloads/month 920 | dependents 12 | last release 2026-04-22 | licence Apache-2.0",
+   "7. supplyshield/supplyshield | PASS | SupplyShield is an open-source application security orchestration framework designed to secure your software supply chain from vulnerabilities. | stars 17 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "8. appomni-labs/heisenberg-ssc-health-check | PASS | Analyzes software dependencies across GitHub repositories to identify security vulnerabilities and health risks in your supply chain. | stars 125 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. scovetta/oss-supply-chain | PASS | A comprehensive guide to open source software supply chain security | stars 16 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. skjold | HOLD (G4 HOLD (dormant: 889 days since release)) | Security audit Python project dependencies against security advisory databases. | stars 67 | downloads/month 7350 | dependents 13 | last release 2024-05-08 | licence MIT",
+   "11. chainjacking | HOLD (G4 HOLD (dormant: 1793 days since release)) | Find which of your direct GitHub dependencies is susceptible to RepoJacking attacks | stars 64 | downloads/month 1488 | dependents 0 | last release 2021-11-16 | licence Apache-2.0",
+   "12. sozercan/guac-ai-mole | HOLD (G4 HOLD (dormant: 912 days since push)) | 🥑 Inspect and understand an organization's software supply chain using AI to enable stakeholders to make actionable decisions about software supply chain securi | stars 22 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "Testing / API Testing",
+  "need": "api testing testing",
+  "also_described_as": [
+   "Libraries for testing codebases and generating test data. Also see awesome-python-testing."
+  ],
+  "shortlist": [
+   "1. pytest | PASS | The pytest framework makes it easy to write small tests, yet scales to support complex functional testing | stars 14592 | downloads/month 761970029 | dependents 309146 | last release 2026-06-19 | licence MIT",
+   "2. hypothesis | PASS (G5 flag (MPL-2.0: weak copyleft (use unmodified))) | The property-based testing library for Python | stars 9078 | downloads/month 52744281 | dependents 8568 | last release 2026-10-11 | licence MPL-2.0",
+   "3. schemathesis | PASS | Catch API bugs before your users do | stars 3664 | downloads/month 3206294 | dependents 123 | last release 2026-10-09 | licence MIT",
+   "4. testcontainers | PASS | Testcontainers is a Python library that providing a friendly API to run Docker container. It is designed to create runtime environment to use during your automa | stars 2313 | downloads/month 31386155 | dependents 429 | last release 2026-07-24 | licence Apache-2.0",
+   "5. scanapi | PASS | Automated Integration Testing and Live Documentation for your API | stars 1583 | downloads/month 3254 | dependents 9 | last release 2026-08-13 | licence MIT",
+   "6. tavern | PASS | Simple testing of RESTful APIs | stars 1163 | downloads/month 144497 | dependents 230 | last release 2026-09-25 | licence MIT",
+   "7. molecule | PASS | An ansible-native testing framework for collections, playbooks, and roles with configurable workflows for testing any system or service | stars 4158 | downloads/month 1257568 | dependents 4724 | last release 2026-10-12 | licence MIT",
+   "8. vcrpy | PASS | Automatically mock your HTTP interactions to simplify and speed up testing | stars 3021 | downloads/month 21756351 | dependents 2939 | last release 2026-07-04 | licence MIT",
+   "9. responses | PASS | A utility library for mocking out the `requests` Python library. | stars 4343 | downloads/month 52272328 | dependents 10810 | last release 2026-08-26 | licence Apache-2.0",
+   "10. unionai-oss/pandera | PASS | A light-weight, flexible, and expressive statistical data testing library | stars 4478 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "11. online-judge-tools | HOLD (G4 HOLD (dormant: 1857 days since release)) | Tools for various online judges. Downloading sample cases, generating additional test cases, testing your code, and submitting it. | stars 1173 | downloads/month 9806 | dependents 54 | last release 2021-09-13 | licence MIT",
+   "12. defnngj/learning-api-test | HOLD (G5 HOLD (no licence found)) | learning API test | stars 99 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "Testing / Browser Automation",
+  "need": "browser automation testing",
+  "also_described_as": [
+   "Libraries for testing codebases and generating test data. Also see awesome-python-testing."
+  ],
+  "shortlist": [
+   "1. pytest | PASS | The pytest framework makes it easy to write small tests, yet scales to support complex functional testing | stars 14592 | downloads/month 761970029 | dependents 309146 | last release 2026-06-19 | licence MIT",
+   "2. hypothesis | PASS (G5 flag (MPL-2.0: weak copyleft (use unmodified))) | The property-based testing library for Python | stars 9078 | downloads/month 52744281 | dependents 8568 | last release 2026-10-11 | licence MPL-2.0",
+   "3. molecule | PASS | An ansible-native testing framework for collections, playbooks, and roles with configurable workflows for testing any system or service | stars 4158 | downloads/month 1257568 | dependents 4724 | last release 2026-10-12 | licence MIT",
+   "4. tox | PASS | Command line driven CI frontend and development task automation tool. | stars 3943 | downloads/month 14256257 | dependents 43040 | last release 2026-10-12 | licence MIT",
+   "5. robotframework | PASS | Generic automation framework for acceptance testing and RPA | stars 11937 | downloads/month 3882078 | dependents 2815 | last release 2026-09-14 | licence Apache-2.0",
+   "6. grizzly-framework | PASS (G5 flag (MPL-2.0: weak copyleft (use unmodified))) | A cross-platform browser fuzzing framework | stars 323 | downloads/month 13373 | dependents 6 | last release 2026-08-20 | licence MPL-2.0",
+   "7. schemathesis | PASS | Catch API bugs before your users do | stars 3664 | downloads/month 3206294 | dependents 123 | last release 2026-10-09 | licence MIT",
+   "8. playwright | PASS | A high-level API to automate web browsers | stars 15028 | downloads/month 97001677 | dependents 4573 | last release 2026-09-15 | licence Apache-2.0",
+   "9. selenium | PASS | Official Python bindings for Selenium WebDriver | stars 34523 | downloads/month 28029613 | dependents 63728 | last release 2026-10-09 | licence Apache-2.0",
+   "10. pywinauto | PASS | Windows GUI Automation with Python (based on text properties) | stars 6210 | downloads/month 740065 | dependents 356 | last release 2025-01-06 | licence BSD-3-Clause",
+   "11. mushfiqur6087/testing-agent | PASS | 🤖 AI-powered browser automation framework that combines Google Gemini LLM with Playwright for intelligent web testing. Features smart element detection, context | stars 10 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "12. splinter | HOLD (G4 HOLD (dormant: 1002 days since release); G5 HOLD (BSD: not rated by Blue Oak)) | browser abstraction for web acceptance testing | stars 2750 | downloads/month 291304 | dependents 2092 | last release 2024-01-16 | licence BSD",
+   "13. online-judge-tools | HOLD (G4 HOLD (dormant: 1857 days since release)) | Tools for various online judges. Downloading sample cases, generating additional test cases, testing your code, and submitting it. | stars 1173 | downloads/month 9806 | dependents 54 | last release 2021-09-13 | licence MIT",
+   "14. selene | HOLD (G4 HOLD (dormant: 2431 days since release)) | User-oriented Web UI browser tests in Python | stars 732 | downloads/month 10619 | dependents 223 | last release 2020-02-17 | licence MIT",
+   "15. webbot | HOLD (G4 HOLD (dormant: 2201 days since release)) | Web automation library for simple and easy end to end testing and web browser automation that offers super charged features while keeping it simple to use and m | stars 252 | downloads/month 11291 | dependents 33 | last release 2020-10-04 | licence MIT",
+   "16. nayangoel/aipentester | HOLD (G5 HOLD (no licence found)) | AI-powered penetration testing assistant for Claude Code. Autonomous security testing with browser automation, Burp Suite integration, and intelligent threat mo | stars 54 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "17. automatedtester/w3-browserautomation-tests | HOLD (G4 HOLD (dormant: 4871 days since push); G5 HOLD (no licence found)) | Mirror Tests for the W3C Browser Automation Specification - Work will be done at http://dvcs.w3.org/hg/webdriver-test | stars 6 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "18. karan36k/machine_automation | HOLD (G4 HOLD (dormant: 1139 days since push); G5 HOLD (no licence found)) | python code for browser, mouse and application test. Run Bat file to initiate the full test. | stars 27 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "Web Scraping / Content Extraction",
+  "need": "content extraction web scraping",
+  "also_described_as": [
+   "Libraries to automate web scraping and extract web content."
+  ],
+  "shortlist": [
+   "1. trafilatura | PASS | Python & Command-line tool to gather text and metadata on the Web: Crawling, scraping, extraction, output as CSV, JSON, HTML, MD, TXT, XML. | stars 6909 | downloads/month 12938590 | dependents 134 | last release 2026-10-06 | licence Apache-2.0",
+   "2. readability-lxml | PASS | fast html to text parser (article readability tool) with python 3 support | stars 2894 | downloads/month 1336059 | dependents 2096 | last release 2026-08-27 | licence Apache-2.0",
+   "3. heswy/web-scraping-toolkit | PASS | A powerful Python web scraping toolkit for Google search results and HTML content extraction. 功能强大的Python网页爬虫工具包，支持谷歌搜索结果爬取和HTML内容提取。 | stars 3 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. avirathtib/scrapeneatly | PASS | A powerful and lightweight web scraping library with LLM extraction capabilities. This library combines web scraping with AI-powered content extraction using ei | stars 2 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. newspaper3k | HOLD (G4 HOLD (dormant: 2938 days since release)) | Simplified python article discovery & extraction. | stars 15169 | downloads/month 441498 | dependents 1143 | last release 2018-09-28 | licence MIT",
+   "6. take | HOLD (G4 HOLD (dormant: 4200 days since release)) | A DSL for extracting data from a web page. | stars 8 | downloads/month 67 | dependents 10 | last release 2015-04-15 | licence MIT",
+   "7. credi-net/creditext | HOLD (G5 HOLD (no licence found)) | Common Crawl Web domains text scraping and content extraction pipeline | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "8. tareqalkushari/web-scraping | HOLD (G5 HOLD (no licence found)) | Web-Scraping is a Python-based toolkit designed for extracting structured data from static and dynamic websites. This repository showcases efficient web scrapin | stars 5 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. abhiwalia15/web-scraping-in-python | HOLD (G4 HOLD (dormant: 2508 days since push); G5 HOLD (no licence found)) | Implementing Web Scraping in Python with BeautifulSoup There are mainly two ways to extract data from a website: Use the API of the website (if it exists). For  | stars 6 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "10. saadyaq/web_scraper_news_content | HOLD (G5 HOLD (no licence found)) | Automated news content extractor for media monitoring and NLP datasets - scrapes article titles, dates, URLs, and full text from multiple news websites | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. devansh-seth-dev/news_scraping | HOLD (G4 HOLD (dormant: 1152 days since push)) | Web scraping is the automated gathering of content and data from a website or any other resource available on the internet. Unlike screen scraping, web scraping | stars 2 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "12. bhumesh2001/web_scraping_with_py | HOLD (G4 HOLD (dormant: 1274 days since push); G5 HOLD (no licence found)) |  Web scraping is the automated process of extracting data from websites, allowing users to gather information for analysis, research, or other purposes by progr | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "13. travisjeong1/web-scraping-data-extracting-tool | HOLD (G4 HOLD (dormant: 810 days since push); G5 HOLD (no licence found)) | Built a dynamic web application that automates the retrieval, parsing, and formatting of structured web data using BeautifulSoup for scraping, Selenium for dyna | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "M2-01",
+  "need": "Python command-line parsing library",
+  "also_described_as": [
+   "argparse command line parser parsing"
+  ],
+  "shortlist": [
+   "1. typed-argument-parser | PASS | Typed argument parser for Python | stars 629 | downloads/month 252907 | dependents 160 | last release 2026-03-28 | licence MIT",
+   "2. arclet-alconna | PASS | A High-performance, Generality, Humane Python CLI Arguments Parser Library. 一个直观的、高性能、泛用的Python命令行参数解析器集成库 | stars 90 | downloads/month 17948 | dependents 25 | last release 2026-03-20 | licence MIT",
+   "3. typed-args | PASS | Parse command line arguments by defining dataclasses | stars 14 | downloads/month 335 | dependents 6 | last release 2026-08-08 | licence Apache-2.0",
+   "4. appeal | PASS | Command-line parsing library for Python 3. | stars 138 | downloads/month 119 | dependents 4 | last release 2026-02-25 | licence MIT",
+   "5. argman | PASS (G5 flag (LGPL-3.0-or-later: weak copyleft (use unmodified))) | A lightweight and minimal Python library for managing command-line arguments. | stars 17 | downloads/month 238 | dependents 0 | last release 2026-09-21 | licence LGPL-3.0-or-later",
+   "6. click | PASS | Composable command line interface toolkit | stars 17784 | downloads/month 817486347 | dependents 326440 | last release 2026-08-26 | licence BSD-3-Clause",
+   "7. typer | PASS | Typer, build great CLIs. Easy to code. Based on Python type hints. | stars 20051 | downloads/month 243773924 | dependents 12188 | last release 2026-10-06 | licence MIT",
+   "8. tomlparse | HOLD (G5 HOLD (mit: not rated by Blue Oak)) | argparse.ArgumentParser wrapper to parse TOML files from the command-line | stars 22 | downloads/month 300 | dependents 0 | last release 2025-10-09 | licence mit",
+   "9. parse-it | HOLD (G4 HOLD (dormant: 1961 days since release); G5 HOLD (LGPLv3: not rated by Blue Oak)) | A python library for parsing multiple types of config files, envvars & command line arguments that takes the headache out of setting app configurations. | stars 119 | downloads/month 8680 | dependents 19 | last release 2021-06-01 | licence LGPLv3",
+   "10. declarative-parser | HOLD (G4 HOLD (dormant: 3110 days since release)) | Modern, declarative argument parser for Python 3.6+ | stars 35 | downloads/month 2140 | dependents 2 | last release 2018-04-09 | licence MIT",
+   "11. argparse-dataclass | HOLD (G4 HOLD (dormant: 1221 days since release)) | Declarative CLIs with argparse and dataclasses | stars 96 | downloads/month 838679 | dependents 11 | last release 2023-06-11 | licence MIT",
+   "12. argtyped | HOLD (G4 HOLD (dormant: 1560 days since release)) | Command line argument parser, with types. | stars 31 | downloads/month 541 | dependents 4 | last release 2022-07-07 | licence MIT",
+   "13. commandlines | HOLD (G4 HOLD (dormant: 3882 days since release)) | A Python command line argument to object parsing library for command line application development | stars 15 | downloads/month 25039 | dependents 77 | last release 2016-02-27 | licence MIT",
+   "14. ipparser | HOLD (G4 HOLD (dormant: 1089 days since release)) | Python support package to parse IP and host inputs from network based tooling | stars 12 | downloads/month 1141 | dependents 15 | last release 2023-10-21 | licence BSD-3-Clause",
+   "15. sansolovyov/opster | HOLD (G4 HOLD (dormant: 1373 days since push); G5 HOLD (no licence found)) | Command line parsing speedster | stars 51 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "16. wils0ns/oi | HOLD (G4 HOLD (dormant: 2238 days since push)) | Command line parser for python applications. | stars 1 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "17. jbms/argparse | HOLD (G4 HOLD (dormant: 1626 days since push)) | Powerful C++ command-line argument parsing inspired by Python's argparse package | stars 11 | downloads/month ? | dependents ? | last release ? | licence BSL-1.0",
+   "18. mys-lang/package-argparse | HOLD (G4 HOLD (dormant: 1541 days since push)) | A command line argument parser in the Mys programming language. | stars 1 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "19. muneel/argparse | HOLD (G4 HOLD (dormant: 3588 days since push); G5 HOLD (no licence found)) | Command line argument parsing sample | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "20. purpleknightleo/argsparsedemo | HOLD (G4 HOLD (dormant: 3310 days since push); G5 HOLD (no licence found)) | python argparse to parse command-line parameters | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "M2-03",
+  "need": "Classes Without Boilerplate",
+  "also_described_as": [
+   "attribute  boilerplate  class"
+  ],
+  "shortlist": [
+   "1. ducktools-classbuilder | PASS | Toolkit for creating Python class boilerplate generators | stars 3 | downloads/month 611 | dependents 1 | last release 2026-07-09 | licence MIT",
+   "2. pydantic | PASS | Data validation using Python type hints | stars 28965 | downloads/month 842451944 | dependents 59176 | last release 2026-10-11 | licence MIT",
+   "3. teamhide/fastapi-boilerplate | HOLD (G5 HOLD (no licence found)) | FastAPI boilerplate for real world production | stars 1496 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "4. dataclasses | HOLD (G4 HOLD (dormant: 2161 days since release); G5 HOLD (Apache: not rated by Blue Oak)) | A backport of the dataclasses module for Python 3.6 | stars 593 | downloads/month 6468493 | dependents 16263 | last release 2020-11-13 | licence Apache",
+   "5. iam-abbas/fastapi-production-boilerplate | HOLD (G4 HOLD (dormant: 1105 days since push)) | A scalable and production ready boilerplate for FastAPI | stars 615 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. canbula/minimalfletclass | HOLD (G4 HOLD (dormant: 1065 days since push); G5 HOLD (no licence found)) | A minimal class which generates a Flet application. | stars 9 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "7. brunompacheco/deep-learning-boilerplate | HOLD (G4 HOLD (dormant: 1265 days since push); G5 HOLD (no licence found)) | Useful classes and functions for many of my deep learning projects. | stars 2 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "8. salt-die/q | HOLD (G4 HOLD (dormant: 1382 days since push); G5 HOLD (no licence found)) | Magical and `q`uick class definitions. | stars 2 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. wenhaogh85/java-template-generator | HOLD (G4 HOLD (dormant: 1574 days since push); G5 HOLD (no licence found)) | A fun personal project build using Python that is used to create a Java file containing boilerplate codes such as class attribute, constructor, setter and gette | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "M2-08",
+  "need": "Fast CSV Parser for Python",
+  "also_described_as": [],
+  "shortlist": [
+   "1. justhtml | PASS | A pure Python HTML5 parser that just works. No C extensions to compile. No system dependencies to install. No complex API to learn. | stars 1159 | downloads/month 82333 | dependents 0 | last release 2026-09-30 | licence MIT",
+   "2. pyarrow | PASS | Python library for Apache Arrow | stars 17245 | downloads/month 334800780 | dependents 26190 | last release 2026-10-09 | licence Apache-2.0",
+   "3. polars | PASS | Blazingly fast DataFrame library | stars 40027 | downloads/month 50696797 | dependents 1518 | last release 2026-10-06 | licence MIT",
+   "4. pandas | PASS | Powerful data structures for data analysis, time series, and statistics | stars 49922 | downloads/month 546920076 | dependents 335820 | last release 2026-09-17 | licence BSD-3-Clause",
+   "5. selectolax | HOLD (G4 HOLD (dormant: 1486 days since release)) | Python binding to Modest and Lexbor engines. Fast HTML5 parser with CSS selectors for Python. | stars 1689 | downloads/month 5279957 | dependents 221 | last release 2022-09-19 | licence MIT",
+   "6. pdf-importer | HOLD (G4 HOLD (dormant: 1753 days since release); G5 HOLD (GPLv3: not rated by Blue Oak)) | PDF parser to create importable CSV files | stars 17 | downloads/month 23 | dependents 1 | last release 2021-12-26 | licence GPLv3",
+   "7. vcdparser | HOLD (G5 HOLD (Other: not rated by Blue Oak)) | A simple VCD parser to access the contents of a VCD file in python. | stars 0 | downloads/month 154 | dependents 0 | last release 2025-01-19 | licence Other",
+   "8. pyxelr/log-to-csv-parser | HOLD (G4 HOLD (dormant: 2439 days since push)) | 🪵 Parse selected values from your .log or .txt files into a CSV format. | stars 18 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. samarsault/csv-mapper | HOLD (G4 HOLD (dormant: 2292 days since push)) | A CSV Parser using a pre-defined mapper file | stars 33 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. seahboonsiew/pyspark-csv | HOLD (G4 HOLD (dormant: 3983 days since push)) | An external PySpark module that works like R's read.csv or Panda's read_csv, with automatic type inference and null value handling. Parses csv data into SchemaR | stars 90 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "M2-09",
+  "need": "Python library for extract property from data.",
+  "also_described_as": [
+   "data  library  property"
+  ],
+  "shortlist": [
+   "1. comproscanner | PASS | A python package for extracting composition-property data from scientific articles for building databases | stars 17 | downloads/month 199 | dependents 0 | last release 2026-08-11 | licence MIT",
+   "2. glom | PASS | A declarative object transformer and formatter, for conglomerating nested data. | stars 2170 | downloads/month 20602994 | dependents 359 | last release 2025-12-29 | licence BSD-3-Clause",
+   "3. jsonpath-ng | PASS | A final implementation of JSONPath for Python that aims to be standard compliant, including arithmetic and binary comparison operators and providing clear AST f | stars 733 | downloads/month 54841371 | dependents 1762 | last release 2026-02-24 | licence Apache-2.0",
+   "4. caesarw0/lancaster-property-tax-scraper | PASS | Automated Python scraper for extracting delinquent tax data from Lancaster County, PA's public parcel viewer. Accepts parcel list input, extracts only relevant  | stars 3 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. jmespath | PASS | JSON Matching Expressions | stars 2450 | downloads/month 501265337 | dependents 64260 | last release 2026-01-22 | licence MIT",
+   "6. betofleitass/etl-residential-property-data | HOLD (G4 HOLD (dormant: 1070 days since push)) | Python-based ETL pipeline for processing and managing residential property sales data in Ireland.  | stars 2 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. applicaai/multi-property-extraction | HOLD (G4 HOLD (dormant: 2154 days since push); G5 HOLD (no licence found)) | The repository contains model implementations and data described in the paper: From Dataset Recycling to Multi-Property Extraction and Beyond. | stars 7 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "8. iamparbonaaa/property-scraping | HOLD (G4 HOLD (dormant: 3077 days since push); G5 HOLD (no licence found)) | A Python web scraping project that gets real estate data from Magic Bricks | stars 4 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. yashpx/property-data-extractor | HOLD (G5 HOLD (no licence found)) | A tool that leverages Gemini API to extract property information from brochures and floor plans of real estate projects  | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "10. naveendennis/python-facebook-extract-page-data | HOLD (G4 HOLD (dormant: 3325 days since push); G5 HOLD (no licence found)) | Extracts Data from Facebook pages. Access Token and App IDs have to be provided in the properties/config.ini file. Faceboook API v2.9 | stars 6 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. akulbasov/pga | HOLD (G4 HOLD (dormant: 3372 days since push); G5 HOLD (no licence found)) | This is a library for making batch request to Google Analytics Core Reporting v3 API and extracting data from Google Analytics property into Python 3 data struc | stars 17 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "12. rucnick/property-data-scraper | HOLD (G4 HOLD (dormant: 883 days since push)) | This script uses Selenium and BeautifulSoup to scrape property data from \"https://polaris3g.mecklenburgcountync.gov/address/\". It navigates to each property's p | stars 3 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "M2-11",
+  "need": "Pythonic argument parser, that will make you smile",
+  "also_described_as": [
+   "option arguments parsing optparse argparse getopt"
+  ],
+  "shortlist": [
+   "1. typed-argument-parser | PASS | Typed argument parser for Python | stars 629 | downloads/month 252907 | dependents 160 | last release 2026-03-28 | licence MIT",
+   "2. parso | PASS | A Python Parser | stars 679 | downloads/month 96218173 | dependents 87486 | last release 2026-05-01 | licence MIT",
+   "3. ua-parser | PASS | Python implementation of ua-parser | stars 649 | downloads/month 19435469 | dependents 2441 | last release 2026-04-05 | licence Apache-2.0",
+   "4. typed-args | PASS | Parse command line arguments by defining dataclasses | stars 14 | downloads/month 335 | dependents 6 | last release 2026-08-08 | licence Apache-2.0",
+   "5. rich-argparse | PASS | A rich help formatter for argparse | stars 210 | downloads/month 14568159 | dependents 239 | last release 2026-05-01 | licence MIT",
+   "6. sphinx-argparse-cli | PASS | Render CLI arguments (sub-commands friendly) defined by the argparse module. | stars 28 | downloads/month 32312 | dependents 63 | last release 2026-08-27 | licence MIT",
+   "7. lebrice/simpleparsing | PASS | Simple, Elegant, Typed Argument Parsing with argparse | stars 549 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "8. click | PASS | Composable command line interface toolkit | stars 17784 | downloads/month 817486347 | dependents 326440 | last release 2026-08-26 | licence BSD-3-Clause",
+   "9. pydantic-argparse | PASS | Typed Argument Parsing with Pydantic | stars 138 | downloads/month 695488 | dependents 5 | last release 2025-02-09 | licence MIT",
+   "10. reverse-argparse | HOLD (G5 HOLD (LICENSE.md: not rated by Blue Oak)) | A Python library to determine what exactly the user ran at the command line, along with default values, and any transformations that happened after parsing argu | stars 48 | downloads/month 18954 | dependents 0 | last release 2026-07-20 | licence LICENSE.md",
+   "11. docopt-ng | HOLD (G4 HOLD (dormant: 1233 days since release)) | Humane command line arguments parser. Now with maintenance, typehints, and complete test coverage. | stars 223 | downloads/month 1897518 | dependents 83 | last release 2023-05-30 | licence MIT",
+   "12. pyparam | HOLD (G4 HOLD (dormant: 1345 days since release)) | Powerful parameter processing for python | stars 8 | downloads/month 480 | dependents 24 | last release 2023-02-07 | licence MIT",
+   "13. defopt | HOLD (G5 HOLD (mit: not rated by Blue Oak)) | Effortless argument parser | stars 229 | downloads/month 44636 | dependents 58 | last release 2025-06-15 | licence mit",
+   "14. declarative-parser | HOLD (G4 HOLD (dormant: 3110 days since release)) | Modern, declarative argument parser for Python 3.6+ | stars 35 | downloads/month 2140 | dependents 2 | last release 2018-04-09 | licence MIT",
+   "15. flask-request-args-parser | HOLD (G4 HOLD (dormant: 3375 days since release)) | Pyhton3 package, that implements flask.request args parsing. | stars 3 | downloads/month 13 | dependents 1 | last release 2017-07-18 | licence MIT",
+   "16. jbms/argparse | HOLD (G4 HOLD (dormant: 1626 days since push)) | Powerful C++ command-line argument parsing inspired by Python's argparse package | stars 11 | downloads/month ? | dependents ? | last release ? | licence BSL-1.0",
+   "17. trag1c/paperbush | HOLD (G4 HOLD (dormant: 1158 days since push)) | 🌿 Paperbush - a super concise argument parsing tool for Python | stars 12 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "M2-12",
+  "need": "Robust enumerated type support in Python.",
+  "also_described_as": [
+   "enum enumerated enumeration"
+  ],
+  "shortlist": [
+   "1. flufl.enum | PASS | A Python enumeration package | stars 0 | downloads/month 50605 | dependents 33 | last release 2025-11-28 | licence Apache-2.0",
+   "2. aenum | PASS | Advanced Enumerations (compatible with Python's stdlib Enum), NamedTuples, and NamedConstants | stars 210 | downloads/month 28675875 | dependents 1526 | last release 2026-03-20 | licence BSD-3-Clause",
+   "3. activedirectoryenum | HOLD (G4 HOLD (dormant: 2216 days since release)) | Enumerate AD through LDAP with a collection of helpfull scripts being bundled | stars 147 | downloads/month 54 | dependents 1 | last release 2020-09-19 | licence MIT",
+   "4. enum_meta | HOLD (G4 HOLD (dormant: 1154 days since release)) | Provide enumerated type classes | stars ? | downloads/month ? | dependents 2 | last release 2023-08-17 | licence BSD-3-Clause",
+   "5. andresriancho/enumerate-iam | HOLD (G4 HOLD (dormant: 1083 days since release)) | Enumerate the permissions associated with AWS credential set | stars 1263 | downloads/month 158 | dependents 0 | last release 2023-10-27 | licence Apache-2.0",
+   "6. ssstonebraker/pentest-service-enumeration | HOLD (G5 HOLD (no licence found)) | Suggests programs to run against services found during the enumeration phase of a Pentest | stars 118 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "7. enum34 | HOLD (G4 HOLD (dormant: 2409 days since release)) | Python 3.4 Enum backported to 3.3, 3.2, 3.1, 2.7, 2.6, 2.5, and 2.4 | stars ? | downloads/month 5824937 | dependents 26235 | last release 2020-03-10 | licence BSD-3-Clause",
+   "8. ebjerrum/smiles-enumeration | HOLD (G4 HOLD (dormant: 1632 days since push)) | SMILES enumeration for QSAR modelling using LSTM recurrent neural networks | stars 249 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "9. appsecco/the-art-of-subdomain-enumeration | HOLD (G4 HOLD (dormant: 2814 days since push); G5 HOLD (no licence found)) | This repository contains all the supplement material for the book \"The art of sub-domain enumeration\" | stars 665 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "M2-14",
+  "need": "Fuzzy string matching in python",
+  "also_described_as": [],
+  "shortlist": [
+   "1. rapidfuzz | PASS | Rapid fuzzy string matching in Python using various string metrics | stars 4161 | downloads/month 116352320 | dependents 2971 | last release 2026-08-30 | licence MIT",
+   "2. thefuzz | HOLD (G4 HOLD (dormant: 999 days since release)) | Fuzzy String Matching in Python | stars 3651 | downloads/month 8008774 | dependents 389 | last release 2024-01-19 | licence MIT",
+   "3. fuzzy-match | HOLD (G4 HOLD (dormant: 2161 days since release)) | Fuzzy string matching in Python | stars 15 | downloads/month 13580 | dependents 9 | last release 2020-11-13 | licence MIT",
+   "4. cgvdiit-string-grouper | HOLD (G4 HOLD (dormant: 1175 days since release)) | Super Fast String Matching in Python  | stars 371 | downloads/month 13 | dependents 0 | last release 2023-07-27 | licence MIT",
+   "5. cjkfuzz | HOLD (G4 HOLD (dormant: 1134 days since release); G5 HOLD (mit: not rated by Blue Oak)) | CJKfuzz is a Python library for supporting fuzzy matching chinese string. | stars 3 | downloads/month 37 | dependents 0 | last release 2023-09-06 | licence mit",
+   "6. pfzy | HOLD (G4 HOLD (dormant: 1720 days since release)) | Python port of the fzy fuzzy string matching algorithm. | stars 12 | downloads/month 14844319 | dependents 146 | last release 2022-01-28 | licence MIT",
+   "7. py-stringcompare | HOLD (G5 HOLD (no licence found)) | Efficient String Comparison Functions and Fuzzy String Matching | stars 21 | downloads/month 138 | dependents 0 | last release 2025-09-21 | licence ?",
+   "8. simplematch | HOLD (G4 HOLD (dormant: 1105 days since release)) | Minimal, super readable string pattern matching for python. | stars 183 | downloads/month 28036 | dependents 16 | last release 2023-10-05 | licence MIT",
+   "9. fuzzy-logics | HOLD (G4 HOLD (dormant: 2169 days since release)) | The library provides functions for fuzzy string matching, fuzzy round-off for floats and a fuzzy function of dividing a integer into a integer distribution acco | stars 5 | downloads/month 16 | dependents 1 | last release 2020-11-05 | licence MIT",
+   "10. czarina/fuzzy-string-matching | HOLD (G4 HOLD (dormant: 4840 days since push); G5 HOLD (no licence found)) | performs fuzzy string matching on company names | stars 9 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "M2-15",
+  "need": "Coroutine-based network library",
+  "also_described_as": [
+   "greenlet coroutine cooperative multitasking light threads monkey"
+  ],
+  "shortlist": [
+   "1. greenlet | PASS | Lightweight in-process concurrent programming | stars 1852 | downloads/month 361120213 | dependents 68750 | last release 2026-09-14 | licence MIT AND PSF-2.0",
+   "2. eventlet | PASS | Highly concurrent networking library | stars 1275 | downloads/month 2553262 | dependents 11047 | last release 2026-08-14 | licence MIT",
+   "3. greenado | HOLD (G4 HOLD (dormant: 3143 days since release)) | Greenlet-based coroutines for tornado | stars 16 | downloads/month 44 | dependents 2 | last release 2018-03-07 | licence Apache-2.0",
+   "4. pygolang | HOLD (G4 HOLD (dormant: 1722 days since release); G5 HOLD (GPL-2.0-with-bison-exception: not rated by Blue Oak)) | Go-like features for Python and Cython | stars 6162 | downloads/month 210 | dependents 2 | last release 2022-01-26 | licence GPL-2.0-with-bison-exception",
+   "5. goroutine | HOLD (G4 HOLD (dormant: 3363 days since release)) | Use greenlets as coroutines in asyncio | stars 0 | downloads/month 21 | dependents 1 | last release 2017-07-30 | licence MIT",
+   "6. slowdown | HOLD (G4 HOLD (dormant: 2222 days since release)) | A coroutine-based web framework | stars ? | downloads/month 18 | dependents 1 | last release 2020-09-13 | licence MIT",
+   "7. slideinc/gogreen | HOLD (G4 HOLD (dormant: 5805 days since push)) | Coroutine utilities for non-blocking I/O with greenlet | stars 59 | downloads/month ? | dependents ? | last release ? | licence BSD-3-Clause",
+   "8. binyuj/gevent-egg | HOLD (G4 HOLD (dormant: 4576 days since push); G5 HOLD (no licence found)) | Coroutine-based network library for Python | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. hussu010/aiotnb | HOLD (G4 HOLD (dormant: 1732 days since push); G5 HOLD (no licence found)) | A coroutine-based client for the TNB Network API | stars 5 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "10. plumpmath/straight | HOLD (G4 HOLD (dormant: 4255 days since push)) | Coroutine based network framework | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "M2-21",
+  "need": "Python bindings for leveldb database library",
+  "also_described_as": [],
+  "shortlist": [
+   "1. datafusion | PASS | Apache DataFusion Python Bindings | stars 608 | downloads/month 888427 | dependents 25 | last release 2026-10-05 | licence Apache-2.0",
+   "2. appium-python-client | PASS | Python language bindings for Appium | stars 1843 | downloads/month 4656066 | dependents 131 | last release 2026-09-18 | licence Apache-2.0",
+   "3. pygit2 | PASS | Python bindings for libgit2 | stars 1731 | downloads/month 4563027 | dependents 2311 | last release 2026-09-12 | licence BSD-3-Clause-Attribution",
+   "4. plexapi | PASS | Python bindings for the Plex API. | stars 1296 | downloads/month 203325 | dependents 929 | last release 2026-09-28 | licence BSD-3-Clause",
+   "5. python-iptables | PASS | Python bindings for iptables | stars 751 | downloads/month 30499 | dependents 110 | last release 2025-04-06 | licence Apache-2.0",
+   "6. rjl493456442/leveldb-handbook | PASS | Analysis leveldb source code step by step | stars 376 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "7. notion-database | HOLD (G4 HOLD (dormant: 1272 days since release); G5 HOLD (LGPLv3: not rated by Blue Oak)) | Python bindings for Notion Database API | stars 145 | downloads/month 299 | dependents 7 | last release 2023-04-21 | licence LGPLv3",
+   "8. pyvidardb | HOLD (G4 HOLD (dormant: 2264 days since release)) | Python Wrapper for VidarDB | stars 21 | downloads/month 14 | dependents 1 | last release 2020-08-02 | licence Apache-2.0",
+   "9. ffmpeg-python | HOLD (G4 HOLD (dormant: 2657 days since release)) | Python bindings for FFmpeg - with complex filtering support | stars 11008 | downloads/month 7822402 | dependents 5327 | last release 2019-07-06 | licence Apache-2.0",
+   "10. plyvel | HOLD (G4 HOLD (dormant: 1003 days since release)) | Plyvel, a fast and feature-rich Python interface to LevelDB | stars 583 | downloads/month 447950 | dependents 369 | last release 2024-01-15 | licence BSD-3-Clause",
+   "11. srinikom/leveldb-server | HOLD (G4 HOLD (dormant: 3898 days since push)) | Database server based on leveldb storage engine | stars 120 | downloads/month ? | dependents ? | last release ? | licence BSD-3-Clause"
+  ]
+ },
+ {
+  "id": "M2-24",
+  "need": "A Python crypto and SSL toolkit",
+  "also_described_as": [
+   "cryptography  openssl"
+  ],
+  "shortlist": [
+   "1. pyopenssl | PASS | A Python wrapper around the OpenSSL library | stars 945 | downloads/month 172597949 | dependents 13437 | last release 2026-08-01 | licence Apache-2.0",
+   "2. cryptography | PASS | cryptography is a package designed to expose cryptographic primitives and recipes to Python developers. | stars 7805 | downloads/month 1068178556 | dependents 134976 | last release 2026-09-30 | licence Apache-2.0 OR BSD-3-Clause",
+   "3. openssl/packages | PASS | Official OpenSSL .deb and .rpm packages, installed under /opt alongside the distribution's OpenSSL | stars 2 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "4. space88man/cryptography_engine | HOLD (G4 HOLD (dormant: 1841 days since push)) | Python 3 pyca/cryptography wrappers for OpenSSL ENGINE operations | stars 2 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. zedxpace/sign_verify_openssl | HOLD (G4 HOLD (dormant: 1335 days since push); G5 HOLD (no licence found)) | Repository contains the Script to sign the message as well as verify the message using openssl with python | stars 4 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "6. komiblanka/cryptography | HOLD (G4 HOLD (dormant: 3366 days since push); G5 HOLD (no licence found)) | Python and Openssl studies to practice cryptography stuff | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "7. michele6ra/cryptography-ctf | HOLD (G5 HOLD (no licence found)) | Capture the flag with Python and OpenSSL | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "M2-28",
+  "need": "port of node-semver",
+  "also_described_as": [
+   "version semver node-semver"
+  ],
+  "shortlist": [
+   "1. semver | PASS | Python package to work with Semantic Versioning (https://semver.org/) | stars 524 | downloads/month 64765374 | dependents 7971 | last release 2026-09-12 | licence BSD-3-Clause",
+   "2. bumpver | PASS | BumpVer: Automatic Versioning | stars 246 | downloads/month 401441 | dependents 744 | last release 2026-05-22 | licence MIT",
+   "3. typesafe-docs/npm-semver | PASS | npm's node-semver versions and ranges in pure Python, checked against node-semver's own fixtures. | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "4. nodejs/node-gyp | PASS | Node.js native addon build tool | stars 10707 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. packaging | PASS | Core utilities for Python packages | stars 752 | downloads/month 1511871245 | dependents 220438 | last release 2026-08-04 | licence Apache-2.0 OR BSD-2-Clause",
+   "6. semver_range | HOLD (G4 HOLD (dormant: 2591 days since release)) | Python package for semantic versioning 2.0.0 that mimics the node `semver` package | stars 2 | downloads/month 698 | dependents 1 | last release 2019-09-10 | licence MIT",
+   "7. semantic-version | HOLD (G4 HOLD (dormant: 1602 days since release); G5 HOLD (BSD: not rated by Blue Oak)) | Semantic version comparison for Python (see http://semver.org/) | stars 293 | downloads/month 39943164 | dependents 6005 | last release 2022-05-26 | licence BSD",
+   "8. goshdarnharris/py-semver | HOLD (G4 HOLD (dormant: 4768 days since push); G5 HOLD (no licence found)) | A python port of the node.js semver library  | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. keleshev/version | HOLD (G4 HOLD (dormant: 2553 days since push)) | Semantic versioning (SemVer) implementation for Python | stars 51 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "M2-29",
+  "need": "library for OAuth version 1.9",
+  "also_described_as": [
+   "oauth"
+  ],
+  "shortlist": [
+   "1. oauthlib | PASS | A generic, spec-compliant, thorough implementation of the OAuth request-signing logic | stars 2985 | downloads/month 223433886 | dependents 100914 | last release 2026-09-28 | licence BSD-3-Clause",
+   "2. drf-social-oauth2 | PASS | drf-social-oauth2 makes it easy to integrate Django social authentication with major OAuth2 providers, i.e., Facebook, Twitter, Google, etc. | stars 292 | downloads/month 46802 | dependents 67 | last release 2026-07-30 | licence MIT",
+   "3. flask-oauthlib | HOLD (G4 HOLD (dormant: 2228 days since release); G5 HOLD (BSD: not rated by Blue Oak)) | YOU SHOULD USE https://github.com/lepture/authlib | stars 1444 | downloads/month 261840 | dependents 237 | last release 2020-09-07 | licence BSD",
+   "4. requests-oauthlib | HOLD (G4 HOLD (dormant: 936 days since release)) | OAuthlib support for Python-Requests! | stars 1773 | downloads/month 240583489 | dependents 95669 | last release 2024-03-22 | licence ISC",
+   "5. oauth | HOLD (G4 HOLD (dormant: 6224 days since release)) | Library for OAuth version 1.0a. | stars ? | downloads/month 42803 | dependents 2405 | last release 2009-09-29 | licence MIT",
+   "6. authlib/example-oauth2-server | HOLD (G5 HOLD (no licence found)) | Example for OAuth 2 Server for Authlib. | stars 704 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "7. flask-oauth | HOLD (G4 HOLD (dormant: 5121 days since release); G5 HOLD (BSD: not rated by Blue Oak)) | OAuth Support for Flask | stars 575 | downloads/month 5031 | dependents 281 | last release 2012-10-06 | licence BSD",
+   "8. socialoauth | HOLD (G4 HOLD (dormant: 4561 days since release)) | OAuth2 for Chinese social sites | stars 317 | downloads/month 41 | dependents 8 | last release 2014-04-19 | licence MIT",
+   "9. udacity/oauth2.0 | HOLD (G4 HOLD (dormant: 2601 days since push); G5 HOLD (no licence found)) | Starter Code for Auth&Auth course | stars 127 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "10. deprecatedcode/oauth2lib | HOLD (G4 HOLD (dormant: 4716 days since push)) | Python OAuth 2.0 Client + Server Library | stars 223 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "11. hboon/oauthtwitter | HOLD (G4 HOLD (dormant: 5810 days since push); G5 HOLD (no licence found)) | Version from http://code.google.com/p/oauth-python-twitter/source/browse/trunk/oauthtwitter.py?r=6 | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "12. rdosantiago/google_oauth2.0 | HOLD (G4 HOLD (dormant: 1414 days since push)) | Clean and modernized version of Google OAuth 2.0 to Python | stars 0 | downloads/month ? | dependents ? | last release ? | licence Unlicense"
+  ]
+ },
+ {
+  "id": "M2-33",
+  "need": "bcrypt password hashing and key derivation",
+  "also_described_as": [],
+  "shortlist": [
+   "1. bcrypt | PASS | Modern(-ish) password hashing for your software and your servers | stars 1504 | downloads/month 151548082 | dependents 45848 | last release 2025-09-25 | licence Apache-2.0",
+   "2. pwdlib | PASS | Modern password hashing for Python | stars 180 | downloads/month 3505970 | dependents 0 | last release 2026-08-12 | licence MIT",
+   "3. argon2-cffi | PASS | Secure Password Hashes for Python | stars 735 | downloads/month 60609086 | dependents 26757 | last release 2025-06-03 | licence MIT",
+   "4. gopyhash | PASS | A package for password hashing and comparision using bcrypt | stars 0 | downloads/month 13 | dependents 0 | last release 2025-04-23 | licence MIT",
+   "5. passlib | HOLD (G4 HOLD (dormant: 2197 days since release); G5 HOLD (BSD: not rated by Blue Oak)) | comprehensive password hashing framework supporting over 30 schemes | stars ? | downloads/month 30856199 | dependents 24181 | last release 2020-10-08 | licence BSD",
+   "6. keygen | HOLD (G5 HOLD (Freeware: not rated by Blue Oak)) | Keygen for generate keys :) | stars 0 | downloads/month 83 | dependents 2 | last release 2026-02-25 | licence Freeware",
+   "7. sakshivavale/ciphervault--password-vault-database | HOLD (G5 HOLD (no licence found)) | A zero-knowledge password manager built with Streamlit, Python, and AES-256 encryption. Features client-side encryption, bcrypt password hashing, PBKDF2 key der | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "8. allcrypt | HOLD (G4 HOLD (dormant: 1013 days since release)) | Allcrypt - file/message encryption/decryption GUI with hardware token (USB) support. | stars 1 | downloads/month 109 | dependents 0 | last release 2024-01-05 | licence MIT",
+   "9. keygenfish | HOLD (G4 HOLD (dormant: 1799 days since release); G5 HOLD (no licence found)) | Python Package for generating logically unique keys & passowrds | stars ? | downloads/month 65 | dependents 1 | last release 2021-11-10 | licence ?",
+   "10. blackploit/hash-identifier | HOLD (G4 HOLD (dormant: 889 days since push); G5 HOLD (no licence found)) | Software to identify the different types of hashes used to encrypt data and especially passwords | stars 638 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. breakteam/debcrypt | HOLD (G4 HOLD (dormant: 785 days since push); G5 HOLD (no licence found)) | A script crack bcrypt hash.  | stars 92 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "M2-34",
+  "need": "Python wrapper for Pandoc - the universal document converter",
+  "also_described_as": [],
+  "shortlist": [
+   "1. pypandoc | PASS | Thin wrapper for \"pandoc\" (MIT) | stars 1150 | downloads/month 4140318 | dependents 2928 | last release 2026-03-14 | licence MIT",
+   "2. pandoc-include | PASS | A pandoc filter to allow file and header inclusion | stars 83 | downloads/month 5895 | dependents 14 | last release 2026-05-11 | licence MIT",
+   "3. mcp-pandoc | HOLD (G5 HOLD (mit: not rated by Blue Oak)) | MCP server for document format conversion using pandoc. | stars 583 | downloads/month 7410 | dependents 0 | last release 2026-08-15 | licence mit",
+   "4. pandoc | HOLD (G4 HOLD (dormant: 798 days since release)) | Pandoc Documents for Python | stars 188 | downloads/month 799285 | dependents 2095 | last release 2024-08-07 | licence MIT",
+   "5. panflute | HOLD (G4 HOLD (dormant: 938 days since release); G5 HOLD (BSD3: not rated by Blue Oak)) | An Pythonic alternative to John MacFarlane's pandocfilters, with extra helper functions | stars 553 | downloads/month 278775 | dependents 296 | last release 2024-03-20 | licence BSD3",
+   "6. filter_pandoc_run_py | HOLD (G4 HOLD (dormant: 3142 days since release)) | Pandoc filter to run python code blocks | stars 22 | downloads/month 298 | dependents 0 | last release 2018-03-08 | licence MIT",
+   "7. senko/python-video-converter | HOLD (G4 HOLD (dormant: 1902 days since push); G5 HOLD (no licence found)) | Python Video Converter (ffmpeg wrapper) | stars 476 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "8. pandoc-run-python | HOLD (G4 HOLD (dormant: 1453 days since release)) | run python code blocks in markdown code | stars 4 | downloads/month 39 | dependents 2 | last release 2022-10-22 | licence MIT"
+  ]
+ },
+ {
+  "id": "M2-35",
+  "need": "Cryptographic modules for Python.",
+  "also_described_as": [],
+  "shortlist": [
+   "1. cryptography | PASS | cryptography is a package designed to expose cryptographic primitives and recipes to Python developers. | stars 7805 | downloads/month 1068178556 | dependents 134976 | last release 2026-09-30 | licence Apache-2.0 OR BSD-3-Clause",
+   "2. pycryptodome | PASS | A self-contained cryptographic library for Python | stars 3272 | downloads/month 68741896 | dependents 19986 | last release 2026-10-11 | licence BSD-3-Clause OR Unlicense",
+   "3. nccgroup/featherduster | HOLD (G4 HOLD (dormant: 1777 days since push)) | An automated, modular cryptanalysis tool; i.e., a Weapon of Math Destruction | stars 1140 | downloads/month ? | dependents ? | last release ? | licence BSD-3-Clause",
+   "4. shaharashe/cryptography_modules | HOLD (G4 HOLD (dormant: 784 days since push)) | This repository features Python implementations of various cryptographic algorithms, including RSA, ElGamal, and Vigenère cipher. It serves as a resource for le | stars 2 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "5. xenz25/cryptographytools-python | HOLD (G4 HOLD (dormant: 1900 days since push)) | Python Modules for Cryptography Created Just for Hobby | stars 2 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "6. bregza1309/python-cryptography-modules | HOLD (G4 HOLD (dormant: 1491 days since push)) | Implementation of Several Cryptographic algorithms using python | stars 2 | downloads/month ? | dependents ? | last release ? | licence CC0-1.0",
+   "7. himali2000/custom-cryptography-modules | HOLD (G4 HOLD (dormant: 1829 days since push); G5 HOLD (no licence found)) | Cryptographic modules in Python | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "8. metahashorg/crypt_example_py | HOLD (G4 HOLD (dormant: 2708 days since push); G5 HOLD (no licence found)) | This repository contains a script written in Python that describes the algorithm for the Metahash address generation using cryptography module. | stars 3 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. willywallyfrank/crypto | HOLD (G4 HOLD (dormant: 2715 days since push); G5 HOLD (no licence found)) | cryptographic module | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "M2-38",
+  "need": "[DEPRECATED] Please use astropy.io.fits instead.",
+  "also_described_as": [],
+  "shortlist": [
+   "1. astropy | PASS | Astronomy and astrophysics core library | stars 5322 | downloads/month 2665681 | dependents 12494 | last release 2026-07-05 | licence BSD-3-Clause",
+   "2. photutils | PASS | Astropy package for source detection and photometry. Maintainer: @larrybradley | stars 311 | downloads/month 152196 | dependents 359 | last release 2026-04-17 | licence BSD-3-Clause",
+   "3. astropy-healpix | PASS | BSD-licensed HEALPix for Astropy | stars 62 | downloads/month 181200 | dependents 121 | last release 2026-07-20 | licence BSD-3-Clause",
+   "4. reducer | PASS | Process FITS files | stars 27 | downloads/month 982 | dependents 3 | last release 2026-09-20 | licence BSD-3-Clause",
+   "5. stellarphot | PASS | A package for performing stellar photometry aimed at variable star and exoplanet research. | stars 6 | downloads/month 782 | dependents 1 | last release 2026-07-19 | licence BSD-3-Clause",
+   "6. astropy-learn/astropy-tutorials | PASS | Tutorials for the Astropy Project | stars 354 | downloads/month ? | dependents ? | last release ? | licence BSD-3-Clause",
+   "7. astroquery | HOLD (G5 HOLD (BSD: not rated by Blue Oak)) | Functions and classes to access online data resources. Maintainers: @keflavich and @bsipocz | stars 796 | downloads/month 298508 | dependents 763 | last release 2025-09-20 | licence BSD",
+   "8. specreduce | HOLD (G5 HOLD (Other: not rated by Blue Oak)) | Astropy coordinated package for Spectroscopic Reductions | stars 69 | downloads/month 10478 | dependents 8 | last release 2026-05-06 | licence Other",
+   "9. astroimtools | HOLD (G4 HOLD (dormant: 1121 days since release)) | Astronomical Image Tools | stars 16 | downloads/month 40 | dependents 4 | last release 2023-09-19 | licence BSD-3-Clause",
+   "10. django-zappa | HOLD (G4 HOLD (dormant: 3827 days since release)) | THIS PROJECT IS DEPRECATED, GO HERE INSTEAD:  | stars 466 | downloads/month 92 | dependents 4 | last release 2016-04-22 | licence MIT",
+   "11. rgbmaker | HOLD (G4 HOLD (dormant: 1937 days since release)) | A python package which communicates to different astronomical services and fetches fits and numerical data. | stars 4 | downloads/month 168 | dependents 1 | last release 2021-06-25 | licence BSD-3-Clause",
+   "12. astropy-hdf5io | HOLD (G3 HOLD (first release 24 days ago)) | HDF5 serialization support for AstroPy objects using fsc.hdf5-io | stars 0 | downloads/month 111 | dependents 0 | last release 2026-09-20 | licence BSD-3-Clause"
+  ]
+ },
+ {
+  "id": "M2-42",
+  "need": "Python client for Redis database and key-value store",
+  "also_described_as": [
+   "Redis  database  key-value-store"
+  ],
+  "shortlist": [
+   "1. hiredis | PASS | Python wrapper for hiredis | stars 523 | downloads/month 28223247 | dependents 8914 | last release 2026-09-22 | licence MIT",
+   "2. megwho/red_robin_redis | PASS | A tiny Redis-inspired key-value store built using Python. Through this project, I'm trying to explore the core concepts behind \"in-memory databases\" using simpl | stars 0 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "3. pottery | HOLD (G5 HOLD (apache-2.0: not rated by Blue Oak)) | Redis for humans. 🌎🌍🌏 | stars 1245 | downloads/month 575372 | dependents 38 | last release 2025-03-21 | licence apache-2.0",
+   "4. aiokeydb | HOLD (G4 HOLD (dormant: 1000 days since release)) | Python client for KeyDB database and key-value store | stars 15 | downloads/month 408 | dependents 2 | last release 2024-01-18 | licence MIT",
+   "5. tsu-haoliu/micro-redisdb | HOLD (G4 HOLD (dormant: 1179 days since push); G5 HOLD (no licence found)) | A miniature Redis-like in-memory key-value store implemented in Python | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "6. p-e-g-a-h/flashcache | HOLD (G5 HOLD (no licence found)) | A simple in-memory key-value database built in Python. It lets you store data, set expiration times, and save your database to a file. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "7. zartk-23/redis-from-scratch | HOLD (G5 HOLD (no licence found)) | Building Redis from scratch. Redis (REmote DIctionary Server) is an open source, in-memory, NoSQL key/value store that is used primarily as an application cache | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "8. bolanasr/key-value-store-application | HOLD (G4 HOLD (dormant: 2268 days since push); G5 HOLD (no licence found)) | In-memory distributed key-value store design consists of 3 parts Client, Server(Flask) and database(Redis) | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "9. zahrakoulayizadeh/store-application-with-redis-database | HOLD (G4 HOLD (dormant: 1564 days since push); G5 HOLD (no licence found)) | Provide Key-Value data model and implement the windows application with python and redis database | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "10. ali-zafari/redislikedb | HOLD (G4 HOLD (dormant: 2261 days since push); G5 HOLD (no licence found)) | A simple Redis like key-value based database in python. Data for any of the users are stored in a hashtable on a file with his/her own name. | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "11. chiotisn/redis-kl-store | HOLD (G4 HOLD (dormant: 2717 days since push); G5 HOLD (no licence found)) | A project for storing and proccessing Key-List stores in Redis. These stores can have different sources (csv/excel file or MySQL database) | stars 0 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ },
+ {
+  "id": "M2-43",
+  "need": "Retrying",
+  "also_described_as": [
+   "decorator  decorators  retry  retrying  exception  exponential  backoff"
+  ],
+  "shortlist": [
+   "1. tenacity | PASS | Retry code until it succeeds | stars 8802 | downloads/month 337474552 | dependents 29509 | last release 2026-10-07 | licence Apache-2.0",
+   "2. retry-decorator | HOLD (G4 HOLD (dormant: 2409 days since release)) | Decorator for retrying when exceptions occur | stars 27 | downloads/month 476534 | dependents 191 | last release 2020-03-10 | licence MIT",
+   "3. retryp | HOLD (G4 HOLD (dormant: 4032 days since release); G5 flag (LGPL-3.0: weak copyleft (use unmodified))) | Well-featured retry decorator | stars 2 | downloads/month 55 | dependents 3 | last release 2015-09-30 | licence LGPL-3.0",
+   "4. retry | HOLD (G4 HOLD (dormant: 3808 days since release)) | easy to use retry decorator in python | stars 755 | downloads/month 23984021 | dependents 2186 | last release 2016-05-11 | licence Apache-2.0",
+   "5. retry_on_exceptions | HOLD (G4 HOLD (dormant: 5129 days since release)) | Decorator for retrying a function N times by catching one of the specified exceptions and then retrying | stars 13 | downloads/month 41 | dependents 4 | last release 2012-09-28 | licence MIT",
+   "6. retry-function | HOLD (G4 HOLD (dormant: 1154 days since release)) | retry your function call. | stars 0 | downloads/month ? | dependents 1 | last release 2023-08-17 | licence MIT",
+   "7. gretry | HOLD (G4 HOLD (dormant: 1125 days since release)) | 一个错误重试装饰器 | stars 0 | downloads/month 43 | dependents 0 | last release 2023-09-15 | licence MIT",
+   "8. rholder/retrying | HOLD (G4 HOLD (dormant: 1886 days since push)) | Retrying is an Apache 2.0 licensed general-purpose retrying library, written in Python, to simplify the task of adding retry behavior to just about anything. | stars 1923 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "9. saltycrane/retry-decorator | HOLD (G4 HOLD (dormant: 3147 days since push)) | Decorator to retry calling a function upon error | stars 45 | downloads/month ? | dependents ? | last release ? | licence BSD-3-Clause"
+  ]
+ },
+ {
+  "id": "M2-44",
+  "need": "ruamel.yaml is a YAML parser/emitter that supports roundtrip preservation of comments, seq/map flow style, and map key order",
+  "also_described_as": [
+   "yaml 1.2 parser round-trip preserve quotes order config"
+  ],
+  "shortlist": [
+   "1. tosca-parser | PASS | Parser for TOSCA Simple Profile in YAML. Mirror of code maintained at opendev.org. | stars 89 | downloads/month 3401 | dependents 55 | last release 2026-09-08 | licence Apache-2.0",
+   "2. pyyaml | PASS | YAML parser and emitter for Python | stars 2953 | downloads/month 910520274 | dependents 131006 | last release 2025-09-25 | licence MIT",
+   "3. yq | PASS | Command-line YAML, XML, TOML processor - jq wrapper for YAML/XML/TOML documents | stars 2992 | downloads/month 3143733 | dependents 390 | last release 2026-09-27 | licence Apache-2.0",
+   "4. python-frontmatter | PASS | Parse and manage posts with YAML (or other) frontmatter | stars 435 | downloads/month 10310867 | dependents 758 | last release 2026-05-20 | licence MIT",
+   "5. yamlpath | PASS | YAML/JSON/EYAML/Compatible get/set/merge/validate/scan/convert/diff processors using powerful, intuitive, command-line friendly syntax. | stars 138 | downloads/month 83343 | dependents 24 | last release 2026-05-02 | licence ISC",
+   "6. nestedtext | PASS | Human readable and writable interchange format for structured data. | stars 399 | downloads/month 80191 | dependents 22 | last release 2025-12-26 | licence MIT",
+   "7. yaml-reference | PASS | Extension package built on top of `ruamel.yaml` to support cross-file references in YAML files using tags `!reference` and `!reference-all`. | stars 0 | downloads/month 182 | dependents 0 | last release 2026-03-26 | licence MIT",
+   "8. orderedyaml | PASS | Order nested YAML output using ruamel.yaml with custom key ordering | stars ? | downloads/month 20 | dependents 0 | last release 2025-06-27 | licence MIT",
+   "9. commx/ruamel-yaml | PASS | Read-only mirror of ruamel-yaml | stars 85 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "10. strictyaml | HOLD (G4 HOLD (dormant: 1314 days since release)) | Type-safe YAML parser and validator. | stars 1632 | downloads/month 22497631 | dependents 653 | last release 2023-03-10 | licence MIT",
+   "11. envyaml | HOLD (G4 HOLD (dormant: 1740 days since release)) | Simple YAML configuration file parser | stars 78 | downloads/month 1079206 | dependents 82 | last release 2022-01-08 | licence MIT",
+   "12. ruyaml | HOLD (G4 HOLD (dormant: 1772 days since release)) | ruyaml is a openly maintained fork of elusive ruamel-yaml package that can be used as as a drop-in replacement. | stars 80 | downloads/month 1433484 | dependents 87 | last release 2021-12-07 | licence MIT",
+   "13. poyo | HOLD (G4 HOLD (dormant: 2637 days since release)) | A lightweight YAML Parser for Python. 🐓 | stars 140 | downloads/month 171347 | dependents 4603 | last release 2019-07-26 | licence MIT",
+   "14. safe-ruamel | HOLD (G4 HOLD (dormant: 1386 days since release)) | A proxy class for ruamel.yaml.YAML that bypass the thread safety issue. | stars 0 | downloads/month 87 | dependents 0 | last release 2022-12-28 | licence MIT",
+   "15. eazybytes/yaml | HOLD (G4 HOLD (dormant: 799 days since push); G5 HOLD (no licence found)) | YAML Zero to Master - Examples | stars 136 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "16. tristan-sweeney-cambridgeconsultants/ccorp_yaml_include | HOLD (G4 HOLD (dormant: 1897 days since push)) | Ruamel.YAML parser plugin to !include files at composition time, preserving anchors. | stars 5 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "M2-47",
+  "need": "Hierarchical datasets for Python",
+  "also_described_as": [
+   "hdf5"
+  ],
+  "shortlist": [
+   "1. h5py | PASS | HDF5 for Python -- The h5py package is a Pythonic interface to the HDF5 binary data format. | stars 2256 | downloads/month 26403326 | dependents 65616 | last release 2026-03-06 | licence BSD-3-Clause",
+   "2. h5json | PASS | Specification and tools for representing HDF5 in JSON | stars 81 | downloads/month 14564 | dependents 8 | last release 2026-10-02 | licence BSD-3-Clause",
+   "3. versioned-hdf5 | PASS | Versioned HDF5 provides a versioned abstraction on top of h5py. Learn more at https://www.deshaw.com/library/desco-quansight-introducing-versioned-hdf5 | stars 114 | downloads/month 1593 | dependents 6 | last release 2026-09-04 | licence BSD-3-Clause",
+   "4. hdf5view | PASS | Simple Qt/Python based viewer for HDF5 files | stars 70 | downloads/month 919 | dependents 0 | last release 2025-11-21 | licence MIT",
+   "5. zarr | PASS | An implementation of chunked, compressed, N-dimensional arrays for Python | stars 2069 | downloads/month 4916803 | dependents 1076 | last release 2026-10-08 | licence MIT",
+   "6. ncas-cms/pyfive | PASS | A pure Python HDF5 file reader | stars 104 | downloads/month ? | dependents ? | last release ? | licence BSD-3-Clause",
+   "7. hdf-compass | HOLD (G4 HOLD (dormant: 3773 days since release)) | Python-based viewer for HDF5 and other HDF5-like file formats | stars 132 | downloads/month 125 | dependents 4 | last release 2016-06-15 | licence Zlib",
+   "8. deepdish | HOLD (G4 HOLD (dormant: 1846 days since release); G5 HOLD (BSD: not rated by Blue Oak)) | Flexible HDF5 saving/loading and other data science tools from the University of Chicago | stars 274 | downloads/month 8035 | dependents 209 | last release 2021-09-24 | licence BSD",
+   "9. tstables | HOLD (G4 HOLD (dormant: 4022 days since release)) | A Python package to store time series data in HDF5 files using PyTables | stars 206 | downloads/month 22 | dependents 3 | last release 2015-10-10 | licence MIT",
+   "10. h5serv | HOLD (G4 HOLD (dormant: 1154 days since release); G5 HOLD (BSD: not rated by Blue Oak)) | Reference service implementation of the HDF5 REST API | stars 170 | downloads/month ? | dependents 1 | last release 2023-08-17 | licence BSD",
+   "11. tftables | HOLD (G4 HOLD (dormant: 3162 days since release)) | HDF5 interface for Tensorflow. | stars 75 | downloads/month 81 | dependents 1 | last release 2018-02-16 | licence MIT",
+   "12. ageocoder/million-song-dataset-hdf5-to-csv | HOLD (G4 HOLD (dormant: 1967 days since push)) | Million Song Dataset HDF5 to CSV Converter | stars 45 | downloads/month ? | dependents ? | last release ? | licence MIT"
+  ]
+ },
+ {
+  "id": "M2-53",
+  "need": "DEPRECATED",
+  "also_described_as": [],
+  "shortlist": [
+   "1. deprecated | PASS | Python @deprecated decorator to deprecate old python classes, functions or methods. | stars 333 | downloads/month 128111685 | dependents 6950 | last release 2026-09-26 | licence MIT",
+   "2. setuptools | PASS | Most extensible Python build backend with support for C/C++ extension modules | stars 2864 | downloads/month 936502582 | dependents 104999 | last release 2026-08-08 | licence MIT",
+   "3. migra | HOLD (G4 HOLD (dormant: 1487 days since release)) | DEPRECATED: Like diff but for PostgreSQL schemas | stars 3046 | downloads/month 60392 | dependents 40 | last release 2022-09-18 | licence Unlicense",
+   "4. liuwons/wxbot | HOLD (G4 HOLD (dormant: 1243 days since push)) | Deprecated | stars 5311 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "5. distribute | HOLD (G4 HOLD (dormant: 4849 days since release)) | distribute legacy wrapper | stars ? | downloads/month 38750 | dependents 9998 | last release 2013-07-05 | licence Python-2.0"
+  ]
+ },
+ {
+  "id": "M2-54",
+  "need": "HTTP library with thread-safe connection pooling, file post, and more.",
+  "also_described_as": [
+   "filepost  http  httplib  https  pooling  ssl  threadsafe  urllib"
+  ],
+  "shortlist": [
+   "1. httplib2 | PASS | Small, fast HTTP client library for Python. Features persistent connections, cache, and Google App Engine support. Originally written by Joe Gregorio, now suppo | stars 511 | downloads/month 118082443 | dependents 48576 | last release 2026-06-26 | licence MIT",
+   "2. mitmproxy | PASS | An interactive TLS-capable intercepting HTTP proxy for penetration testers and software developers. | stars 45498 | downloads/month 3516981 | dependents 669 | last release 2026-05-12 | licence MIT",
+   "3. httpx | PASS | A next generation HTTP client for Python. 🦋 | stars 15641 | downloads/month 618500392 | dependents 32414 | last release 2024-12-06 | licence BSD-3-Clause",
+   "4. dbutils | PASS | Database connections for multi-threaded environments | stars 379 | downloads/month 2133501 | dependents 65 | last release 2026-08-21 | licence MIT",
+   "5. httpstat | PASS | curl statistics made simple | stars 6218 | downloads/month 1628 | dependents 3 | last release 2026-04-08 | licence MIT",
+   "6. psf/requests | PASS | A simple, yet elegant, HTTP library. | stars 54600 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "7. iliyadindar/pyroxi | PASS | High-performance Python proxy library with SOCKS5/HTTP, async, and zero dependencies. | stars 10 | downloads/month ? | dependents ? | last release ? | licence Apache-2.0",
+   "8. ndg-httpsclient | HOLD (G4 HOLD (dormant: 3005 days since release)) | HTTPS client implementation for httplib and urllib2 based on PyOpenSSL | stars 19 | downloads/month 5119165 | dependents 5285 | last release 2018-07-23 | licence BSD-2-Clause-FreeBSD OR MirOS",
+   "9. http-prompt | HOLD (G4 HOLD (dormant: 2049 days since release)) | An interactive command-line HTTP and API testing client built on top of HTTPie featuring autocomplete, syntax highlighting, and more. https://twitter.com/httpie | stars 9111 | downloads/month 1188 | dependents 19 | last release 2021-03-05 | licence MIT",
+   "10. robotframework-httplibrary | HOLD (G4 HOLD (dormant: 4857 days since release); G5 HOLD (Beerware: Blue Oak Lead)) | Robot Framework keywords for HTTP requests | stars 76 | downloads/month 25507 | dependents 74 | last release 2013-06-27 | licence Beerware",
+   "11. asks | HOLD (G4 HOLD (dormant: 1657 days since release)) | Async requests-like httplib for python. | stars 512 | downloads/month 15317 | dependents 571 | last release 2022-04-01 | licence MIT",
+   "12. connection_pool | HOLD (G4 HOLD (dormant: 2218 days since release)) | Thread-safe connection pool  | stars 16 | downloads/month 89120 | dependents 26 | last release 2020-09-17 | licence MIT",
+   "13. postmanlabs/httpbin | HOLD (G4 HOLD (dormant: 873 days since push)) | HTTP Request & Response Service, written in Python + Flask. | stars 13638 | downloads/month ? | dependents ? | last release ? | licence ISC",
+   "14. zxlie/website-ssl.sh | HOLD (G4 HOLD (dormant: 2203 days since push); G5 HOLD (no licence found)) | 低门槛跨入Https大门！网站ssl证书自动生成工具（http到https的转变），燥起来吧！ | stars 204 | downloads/month ? | dependents ? | last release ? | licence ?",
+   "15. khuevu/http-tunnel | HOLD (G4 HOLD (dormant: 2918 days since push)) | Tunnel tcp connection through http in Python | stars 153 | downloads/month ? | dependents ? | last release ? | licence MIT",
+   "16. jcgregorio/httplib2 | HOLD (G4 HOLD (dormant: 2611 days since push); G5 HOLD (non-standard: not rated by Blue Oak)) | The former official repository for httplib2. Now see https://github.com/httplib2. | stars 380 | downloads/month ? | dependents ? | last release ? | licence non-standard"
+  ]
+ },
+ {
+  "id": "M2-57",
+  "need": "pure python download utility",
+  "also_described_as": [],
+  "shortlist": [
+   "1. reflex | PASS | 🕸️ Web apps in pure Python 🐍 | stars 28947 | downloads/month 262368 | dependents 46 | last release 2026-10-08 | licence Apache-2.0",
+   "2. gdown | PASS | Google Drive public file downloader when curl/wget fails. | stars 5453 | downloads/month 3062738 | dependents 4666 | last release 2026-10-09 | licence MIT",
+   "3. requests | PASS | Python HTTP for Humans. | stars 54509 | downloads/month 1202777296 | dependents 711861 | last release 2026-05-14 | licence Apache-2.0",
+   "4. pycurl | PASS | PycURL -- A Python Interface To The cURL library | stars 1170 | downloads/month 3893607 | dependents 14664 | last release 2026-09-16 | licence LGPL-2.1-only OR MIT",
+   "5. pyload-ng | HOLD (G5 HOLD (agpl3: not rated by Blue Oak); G6 flag (16 open advisories)) | The free and open-source Download Manager written in pure Python | stars 3885 | downloads/month 2756 | dependents 2 | last release 2026-07-09 | licence agpl3",
+   "6. awget | HOLD (G5 HOLD (Other: not rated by Blue Oak)) | Pure python download utility | stars 0 | downloads/month 38 | dependents 0 | last release 2025-05-16 | licence Other",
+   "7. docx2txt | HOLD (G5 HOLD (mit: not rated by Blue Oak)) | A pure python based utility to extract text and images from docx files. | stars 583 | downloads/month 3917626 | dependents 2714 | last release 2025-03-24 | licence mit",
+   "8. google-images-download-joe | HOLD (G4 HOLD (dormant: 2217 days since release)) | Python Script to download hundreds of images from 'Google Images'. It is a ready-to-run code! | stars 8692 | downloads/month 15 | dependents 1 | last release 2020-09-18 | licence MIT",
+   "9. mohammadameenbarech/boltdown | HOLD (G5 HOLD (no licence found)) | Lightning-fast web-based torrent downloader powered by Django and aria2c Download torrents and magnet links at blazing speeds through a beautiful, modern web in | stars 1 | downloads/month ? | dependents ? | last release ? | licence ?"
+  ]
+ }
+]

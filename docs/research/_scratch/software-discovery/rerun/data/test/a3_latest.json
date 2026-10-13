@@ -1,0 +1,457 @@
+{
+ "L-002": [
+  "a-shygun/terrascope",
+  "dapple",
+  "plotille",
+  "gis-terminal"
+ ],
+ "L-003": [
+  "academa-labs/manimgx",
+  "manim",
+  "vidgear",
+  "moviepy"
+ ],
+ "L-006": [
+  "stagehand",
+  "browser-use",
+  "playwright",
+  "browser-harness",
+  "outlines",
+  "browsergym-core",
+  "handrew/browserpilot"
+ ],
+ "L-007": [
+  "aktools-pro",
+  "a-stock-mcp-server",
+  "zvt",
+  "financial-datasets/mcp-server",
+  "sjtu-dmtai/master",
+  "myhhub/stock"
+ ],
+ "L-008": [
+  "semgrep",
+  "ggshield",
+  "anthropics/claude-code-security-review",
+  "pip-audit",
+  "bandit",
+  "2akouwu/reverify"
+ ],
+ "L-009": [
+  "alexzhang13/spec-ptc",
+  "rlms",
+  "smolagents",
+  "ez-ptc",
+  "qwen-agent"
+ ],
+ "L-011": [
+  "wren-core-py",
+  "text2sqlagent/text2sql-framework",
+  "laqcce-cao/rsl-sql",
+  "xiyan-mcp-server",
+  "dbally"
+ ],
+ "L-014": [
+  "pulp",
+  "ortools",
+  "pyomo",
+  "szeider/mcp-solver",
+  "rl4co",
+  "mystic"
+ ],
+ "L-016": [
+  "browser-use/macos-harness",
+  "touchpoint-py",
+  "gui-agents",
+  "awlevin/typesafe-computer-use",
+  "open-interpreter"
+ ],
+ "L-019": [
+  "bibtex-verifier",
+  "onecite",
+  "bibguard",
+  "amos689/paper-preflight",
+  "maoji-y/refproof",
+  "kosys0224-spec/citetrust",
+  "bibcheck-ref",
+  "habanero",
+  "pyalex",
+  "bibtexparser"
+ ],
+ "L-023": [
+  "doofzoff/simurg"
+ ],
+ "L-025": [
+  "mlflow",
+  "wandb",
+  "yanex",
+  "dvc",
+  "hydra-zen",
+  "sacred",
+  "lllllllama/rigorpilot-skills"
+ ],
+ "L-026": [
+  "fanyuantaier/wechatauto-replica",
+  "wxauto-mcp",
+  "wxautoz"
+ ],
+ "L-027": [
+  "rembg",
+  "backgroundremover",
+  "transparent-background"
+ ],
+ "L-029": [
+  "xinference",
+  "llama-cpp-python",
+  "vllm-project/vllm",
+  "tensorrt-llm"
+ ],
+ "L-030": [
+  "textual",
+  "termux-app-store"
+ ],
+ "_model": "claude-opus-5-5",
+ "_calls": {
+  "L-002": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.246523,
+   "error": false
+  },
+  "L-032": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.263571,
+   "error": false
+  },
+  "L-060": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.243923,
+   "error": false
+  },
+  "L-088": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.234215,
+   "error": false
+  }
+ },
+ "_date": "2026-10-13",
+ "_how": "claude -p --model claude-opus-5-5 --tools '' --strict-mcp-config --setting-sources '' --output-format json from an empty directory; prompt = a3_latest_prompt.md body with a3_in_latest.json, batches of 16",
+ "_config": "shipped-R4",
+ "L-032": [
+  "zat",
+  "ninedter/pcap-hunter",
+  "agentic-threat-hunting-framework",
+  "vulnvoyager/threat-voyager",
+  "cisco-talos/evidenceforge"
+ ],
+ "L-034": [
+  "everos",
+  "mem0ai",
+  "honcho-ai",
+  "baryhuang/mcp-remote-macos-use",
+  "browser-use/macos-harness",
+  "mcp-agent"
+ ],
+ "L-036": [
+  "jianruntech/geo-score",
+  "geo-optimizer-skill",
+  "aigclink/geolook",
+  "thesmokedev/geo-skills",
+  "techhorizonlabs/thl-open",
+  "dcefferty/opengeo"
+ ],
+ "L-037": [
+  "kevinzakka/mjbatch",
+  "mujoco",
+  "dm-control",
+  "gymnasium-robotics"
+ ],
+ "L-039": [
+  "ldbumble/taskuary",
+  "zhixiangluo/10xproductivity",
+  "kingbee-helix/helix-agent",
+  "foreman-orchestrator",
+  "matank001/clodfarm",
+  "sleepless-agent",
+  "crewai"
+ ],
+ "L-040": [
+  "litaolemo/xtquant_big_convert",
+  "listolany/miniqmt_2_bigqmt",
+  "qmtserver",
+  "qmtclient",
+  "qmt-bridge",
+  "liqimore/quant-qmt-proxy"
+ ],
+ "L-041": [],
+ "L-043": [
+  "semantica",
+  "mem0ai",
+  "pipeshub-ai/pipeshub-ai",
+  "mcp-contextforge-gateway",
+  "ace-framework",
+  "potpie",
+  "engram-contextdb",
+  "context-forge-cli",
+  "julep-ai/julep"
+ ],
+ "L-046": [
+  "dali5599/agent-memory-vault",
+  "marcelocaporale/codex-agent-mem",
+  "mem0ai",
+  "river-ai-lab/graph-memory-mcp",
+  "josan88/agentmem",
+  "mcp-sqlite-memory-bank"
+ ],
+ "L-048": [
+  "plotly",
+  "azure/azure-sdk-for-python",
+  "hystax/optscale",
+  "azure/azure-cli",
+  "msftnadavbh/azurepricingmcp"
+ ],
+ "L-049": [
+  "mizorewww/laya-coreml",
+  "tc3oliver/laya-apple",
+  "mizorewww/laya-mlx",
+  "john-rocky/coreml-llm"
+ ],
+ "L-050": [
+  "mizorewww/laya-mlx",
+  "mlx",
+  "mizorewww/laya-coreml",
+  "mlx-lm"
+ ],
+ "L-051": [
+  "scalene",
+  "py-spy",
+  "viztracer"
+ ],
+ "L-052": [
+  "consolepi",
+  "adafruit-circuitpython-hid",
+  "bluetooth-2-usb"
+ ],
+ "L-054": [
+  "nandhakishorm/vegaml",
+  "mapie",
+  "crepes",
+  "nokia-applied-research/anyjev",
+  "ankit-aglawe/tinyjev",
+  "intikhab49/open-jev-typed-decision-engine"
+ ],
+ "L-055": [
+  "pvw-cli",
+  "unifiedcatalogpy",
+  "fabric-catalog",
+  "azure/azure-sdk-for-python"
+ ],
+ "L-060": [
+  "tabpfn",
+  "autogluon.tabular",
+  "tabfm",
+  "synthefy-tabular",
+  "pytabkit",
+  "tabicl",
+  "causilo"
+ ],
+ "L-061": [
+  "openlayer-ai/jevals",
+  "devjothish/laya-forge",
+  "inspect-ai",
+  "deepeval",
+  "nemoguardrails",
+  "guardrails-ai"
+ ],
+ "L-063": [
+  "watch-skill",
+  "pixelml-av",
+  "hkuds/videoagent",
+  "getstream/vision-agents",
+  "fastmcp",
+  "yt-dlp",
+  "faster-whisper"
+ ],
+ "L-066": [
+  "lancedb",
+  "pylance",
+  "parqdb-io/parqdb"
+ ],
+ "L-067": [
+  "smolagents",
+  "deepcode-hku",
+  "k-dense-ai/scientific-agent-skills"
+ ],
+ "L-071": [
+  "behive",
+  "cognee",
+  "hyperextract",
+  "graphrag",
+  "semantica",
+  "graphiti-core",
+  "lightrag-hku",
+  "robert-mcdermott/ai-knowledge-graph",
+  "gpt-researcher"
+ ],
+ "L-072": [
+  "peft",
+  "soup-cli",
+  "oumi",
+  "transformerlab"
+ ],
+ "L-073": [
+  "fastplotlib",
+  "vispy"
+ ],
+ "L-076": [
+  "rokbenko/quackd",
+  "lerobot",
+  "liyiteng/alohamini",
+  "roboml",
+  "lrvd"
+ ],
+ "L-078": [
+  "ruashots/open-h3-ir",
+  "duckyshell/comfyui-minimaxh3-prompt-writer",
+  "rimagination/h3lite",
+  "tritant/comfyui_minimax_h3_extender"
+ ],
+ "L-079": [
+  "verifiers",
+  "inspect-ai",
+  "openhands-sdk",
+  "google-adk",
+  "agentscope",
+  "microsoft/agent-framework"
+ ],
+ "L-080": [
+  "seohongpark/ocbench",
+  "mani-skill",
+  "mani-skill/maniskill",
+  "robosuite",
+  "megazron/cleanbench-eval",
+  "nathanwu7/isaaclab.manipulation"
+ ],
+ "L-081": [
+  "ghost-in-the-droid",
+  "hkuds/phonecli",
+  "shawnpana/phone-harness",
+  "uiautomator2",
+  "phone-agent",
+  "adbutils",
+  "facebook-wda",
+  "phone-mcp"
+ ],
+ "L-083": [
+  "arc-cua",
+  "thinkflowlab/system1-agents",
+  "automate-mcp",
+  "hanzo-tools-computer",
+  "gui-agents",
+  "microsoft/fara",
+  "e2b-dev/open-computer-use"
+ ],
+ "L-084": [
+  "build123d-mcp",
+  "partcad",
+  "build123d",
+  "cadquery",
+  "pan-chera/multi-agent-cad",
+  "neka-nat/cad3dify"
+ ],
+ "L-087": [
+  "graphiti-core",
+  "divyamtalwar/jitmind",
+  "vectorize-io/hindsight",
+  "cognee",
+  "memanto",
+  "letta",
+  "mem0ai",
+  "honcho-ai",
+  "memmachine-client"
+ ],
+ "L-088": [
+  "observal-cli",
+  "majiayu000/claude-skill-registry"
+ ],
+ "L-090": [
+  "synpath-ai/synpath",
+  "polypoll-sdk",
+  "pykalshi",
+  "mcp-prediction-markets",
+  "jon-becker/prediction-market-analysis"
+ ],
+ "L-091": [
+  "figstudio",
+  "matplotlib",
+  "tueplots",
+  "scienceplots",
+  "matpublib"
+ ],
+ "L-092": [
+  "gokeshenzhen/traceweave",
+  "pyslang",
+  "pyvcd",
+  "ics-jku/wal"
+ ],
+ "L-093": [
+  "shell-gpt",
+  "llm",
+  "shell-ai"
+ ],
+ "L-095": [
+  "tilelang",
+  "triton",
+  "tilegym",
+  "tile-ai/tileops"
+ ],
+ "L-096": [
+  "xgrammar",
+  "outlines",
+  "guidance"
+ ],
+ "L-097": [
+  "typesafe-ai/system-one-adapter-python",
+  "instructor",
+  "any-llm-sdk"
+ ],
+ "L-098": [
+  "xai-sdk",
+  "elevenlabs"
+ ],
+ "L-099": [
+  "inspect-ai",
+  "fast-agent-acp"
+ ],
+ "L-100": [
+  "wfzyx/von",
+  "strands-labs/strands-decider",
+  "nokia-applied-research/anyjev",
+  "ikermoel/open-alternative-jev",
+  "mizorewww/laya-mlx",
+  "omnijev/onejev"
+ ],
+ "L-101": [
+  "xhluca/session-migrate"
+ ],
+ "L-102": [
+  "evomap/autoresearch",
+  "jmiao24/paper2agent",
+  "arxiv-mcp-server"
+ ],
+ "L-103": [
+  "cloakbrowser",
+  "clearcote",
+  "tilion-fortress",
+  "patchright",
+  "rayobyte-data/rayobrowse",
+  "clark-browser",
+  "camoufox"
+ ],
+ "L-104": [
+  "moviepy",
+  "aigc-apps/videox-fun"
+ ]
+}

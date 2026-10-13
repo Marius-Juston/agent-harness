@@ -1,0 +1,276 @@
+[
+ {
+  "id": "L-001",
+  "need": "Anti-hallucination for AI agents that read binaries: the model proposes, deterministic tools decide. Claims verified or refuted against the real bytes, with evidence; grounded facts survive context resets. MCP server + CLI.",
+  "also_described_as": [
+   "anti-hallucination hallucination grounding verification llm ai-agents context-engineering mcp reverse-engineering binary-analysis disassembler frida protobuf malware-analysis ctf"
+  ]
+ },
+ {
+  "id": "L-004",
+  "need": "World clock for the terminal with a day and night map and a 24-hour timeline",
+  "also_described_as": [
+   "world clock time zones tui terminal timezone world map tmux"
+  ]
+ },
+ {
+  "id": "L-005",
+  "need": "One zero-dependency CLI to manage every MCP server and agent skill: token optimization for tool discovery (71,929 -> 581 tokens, -99.2% measured, schemas stay out of context), one config for every agent.",
+  "also_described_as": [
+   "mcp mcp-cli mcp-tools mcp-client cli token-efficient token-optimization context-compression model-context-protocol agent llm zero-dependencies"
+  ]
+ },
+ {
+  "id": "L-010",
+  "need": "Kifly as the StorefrontBackend for blueprint",
+  "also_described_as": []
+ },
+ {
+  "id": "L-012",
+  "need": "(arXiv:2608.27454) for Hermes Agent — self-evolving agent skills via a persistent knowledge wiki",
+  "also_described_as": [
+   "agents skills skill-evolution wiki llm hermes self-improving agent-experience persistent-knowledge arxiv-2608.27454"
+  ]
+ },
+ {
+  "id": "L-013",
+  "need": "Gradient descent, but the parameters are agents — a parallel, asynchronous framework for self-evolving agents (skills, prompts, harnesses)",
+  "also_described_as": [
+   "rsi self-evolving-agents parallel aggregation staleness"
+  ]
+ },
+ {
+  "id": "L-015",
+  "need": "A local emulator for enterprise SaaS APIs, served over your own corpus with per-document ACLs",
+  "also_described_as": [
+   "mock rag slack gmail google-drive jira confluence github notion s3 amazon-s3 hubspot linear graphql benchmark"
+  ]
+ },
+ {
+  "id": "L-017",
+  "need": "Tiny, fast and accurate Turkish text to speech.",
+  "also_described_as": [
+   "speech-synthesis text-to-speech tts turkish türkçe"
+  ]
+ },
+ {
+  "id": "L-018",
+  "need": "is an open-source Python framework for building and running domain-specific long-horizon agents, with a durable runtime built in.",
+  "also_described_as": []
+ },
+ {
+  "id": "L-020",
+  "need": "A seriously simple key-value database",
+  "also_described_as": [
+   "database key-value storage"
+  ]
+ },
+ {
+  "id": "L-021",
+  "need": "Verl experiment semantics compiled for one NVIDIA GPU.",
+  "also_described_as": [
+   "agentic-rl consumer-gpu gkd grpo knowledge-distillation llm llm-agents on-policy-distillation parquet peft post-training qlora qwen rloo single-gpu tool-use verl"
+  ]
+ },
+ {
+  "id": "L-022",
+  "need": "Agent work contracts and verifiable execution protocol — Ed25519-signed, offline-verifiable proof-carrying work for AI agents.",
+  "also_described_as": [
+   "agent verifiable ai work-contract mcp audit sign ed25519 proof-carrying mcp-server"
+  ]
+ },
+ {
+  "id": "L-024",
+  "need": "Rewrite your prompt into the native dialect of the model you're actually using (Claude Opus 5.5, Fable 5.1, GPT-6 Astra/Sol/Luna, Codex) by each vendor's OFFICIAL rules, tell you why, and recommend the effort level to run it at.",
+  "also_described_as": [
+   "prompt prompt-engineering llm claude openai codex prompt-optimizer"
+  ]
+ },
+ {
+  "id": "L-028",
+  "need": "An MCP server that turns filings and prices into valuation indicators, and tests each one inside its own industry. Point it at any source with a timestamp; connect it to your agent and ask.",
+  "also_described_as": [
+   "backtesting duckdb feature-engineering indicators mcp mcp-server model-context-protocol quantitative-finance"
+  ]
+ },
+ {
+  "id": "L-031",
+  "need": "command-line interface: scan, probe, monitor, init, rules, new-rule.",
+  "also_described_as": [
+   "agent-security ai-security llm-security mcp mitre-atlas mlsecops model-context-protocol owasp prompt-injection red-teaming sarif security-scanner supply-chain-security"
+  ]
+ },
+ {
+  "id": "L-033",
+  "need": "The agent flow system for token maxxing.",
+  "also_described_as": [
+   "agents ai claude-code codex coding-agents llm tui workflow"
+  ]
+ },
+ {
+  "id": "L-035",
+  "need": "Local, fail-closed privacy preflight for files, folders, and nested archives.",
+  "also_described_as": [
+   "privacy security metadata office pdf pii secrets data-loss-prevention document-security local-first pii-detection secret-scanning cli"
+  ]
+ },
+ {
+  "id": "L-038",
+  "need": "Scan, classify and sync AI-agent skills (SKILL.md) across toolchains like OpenAI Codex, Claude Code and WorkBuddy.",
+  "also_described_as": [
+   "ai agent skills codex claude workbuddy migration inventory"
+  ]
+ },
+ {
+  "id": "L-042",
+  "need": "GEMINI in-memory checkpointing and SCOUT fault localization for LLM training",
+  "also_described_as": [
+   "checkpointing distributed-training fault-tolerance large-language-models pytorch resiliency silent-data-corruption"
+  ]
+ },
+ {
+  "id": "L-044",
+  "need": "Score AI-sounding prose 0-100 and check what a rewrite changed. Offline, standard library only.",
+  "also_described_as": [
+   "prose linter writing editing ai-slop de-slop humanize style ci static-analysis"
+  ]
+ },
+ {
+  "id": "L-045",
+  "need": "Turn a whiteboard-style image into a hand-drawn reveal video.",
+  "also_described_as": [
+   "whiteboard animation explainer video ffmpeg craft"
+  ]
+ },
+ {
+  "id": "L-047",
+  "need": "Local-first Agent Work Intelligence for coding agents: usage truth, recorded work, and honest joins",
+  "also_described_as": [
+   "agent ai-agents finops llm cost-tracking claude-code codex mcp developer-tools"
+  ]
+ },
+ {
+  "id": "L-053",
+  "need": "Audio-to-MIDI transcription using a transformer language model",
+  "also_described_as": [
+   "audio midi music transcription transformer"
+  ]
+ },
+ {
+  "id": "L-056",
+  "need": "Standards-aligned evidence policy validation for AI-assisted biological curation",
+  "also_described_as": [
+   "ai-safety biocuration bioinformatics evidence knowledge-graph linkml llm ontology provenance validation"
+  ]
+ },
+ {
+  "id": "L-057",
+  "need": "Autonomous AI software-delivery orchestrator driving the Claude Agent SDK on your own Claude credentials",
+  "also_described_as": []
+ },
+ {
+  "id": "L-058",
+  "need": "Jev-style typed decisions with probabilities from open LLMs: a training-free readout of any model, and the self-distilled Tacit models. Not affiliated with TypeSafe AI.",
+  "also_described_as": [
+   "llm decision calibration jev system-one self-distillation vllm"
+  ]
+ },
+ {
+  "id": "L-059",
+  "need": "Episodic memory for AI agents: compile raw screen capture into structured, deterministic",
+  "also_described_as": [
+   "agent-memory ai-agents context episodic-memory llm mcp nocta-recorder screen-activity"
+  ]
+ },
+ {
+  "id": "L-062",
+  "need": "Agentic system optimization: coding agents reason over parameter meaning and trial history.",
+  "also_described_as": [
+   "black-box-optimization agent llm hyperparameter-optimization machine-learning scientific-computing"
+  ]
+ },
+ {
+  "id": "L-064",
+  "need": "A Python library for automating the submission of manuscripts to academic venues.",
+  "also_described_as": []
+ },
+ {
+  "id": "L-065",
+  "need": "Create, read, and update Microsoft Word .docx files.",
+  "also_described_as": [
+   "docx office openxml word"
+  ]
+ },
+ {
+  "id": "L-068",
+  "need": "Hierarchical agent loops with recursive self-organization.",
+  "also_described_as": []
+ },
+ {
+  "id": "L-069",
+  "need": "Indexed knowledge bases with command-line tools for agents.",
+  "also_described_as": []
+ },
+ {
+  "id": "L-070",
+  "need": "Build robust RL environments to train aligned AI.",
+  "also_described_as": []
+ },
+ {
+  "id": "L-074",
+  "need": "Centralized agent database for Inquiries (Issues + Artifacts).",
+  "also_described_as": [
+   "agent database fastapi postgres tracking"
+  ]
+ },
+ {
+  "id": "L-075",
+  "need": "Turn ad-hoc subagents into durable, accountable AI teams.",
+  "also_described_as": []
+ },
+ {
+  "id": "L-077",
+  "need": "General-purpose, AI-enabled Intelligent Document Processing framework for Python. OCR + multimodal extraction with Pydantic schemas, confidence assessment, HITL review, and a built-in eval harness. Supports OpenAI, Anthropic, Ollama, and 8 China LLMs.",
+  "also_described_as": [
+   "intelligent-document-processing document-ai ocr llm extraction pydantic multimodal rag information-extraction invoice pdf schema-discovery"
+  ]
+ },
+ {
+  "id": "L-082",
+  "need": "A minimal, transparent, local-first Waku: harness + loop + memory + eval, in code you can read in an afternoon.",
+  "also_described_as": [
+   "agent-framework ai-agent eval llm llmops local-first memory"
+  ]
+ },
+ {
+  "id": "L-085",
+  "need": "CLI tool for exploring MCP servers",
+  "also_described_as": []
+ },
+ {
+  "id": "L-086",
+  "need": "A Rust-backed, CDP-first Python automation library with a Playwright-compatible sync API",
+  "also_described_as": []
+ },
+ {
+  "id": "L-089",
+  "need": "Build and optimize AI Functions with pluggable evaluators and GEPA",
+  "also_described_as": [
+   "active-learning classification evals gepa llm"
+  ]
+ },
+ {
+  "id": "L-094",
+  "need": "Synthetic PHI boundary gating, redaction, and audit reporting toolkit.",
+  "also_described_as": [
+   "phi hipaa redaction privacy ai-safety audit healthcare"
+  ]
+ },
+ {
+  "id": "L-105",
+  "need": "Lightweight Vietnamese Zero-Shot Text-to-Speech (TTS) with real-time streaming and voice cloning.",
+  "also_described_as": [
+   "tts text-to-speech vietnamese onnx speech-synthesis lightweight voice clone"
+  ]
+ }
+]
