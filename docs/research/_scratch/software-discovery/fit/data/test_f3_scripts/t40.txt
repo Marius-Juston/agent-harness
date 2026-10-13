@@ -1,0 +1,41 @@
+import io
+import click
+
+
+class FakeTTY(io.StringIO):
+    def isatty(self):
+        return True
+
+
+items = list(range(10))
+out = FakeTTY()
+seen = []
+
+with click.progressbar(
+    items,
+    label="Processing",
+    file=out,
+    width=20,
+    show_percent=True,
+    show_pos=True,
+    fill_char="#",
+    empty_char="-",
+) as bar:
+    for x in bar:
+        seen.append(x * 2)
+
+text = out.getvalue()
+print(repr(text[-200:]))
+
+# Iteration yielded every item in order
+assert seen == [x * 2 for x in items], seen
+# Progress bar was rendered to the stream
+assert "Processing" in text, text
+assert "100%" in text, text
+assert "10/10" in text, text
+assert "#" * 20 in text, text
+# Intermediate progress was also drawn (not just the final state)
+assert "0%" in text or "-" * 20 in text, text
+assert text.count("Processing") >= 2, text
+
+print("FIT_OK")

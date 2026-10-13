@@ -1,0 +1,311 @@
+[
+ {
+  "id": "t01",
+  "package": "tomlkit",
+  "need": "Read a TOML file, change one value, and write the file back with its original comments preserved.",
+  "need_key": "toml_rt",
+  "gold": "FIT"
+ },
+ {
+  "id": "t02",
+  "package": "tomli",
+  "need": "Read a TOML file, change one value, and write the file back with its original comments preserved.",
+  "need_key": "toml_rt",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t03",
+  "package": "toml",
+  "need": "Read a TOML file, change one value, and write the file back with its original comments preserved.",
+  "need_key": "toml_rt",
+  "gold": "NOT_FIT",
+  "exclude": "partial capability: toml 0.10.2's TomlPreserveCommentDecoder keeps inline comments but raises KeyError on a top-level full-line comment (gold/t03.py output); neither label is clean"
+ },
+ {
+  "id": "t04",
+  "package": "ruamel.yaml",
+  "need": "Load a YAML document, change one value, and write it back with its original comments preserved.",
+  "need_key": "yaml_rt",
+  "gold": "FIT"
+ },
+ {
+  "id": "t05",
+  "package": "pyyaml",
+  "need": "Load a YAML document, change one value, and write it back with its original comments preserved.",
+  "need_key": "yaml_rt",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t06",
+  "package": "openpyxl",
+  "need": "Read cell values from an .xlsx (Excel 2007 or later) workbook.",
+  "need_key": "xlsx_read",
+  "gold": "FIT"
+ },
+ {
+  "id": "t07",
+  "package": "xlrd",
+  "need": "Read cell values from an .xlsx (Excel 2007 or later) workbook.",
+  "need_key": "xlsx_read",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t08",
+  "package": "xlsxwriter",
+  "need": "Write a new .xlsx workbook that contains a formula cell.",
+  "need_key": "xlsx_write",
+  "gold": "FIT"
+ },
+ {
+  "id": "t09",
+  "package": "json5",
+  "need": "Parse JSON text that contains // comments and trailing commas.",
+  "need_key": "json5",
+  "gold": "FIT"
+ },
+ {
+  "id": "t10",
+  "package": "orjson",
+  "need": "Parse JSON text that contains // comments and trailing commas.",
+  "need_key": "json5",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t11",
+  "package": "ujson",
+  "need": "Parse JSON text that contains // comments and trailing commas.",
+  "need_key": "json5",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t12",
+  "package": "qrcode",
+  "need": "Generate a QR code image (SVG or PNG) that encodes a given string.",
+  "need_key": "qr_make",
+  "gold": "FIT"
+ },
+ {
+  "id": "t13",
+  "package": "pyzbar",
+  "need": "Generate a QR code image (SVG or PNG) that encodes a given string.",
+  "need_key": "qr_make",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t14",
+  "package": "pypdf",
+  "need": "Extract the text of each page of an existing PDF file.",
+  "need_key": "pdf_text",
+  "gold": "FIT"
+ },
+ {
+  "id": "t15",
+  "package": "reportlab",
+  "need": "Extract the text of each page of an existing PDF file.",
+  "need_key": "pdf_text",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t16",
+  "package": "reportlab",
+  "need": "Create a new PDF document that contains a line of text.",
+  "need_key": "pdf_make",
+  "gold": "FIT"
+ },
+ {
+  "id": "t17",
+  "package": "croniter",
+  "need": "Compute the next run time after a given datetime for the cron expression '*/15 9-17 * * 1-5'.",
+  "need_key": "cron_next",
+  "gold": "FIT"
+ },
+ {
+  "id": "t18",
+  "package": "schedule",
+  "need": "Compute the next run time after a given datetime for the cron expression '*/15 9-17 * * 1-5'.",
+  "need_key": "cron_next",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t19",
+  "package": "dateparser",
+  "need": "Parse relative English date phrases such as '3 days ago' into a datetime.",
+  "need_key": "reldate",
+  "gold": "FIT"
+ },
+ {
+  "id": "t20",
+  "package": "python-dateutil",
+  "need": "Parse relative English date phrases such as '3 days ago' into a datetime.",
+  "need_key": "reldate",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t21",
+  "package": "jsonschema",
+  "need": "Validate a JSON document against a JSON Schema (draft 2020-12) given as a Python dict.",
+  "need_key": "jsonschema",
+  "gold": "FIT"
+ },
+ {
+  "id": "t22",
+  "package": "pydantic",
+  "need": "Validate a JSON document against a JSON Schema (draft 2020-12) given as a Python dict.",
+  "need_key": "jsonschema",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t23",
+  "package": "httpx",
+  "need": "Make HTTP requests with async/await (an asyncio-native HTTP client).",
+  "need_key": "async_http",
+  "gold": "FIT"
+ },
+ {
+  "id": "t24",
+  "package": "requests",
+  "need": "Make HTTP requests with async/await (an asyncio-native HTTP client).",
+  "need_key": "async_http",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t25",
+  "package": "beautifulsoup4",
+  "need": "Select elements of an HTML document with CSS selectors.",
+  "need_key": "css_select",
+  "gold": "FIT"
+ },
+ {
+  "id": "t26",
+  "package": "html5lib",
+  "need": "Select elements of an HTML document with CSS selectors.",
+  "need_key": "css_select",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t27",
+  "package": "pillow",
+  "need": "Resize an image to given pixel dimensions.",
+  "need_key": "img_resize",
+  "gold": "FIT"
+ },
+ {
+  "id": "t28",
+  "package": "markdownify",
+  "need": "Convert an HTML string to Markdown text.",
+  "need_key": "html2md",
+  "gold": "FIT"
+ },
+ {
+  "id": "t29",
+  "package": "markdown",
+  "need": "Convert an HTML string to Markdown text.",
+  "need_key": "html2md",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t30",
+  "package": "zstandard",
+  "need": "Compress and decompress data in the Zstandard (zstd) format.",
+  "need_key": "zstd",
+  "gold": "FIT"
+ },
+ {
+  "id": "t31",
+  "package": "lz4",
+  "need": "Compress and decompress data in the Zstandard (zstd) format.",
+  "need_key": "zstd",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t32",
+  "package": "redis",
+  "need": "An asyncio Redis client that imports and can be constructed on CPython 3.13 (no server is needed just to construct it).",
+  "need_key": "async_redis",
+  "gold": "FIT"
+ },
+ {
+  "id": "t33",
+  "package": "aioredis",
+  "need": "An asyncio Redis client that imports and can be constructed on CPython 3.13 (no server is needed just to construct it).",
+  "need_key": "async_redis",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t34",
+  "package": "isodate",
+  "need": "Parse ISO 8601 durations such as 'P3DT4H30M' into a timedelta.",
+  "need_key": "iso_dur",
+  "gold": "FIT"
+ },
+ {
+  "id": "t35",
+  "package": "python-dateutil",
+  "need": "Parse ISO 8601 durations such as 'P3DT4H30M' into a timedelta.",
+  "need_key": "iso_dur",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t36",
+  "package": "pysbd",
+  "need": "Split English text into sentences offline, with no extra model or data download after installation.",
+  "need_key": "sent_split",
+  "gold": "FIT"
+ },
+ {
+  "id": "t37",
+  "package": "nltk",
+  "need": "Split English text into sentences offline, with no extra model or data download after installation.",
+  "need_key": "sent_split",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t38",
+  "package": "msgpack",
+  "need": "Serialize a Python dict to MessagePack bytes and back.",
+  "need_key": "msgpack",
+  "gold": "FIT"
+ },
+ {
+  "id": "t39",
+  "package": "simplejson",
+  "need": "Serialize a Python dict to MessagePack bytes and back.",
+  "need_key": "msgpack",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t40",
+  "package": "click",
+  "need": "Show a progress bar in the terminal while iterating over a list.",
+  "need_key": "progress",
+  "gold": "FIT"
+ },
+ {
+  "id": "t41",
+  "package": "nh3",
+  "need": "Sanitize untrusted HTML with an allowlist of tags (for example keep <b>, remove <script> and its content).",
+  "need_key": "html_sanitize",
+  "gold": "FIT"
+ },
+ {
+  "id": "t42",
+  "package": "markupsafe",
+  "need": "Sanitize untrusted HTML with an allowlist of tags (for example keep <b>, remove <script> and its content).",
+  "need_key": "html_sanitize",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "t43",
+  "package": "filetype",
+  "need": "Detect a file's type (for example PNG) from its leading bytes, without relying on the file name.",
+  "need_key": "filetype",
+  "gold": "FIT"
+ },
+ {
+  "id": "t44",
+  "package": "tiktoken",
+  "need": "Count the tokens of a string with the cl100k_base encoding, offline after installation (no network access at run time).",
+  "need_key": "tokcount",
+  "gold": "NOT_FIT"
+ }
+]

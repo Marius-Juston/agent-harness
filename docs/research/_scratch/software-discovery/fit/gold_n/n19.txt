@@ -1,0 +1,9 @@
+# Own code: fit and score on synthetic data (poly-basis-ml 0.3.0 API names).
+import numpy as np
+from poly_basis_ml import ChebyshevRegressor
+rng = np.random.default_rng(1)
+X = rng.uniform(-1, 1, size=(600, 3))
+y = np.sin(2 * X[:, 0]) + X[:, 1] ** 2 - 0.5 * X[:, 2] + rng.normal(0, 0.05, 600)
+est = ChebyshevRegressor().fit(X[:400], y[:400])
+r2 = est.score(X[400:], y[400:]); print(r2)
+print("GOLD_FIT" if r2 > 0.8 else "GOLD_NOT")

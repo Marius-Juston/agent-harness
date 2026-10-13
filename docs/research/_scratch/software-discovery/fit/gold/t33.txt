@@ -1,0 +1,5 @@
+try:
+    import aioredis
+    c = aioredis.Redis(host="localhost"); print(type(c)); print("GOLD_FIT")
+except Exception as e:
+    print(type(e).__name__, e); print("GOLD_NOT")

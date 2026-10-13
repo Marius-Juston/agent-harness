@@ -1,0 +1,10 @@
+# Own code: a one-function Capa program, then lex, parse, analyze and transpile (capa-language 1.32.0 API names).
+from capa import Lexer, Parser, analyze, transpile
+prog = "fun main(io: Stdio)\n    io.println(\"gold check\")\n"
+toks = Lexer(prog, filename="g.capa").lex()
+mod = Parser(toks, source=prog, filename="g.capa").parse_module()
+res = analyze(mod, source=prog, filename="g.capa")
+print("ok", res.ok, [e.format() for e in res.errors])
+py = transpile(mod, filename="g.capa")
+compile(py, "g.py", "exec")
+print("GOLD_FIT" if res.ok and "def main" in py else "GOLD_NOT")

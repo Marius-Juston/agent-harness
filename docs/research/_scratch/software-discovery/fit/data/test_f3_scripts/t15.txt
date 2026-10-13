@@ -1,0 +1,40 @@
+import importlib
+import os
+
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+
+path = os.path.join("/tmp", "fit_test.pdf")
+texts = ["Hello page one ALPHA", "Second page BRAVO"]
+c = canvas.Canvas(path, pagesize=letter)
+for t in texts:
+    c.drawString(72, 700, t)
+    c.showPage()
+c.save()
+assert os.path.getsize(path) > 0
+
+# reportlab is a PDF *generator*; look for any public PDF reading/extraction API.
+candidates = [
+    ("reportlab.pdfbase.pdfreader", "PdfReader"),
+    ("reportlab.pdfbase.pdfdoc", "PDFReader"),
+    ("reportlab.pdfbase.pdfdoc", "PdfReader"),
+    ("reportlab.lib.pdfreader", "PdfReader"),
+    ("reportlab.pdfgen.pdfreader", "PdfReader"),
+]
+reader_cls = None
+for mod_name, attr in candidates:
+    try:
+        mod = importlib.import_module(mod_name)
+    except ImportError:
+        continue
+    reader_cls = getattr(mod, attr, None)
+    if reader_cls is not None:
+        break
+
+assert reader_cls is not None, "reportlab exposes no public API to read/extract text from an existing PDF"
+
+reader = reader_cls(path)
+pages = [p.extract_text() for p in reader.pages]
+assert len(pages) == 2
+assert "ALPHA" in pages[0] and "BRAVO" in pages[1]
+print("FIT_OK")

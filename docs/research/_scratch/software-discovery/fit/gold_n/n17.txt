@@ -1,0 +1,8 @@
+import os
+os.makedirs("/tmp/sk/code-reviewer", exist_ok=True)
+open("/tmp/sk/code-reviewer/SKILL.md", "w").write("---\nname: code-reviewer\ndescription: Review code for best practices\n---\n# Code Reviewer\nReview: $ARGUMENTS\n")
+from faskill import create_context
+ctx = create_context(skill_dirs=["/tmp/sk"]); ctx.discover()
+ls = [(s.name, s.description) for s in ctx.list_skills()]; print(ls)
+r = ctx.invoke_skill("code-reviewer", "function calculate_total()"); print(repr(r[:300]))
+print("GOLD_FIT" if ls == [("code-reviewer", "Review code for best practices")] and "function calculate_total()" in r else "GOLD_NOT")

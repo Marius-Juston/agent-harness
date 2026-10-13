@@ -1,0 +1,7 @@
+import inspect, fractal_core
+from fractal_core import Settings
+print([n for n in dir(fractal_core) if not n.startswith("_")])
+print(inspect.getsource(Settings))
+typed = [n for n in dir(Settings) if any(k in n.lower() for k in ("valid", "schema", "type", "field"))]
+print(typed)
+print("GOLD_NOT" if not typed else "GOLD_CHECK")

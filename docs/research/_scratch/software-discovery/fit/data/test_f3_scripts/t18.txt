@@ -1,0 +1,39 @@
+import datetime as dt
+import schedule
+
+EXPR = "*/15 9-17 * * 1-5"
+
+# Look for any public cron-expression entry point in `schedule`.
+candidates = [
+    getattr(schedule, name, None)
+    for name in ("cron", "from_cron", "croniter", "parse_cron", "Cron")
+] + [
+    getattr(schedule.Scheduler, name, None)
+    for name in ("cron", "from_cron")
+] + [
+    getattr(schedule.Job, name, None)
+    for name in ("cron", "from_cron")
+]
+cron_api = next((c for c in candidates if callable(c)), None)
+assert cron_api is not None, (
+    "schedule exposes no public API that parses cron expressions "
+    f"(version {getattr(schedule, '__version__', '?')})"
+)
+
+# If such an API existed, it must compute the next run after a given datetime.
+job = cron_api(EXPR)
+get_next = getattr(job, "get_next", None) or getattr(job, "next_run_after", None)
+assert callable(get_next), "cron object has no next-run-after-datetime method"
+
+cases = [
+    (dt.datetime(2024, 1, 3, 10, 7), dt.datetime(2024, 1, 3, 10, 15)),   # Wed
+    (dt.datetime(2024, 1, 3, 17, 50), dt.datetime(2024, 1, 4, 9, 0)),    # Wed late
+    (dt.datetime(2024, 1, 5, 17, 45), dt.datetime(2024, 1, 8, 9, 0)),    # Fri -> Mon
+    (dt.datetime(2024, 1, 6, 12, 0), dt.datetime(2024, 1, 8, 9, 0)),     # Sat -> Mon
+    (dt.datetime(2024, 1, 8, 8, 59), dt.datetime(2024, 1, 8, 9, 0)),     # Mon early
+]
+for base, expected in cases:
+    got = get_next(base)
+    assert got == expected, f"{base}: expected {expected}, got {got}"
+
+print("FIT_OK")

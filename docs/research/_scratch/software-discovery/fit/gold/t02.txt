@@ -1,0 +1,3 @@
+import tomli
+print("dumps" in dir(tomli), "dump" in dir(tomli))
+print("GOLD_NOT" if not hasattr(tomli, "dumps") and not hasattr(tomli, "dump") else "GOLD_FIT")

@@ -1,0 +1,36 @@
+import importlib, inspect, pkgutil
+import numpy as np
+import poly_basis_ml as pkg
+
+cands = {}
+mods = [pkg] + [importlib.import_module(m.name) for m in pkgutil.walk_packages(pkg.__path__, pkg.__name__ + ".")
+                if not m.name.split(".")[-1].startswith("_")]
+for mod in mods:
+    for name, obj in inspect.getmembers(mod, inspect.isclass):
+        if "cheb" in name.lower() and all(hasattr(obj, a) for a in ("fit", "predict", "score")):
+            cands[name] = obj
+print("candidates:", sorted(cands))
+assert cands, "no Chebyshev estimator class with fit/predict/score found"
+name = sorted(cands, key=lambda n: ("regress" not in n.lower(), n))[0]
+Est = cands[name]
+print("using:", Est.__module__, name)
+
+from sklearn.base import BaseEstimator, clone
+rng = np.random.default_rng(0)
+X = rng.uniform(-1, 1, size=(400, 1))
+y = np.cos(3 * X[:, 0]) + 0.5 * X[:, 0] ** 2 + rng.normal(0, 0.01, 400)
+Xtr, Xte, ytr, yte = X[:300], X[300:], y[:300], y[300:]
+
+est = Est()
+assert isinstance(est, BaseEstimator), "not a scikit-learn BaseEstimator"
+params = est.get_params()
+print("params:", params)
+clone(est)
+ret = est.fit(Xtr, ytr)
+assert ret is est, "fit must return self"
+pred = est.predict(Xte)
+assert np.asarray(pred).shape == (100,), np.asarray(pred).shape
+score = est.score(Xte, yte)
+print("R2 test score:", score)
+assert np.isfinite(score) and score > 0.9, score
+print("FIT_OK")

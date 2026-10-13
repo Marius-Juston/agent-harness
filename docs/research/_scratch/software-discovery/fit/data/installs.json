@@ -1,0 +1,848 @@
+{
+ "aioredis": {
+  "cold": {
+   "package": "aioredis",
+   "ok": true,
+   "seconds": 1.39,
+   "venv_bytes": 526607,
+   "cache_bytes": 561154,
+   "error": ""
+  },
+  "warm": {
+   "package": "aioredis",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 526607,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "beautifulsoup4": {
+  "cold": {
+   "package": "beautifulsoup4",
+   "ok": true,
+   "seconds": 1.34,
+   "venv_bytes": 785210,
+   "cache_bytes": 856135,
+   "error": ""
+  },
+  "warm": {
+   "package": "beautifulsoup4",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 785210,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "click": {
+  "cold": {
+   "package": "click",
+   "ok": true,
+   "seconds": 1.03,
+   "venv_bytes": 483487,
+   "cache_bytes": 486920,
+   "error": ""
+  },
+  "warm": {
+   "package": "click",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 483487,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "croniter": {
+  "cold": {
+   "package": "croniter",
+   "ok": true,
+   "seconds": 1.53,
+   "venv_bytes": 755067,
+   "cache_bytes": 803670,
+   "error": ""
+  },
+  "warm": {
+   "package": "croniter",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 755067,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "dateparser": {
+  "cold": {
+   "package": "dateparser",
+   "ok": true,
+   "seconds": 3.23,
+   "venv_bytes": 5965050,
+   "cache_bytes": 8586984,
+   "error": ""
+  },
+  "warm": {
+   "package": "dateparser",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 5965050,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "fastavro": {
+  "cold": {
+   "package": "fastavro",
+   "ok": true,
+   "seconds": 7.46,
+   "venv_bytes": 12926893,
+   "cache_bytes": 13611353,
+   "error": ""
+  },
+  "warm": {
+   "package": "fastavro",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 12926893,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "filetype": {
+  "cold": {
+   "package": "filetype",
+   "ok": true,
+   "seconds": 1.0,
+   "venv_bytes": 108443,
+   "cache_bytes": 86702,
+   "error": ""
+  },
+  "warm": {
+   "package": "filetype",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 108443,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "html5lib": {
+  "cold": {
+   "package": "html5lib",
+   "ok": true,
+   "seconds": 1.25,
+   "venv_bytes": 608385,
+   "cache_bytes": 606077,
+   "error": ""
+  },
+  "warm": {
+   "package": "html5lib",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 608385,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "httpx": {
+  "cold": {
+   "package": "httpx",
+   "ok": true,
+   "seconds": 1.7,
+   "venv_bytes": 2038010,
+   "cache_bytes": 2228158,
+   "error": ""
+  },
+  "warm": {
+   "package": "httpx",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 2038010,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "isodate": {
+  "cold": {
+   "package": "isodate",
+   "ok": true,
+   "seconds": 1.03,
+   "venv_bytes": 98913,
+   "cache_bytes": 73045,
+   "error": ""
+  },
+  "warm": {
+   "package": "isodate",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 98913,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "json5": {
+  "cold": {
+   "package": "json5",
+   "ok": true,
+   "seconds": 0.99,
+   "venv_bytes": 162508,
+   "cache_bytes": 162579,
+   "error": ""
+  },
+  "warm": {
+   "package": "json5",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 162508,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "jsonschema": {
+  "cold": {
+   "package": "jsonschema",
+   "ok": true,
+   "seconds": 2.04,
+   "venv_bytes": 1978770,
+   "cache_bytes": 3807760,
+   "error": ""
+  },
+  "warm": {
+   "package": "jsonschema",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 1978770,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "lz4": {
+  "cold": {
+   "package": "lz4",
+   "ok": true,
+   "seconds": 5.41,
+   "venv_bytes": 5868430,
+   "cache_bytes": 6148966,
+   "error": ""
+  },
+  "warm": {
+   "package": "lz4",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 5868430,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "markdown": {
+  "cold": {
+   "package": "markdown",
+   "ok": true,
+   "seconds": 1.04,
+   "venv_bytes": 383512,
+   "cache_bytes": 384286,
+   "error": ""
+  },
+  "warm": {
+   "package": "markdown",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 383512,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "markdownify": {
+  "cold": {
+   "package": "markdownify",
+   "ok": true,
+   "seconds": 1.4,
+   "venv_bytes": 873110,
+   "cache_bytes": 983818,
+   "error": ""
+  },
+  "warm": {
+   "package": "markdownify",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 873110,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "markupsafe": {
+  "cold": {
+   "package": "markupsafe",
+   "ok": true,
+   "seconds": 1.22,
+   "venv_bytes": 102934,
+   "cache_bytes": 376183,
+   "error": ""
+  },
+  "warm": {
+   "package": "markupsafe",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 102934,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "msgpack": {
+  "cold": {
+   "package": "msgpack",
+   "ok": true,
+   "seconds": 1.41,
+   "venv_bytes": 1641049,
+   "cache_bytes": 2054067,
+   "error": ""
+  },
+  "warm": {
+   "package": "msgpack",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 1641049,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "natsort": {
+  "cold": {
+   "package": "natsort",
+   "ok": true,
+   "seconds": 1.06,
+   "venv_bytes": 166845,
+   "cache_bytes": 170493,
+   "error": ""
+  },
+  "warm": {
+   "package": "natsort",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 166845,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "nh3": {
+  "cold": {
+   "package": "nh3",
+   "ok": true,
+   "seconds": 1.35,
+   "venv_bytes": 2565295,
+   "cache_bytes": 2722522,
+   "error": ""
+  },
+  "warm": {
+   "package": "nh3",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 2565295,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "nltk": {
+  "cold": {
+   "package": "nltk",
+   "ok": true,
+   "seconds": 4.1,
+   "venv_bytes": 11365112,
+   "cache_bytes": 14089132,
+   "error": ""
+  },
+  "warm": {
+   "package": "nltk",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 11365112,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "openpyxl": {
+  "cold": {
+   "package": "openpyxl",
+   "ok": true,
+   "seconds": 1.38,
+   "venv_bytes": 959014,
+   "cache_bytes": 963352,
+   "error": ""
+  },
+  "warm": {
+   "package": "openpyxl",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 959014,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "orjson": {
+  "cold": {
+   "package": "orjson",
+   "ok": true,
+   "seconds": 1.54,
+   "venv_bytes": 371760,
+   "cache_bytes": 1880439,
+   "error": ""
+  },
+  "warm": {
+   "package": "orjson",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 371760,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "pillow": {
+  "cold": {
+   "package": "pillow",
+   "ok": true,
+   "seconds": 7.49,
+   "venv_bytes": 19699097,
+   "cache_bytes": 20539048,
+   "error": ""
+  },
+  "warm": {
+   "package": "pillow",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 19699097,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "pydantic": {
+  "cold": {
+   "package": "pydantic",
+   "ok": true,
+   "seconds": 5.97,
+   "venv_bytes": 7478242,
+   "cache_bytes": 12522120,
+   "error": ""
+  },
+  "warm": {
+   "package": "pydantic",
+   "ok": true,
+   "seconds": 0.03,
+   "venv_bytes": 7478242,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "pypdf": {
+  "cold": {
+   "package": "pypdf",
+   "ok": true,
+   "seconds": 1.3,
+   "venv_bytes": 1785176,
+   "cache_bytes": 1815670,
+   "error": ""
+  },
+  "warm": {
+   "package": "pypdf",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 1785176,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "pysbd": {
+  "cold": {
+   "package": "pysbd",
+   "ok": true,
+   "seconds": 1.06,
+   "venv_bytes": 233795,
+   "cache_bytes": 207497,
+   "error": ""
+  },
+  "warm": {
+   "package": "pysbd",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 233795,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "python-dateutil": {
+  "cold": {
+   "package": "python-dateutil",
+   "ok": true,
+   "seconds": 1.44,
+   "venv_bytes": 515574,
+   "cache_bytes": 513966,
+   "error": ""
+  },
+  "warm": {
+   "package": "python-dateutil",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 515574,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "python-frontmatter": {
+  "cold": {
+   "package": "python-frontmatter",
+   "ok": true,
+   "seconds": 1.51,
+   "venv_bytes": 2939723,
+   "cache_bytes": 3080846,
+   "error": ""
+  },
+  "warm": {
+   "package": "python-frontmatter",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 2939723,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "pyyaml": {
+  "cold": {
+   "package": "pyyaml",
+   "ok": true,
+   "seconds": 1.32,
+   "venv_bytes": 2913183,
+   "cache_bytes": 3043915,
+   "error": ""
+  },
+  "warm": {
+   "package": "pyyaml",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 2913183,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "pyzbar": {
+  "cold": {
+   "package": "pyzbar",
+   "ok": true,
+   "seconds": 0.92,
+   "venv_bytes": 114352,
+   "cache_bytes": 89789,
+   "error": ""
+  },
+  "warm": {
+   "package": "pyzbar",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 114352,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "qrcode": {
+  "cold": {
+   "package": "qrcode",
+   "ok": true,
+   "seconds": 1.19,
+   "venv_bytes": 171937,
+   "cache_bytes": 179052,
+   "error": ""
+  },
+  "warm": {
+   "package": "qrcode",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 171937,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "rapidfuzz": {
+  "cold": {
+   "package": "rapidfuzz",
+   "ok": true,
+   "seconds": 2.26,
+   "venv_bytes": 12083404,
+   "cache_bytes": 15108931,
+   "error": ""
+  },
+  "warm": {
+   "package": "rapidfuzz",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 12083404,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "redis": {
+  "cold": {
+   "package": "redis",
+   "ok": true,
+   "seconds": 2.11,
+   "venv_bytes": 2635528,
+   "cache_bytes": 2685192,
+   "error": ""
+  },
+  "warm": {
+   "package": "redis",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 2635528,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "reportlab": {
+  "cold": {
+   "package": "reportlab",
+   "ok": true,
+   "seconds": 15.73,
+   "venv_bytes": 25128614,
+   "cache_bytes": 27357791,
+   "error": ""
+  },
+  "warm": {
+   "package": "reportlab",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 25128614,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "requests": {
+  "cold": {
+   "package": "requests",
+   "ok": true,
+   "seconds": 1.78,
+   "venv_bytes": 2073293,
+   "cache_bytes": 2997028,
+   "error": ""
+  },
+  "warm": {
+   "package": "requests",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 2073293,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "ruamel.yaml": {
+  "cold": {
+   "package": "ruamel.yaml",
+   "ok": true,
+   "seconds": 1.33,
+   "venv_bytes": 598320,
+   "cache_bytes": 1272710,
+   "error": ""
+  },
+  "warm": {
+   "package": "ruamel.yaml",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 598320,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "schedule": {
+  "cold": {
+   "package": "schedule",
+   "ok": true,
+   "seconds": 0.88,
+   "venv_bytes": 75413,
+   "cache_bytes": 53952,
+   "error": ""
+  },
+  "warm": {
+   "package": "schedule",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 75413,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "simplejson": {
+  "cold": {
+   "package": "simplejson",
+   "ok": true,
+   "seconds": 1.59,
+   "venv_bytes": 699338,
+   "cache_bytes": 1223274,
+   "error": ""
+  },
+  "warm": {
+   "package": "simplejson",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 699338,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "tenacity": {
+  "cold": {
+   "package": "tenacity",
+   "ok": true,
+   "seconds": 0.95,
+   "venv_bytes": 133192,
+   "cache_bytes": 130031,
+   "error": ""
+  },
+  "warm": {
+   "package": "tenacity",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 133192,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "tiktoken": {
+  "cold": {
+   "package": "tiktoken",
+   "ok": true,
+   "seconds": 2.61,
+   "venv_bytes": 8913243,
+   "cache_bytes": 12532217,
+   "error": ""
+  },
+  "warm": {
+   "package": "tiktoken",
+   "ok": true,
+   "seconds": 0.03,
+   "venv_bytes": 8913243,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "toml": {
+  "cold": {
+   "package": "toml",
+   "ok": true,
+   "seconds": 1.09,
+   "venv_bytes": 95662,
+   "cache_bytes": 69246,
+   "error": ""
+  },
+  "warm": {
+   "package": "toml",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 95662,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "tomli": {
+  "cold": {
+   "package": "tomli",
+   "ok": true,
+   "seconds": 1.27,
+   "venv_bytes": 851048,
+   "cache_bytes": 934136,
+   "error": ""
+  },
+  "warm": {
+   "package": "tomli",
+   "ok": true,
+   "seconds": 0.03,
+   "venv_bytes": 851048,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "tomlkit": {
+  "cold": {
+   "package": "tomlkit",
+   "ok": true,
+   "seconds": 1.08,
+   "venv_bytes": 243544,
+   "cache_bytes": 242828,
+   "error": ""
+  },
+  "warm": {
+   "package": "tomlkit",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 243544,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "ujson": {
+  "cold": {
+   "package": "ujson",
+   "ok": true,
+   "seconds": 1.18,
+   "venv_bytes": 160298,
+   "cache_bytes": 531332,
+   "error": ""
+  },
+  "warm": {
+   "package": "ujson",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 160298,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "xlrd": {
+  "cold": {
+   "package": "xlrd",
+   "ok": true,
+   "seconds": 1.17,
+   "venv_bytes": 419663,
+   "cache_bytes": 397523,
+   "error": ""
+  },
+  "warm": {
+   "package": "xlrd",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 419663,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "xlsxwriter": {
+  "cold": {
+   "package": "xlsxwriter",
+   "ok": true,
+   "seconds": 1.32,
+   "venv_bytes": 888228,
+   "cache_bytes": 938226,
+   "error": ""
+  },
+  "warm": {
+   "package": "xlsxwriter",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 888228,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "zstandard": {
+  "cold": {
+   "package": "zstandard",
+   "ok": true,
+   "seconds": 9.61,
+   "venv_bytes": 23906418,
+   "cache_bytes": 24247341,
+   "error": ""
+  },
+  "warm": {
+   "package": "zstandard",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 23906418,
+   "cache_bytes": null,
+   "error": ""
+  }
+ }
+}

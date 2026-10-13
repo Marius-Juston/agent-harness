@@ -1,0 +1,28 @@
+from markdownify import markdownify as md
+
+html = """
+<h1>Title</h1>
+<p>Hello <strong>bold</strong> and <em>italic</em> with a <a href="https://example.com">link</a>.</p>
+<ul><li>one</li><li>two</li></ul>
+<p>Some <code>inline_code</code> here.</p>
+"""
+
+out = md(html, heading_style="ATX")
+print(out)
+
+assert isinstance(out, str)
+assert "# Title" in out
+assert "**bold**" in out
+assert "*italic*" in out or "_italic_" in out
+assert "[link](https://example.com)" in out
+lines = [l.strip() for l in out.splitlines()]
+assert any(l in ("* one", "- one", "+ one") for l in lines)
+assert any(l in ("* two", "- two", "+ two") for l in lines)
+assert "`inline_code`" in out
+assert "<strong>" not in out and "<p>" not in out and "<h1>" not in out
+
+# default heading style still yields a heading
+out2 = md("<h2>Sub</h2>")
+assert "Sub" in out2 and ("## Sub" in out2 or "---" in out2)
+
+print("FIT_OK")

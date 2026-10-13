@@ -1,0 +1,4 @@
+import markdown
+out = markdown.markdown("<h1>T</h1><p>a <b>b</b></p>"); print(repr(out))
+names = [n for n in dir(markdown) if not n.startswith("_")]; print(names)
+print("GOLD_NOT" if "**b**" not in out else "GOLD_CHECK")

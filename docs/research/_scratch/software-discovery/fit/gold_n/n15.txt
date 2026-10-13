@@ -1,0 +1,4 @@
+import cas_schedule_p as csp
+t = csp.tables(); p = csp.path("mart_reserving_model_training")
+print(csp.PUBLISH_ID, len(t), p, p.exists(), p.stat().st_size)
+print("GOLD_FIT" if len(t) == 16 and p.exists() and p.suffix == ".parquet" else "GOLD_NOT")

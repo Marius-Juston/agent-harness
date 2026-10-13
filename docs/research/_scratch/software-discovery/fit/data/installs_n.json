@@ -1,0 +1,218 @@
+{
+ "camt053-lsp": {
+  "cold": {
+   "package": "camt053-lsp",
+   "ok": true,
+   "seconds": 45.77,
+   "venv_bytes": 68527876,
+   "cache_bytes": 80237901,
+   "error": ""
+  },
+  "warm": {
+   "package": "camt053-lsp",
+   "ok": true,
+   "seconds": 0.08,
+   "venv_bytes": 68527876,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "capa-language": {
+  "cold": {
+   "package": "capa-language",
+   "ok": true,
+   "seconds": 1.52,
+   "venv_bytes": 5005642,
+   "cache_bytes": 4978930,
+   "error": ""
+  },
+  "warm": {
+   "package": "capa-language",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 5005642,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "cas-schedule-p": {
+  "cold": {
+   "package": "cas-schedule-p",
+   "ok": true,
+   "seconds": 13.5,
+   "venv_bytes": 19942248,
+   "cache_bytes": 19910894,
+   "error": ""
+  },
+  "warm": {
+   "package": "cas-schedule-p",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 19942248,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "comparer-mcp": {
+  "cold": {
+   "package": "comparer-mcp",
+   "ok": true,
+   "seconds": 141.53,
+   "venv_bytes": 250733826,
+   "cache_bytes": 265908359,
+   "error": ""
+  },
+  "warm": {
+   "package": "comparer-mcp",
+   "ok": true,
+   "seconds": 0.11,
+   "venv_bytes": 250733826,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "dot-agora": {
+  "cold": {
+   "package": "dot-agora",
+   "ok": true,
+   "seconds": 5.06,
+   "venv_bytes": 22846029,
+   "cache_bytes": 29117039,
+   "error": ""
+  },
+  "warm": {
+   "package": "dot-agora",
+   "ok": true,
+   "seconds": 0.03,
+   "venv_bytes": 22846029,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "ezgb": {
+  "cold": {
+   "package": "ezgb",
+   "ok": true,
+   "seconds": 6.02,
+   "venv_bytes": 18187727,
+   "cache_bytes": 19235091,
+   "error": ""
+  },
+  "warm": {
+   "package": "ezgb",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 18187727,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "faskill": {
+  "cold": {
+   "package": "faskill",
+   "ok": true,
+   "seconds": 2.01,
+   "venv_bytes": 5054599,
+   "cache_bytes": 7275215,
+   "error": ""
+  },
+  "warm": {
+   "package": "faskill",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 5054599,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "fractal-core": {
+  "cold": {
+   "package": "fractal-core",
+   "ok": true,
+   "seconds": 1.14,
+   "venv_bytes": 118855,
+   "cache_bytes": 118094,
+   "error": ""
+  },
+  "warm": {
+   "package": "fractal-core",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 118855,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "multiplayer": {
+  "cold": {
+   "package": "multiplayer",
+   "ok": true,
+   "seconds": 1.69,
+   "venv_bytes": 2502145,
+   "cache_bytes": 3101515,
+   "error": ""
+  },
+  "warm": {
+   "package": "multiplayer",
+   "ok": true,
+   "seconds": 0.01,
+   "venv_bytes": 2502145,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "poly-basis-ml": {
+  "cold": {
+   "package": "poly-basis-ml",
+   "ok": true,
+   "seconds": 96.07,
+   "venv_bytes": 241943000,
+   "cache_bytes": 245310426,
+   "error": ""
+  },
+  "warm": {
+   "package": "poly-basis-ml",
+   "ok": true,
+   "seconds": 0.03,
+   "venv_bytes": 241943000,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "reminis": {
+  "cold": {
+   "package": "reminis",
+   "ok": true,
+   "seconds": 15.17,
+   "venv_bytes": 86789059,
+   "cache_bytes": 89650001,
+   "error": ""
+  },
+  "warm": {
+   "package": "reminis",
+   "ok": true,
+   "seconds": 0.03,
+   "venv_bytes": 86789059,
+   "cache_bytes": null,
+   "error": ""
+  }
+ },
+ "satusehat-integration": {
+  "cold": {
+   "package": "satusehat-integration",
+   "ok": true,
+   "seconds": 3.74,
+   "venv_bytes": 9949537,
+   "cache_bytes": 15955941,
+   "error": ""
+  },
+  "warm": {
+   "package": "satusehat-integration",
+   "ok": true,
+   "seconds": 0.02,
+   "venv_bytes": 9949537,
+   "cache_bytes": null,
+   "error": ""
+  }
+ }
+}

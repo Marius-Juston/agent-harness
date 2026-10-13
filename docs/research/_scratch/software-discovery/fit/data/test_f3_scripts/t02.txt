@@ -1,0 +1,40 @@
+import pathlib
+import tomli
+
+src = """# Top-level comment
+title = "Example"  # inline comment
+
+[server]
+# Port the server listens on
+port = 8080
+host = "localhost"
+"""
+
+path = pathlib.Path("/tmp/fit_test.toml")
+path.write_text(src, encoding="utf-8")
+
+# Read with tomli's public API
+with path.open("rb") as f:
+    data = tomli.load(f)
+assert data["server"]["port"] == 8080
+assert data["title"] == "Example"
+
+# Change one value
+data["server"]["port"] = 9090
+
+# Write back using tomli's public API (tomli must provide a serializer)
+assert hasattr(tomli, "dumps"), "tomli has no public API to write TOML"
+out = tomli.dumps(data)
+path.write_text(out, encoding="utf-8")
+
+# Verify the change and that comments survived
+text = path.read_text(encoding="utf-8")
+with path.open("rb") as f:
+    reread = tomli.load(f)
+assert reread["server"]["port"] == 9090
+assert reread["server"]["host"] == "localhost"
+assert "# Top-level comment" in text
+assert "# inline comment" in text
+assert "# Port the server listens on" in text
+
+print("FIT_OK")

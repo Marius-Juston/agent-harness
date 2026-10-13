@@ -1,0 +1,33 @@
+from datetime import datetime, timedelta
+from croniter import croniter
+
+EXPR = "*/15 9-17 * * 1-5"
+assert croniter.is_valid(EXPR)
+
+# 2024-01-01 is a Monday
+cases = [
+    (datetime(2024, 1, 1, 9, 0), datetime(2024, 1, 1, 9, 15)),     # exact match -> strictly after
+    (datetime(2024, 1, 1, 9, 7), datetime(2024, 1, 1, 9, 15)),
+    (datetime(2024, 1, 1, 8, 59), datetime(2024, 1, 1, 9, 0)),     # before window
+    (datetime(2024, 1, 1, 17, 45), datetime(2024, 1, 2, 9, 0)),    # end of day -> next day
+    (datetime(2024, 1, 1, 17, 50), datetime(2024, 1, 2, 9, 0)),
+    (datetime(2024, 1, 5, 17, 46), datetime(2024, 1, 8, 9, 0)),    # Friday -> Monday
+    (datetime(2024, 1, 6, 12, 0), datetime(2024, 1, 8, 9, 0)),     # Saturday -> Monday
+    (datetime(2024, 1, 3, 13, 30, 5), datetime(2024, 1, 3, 13, 45)),
+]
+for start, expected in cases:
+    nxt = croniter(EXPR, start).get_next(datetime)
+    assert isinstance(nxt, datetime), type(nxt)
+    assert nxt == expected, (start, nxt, expected)
+
+# Sequence check: all results within schedule and strictly increasing
+it = croniter(EXPR, datetime(2024, 1, 1, 0, 0))
+prev = datetime(2024, 1, 1, 0, 0)
+for _ in range(200):
+    t = it.get_next(datetime)
+    assert t > prev
+    assert t.weekday() < 5 and 9 <= t.hour <= 17 and t.minute % 15 == 0 and t.second == 0
+    prev = t
+assert prev - datetime(2024, 1, 1) < timedelta(days=14)
+
+print("FIT_OK")

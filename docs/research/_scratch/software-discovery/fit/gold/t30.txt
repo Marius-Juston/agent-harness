@@ -1,0 +1,3 @@
+import zstandard
+c = zstandard.ZstdCompressor().compress(b"x" * 1000); d = zstandard.ZstdDecompressor().decompress(c)
+print(c[:4].hex(), len(c)); print("GOLD_FIT" if d == b"x" * 1000 and c[:4] == bytes.fromhex("28b52ffd") else "GOLD_NOT")

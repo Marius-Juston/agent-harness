@@ -1,0 +1,392 @@
+{
+ "n01": {
+  "verdict": "FIT",
+  "reason": "The package's documented public API covers both parts directly: `multiplayer.game.Player` takes named attributes tagged `ParameterFamily.STATIC` or `ParameterFamily.DYNAMIC` (e.g. a fixed team and a changing score), and `multiplayer.game.User` creates an account with a username and password; it is a",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 27.4,
+    "tokens_in": 4884,
+    "tokens_out": 3661,
+    "cost_usd": 0.108111,
+    "error": null
+   }
+  ]
+ },
+ "n02": {
+  "verdict": "NOT_FIT",
+  "reason": "The `multiplayer` package manages players, users, game sessions, persistence and networking, but its documented API has no Elo rating calculation, so the developer would have to write the Elo math themselves or add another package.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.1,
+    "tokens_in": 4862,
+    "tokens_out": 87,
+    "cost_usd": 0.036455,
+    "error": null
+   }
+  ]
+ },
+ "n03": {
+  "verdict": "UNPARSED",
+  "reason": "\n<invoke name=\"Bash\">\n<parameter name=\"command\">mkdir -p /tmp/rm_chk && cd /tmp/rm_chk && python3 -m venv v >/dev/null 2>&1; ./v/bin/pip install -q reminis==0.34.0 2>&1 | tail -2; ./v/bin/reminis registry --help 2>&1 | head -40; ./v/bin/pip list 2>/dev/null</parameter>\n</invoke>\n\n<invoke name=\"Bash\"",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.7,
+    "tokens_in": 7910,
+    "tokens_out": 1054,
+    "cost_usd": 0.080179,
+    "error": null
+   }
+  ]
+ },
+ "n04": {
+  "verdict": "NOT_FIT",
+  "reason": "reminis is a storage and version-control layer for model weights that can convert an already-trained peft LoRA adapter into a delta pack, but it does not train LoRA adapters itself; training would require peft/torch, which are not installed.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.1,
+    "tokens_in": 7886,
+    "tokens_out": 95,
+    "cost_usd": 0.060807,
+    "error": null
+   }
+  ]
+ },
+ "n05": {
+  "verdict": "FIT",
+  "reason": "The package is a pure-Python toolchain whose core lexer, parser, semantic/capability analyzer, and Python transpiler (exposed via `capa --check`/`--transpile` and its modules) need no extras, system libraries, or network access; only the separate Wasm backend relies on wasmtime, and this need does n",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.3,
+    "tokens_in": 8233,
+    "tokens_out": 124,
+    "cost_usd": 0.064163,
+    "error": null
+   }
+  ]
+ },
+ "n06": {
+  "verdict": "NOT_FIT",
+  "reason": "The capa-language toolchain transpiles Capa to Python and compiles to WebAssembly, but the documented backends include no JavaScript transpiler, so it cannot emit JavaScript source.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.7,
+    "tokens_in": 8217,
+    "tokens_out": 86,
+    "cost_usd": 0.063275,
+    "error": null
+   }
+  ]
+ },
+ "n07": {
+  "verdict": "NOT_FIT",
+  "reason": "Settings provides the singleton, but reading the .env file most likely relies on python-dotenv, which a minimal-dependency core like this probably treats as optional and skips if absent, so a no-extras install would read only the existing process environment and not the dotenv file (an inference fro",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.4,
+    "tokens_in": 4819,
+    "tokens_out": 693,
+    "cost_usd": 0.048231,
+    "error": null
+   }
+  ]
+ },
+ "n08": {
+  "verdict": "NOT_FIT",
+  "reason": "fractal-core's Settings only loads `.env` and calls a user-written `load()` method that assigns raw `os.getenv` values, with no declared-type schema or validation, so rejecting DEBUG='maybe' for a boolean would have to be hand-coded or come from another package like pydantic-settings.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.8,
+    "tokens_in": 4828,
+    "tokens_out": 121,
+    "cost_usd": 0.036863,
+    "error": null
+   }
+  ]
+ },
+ "n09": {
+  "verdict": "NOT_FIT",
+  "reason": "ezgb sends every write, including create_bug and add_comment, through the external `git bug` CLI (v0.10+), which must be on $PATH and is neither a declared dependency nor present in this bare environment; only pygit2-based reads would work.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.0,
+    "tokens_in": 3999,
+    "tokens_out": 231,
+    "cost_usd": 0.032431,
+    "error": null
+   }
+  ]
+ },
+ "n10": {
+  "verdict": "NOT_FIT",
+  "reason": "ezgb's public API only lists, creates, queries and updates bugs in a git-bug repository (writes go through the external `git bug` CLI, which is not a Python dependency and may not be installed), and it offers no GitHub issue import; that bridge feature belongs to the git-bug binary, not to this libr",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.1,
+    "tokens_in": 3997,
+    "tokens_out": 121,
+    "cost_usd": 0.030215,
+    "error": null
+   }
+  ]
+ },
+ "n11": {
+  "verdict": "FIT",
+  "reason": "The package exposes a pure `compute_diagnostics` helper in `camt053_lsp.server` that validates reversing-entry JSON records against the schema and reports missing required fields as diagnostic dicts without any editor or server process, and its dependencies (camt053, pygls) are installed automatical",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.0,
+    "tokens_in": 8594,
+    "tokens_out": 115,
+    "cost_usd": 0.066871,
+    "error": null
+   }
+  ]
+ },
+ "n12": {
+  "verdict": "NOT_FIT",
+  "reason": "The documented features (diagnostics, completion, hover, code actions, document symbols, formatting) and public helpers do not include a rename-symbol provider, so the package offers no LSP rename edits for a field across a camt.053 JSON document.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.3,
+    "tokens_in": 8586,
+    "tokens_out": 180,
+    "cost_usd": 0.068107,
+    "error": null
+   }
+  ]
+ },
+ "n13": {
+  "verdict": "FIT",
+  "reason": "The core package's public API (Room, Participant, Speaker, Stepper) runs a mediated request/reply between participants and prints the journal with `room.journal.trace()`, all without extras or network access, on Python 3.13, which falls inside its supported range of >=3.12,<3.14.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.7,
+    "tokens_in": 7033,
+    "tokens_out": 111,
+    "cost_usd": 0.054303000000000004,
+    "error": null
+   }
+  ]
+ },
+ "n14": {
+  "verdict": "FIT",
+  "reason": "dot-agora's public API includes a JSON codec for journal persistence and supports resuming from a journal, so the serialized journal can be stored in and loaded from SQLite using Python's built-in sqlite3 module, with no extra packages or system libraries.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.4,
+    "tokens_in": 7024,
+    "tokens_out": 487,
+    "cost_usd": 0.061751,
+    "error": null
+   }
+  ]
+ },
+ "n15": {
+  "verdict": "FIT",
+  "reason": "The package bundles the parquet tables in the wheel with zero runtime dependencies, and its stdlib-only `tables()` and `path()` functions list the tables and return a local pathlib.Path with no download, which works on CPython 3.13 (requires >=3.11).",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.8,
+    "tokens_in": 5667,
+    "tokens_out": 106,
+    "cost_usd": 0.043275,
+    "error": null
+   }
+  ]
+ },
+ "n16": {
+  "verdict": "NOT_FIT",
+  "reason": "The package has zero runtime dependencies and `csp.read()` returns a pyarrow Table only if pyarrow is installed, so with just this package installed you get a parquet path but no way to load it into an in-memory table.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.9,
+    "tokens_in": 5671,
+    "tokens_out": 92,
+    "cost_usd": 0.043026999999999996,
+    "error": null
+   }
+  ]
+ },
+ "n17": {
+  "verdict": "FIT",
+  "reason": "faskill's core install (no extras) exposes create_context().discover(), list_skills() returning name/description metadata, and invoke_skill(name, args) which performs $ARGUMENTS substitution, all of which run on CPython 3.13 with its declared dependencies alone.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.0,
+    "tokens_in": 8397,
+    "tokens_out": 107,
+    "cost_usd": 0.065135,
+    "error": null
+   }
+  ]
+ },
+ "n18": {
+  "verdict": "NOT_FIT",
+  "reason": "faskill's documented public API covers discovering, loading, invoking, and running scripts from SKILL.md skills, but nothing in it packages a skill folder into a distributable .skill zip archive.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.9,
+    "tokens_in": 8363,
+    "tokens_out": 85,
+    "cost_usd": 0.064423,
+    "error": null
+   }
+  ]
+ },
+ "n19": {
+  "verdict": "FIT",
+  "reason": "`ChebyshevRegressor` is a scikit-learn compatible estimator that provides `fit` and `score`; scikit-learn and numpy should come in as declared dependencies with CPython 3.13 wheels, so the core need works without extras (only optional helpers like `coef_table` may rely on pandas).",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.6,
+    "tokens_in": 6750,
+    "tokens_out": 317,
+    "cost_usd": 0.056159,
+    "error": null
+   }
+  ]
+ },
+ "n20": {
+  "verdict": "NOT_FIT",
+  "reason": "The package provides only Chebyshev regression estimators (ChebyshevRegressor, ChebyshevModelTreeRegressor) plus a ChebyshevExpander transformer, with no classifier, so classification would require pairing it with another package's classifier (e.g. scikit-learn's LogisticRegression) rather than the ",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.0,
+    "tokens_in": 6748,
+    "tokens_out": 136,
+    "cost_usd": 0.052523,
+    "error": null
+   }
+  ]
+ },
+ "n21": {
+  "verdict": "UNPARSED",
+  "reason": "\n<invoke name=\"Bash\">\n<parameter name=\"command\">mkdir -p /tmp/chk_sat && cd /tmp/chk_sat && uv init -q --python 3.13 . 2>&1 | tail -2; uv add satusehat-integration 2>&1 | tail -3; uv run python -I -c \"\nfrom src.datatype.datatypes import HumanName\nimport json\nn=HumanName(family='Doe',given=['John','M",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.6,
+    "tokens_in": 7342,
+    "tokens_out": 316,
+    "cost_usd": 0.060875,
+    "error": null
+   }
+  ]
+ },
+ "n22": {
+  "verdict": "NOT_FIT",
+  "reason": "The package is a payload builder/serializer SDK for SATUSEHAT (fluent builders, datatypes, terminology resolver, queue) and exposes no FHIR R4 schema/profile validator that checks an arbitrary Patient JSON against the specification and reports errors.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.7,
+    "tokens_in": 7340,
+    "tokens_out": 113,
+    "cost_usd": 0.056799,
+    "error": null
+   }
+  ]
+ },
+ "n23": {
+  "verdict": "FIT",
+  "reason": "The package's public engine API `comparer_mcp.engine.compare(reference_xml, target_xml)` takes two MusicXML strings and returns a result with `similarity_score` as a float from 0.0 to 1.0, using only its declared dependencies (music21, numpy, mcp), which uv installs automatically, with no system lib",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.5,
+    "tokens_in": 6378,
+    "tokens_out": 138,
+    "cost_usd": 0.049603,
+    "error": null
+   }
+  ]
+ },
+ "n24": {
+  "verdict": "NOT_FIT",
+  "reason": "comparer-mcp only accepts MusicXML (.musicxml/.xml/.mxl) strings or file paths and documents no MIDI input, so comparing two MIDI files would require converting them to MusicXML first with a separate step not provided by its public API.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.2,
+    "tokens_in": 6367,
+    "tokens_out": 106,
+    "cost_usd": 0.048875,
+    "error": null
+   }
+  ]
+ },
+ "_meta": {
+  "arm": "f1",
+  "model_requested": "claude-opus-5-5",
+  "date": "2026-10-13",
+  "cases": "cases_n.json"
+ }
+}

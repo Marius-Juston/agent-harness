@@ -1,0 +1,4 @@
+import openpyxl
+wb = openpyxl.Workbook(); wb.active["A1"] = "hello"; wb.save("/tmp/a.xlsx")
+wb2 = openpyxl.load_workbook("/tmp/a.xlsx"); v = wb2.active["A1"].value; print(v)
+print("GOLD_FIT" if v == "hello" else "GOLD_NOT")

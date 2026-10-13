@@ -1,0 +1,39 @@
+import json5
+
+text = """
+// leading comment
+{
+    // comment before key
+    "name": "widget", // trailing comment
+    "tags": ["a", "b", "c",], // trailing comma in array
+    "nested": {
+        "x": 1,
+        "y": [1, 2, {"z": true,},],
+    }, // trailing comma in object
+    "n": null,
+}
+// final comment
+"""
+
+data = json5.loads(text)
+assert isinstance(data, dict)
+assert data == {
+    "name": "widget",
+    "tags": ["a", "b", "c"],
+    "nested": {"x": 1, "y": [1, 2, {"z": True}]},
+    "n": None,
+}, data
+assert list(data.keys()) == ["name", "tags", "nested", "n"]
+
+# Comment markers inside strings must be preserved, not stripped
+s = json5.loads('{"url": "http://example.com//path", "c": "a // b",}')
+assert s == {"url": "http://example.com//path", "c": "a // b"}, s
+
+# Plain top-level array with trailing comma and comment
+arr = json5.loads("[1, 2, 3, // end\n]")
+assert arr == [1, 2, 3], arr
+
+# Ordinary strict JSON still parses
+assert json5.loads('{"a": [1, 2.5, "s"]}') == {"a": [1, 2.5, "s"]}
+
+print("FIT_OK")

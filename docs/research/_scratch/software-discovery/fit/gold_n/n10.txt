@@ -1,0 +1,8 @@
+import ezgb, inspect, pkgutil, importlib
+mods = [m.name for m in pkgutil.walk_packages(ezgb.__path__, "ezgb.")]
+hits = [m for m in mods if "github" in inspect.getsource(importlib.import_module(m)).lower()]
+print(mods, hits)
+from ezgb import GitBugRepo
+print([n for n in dir(GitBugRepo) if not n.startswith("_")])
+api = [n for n in dir(GitBugRepo) if any(k in n.lower() for k in ("import", "bridge", "github"))]
+print("GOLD_NOT" if not api and not hits else "GOLD_CHECK")

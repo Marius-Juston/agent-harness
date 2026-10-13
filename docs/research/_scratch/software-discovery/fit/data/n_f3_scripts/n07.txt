@@ -1,0 +1,33 @@
+import importlib, os, sys
+os.chdir("/tmp")
+with open("/tmp/.env", "w") as f:
+    f.write("FIT_APP_NAME=fitcheck\nFIT_PORT=8123\n")
+for k in ("FIT_APP_NAME", "FIT_PORT"):
+    os.environ.pop(k, None)
+
+Settings = None
+for mod in ("fractal_core.utils.settings", "fractal.core.utils.settings",
+            "fractal_core.settings", "fractal_core"):
+    try:
+        m = importlib.import_module(mod)
+    except ImportError:
+        continue
+    Settings = getattr(m, "Settings", None)
+    if Settings is not None:
+        break
+assert Settings is not None, "no public Settings class found in fractal-core"
+
+class AppSettings(Settings):
+    def load(self):
+        # the package is expected to have loaded .env into the environment
+        self.APP_NAME = os.getenv("FIT_APP_NAME")
+        self.PORT = int(os.getenv("FIT_PORT", "0"))
+
+s1 = AppSettings()
+s2 = AppSettings()
+assert s1 is s2, "settings object is not a singleton"
+assert s1.APP_NAME == "fitcheck", f"APP_NAME={s1.APP_NAME!r}"
+assert s1.PORT == 8123, f"PORT={s1.PORT!r}"
+os.environ["FIT_APP_NAME"] = "changed"
+assert AppSettings().APP_NAME == "fitcheck", "settings reloaded, not loaded once"
+print("FIT_OK")

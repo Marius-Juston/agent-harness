@@ -1,0 +1,38 @@
+import msgpack
+
+data = {
+    "name": "Alice",
+    "age": 30,
+    "height": 1.68,
+    "active": True,
+    "nothing": None,
+    "tags": ["a", "b", "c"],
+    "nested": {"x": 1, "y": [1, 2, {"z": "deep"}]},
+    "blob": b"\x00\x01\xffbytes",
+    "unicode": "héllo wörld ✓",
+    "big": 2**63 - 1,
+    "neg": -12345,
+    "empty_list": [],
+    "empty_dict": {},
+}
+
+packed = msgpack.packb(data)
+assert isinstance(packed, bytes)
+assert len(packed) > 0
+
+unpacked = msgpack.unpackb(packed)
+assert unpacked == data, (unpacked, data)
+assert isinstance(unpacked["blob"], bytes)
+assert isinstance(unpacked["unicode"], str)
+assert isinstance(unpacked["tags"], list)
+
+# Streaming unpacker round-trip as well
+unpacker = msgpack.Unpacker()
+unpacker.feed(packed)
+items = list(unpacker)
+assert items == [data]
+
+# Known encoding check: {"a": 1} -> fixmap(1) fixstr("a") positive fixint(1)
+assert msgpack.packb({"a": 1}) == b"\x81\xa1a\x01"
+
+print("FIT_OK")

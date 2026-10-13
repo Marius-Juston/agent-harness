@@ -1,0 +1,764 @@
+{
+ "n01": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 11.5,
+    "tokens_in": 4939,
+    "tokens_out": 1069,
+    "cost_usd": 0.056711,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.8,
+    "tokens_in": 6086,
+    "tokens_out": 771,
+    "cost_usd": 0.059927,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.17,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n02": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: `multiplayer` is a game-session, networking and persistence library, and its full module scan turned up no Elo or rating API, so it can't compute Elo ratings from game results.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 11.8,
+    "tokens_in": 4917,
+    "tokens_out": 957,
+    "cost_usd": 0.054294999999999996,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.6,
+    "tokens_in": 5659,
+    "tokens_out": 65,
+    "cost_usd": 0.042391,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.07,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n03": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 17.4,
+    "tokens_in": 7969,
+    "tokens_out": 1724,
+    "cost_usd": 0.09405100000000001,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.2,
+    "tokens_in": 9084,
+    "tokens_out": 832,
+    "cost_usd": 0.08513100000000001,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 1.19,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.92,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n04": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: reminis only stores, converts, diffs and packages existing weights and peft adapters (`reminis lora` converts an adapter that was already trained). It exposes no API for training a LoRA, and installing it brings in no autodiff framework.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.7,
+    "tokens_in": 7945,
+    "tokens_out": 753,
+    "cost_usd": 0.07443899999999999,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.2,
+    "tokens_in": 9650,
+    "tokens_out": 211,
+    "cost_usd": 0.077239,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.36,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n05": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 11.7,
+    "tokens_in": 8292,
+    "tokens_out": 1073,
+    "cost_usd": 0.083615,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.79,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "n06": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: capa-language 1.32.0 has no JavaScript backend; `capa --help` lists only Python transpilation (`--transpile`), Wasm/WIT output and SBOM/manifest emitters, with no JS flag.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.2,
+    "tokens_in": 8278,
+    "tokens_out": 790,
+    "cost_usd": 0.077843,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.1,
+    "tokens_in": 9580,
+    "tokens_out": 162,
+    "cost_usd": 0.075699,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.21,
+   "fit_ok": false,
+   "error_type": null
+  }
+ },
+ "n07": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.2,
+    "tokens_in": 4880,
+    "tokens_out": 708,
+    "cost_usd": 0.04901899999999999,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.03,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "n08": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: fractal-core's `Settings` only loads `.env` and runs your own `load()`. It has no declared-type schema or validation, so it accepted DEBUG='maybe' for a bool-annotated setting, both at load time and via `reload()`.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 11.4,
+    "tokens_in": 4883,
+    "tokens_out": 1002,
+    "cost_usd": 0.054923,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.9,
+    "tokens_in": 5579,
+    "tokens_out": 183,
+    "cost_usd": 0.044111,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n09": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: ezgb performs all writes (create_bug, add_comment) by shelling out to the external `git bug` CLI binary, which isn't a Python dependency and isn't present in the environment, so creating a bug fails with \"git: 'bug' is not a git command\".",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.9,
+    "tokens_in": 4056,
+    "tokens_out": 829,
+    "cost_usd": 0.044847,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.6,
+    "tokens_in": 5094,
+    "tokens_out": 92,
+    "cost_usd": 0.038411,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.1,
+   "fit_ok": false,
+   "error_type": "CliError"
+  }
+ },
+ "n10": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: ezgb's public API has no GitHub bridge or issue importer (only local bug CRUD, search and push/pull), and its writes need the external `git-bug` binary, which this environment does not have.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.2,
+    "tokens_in": 4056,
+    "tokens_out": 875,
+    "cost_usd": 0.045767,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.4,
+    "tokens_in": 5135,
+    "tokens_out": 194,
+    "cost_usd": 0.040778999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.07,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n11": {
+  "verdict": "FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.0,
+    "tokens_in": 8657,
+    "tokens_out": 565,
+    "cost_usd": 0.076375,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.0,
+    "tokens_in": 9469,
+    "tokens_out": 682,
+    "cost_usd": 0.08521100000000001,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.66,
+   "fit_ok": true,
+   "error_type": null
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.83,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n12": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: camt053-lsp 0.0.20 exposes no rename capability. `camt053_lsp.server` has no rename helper and no `textDocument/rename` handler. It only provides diagnostics, completion, hover, code actions, document symbols, and formatting.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.0,
+    "tokens_in": 8649,
+    "tokens_out": 938,
+    "cost_usd": 0.083771,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.6,
+    "tokens_in": 9929,
+    "tokens_out": 94,
+    "cost_usd": 0.07713099999999999,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.7,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n13": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.6,
+    "tokens_in": 7094,
+    "tokens_out": 418,
+    "cost_usd": 0.060931,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.34,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "n14": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 25.4,
+    "tokens_in": 7083,
+    "tokens_out": 2847,
+    "cost_usd": 0.109423,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 16.0,
+    "tokens_in": 8034,
+    "tokens_out": 1673,
+    "cost_usd": 0.09355100000000001,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.28,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.28,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n15": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.3,
+    "tokens_in": 5736,
+    "tokens_out": 450,
+    "cost_usd": 0.050706999999999995,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.03,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "n16": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: `cas-schedule-p` has zero runtime dependencies, and its only in-memory loader, `read()`, requires pyarrow, which is not installed; with only this package, you get a file path (`path()`), not a table object.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.5,
+    "tokens_in": 5736,
+    "tokens_out": 506,
+    "cost_usd": 0.051827,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.7,
+    "tokens_in": 6691,
+    "tokens_out": 81,
+    "cost_usd": 0.050967,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  }
+ },
+ "n17": {
+  "verdict": "FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.7,
+    "tokens_in": 8454,
+    "tokens_out": 603,
+    "cost_usd": 0.07551100000000001,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.5,
+    "tokens_in": 9427,
+    "tokens_out": 724,
+    "cost_usd": 0.085715,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.15,
+   "fit_ok": true,
+   "error_type": null
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.17,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n18": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: faskill only discovers, loads and invokes skills. A scan of every importable module found no public function for packaging, archiving, zipping or bundling a skill folder into a .skill zip, and its documentation describes no such feature.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.4,
+    "tokens_in": 8420,
+    "tokens_out": 1025,
+    "cost_usd": 0.083679,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.7,
+    "tokens_in": 9377,
+    "tokens_out": 204,
+    "cost_usd": 0.07491500000000001,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.15,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n19": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.7,
+    "tokens_in": 6815,
+    "tokens_out": 721,
+    "cost_usd": 0.064759,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 2.37,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "n20": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: poly-basis-ml 0.3.0 provides only Chebyshev regression (ChebyshevRegressor, ChebyshevModelTreeRegressor, and the ChebyshevExpander transformer), and its public API has no Chebyshev classifier estimator.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.5,
+    "tokens_in": 6817,
+    "tokens_out": 868,
+    "cost_usd": 0.067715,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.4,
+    "tokens_in": 7669,
+    "tokens_out": 265,
+    "cost_usd": 0.062471000000000006,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 2.0,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n21": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.9,
+    "tokens_in": 7407,
+    "tokens_out": 588,
+    "cost_usd": 0.066835,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.9,
+    "tokens_in": 8044,
+    "tokens_out": 759,
+    "cost_usd": 0.075351,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.05,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n22": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: satusehat-integration is a FHIR payload-builder SDK with no validator that checks a Patient JSON against the FHIR R4 spec and reports errors, and its installed `builder` package fails on import because it references a `src` module that the wheel does not ship.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 14.7,
+    "tokens_in": 7409,
+    "tokens_out": 1221,
+    "cost_usd": 0.079511,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.2,
+    "tokens_in": 8697,
+    "tokens_out": 284,
+    "cost_usd": 0.071075,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  }
+ },
+ "n23": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.5,
+    "tokens_in": 6443,
+    "tokens_out": 538,
+    "cost_usd": 0.058122999999999994,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.76,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "n24": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: comparer-mcp only compares MusicXML (.musicxml/.xml/.mxl); `compare_files` explicitly rejects `.mid` input with \"Unsupported file extension\", so it cannot compare MIDI files.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 13.4,
+    "tokens_in": 6432,
+    "tokens_out": 931,
+    "cost_usd": 0.065895,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.2,
+    "tokens_in": 7356,
+    "tokens_out": 364,
+    "cost_usd": 0.061947,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.68,
+   "fit_ok": false,
+   "error_type": "ProcessingError"
+  }
+ },
+ "_meta": {
+  "arm": "f4r",
+  "model_requested": "claude-opus-5-5",
+  "date": "2026-10-13",
+  "cases": "cases_n.json"
+ }
+}

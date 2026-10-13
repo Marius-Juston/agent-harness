@@ -1,0 +1,44 @@
+import importlib, inspect, pkgutil
+import multiplayer
+
+mods = [multiplayer]
+for m in pkgutil.walk_packages(getattr(multiplayer, "__path__", []), "multiplayer."):
+    try:
+        mods.append(importlib.import_module(m.name))
+    except Exception as e:
+        print("skip", m.name, type(e).__name__, e)
+
+found = {}
+for mod in mods:
+    for name, obj in vars(mod).items():
+        if "elo" in name.lower() and (inspect.isclass(obj) or inspect.isfunction(obj)):
+            found[f"{mod.__name__}.{name}"] = obj
+print("version:", getattr(multiplayer, "__version__", "?"))
+print("modules:", [m.__name__ for m in mods])
+print("public names:", [n for n in dir(multiplayer) if not n.startswith("_")])
+print("elo candidates:", list(found))
+for k, v in found.items():
+    try:
+        print(k, inspect.signature(v), (inspect.getdoc(v) or "")[:200])
+    except (TypeError, ValueError):
+        print(k, "(no signature)")
+assert found, "multiplayer exposes no Elo-related class or function"
+
+# Try computing: winner vs loser starting at equal ratings must diverge.
+ok = False
+for k, v in found.items():
+    for args in [(1500, 1500, 1), (1500, 1500), ([1500, 1500], [1, 2])]:
+        try:
+            r = v(*args)
+        except Exception as e:
+            print("call", k, args, "->", type(e).__name__, e)
+            continue
+        print("call", k, args, "->", r)
+        vals = list(r) if isinstance(r, (tuple, list)) else None
+        if vals and len(vals) >= 2 and float(vals[0]) > 1500 > float(vals[1]):
+            ok = True
+            break
+    if ok:
+        break
+assert ok, "could not compute Elo update via multiplayer's API"
+print("FIT_OK")

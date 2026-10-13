@@ -1,0 +1,5 @@
+import markupsafe
+names = [n for n in dir(markupsafe) if not n.startswith("_")]; print(names)
+e = str(markupsafe.escape("<b>ok</b><script>x</script>")); print(e)
+# escape() turns every tag into text; no allowlist exists, so <b> is not kept as a tag.
+print("GOLD_NOT" if "<b>" not in e else "GOLD_CHECK")

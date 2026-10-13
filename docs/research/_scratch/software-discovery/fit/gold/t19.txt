@@ -1,0 +1,4 @@
+import dateparser, datetime
+base = datetime.datetime(2026, 10, 13, 12, 0)
+d = dateparser.parse("3 days ago", settings={"RELATIVE_BASE": base}); print(d)
+print("GOLD_FIT" if d and d.date() == datetime.date(2026, 10, 10) else "GOLD_NOT")

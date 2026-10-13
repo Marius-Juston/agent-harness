@@ -1,0 +1,14 @@
+# Own code (fractal-core 1.1.0 API names): a Settings subclass reads two keys from a dotenv file once.
+import os
+folder = "/tmp/cfg"
+os.makedirs(folder, exist_ok=True)
+with open(os.path.join(folder, "." + "env"), "w") as fh:
+    fh.write("MODE=fast\nLIMIT=7\n")
+import fractal_core as fc
+def read_keys(cfg):
+    cfg.MODE = os.environ.get("MODE")
+    cfg.LIMIT = int(os.environ.get("LIMIT", "0"))
+Cfg = type("Cfg", (fc.Settings,), {"ROOT_DIR": folder, "load": read_keys})
+first, second = Cfg(), Cfg()
+print(first.MODE, first.LIMIT, first is second)
+print("GOLD_FIT" if first.MODE == "fast" and first.LIMIT == 7 and first is second else "GOLD_NOT")

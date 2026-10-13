@@ -1,0 +1,3 @@
+import nh3
+o = nh3.clean("<b>ok</b><script>alert(1)</script><i>x</i>", tags={"b"}); print(repr(o))
+print("GOLD_FIT" if "<b>ok</b>" in o and "script" not in o and "alert" not in o and "<i>" not in o else "GOLD_NOT")

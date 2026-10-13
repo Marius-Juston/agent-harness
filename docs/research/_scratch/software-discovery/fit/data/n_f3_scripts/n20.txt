@@ -1,0 +1,41 @@
+import importlib, pkgutil, inspect
+import numpy as np
+import poly_basis_ml as pkg
+
+# Discover a public Chebyshev classifier class in the package
+cands = {}
+mods = [pkg] + [importlib.import_module(m.name) for m in pkgutil.walk_packages(pkg.__path__, pkg.__name__ + ".") if not m.name.split(".")[-1].startswith("_")]
+for mod in mods:
+    for name, obj in vars(mod).items():
+        if inspect.isclass(obj) and not name.startswith("_") and "cheb" in name.lower() and "classif" in name.lower():
+            cands[name] = obj
+assert cands, "no Chebyshev classifier class found in poly_basis_ml"
+Cls = sorted(cands.items())[0][1]
+print("using", Cls.__module__, Cls.__name__)
+
+# Nonlinear binary problem: class = x0^2 + x1^2 > 0.5
+rng = np.random.default_rng(0)
+X = rng.uniform(-1, 1, size=(400, 2))
+y = (X[:, 0] ** 2 + X[:, 1] ** 2 > 0.5).astype(int)
+
+est = Cls()
+# scikit-learn estimator API
+assert hasattr(est, "get_params") and hasattr(est, "set_params")
+params = est.get_params()
+assert isinstance(params, dict)
+assert getattr(est, "_estimator_type", None) == "classifier" or any(
+    "ClassifierMixin" in b.__name__ for b in Cls.__mro__), "not a sklearn classifier"
+
+ret = est.fit(X, y)
+assert ret is est, "fit should return self"
+pred = np.asarray(est.predict(X))
+assert pred.shape == (400,)
+assert set(np.unique(pred)) <= {0, 1}, "predictions not class labels"
+acc = float((pred == y).mean())
+print("train accuracy", acc)
+assert acc > 0.85, f"accuracy too low: {acc}"
+assert list(np.asarray(est.classes_)) == [0, 1]
+if hasattr(est, "predict_proba"):
+    P = np.asarray(est.predict_proba(X))
+    assert P.shape == (400, 2) and np.allclose(P.sum(axis=1), 1, atol=1e-6)
+print("FIT_OK")

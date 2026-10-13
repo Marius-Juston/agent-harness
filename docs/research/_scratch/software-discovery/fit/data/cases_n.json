@@ -1,0 +1,170 @@
+[
+ {
+  "id": "n01",
+  "package": "multiplayer",
+  "kind": "claim",
+  "need": "Model game players with named static and dynamic attributes (for example a fixed team and a changing score) and create user accounts with a password.",
+  "gold": "FIT"
+ },
+ {
+  "id": "n02",
+  "package": "multiplayer",
+  "kind": "adjacent",
+  "need": "Compute Elo ratings for players from the results of games.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n03",
+  "package": "reminis",
+  "kind": "claim",
+  "need": "Store a model's safetensors weights in a SQLite database registry, list the stored models with their sizes, and export a model back to a standalone database file.",
+  "gold": "FIT"
+ },
+ {
+  "id": "n04",
+  "package": "reminis",
+  "kind": "adjacent",
+  "need": "Train a LoRA adapter for a model on a small text dataset.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n05",
+  "package": "capa-language",
+  "kind": "claim",
+  "need": "Parse a program written in the Capa language, run its capability analysis, and transpile it to Python source code.",
+  "gold": "FIT"
+ },
+ {
+  "id": "n06",
+  "package": "capa-language",
+  "kind": "adjacent",
+  "need": "Transpile a Capa program to JavaScript source code.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n07",
+  "package": "fractal-core",
+  "kind": "claim",
+  "need": "Load application settings once from a dotenv (.env) file into a singleton settings object.",
+  "gold": "FIT"
+ },
+ {
+  "id": "n08",
+  "package": "fractal-core",
+  "kind": "adjacent",
+  "need": "Validate settings values against declared types when loading them (for example reject DEBUG='maybe' for a boolean setting).",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n09",
+  "package": "ezgb",
+  "kind": "claim",
+  "need": "Create a bug in a git-bug repository and add a comment to it from Python.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n10",
+  "package": "ezgb",
+  "kind": "adjacent",
+  "need": "Import the issues of a GitHub repository into a git-bug repository.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n11",
+  "package": "camt053-lsp",
+  "kind": "claim",
+  "need": "Check a camt.053 reversing-entry JSON record and report missing required fields as diagnostics, without running an editor or a language server process.",
+  "gold": "FIT"
+ },
+ {
+  "id": "n12",
+  "package": "camt053-lsp",
+  "kind": "adjacent",
+  "need": "Offer rename-symbol edits that rename a field across a camt.053 JSON document (an LSP rename).",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n13",
+  "package": "dot-agora",
+  "kind": "claim",
+  "need": "Run a mediated conversation in which one participant answers another participant's request, and print the journal of what happened.",
+  "gold": "FIT"
+ },
+ {
+  "id": "n14",
+  "package": "dot-agora",
+  "kind": "adjacent",
+  "need": "Save a conversation room's journal to a SQLite database and load it back later.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n15",
+  "package": "cas-schedule-p",
+  "kind": "claim",
+  "need": "List the tables of the bundled CAS Schedule P loss-reserving data and get a local file path to a table's parquet file, with no download.",
+  "gold": "FIT"
+ },
+ {
+  "id": "n16",
+  "package": "cas-schedule-p",
+  "kind": "adjacent",
+  "need": "Load a table of the bundled CAS Schedule P data as an in-memory table object (for example a pyarrow Table) with only this package installed.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n17",
+  "package": "faskill",
+  "kind": "claim",
+  "need": "Discover Agent Skills (folders with a SKILL.md file) in a directory, list their names and descriptions, and get a skill's instructions with the user's arguments substituted.",
+  "gold": "FIT"
+ },
+ {
+  "id": "n18",
+  "package": "faskill",
+  "kind": "adjacent",
+  "need": "Package an Agent Skill folder into a distributable .skill zip archive.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n19",
+  "package": "poly-basis-ml",
+  "kind": "claim",
+  "need": "Fit a Chebyshev polynomial regression model as a scikit-learn compatible estimator and score it on test data.",
+  "gold": "FIT"
+ },
+ {
+  "id": "n20",
+  "package": "poly-basis-ml",
+  "kind": "adjacent",
+  "need": "Fit a Chebyshev polynomial classifier (classification, not regression) as a scikit-learn compatible estimator.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n21",
+  "package": "satusehat-integration",
+  "kind": "claim",
+  "need": "Build a FHIR R4 HumanName value and serialize it to FHIR JSON.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n22",
+  "package": "satusehat-integration",
+  "kind": "adjacent",
+  "need": "Validate a FHIR R4 Patient JSON resource against the FHIR specification and report the errors.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "n23",
+  "package": "comparer-mcp",
+  "kind": "claim",
+  "need": "Compare two MusicXML scores given as strings and get a similarity score between 0 and 1.",
+  "gold": "FIT"
+ },
+ {
+  "id": "n24",
+  "package": "comparer-mcp",
+  "kind": "adjacent",
+  "need": "Compare two MIDI files and get a similarity score.",
+  "gold": "NOT_FIT"
+ }
+]

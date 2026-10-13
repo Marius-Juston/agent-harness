@@ -1,0 +1,4 @@
+import filetype
+png = bytes.fromhex("89504e470d0a1a0a0000000d49484452") + b"\x00" * 32
+k = filetype.guess(png); print(k and (k.extension, k.mime))
+print("GOLD_FIT" if k and k.extension == "png" else "GOLD_NOT")

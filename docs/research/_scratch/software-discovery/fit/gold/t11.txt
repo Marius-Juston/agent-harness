@@ -1,0 +1,6 @@
+import ujson
+src = """{\n  // a comment\n  "a": 1,\n  "b": [1, 2,],\n}"""
+try:
+    print(ujson.loads(src)); print("GOLD_FIT")
+except Exception as e:
+    print(type(e).__name__, e); print("GOLD_NOT")

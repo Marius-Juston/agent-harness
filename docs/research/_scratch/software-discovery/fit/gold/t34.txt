@@ -1,0 +1,3 @@
+import isodate, datetime
+d = isodate.parse_duration("P3DT4H30M"); print(d)
+print("GOLD_FIT" if d == datetime.timedelta(days=3, hours=4, minutes=30) else "GOLD_NOT")

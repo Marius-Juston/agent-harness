@@ -1,0 +1,26 @@
+import lz4
+import lz4.frame
+
+ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
+
+# A valid zstd frame built by hand (data, not a codec): magic, a single-segment
+# frame header with a 1-byte content size, one raw last block, and the payload "hello".
+payload = b"hello"
+zstd_frame = (
+    ZSTD_MAGIC
+    + bytes([0x20, len(payload)])           # FHD: single segment, FCS = 5
+    + bytes([(len(payload) << 3) | 1, 0, 0])  # block header: last, raw, size 5
+    + payload
+)
+
+# Check 1: lz4 must be able to decode a real zstd frame.
+decoded = lz4.frame.decompress(zstd_frame)
+assert decoded == payload, decoded
+
+# Check 2: lz4's compressor output must be in the zstd format.
+data = b"The quick brown fox jumps over the lazy dog. " * 200
+compressed = lz4.frame.compress(data)
+assert compressed[:4] == ZSTD_MAGIC, f"not zstd format, magic={compressed[:4].hex()}"
+assert lz4.frame.decompress(compressed) == data
+
+print("FIT_OK")

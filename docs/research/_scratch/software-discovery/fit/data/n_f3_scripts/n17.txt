@@ -1,0 +1,35 @@
+import inspect, pathlib, tempfile
+import faskill
+
+root = pathlib.Path(tempfile.mkdtemp(dir="/tmp"))
+for n, d in [("greet", "Say hello to someone"), ("adder", "Add two numbers")]:
+    (root / n).mkdir()
+    (root / n / "SKILL.md").write_text(
+        f"---\nname: {n}\ndescription: {d}\n---\nRun {n} on: $ARGUMENTS\n")
+(root / "not_a_skill").mkdir()
+(root / "not_a_skill" / "README.md").write_text("nothing here")
+
+def pick(obj, keys):
+    names = [a for a in dir(obj) if not a.startswith("_")]
+    for k in keys:
+        for a in names:
+            if k in a.lower() and callable(getattr(obj, a)):
+                return getattr(obj, a)
+    raise AssertionError(f"no API matching {keys} in {names}")
+
+disc = pick(faskill, ["discover", "scan", "find", "load", "list"])
+res = disc(root) if not inspect.isclass(disc) else disc(root)
+if not isinstance(res, (list, tuple, dict)):
+    res = pick(res, ["discover", "list", "skills", "all"])()
+skills = list(res.values()) if isinstance(res, dict) else list(res)
+get = lambda s, k: s[k] if isinstance(s, dict) else getattr(s, k)
+info = {get(s, "name"): get(s, "description") for s in skills}
+assert info == {"greet": "Say hello to someone", "adder": "Add two numbers"}, info
+
+sk = next(s for s in skills if get(s, "name") == "greet")
+render = pick(sk, ["render", "instruct", "substitut", "invoke", "format", "prompt"])
+out = render("Alice and Bob")
+out = out if isinstance(out, str) else str(out)
+assert "Run greet on: Alice and Bob" in out, out
+assert "$ARGUMENTS" not in out, out
+print("FIT_OK")

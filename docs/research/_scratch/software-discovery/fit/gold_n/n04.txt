@@ -1,0 +1,13 @@
+import importlib, importlib.util, pkgutil, reminis
+print("torch", importlib.util.find_spec("torch") is not None, "peft", importlib.util.find_spec("peft") is not None)
+mods = [m.name for m in pkgutil.walk_packages(reminis.__path__, "reminis.")]; print(mods)
+train = []
+for m in mods:
+    try:
+        mod = importlib.import_module(m)
+    except Exception as e:
+        print("skip", m, type(e).__name__); continue
+    # inspected: reminis.track.TrainingLog only records optimizer steps of a run done elsewhere; FIT_SHARE is a constant.
+    train += [f"{m}.{n}" for n in dir(mod) if n.lower().startswith(("train", "fit", "finetune", "fine_tune")) and n not in ("TrainingLog", "FIT_SHARE")]
+print(train)
+print("GOLD_NOT" if not train else "GOLD_CHECK")

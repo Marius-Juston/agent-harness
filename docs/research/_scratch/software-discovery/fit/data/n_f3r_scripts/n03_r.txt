@@ -1,0 +1,42 @@
+import inspect, json, os, sqlite3, struct
+import reminis
+from reminis import Registry
+
+data = struct.pack("<4f", 1.0, 2.0, 3.0, 4.0)
+hdr = json.dumps({"w": {"dtype": "F32", "shape": [2, 2], "data_offsets": [0, len(data)]}}).encode()
+st_path, out = "/tmp/model.safetensors", "/tmp/exported.db"
+with open(st_path, "wb") as f:
+    f.write(struct.pack("<Q", len(hdr)) + hdr + data)
+
+meths = {n: m for n, m in inspect.getmembers(Registry) if callable(m) and not n.startswith("_")}
+def pick(*keys):
+    hits = [n for k in keys for n in meths if k in n.lower()]
+    assert hits, f"no method for {keys}: {[(n, str(inspect.signature(m))) for n, m in meths.items()]}"
+    return hits[0]
+def call(obj, name, model_name, path):
+    params = [p for p in inspect.signature(getattr(Registry, name)).parameters.values() if p.name != "self"]
+    kw = {}
+    for p in params:
+        n = p.name.lower()
+        if any(k in n for k in ("path", "file", "src", "source", "dest", "out", "target")) and path is not None:
+            kw[p.name] = path
+        elif any(k in n for k in ("name", "model", "id", "tag")) and model_name is not None:
+            kw[p.name] = model_name
+    return getattr(obj, name)(**kw)
+
+reg = Registry("/tmp/registry.db")
+call(reg, pick("add", "import", "store", "register", "push", "save", "put", "ingest"), "tiny", st_path)
+listing = call(reg, pick("list", "models", "ls"), None, None)
+text = repr(listing if not inspect.isgenerator(listing) else list(listing))
+assert "tiny" in text, text
+assert any(str(s) in text for s in (os.path.getsize(st_path), len(data))), f"size missing: {text}"
+
+call(reg, pick("export", "pull", "extract", "dump"), "tiny", out)
+assert os.path.getsize(out) > 0
+con = sqlite3.connect(out)
+tables = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+assert tables, "exported file is not a populated SQLite database"
+blob = b"".join(bytes(v) for t in tables for row in con.execute(f'SELECT * FROM "{t}"')
+                for v in row if isinstance(v, (bytes, memoryview)))
+assert data in blob, "weights not found in exported database"
+print("FIT_OK")

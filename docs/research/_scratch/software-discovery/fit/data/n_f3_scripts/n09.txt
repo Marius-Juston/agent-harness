@@ -1,0 +1,31 @@
+# NOTE: ezgb's API could not be inspected here (tool output was empty); names below are best-known, unverified.
+import os, subprocess, tempfile
+import ezgb
+
+repo = tempfile.mkdtemp(dir="/tmp")
+env = dict(os.environ, HOME=repo, GIT_AUTHOR_NAME="T", GIT_AUTHOR_EMAIL="t@e.x",
+           GIT_COMMITTER_NAME="T", GIT_COMMITTER_EMAIL="t@e.x")
+os.environ.update(env)
+subprocess.run(["git", "init", "-q", repo], check=True)
+subprocess.run(["git", "-C", repo, "config", "user.name", "T"], check=True)
+subprocess.run(["git", "-C", repo, "config", "user.email", "t@e.x"], check=True)
+
+Cls = getattr(ezgb, "GitBug", None) or getattr(ezgb, "GitBugInterface")
+gb = Cls(repo)
+
+title, body, comment = "Fit test bug", "Initial description", "A follow-up comment"
+bug = gb.create_bug(title, body)
+bug_id = bug if isinstance(bug, str) else (bug.get("id") if isinstance(bug, dict) else getattr(bug, "id"))
+assert bug_id, "no bug id returned"
+
+gb.add_comment(bug_id, comment)
+
+fetched = gb.get_bug(bug_id)
+text = repr(fetched)
+assert title in text, "title not found on fetched bug"
+assert body in text, "initial message not found on fetched bug"
+assert comment in text, "added comment not found on fetched bug"
+
+if hasattr(gb, "stop"):
+    gb.stop()
+print("FIT_OK")

@@ -1,0 +1,28 @@
+import inspect, importlib
+import pyarrow as pa
+m = importlib.import_module("cas_schedule_p")
+lines = ["wkcomp", "ppauto", "comauto", "medmal", "othliab", "prodliab", "wc", "pp_auto"]
+cands = [(n, f) for n, f in vars(m).items() if not n.startswith("_") and callable(f)
+         and any(k in n.lower() for k in ("load", "read", "table", "get", "dataset"))]
+assert cands, f"no loader-like API found in {dir(m)}"
+table = None
+for name, fn in cands:
+    for args in [()] + [(l,) for l in lines]:
+        try:
+            r = fn(*args)
+        except Exception:
+            continue  # probing signatures only; success is asserted below
+        if hasattr(r, "to_arrow") and not isinstance(r, pa.Table):
+            r = r.to_arrow()
+        if isinstance(r, pa.Table) and r.num_rows > 0:
+            table, used = r, (name, args)
+            break
+    if table is not None:
+        break
+assert table is not None, f"no candidate returned a non-empty pyarrow Table: {[n for n, _ in cands]}"
+assert isinstance(table, pa.Table)
+assert table.num_rows > 0 and table.num_columns > 0
+cols = [c.lower() for c in table.column_names]
+assert any("loss" in c or "premium" in c or "accident" in c or "year" in c for c in cols), cols
+print(used, table.num_rows, table.column_names[:8])
+print("FIT_OK")

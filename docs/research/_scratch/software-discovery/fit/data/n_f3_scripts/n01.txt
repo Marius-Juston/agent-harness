@@ -1,0 +1,32 @@
+# Note: tool output was unavailable while drafting, so multiplayer's API was not
+# inspected; this script discovers it at runtime and fails loudly if it is absent.
+import importlib, inspect, pkgutil
+import multiplayer
+
+mods = [multiplayer]
+for info in pkgutil.walk_packages(getattr(multiplayer, "__path__", []), "multiplayer."):
+    mods.append(importlib.import_module(info.name))
+names = {n: getattr(m, n) for m in mods for n in dir(m) if not n.startswith("_")}
+print("public names:", sorted(names))
+
+player_cls = next((v for n, v in names.items() if inspect.isclass(v) and "player" in n.lower()), None)
+user_api = next((v for n, v in names.items() if callable(v) and "user" in n.lower()), None)
+assert player_cls is not None, "multiplayer exposes no Player class"
+assert user_api is not None, "multiplayer exposes no user-account API"
+print("player:", player_cls, inspect.signature(player_cls))
+print("user:", user_api, inspect.signature(user_api))
+
+p = player_cls(static={"team": "red"}, dynamic={"score": 0})
+assert p.team == "red"
+assert p.score == 0
+p.score = 10
+assert p.score == 10
+
+u = user_api("alice", "s3cret")
+assert u is not None
+uname = getattr(u, "username", getattr(u, "name", None))
+assert uname == "alice", f"user name not stored: {uname!r}"
+pw = getattr(u, "password", getattr(u, "password_hash", None))
+assert pw is not None, "user has no password attribute"
+
+print("FIT_OK")

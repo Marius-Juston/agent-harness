@@ -1,0 +1,11 @@
+import pygit2, shutil
+pygit2.init_repository("/tmp/r")
+print("git-bug on PATH:", shutil.which("git-bug"), "git:", shutil.which("git"))
+from ezgb import GitBugRepo
+repo = GitBugRepo("/tmp/r")
+try:
+    bug = repo.create_bug("Login page is broken", "Steps to reproduce...")
+    c = repo.add_comment(bug.id, "I can reproduce this.")
+    print(bug, c); print("GOLD_FIT")
+except Exception as e:
+    print(type(e).__name__, str(e)[:300]); print("GOLD_NOT")

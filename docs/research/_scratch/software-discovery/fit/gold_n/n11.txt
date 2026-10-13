@@ -1,0 +1,5 @@
+import json
+from camt053_lsp.server import compute_diagnostics
+missing = json.dumps([{"statement_msg_id": "ONLY-ID"}])
+d = compute_diagnostics(missing); print(len(d), d[:2])
+print("GOLD_FIT" if len(d) > 0 else "GOLD_NOT")

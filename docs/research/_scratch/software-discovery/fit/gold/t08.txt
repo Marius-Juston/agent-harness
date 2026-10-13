@@ -1,0 +1,4 @@
+import xlsxwriter, zipfile
+wb = xlsxwriter.Workbook("/tmp/f.xlsx"); ws = wb.add_worksheet(); ws.write(0, 0, 2); ws.write_formula(0, 1, "=A1*3"); wb.close()
+x = zipfile.ZipFile("/tmp/f.xlsx").read("xl/worksheets/sheet1.xml").decode(); print(x[-300:])
+print("GOLD_FIT" if "<f>A1*3</f>" in x else "GOLD_NOT")

@@ -1,0 +1,6 @@
+import schedule, inspect
+print([n for n in dir(schedule) if not n.startswith("_")])
+# "cron" appears only in the module docstring (an article title); no API takes a cron expression.
+api = [n for n in dir(schedule) + dir(schedule.Job) + dir(schedule.Scheduler) if "cron" in n.lower()]
+print(api)
+print("GOLD_NOT" if not api else "GOLD_CHECK")

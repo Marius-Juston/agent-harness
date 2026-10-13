@@ -1,0 +1,42 @@
+import io
+from pathlib import Path
+from ruamel.yaml import YAML
+
+src = """\
+# Top-level config comment
+server:
+  host: localhost  # the hostname
+  port: 8080       # listening port
+# Section about users
+users:
+  - alice  # admin
+  - bob
+"""
+
+path = Path("/tmp/fit_test.yaml")
+path.write_text(src)
+
+yaml = YAML()  # round-trip mode by default
+yaml.indent(mapping=2, sequence=4, offset=2)  # match source list style
+data = yaml.load(path)
+data["server"]["port"] = 9090
+with path.open("w") as f:
+    yaml.dump(data, f)
+
+out = path.read_text()
+print(out)
+
+assert "port: 9090" in out
+assert "8080" not in out
+for c in ["# Top-level config comment", "# the hostname", "# listening port",
+          "# Section about users", "# admin"]:
+    assert c in out, c
+assert "host: localhost  # the hostname" in out
+# line structure preserved (whitespace-normalized)
+norm = lambda s: [" ".join(l.split()) for l in s.splitlines()]
+assert norm(out.replace("9090", "8080")) == norm(src)
+
+reloaded = YAML().load(io.StringIO(out))
+assert reloaded["server"]["port"] == 9090
+assert list(reloaded["users"]) == ["alice", "bob"]
+print("FIT_OK")

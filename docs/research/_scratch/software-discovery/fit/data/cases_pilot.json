@@ -1,0 +1,38 @@
+[
+ {
+  "id": "p01",
+  "package": "tenacity",
+  "need": "Retry a failing function call with exponential backoff between attempts.",
+  "gold": "FIT"
+ },
+ {
+  "id": "p02",
+  "package": "python-frontmatter",
+  "need": "Convert a Markdown document to HTML.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "p03",
+  "package": "rapidfuzz",
+  "need": "Compute a fuzzy similarity score from 0 to 100 between two strings.",
+  "gold": "FIT"
+ },
+ {
+  "id": "p04",
+  "package": "openpyxl",
+  "need": "Read cell values from a legacy .xls (Excel 97-2003) workbook.",
+  "gold": "NOT_FIT"
+ },
+ {
+  "id": "p05",
+  "package": "natsort",
+  "need": "Sort strings that contain numbers in natural order (file2 before file10).",
+  "gold": "FIT"
+ },
+ {
+  "id": "p06",
+  "package": "fastavro",
+  "need": "Read rows from an Apache Parquet file.",
+  "gold": "NOT_FIT"
+ }
+]

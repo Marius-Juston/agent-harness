@@ -1,0 +1,11 @@
+import pkgutil, multiplayer, importlib
+mods = [m.name for m in pkgutil.walk_packages(multiplayer.__path__, "multiplayer.")]
+names = []
+for m in mods:
+    try:
+        mod = importlib.import_module(m)
+    except Exception as e:
+        print("import", m, type(e).__name__); continue
+    names += [f"{m}.{n}" for n in dir(mod) if any(k in n.lower() for k in ("elo", "rating", "rank"))]
+print(mods); print(names)
+print("GOLD_NOT" if not names else "GOLD_CHECK")

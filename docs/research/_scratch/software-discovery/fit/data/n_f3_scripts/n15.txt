@@ -1,0 +1,39 @@
+import importlib, inspect, os, socket
+from pathlib import Path
+
+# Forbid any network access so a "download" path would fail loudly.
+def _no_net(*a, **k):
+    raise RuntimeError("network access attempted")
+socket.socket.connect = _no_net
+socket.create_connection = _no_net
+
+mod = importlib.import_module("cas_schedule_p")
+funcs = {n: f for n, f in inspect.getmembers(mod, callable) if not n.startswith("_")}
+
+# Public function that lists tables
+list_fn = next(f for n, f in funcs.items() if "list" in n.lower() or n.lower() in ("tables", "table_names", "available_tables"))
+tables = list(list_fn())
+assert tables, "no tables listed"
+assert all(isinstance(t, str) and t for t in tables), tables
+
+# Public function that returns a local path for a table
+path_fn = next(f for n, f in funcs.items() if "path" in n.lower())
+name = tables[0]
+p = Path(os.fspath(path_fn(name)))
+assert p.is_absolute() or p.exists(), p
+assert p.exists() and p.is_file(), f"missing file {p}"
+assert p.suffix == ".parquet", p
+assert p.stat().st_size > 0
+with open(p, "rb") as fh:
+    head = fh.read(4)
+    fh.seek(-4, os.SEEK_END)
+    tail = fh.read(4)
+assert head == b"PAR1" and tail == b"PAR1", "not a parquet file"
+
+# Every listed table resolves to an existing local parquet file
+for t in tables:
+    q = Path(os.fspath(path_fn(t)))
+    assert q.is_file() and q.suffix == ".parquet", q
+
+print("tables:", tables)
+print("FIT_OK")

@@ -1,0 +1,21 @@
+import json
+from satusehat_integration.fhir.datatype.humanname import HumanName
+from satusehat_integration.fhir.datatype.period import Period
+
+h = HumanName(use="official", text="Dr. Budi Santoso", family="Santoso",
+              given=["Budi", "Adi"], prefix=["Dr."], suffix=["S.Kom"],
+              period=Period(start="2020-01-01"))
+out = h.to_json()
+assert isinstance(out, str)
+data = json.loads(out)
+assert data["use"] == "official"
+assert data["text"] == "Dr. Budi Santoso"
+assert data["family"] == "Santoso"
+assert data["given"] == ["Budi", "Adi"]
+assert data["prefix"] == ["Dr."]
+assert data["suffix"] == ["S.Kom"]
+assert data["period"] == {"start": "2020-01-01"}
+assert "id" not in data and "extension" not in data
+minimal = json.loads(HumanName(family="Wijaya").to_json())
+assert minimal == {"family": "Wijaya"}, minimal
+print("FIT_OK")

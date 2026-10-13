@@ -1,0 +1,11 @@
+from music21 import stream, note
+def mid(path, pitches):
+    s = stream.Stream()
+    for q in pitches: s.append(note.Note(q, quarterLength=1))
+    s.write("midi", fp=path)
+mid("/tmp/a.mid", ["C4", "D4"]); mid("/tmp/b.mid", ["C4", "E4"])
+from comparer_mcp.engine import compare_files
+try:
+    r = compare_files("/tmp/a.mid", "/tmp/b.mid"); print(r.similarity_score); print("GOLD_FIT")
+except Exception as e:
+    print(type(e).__name__, str(e)[:300]); print("GOLD_NOT")

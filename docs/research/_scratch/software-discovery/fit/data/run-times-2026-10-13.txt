@@ -1,0 +1,2 @@
+runs 264, median 0.08 s, p90 0.76 s, max 3.33 s
+slowest: [(2.37, 'n_f4.json:n19'), (2.37, 'n_f4r.json:n19'), (2.56, 'n_f3r.json:n19'), (3.33, 'n_f3.json:n20'), (3.33, 'n_f3r.json:n20')]

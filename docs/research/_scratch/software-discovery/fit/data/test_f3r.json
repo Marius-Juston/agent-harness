@@ -1,0 +1,1222 @@
+{
+ "t01": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.1,
+    "tokens_in": 2996,
+    "tokens_out": 474,
+    "cost_usd": 0.029266999999999994,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.05,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t02": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: tomli is a read-only TOML parser (only `load`/`loads`); it has no writer and discards comments, so it cannot write the file back with comments preserved (use `tomlkit` instead).",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.5,
+    "tokens_in": 2986,
+    "tokens_out": 522,
+    "cost_usd": 0.030146999999999997,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.6,
+    "tokens_in": 3595,
+    "tokens_out": 72,
+    "cost_usd": 0.026019,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t04": {
+  "verdict": "FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.5,
+    "tokens_in": 3013,
+    "tokens_out": 411,
+    "cost_usd": 0.028142999999999998,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.6,
+    "tokens_in": 3654,
+    "tokens_out": 768,
+    "cost_usd": 0.040411,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.08,
+   "fit_ok": true,
+   "error_type": null
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.08,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t05": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: PyYAML's loader discards comments during parsing and its dumper has no way to emit them, so a load/modify/dump round trip always loses the original comments (comment preservation needs a round-trip library such as ruamel.yaml).",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.0,
+    "tokens_in": 2995,
+    "tokens_out": 363,
+    "cost_usd": 0.027039,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.8,
+    "tokens_in": 3552,
+    "tokens_out": 83,
+    "cost_usd": 0.025894999999999998,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.04,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t06": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 12.7,
+    "tokens_in": 2999,
+    "tokens_out": 1451,
+    "cost_usd": 0.048831,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.14,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t07": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: xlrd 2.0+ removed .xlsx support and only reads legacy .xls files, so `open_workbook` raises \"Excel xlsx file; not supported\".",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.3,
+    "tokens_in": 2989,
+    "tokens_out": 1187,
+    "cost_usd": 0.043470999999999996,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.9,
+    "tokens_in": 4362,
+    "tokens_out": 64,
+    "cost_usd": 0.031994999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.06,
+   "fit_ok": false,
+   "error_type": "XLRDError"
+  }
+ },
+ "t08": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.2,
+    "tokens_in": 2999,
+    "tokens_out": 466,
+    "cost_usd": 0.029131,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.1,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t09": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.5,
+    "tokens_in": 2974,
+    "tokens_out": 469,
+    "cost_usd": 0.028990999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.03,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t10": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: orjson is a strict RFC 8259 parser with no option to accept // comments or trailing commas; loads() rejects the input with JSONDecodeError at the first comment.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.8,
+    "tokens_in": 2972,
+    "tokens_out": 447,
+    "cost_usd": 0.028534999999999998,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.8,
+    "tokens_in": 3493,
+    "tokens_out": 65,
+    "cost_usd": 0.025063,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "JSONDecodeError"
+  }
+ },
+ "t11": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: ujson is a strict JSON parser with no option to accept // comments or trailing commas, and `ujson.loads` raised JSONDecodeError on the commented input.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.2,
+    "tokens_in": 2976,
+    "tokens_out": 383,
+    "cost_usd": 0.027287000000000002,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.1,
+    "tokens_in": 3438,
+    "tokens_out": 63,
+    "cost_usd": 0.024583,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "JSONDecodeError"
+  }
+ },
+ "t12": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 13.9,
+    "tokens_in": 2987,
+    "tokens_out": 1220,
+    "cost_usd": 0.044115,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.05,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t13": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: pyzbar only decodes barcodes (it wraps the zbar reader and has no encode/generate API), and in this environment it can't even be imported because the libzbar shared library is not installed.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.3,
+    "tokens_in": 2997,
+    "tokens_out": 844,
+    "cost_usd": 0.036675,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.1,
+    "tokens_in": 4541,
+    "tokens_out": 70,
+    "cost_usd": 0.033547,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "ImportError"
+  }
+ },
+ "t14": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.6,
+    "tokens_in": 2983,
+    "tokens_out": 894,
+    "cost_usd": 0.037563,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.19,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t15": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: reportlab only generates PDFs; it has no public API to read an existing PDF or extract its per-page text (parsing needs a separate library such as pypdf, or the commercial ReportLab PLUS/pdfrw add-ons, none of which are installed).",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.0,
+    "tokens_in": 2983,
+    "tokens_out": 752,
+    "cost_usd": 0.034723,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.8,
+    "tokens_in": 3749,
+    "tokens_out": 92,
+    "cost_usd": 0.027651000000000002,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.11,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t16": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.6,
+    "tokens_in": 2982,
+    "tokens_out": 698,
+    "cost_usd": 0.033635,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.11,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t17": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.1,
+    "tokens_in": 2990,
+    "tokens_out": 753,
+    "cost_usd": 0.034799,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.06,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t18": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: `schedule` has no cron-expression parser. It only offers a fluent interval API (`every(15).minutes`, `.monday.at(...)`) and cannot compute the next run after an arbitrary datetime for '*/15 9-17 * * 1-5'.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 12.0,
+    "tokens_in": 2994,
+    "tokens_out": 1081,
+    "cost_usd": 0.041391,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.2,
+    "tokens_in": 3882,
+    "tokens_out": 95,
+    "cost_usd": 0.028775,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t19": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.6,
+    "tokens_in": 2987,
+    "tokens_out": 877,
+    "cost_usd": 0.037254999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.2,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t20": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: python-dateutil's parser does not understand relative natural-language phrases like '3 days ago' (raises ParserError \"Unknown string format\"); it only parses absolute date strings, and relativedelta requires you to extract the offset yourself.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.9,
+    "tokens_in": 2999,
+    "tokens_out": 614,
+    "cost_usd": 0.032091,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.9,
+    "tokens_in": 3851,
+    "tokens_out": 86,
+    "cost_usd": 0.028347,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.05,
+   "fit_ok": false,
+   "error_type": "ParserError"
+  }
+ },
+ "t21": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.6,
+    "tokens_in": 3003,
+    "tokens_out": 587,
+    "cost_usd": 0.031583,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.09,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t22": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: pydantic only generates JSON Schemas from Python models/types and has no public API to validate an instance against an arbitrary JSON Schema dict (draft 2020-12), and its dependencies (pydantic-core, typing-extensions, annotated-types, typing-inspection) don't provide one either.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.6,
+    "tokens_in": 2997,
+    "tokens_out": 905,
+    "cost_usd": 0.037895,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.8,
+    "tokens_in": 4062,
+    "tokens_out": 106,
+    "cost_usd": 0.030435,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.1,
+   "fit_ok": false,
+   "error_type": "AttributeError"
+  }
+ },
+ "t23": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.8,
+    "tokens_in": 2982,
+    "tokens_out": 975,
+    "cost_usd": 0.039175,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.19,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t24": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: `requests` is a synchronous, blocking HTTP client with no async/await API (`requests.get` is a plain function returning a `Response`, not a coroutine), so it is not an asyncio-native HTTP client.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.0,
+    "tokens_in": 2978,
+    "tokens_out": 802,
+    "cost_usd": 0.035683,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.1,
+    "tokens_in": 3964,
+    "tokens_out": 79,
+    "cost_usd": 0.029110999999999998,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.12,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t25": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.0,
+    "tokens_in": 3004,
+    "tokens_out": 593,
+    "cost_usd": 0.031710999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.09,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t26": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: html5lib only parses and serializes HTML; it has no CSS selector API (the only \"css\" match was the sanitizer's `allowed_css_properties` frozenset), so selecting elements by CSS selectors needs another package such as soupsieve, cssselect or lxml.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.8,
+    "tokens_in": 2982,
+    "tokens_out": 778,
+    "cost_usd": 0.035235,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.2,
+    "tokens_in": 3620,
+    "tokens_out": 156,
+    "cost_usd": 0.027899,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.1,
+   "fit_ok": false,
+   "error_type": "TypeError"
+  }
+ },
+ "t27": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.8,
+    "tokens_in": 2975,
+    "tokens_out": 542,
+    "cost_usd": 0.030459,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.06,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t28": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.2,
+    "tokens_in": 2977,
+    "tokens_out": 406,
+    "cost_usd": 0.027755,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.09,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t29": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: `markdown` (Python-Markdown) only converts Markdown to HTML; its public API has no HTML-to-Markdown converter, and `markdown.markdown()` passed the HTML input through unchanged.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.1,
+    "tokens_in": 2971,
+    "tokens_out": 779,
+    "cost_usd": 0.035167000000000004,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.9,
+    "tokens_in": 3798,
+    "tokens_out": 78,
+    "cost_usd": 0.027763,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.05,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t30": {
+  "verdict": "FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.1,
+    "tokens_in": 2986,
+    "tokens_out": 715,
+    "cost_usd": 0.034006999999999996,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.7,
+    "tokens_in": 3863,
+    "tokens_out": 934,
+    "cost_usd": 0.045403,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.02,
+   "fit_ok": true,
+   "error_type": null
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t31": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: `lz4` only implements the LZ4 block/frame formats (its frame decoder rejects the zstd magic 0x28B52FFD with ERROR_frameType_unknown) and has no Zstandard codec, so it cannot compress or decompress zstd data.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.7,
+    "tokens_in": 2976,
+    "tokens_out": 838,
+    "cost_usd": 0.036387,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.7,
+    "tokens_in": 3569,
+    "tokens_out": 96,
+    "cost_usd": 0.026291,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "RuntimeError"
+  }
+ },
+ "t32": {
+  "verdict": "FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.8,
+    "tokens_in": 2987,
+    "tokens_out": 533,
+    "cost_usd": 0.030375,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.4,
+    "tokens_in": 4065,
+    "tokens_out": 786,
+    "cost_usd": 0.044059,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.23,
+   "fit_ok": true,
+   "error_type": null
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.2,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t33": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: The newest `aioredis` (2.0.1, abandoned) fails on `import aioredis` under CPython 3.13: `aioredis/connection.py` runs `from distutils.version import StrictVersion`, and `distutils` was removed from the standard library in Python 3.12, so it raises `ModuleNotFoundError`.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.5,
+    "tokens_in": 3001,
+    "tokens_out": 594,
+    "cost_usd": 0.031707,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.5,
+    "tokens_in": 4000,
+    "tokens_out": 198,
+    "cost_usd": 0.031779,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.06,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  }
+ },
+ "t34": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.6,
+    "tokens_in": 2990,
+    "tokens_out": 481,
+    "cost_usd": 0.029358999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.02,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t35": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: python-dateutil has no ISO 8601 duration parser; isoparse/parse only handle dates and times and fail on 'P3DT4H30M' (relativedelta can't parse strings either).",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.9,
+    "tokens_in": 3006,
+    "tokens_out": 698,
+    "cost_usd": 0.033826999999999996,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.3,
+    "tokens_in": 4636,
+    "tokens_out": 73,
+    "cost_usd": 0.034367,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.04,
+   "fit_ok": false,
+   "error_type": "ValueError"
+  }
+ },
+ "t36": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 12.1,
+    "tokens_in": 2983,
+    "tokens_out": 959,
+    "cost_usd": 0.038862999999999995,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.04,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t37": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: nltk's English sentence splitter (`sent_tokenize`/`PunktTokenizer`) needs the separately downloaded `punkt_tab` data, which the PyPI package does not include, so it cannot split sentences offline after only installing the package.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.9,
+    "tokens_in": 2981,
+    "tokens_out": 809,
+    "cost_usd": 0.035847000000000004,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.8,
+    "tokens_in": 4539,
+    "tokens_out": 407,
+    "cost_usd": 0.040271,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.4,
+   "fit_ok": false,
+   "error_type": "LookupError"
+  }
+ },
+ "t38": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.3,
+    "tokens_in": 2983,
+    "tokens_out": 479,
+    "cost_usd": 0.029262999999999997,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.02,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t39": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: simplejson is a JSON-only library with no MessagePack support; its public API offers only JSON dump/dumps/load/loads, and it pulls in no dependency that provides MessagePack encoding.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.7,
+    "tokens_in": 2987,
+    "tokens_out": 727,
+    "cost_usd": 0.034255,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.9,
+    "tokens_in": 3881,
+    "tokens_out": 74,
+    "cost_usd": 0.028347,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t40": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.8,
+    "tokens_in": 2968,
+    "tokens_out": 850,
+    "cost_usd": 0.036563,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.05,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t41": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.9,
+    "tokens_in": 2997,
+    "tokens_out": 647,
+    "cost_usd": 0.032735,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.01,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t42": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: markupsafe 3.0.4 has no allowlist HTML sanitizer; its public API only offers escape(), which keeps no tags, and Markup.striptags(), which removes <b> too and leaves the <script> content (\"alert(...)\") as text.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.1,
+    "tokens_in": 3009,
+    "tokens_out": 729,
+    "cost_usd": 0.034471,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.5,
+    "tokens_in": 4109,
+    "tokens_out": 92,
+    "cost_usd": 0.030531000000000003,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.04,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t43": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.0,
+    "tokens_in": 2990,
+    "tokens_out": 653,
+    "cost_usd": 0.032798999999999995,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.02,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t44": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: tiktoken does not ship the cl100k_base BPE file in its package; `get_encoding(\"cl100k_base\")` downloads it from openaipublic.blob.core.windows.net on first use, so without network access at run time it fails with a ConnectionError.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.8,
+    "tokens_in": 3002,
+    "tokens_out": 770,
+    "cost_usd": 0.035235,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.1,
+    "tokens_in": 4618,
+    "tokens_out": 208,
+    "cost_usd": 0.036923000000000004,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.12,
+   "fit_ok": false,
+   "error_type": "ConnectionError"
+  }
+ },
+ "_meta": {
+  "arm": "f3r",
+  "model_requested": "claude-opus-5-5",
+  "date": "2026-10-13",
+  "cases": "cases_test.json"
+ }
+}

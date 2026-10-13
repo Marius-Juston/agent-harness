@@ -1,0 +1,39 @@
+# Inspected capa-language 0.6.2: TokenType has no EOF (tokenize crashes), parser.decl()
+# raises NotImplementedError, transpile() is a stub, and ast has no FunDecl.
+# This script is expected to fail, showing the package does not meet the need.
+from capa.lexer import tokenize
+from capa.parser import parse
+from capa.checker import check
+from capa.analyzer import analyze
+from capa.transpiler import transpile
+
+src = '''
+fun greet(c: Console) {
+    c.print("hi")
+}
+fun add(a: Int, b: Int) -> Int {
+    return a + b
+}
+'''
+
+tokens = tokenize(src)
+assert tokens, "no tokens produced"
+program = parse(tokens)
+assert len(program.decls) == 2, program.decls
+check(program)
+
+report = analyze(program)
+names = [f.name for f in report.functions]
+assert names == ["greet", "add"], names
+greet = report.functions[0]
+assert "Console" in greet.declared, greet.declared
+assert report.functions[1].declared == [], report.functions[1].declared
+
+py_src = transpile(program)
+assert isinstance(py_src, str) and py_src.strip(), "empty transpile output"
+compile(py_src, "<capa>", "exec")
+ns = {}
+exec(py_src, ns)
+assert "add" in ns and ns["add"](2, 3) == 5
+
+print("FIT_OK")

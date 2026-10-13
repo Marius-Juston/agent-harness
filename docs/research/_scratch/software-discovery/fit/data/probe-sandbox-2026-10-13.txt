@@ -1,0 +1,8 @@
+PASS network unreachable
+PASS venv read-only
+PASS /usr read-only
+PASS host ~/.ssh not visible
+PASS probe file absent on host venv
+PASS environment cleared (no parent variable)
+PASS --no-build refuses an sdist-only package
+sandbox environment keys: ['HOME', 'LANG', 'PATH', 'PWD']

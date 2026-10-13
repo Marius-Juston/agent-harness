@@ -1,0 +1,38 @@
+import json, importlib, importlib.metadata as md, pkgutil, inspect
+dist = md.distribution("satusehat-integration")
+tops = sorted({f.parts[0].removesuffix(".py") for f in dist.files or []
+               if f.suffix == ".py" and ".dist-info" not in str(f) and f.parts[0] != ".."})
+print("top-level:", tops)
+def find(cls_name, hint):
+    hits = []
+    for t in tops:
+        pkg = importlib.import_module(t)
+        mods = [pkg] + ([importlib.import_module(m.name) for m in pkgutil.walk_packages(pkg.__path__, t + ".")
+                         if hint in m.name.lower()] if hasattr(pkg, "__path__") else [])
+        hits += [getattr(m, cls_name) for m in mods if inspect.isclass(getattr(m, cls_name, None))]
+    assert hits, f"{cls_name} not found in {tops}"
+    print(cls_name, "->", hits[0].__module__)
+    return hits[0]
+HumanName, Period = find("HumanName", "human"), find("Period", "period")
+def ser(obj):
+    for m in ("to_json", "json", "model_dump_json", "as_json", "to_dict", "dict"):
+        if callable(getattr(obj, m, None)):
+            out = getattr(obj, m)()
+            return json.loads(out) if isinstance(out, str) else out
+    raise AssertionError(f"no serializer on {type(obj)}")
+h = HumanName(use="official", text="Dr. Budi Santoso", family="Santoso",
+              given=["Budi", "Adi"], prefix=["Dr."], suffix=["S.Kom"],
+              period=Period(start="2020-01-01"))
+data = ser(h)
+print(data)
+assert data["use"] == "official"
+assert data["text"] == "Dr. Budi Santoso"
+assert data["family"] == "Santoso"
+assert data["given"] == ["Budi", "Adi"]
+assert data["prefix"] == ["Dr."]
+assert data["suffix"] == ["S.Kom"]
+assert data["period"] == {"start": "2020-01-01"}, data["period"]
+assert "id" not in data and "extension" not in data
+minimal = ser(HumanName(family="Wijaya"))
+assert minimal == {"family": "Wijaya"}, minimal
+print("FIT_OK")

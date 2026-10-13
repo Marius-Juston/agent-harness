@@ -1,0 +1,4 @@
+import lz4, lz4.frame, pkgutil
+mods = [m.name for m in pkgutil.walk_packages(lz4.__path__, "lz4.")]; print(mods)
+c = lz4.frame.compress(b"x" * 1000); print(c[:4].hex())
+print("GOLD_NOT" if not any("zstd" in m for m in mods) and c[:4] != bytes.fromhex("28b52ffd") else "GOLD_CHECK")

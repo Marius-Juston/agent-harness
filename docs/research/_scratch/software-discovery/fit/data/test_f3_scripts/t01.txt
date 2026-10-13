@@ -1,0 +1,40 @@
+import os
+import tomlkit
+
+path = os.path.join("/tmp", "fit_test.toml")
+original = """# Top-level comment
+title = "Example"  # inline title comment
+
+[server]
+# Server host comment
+host = "localhost"
+port = 8080  # port comment
+
+[database]
+name = "prod"  # db name comment
+"""
+with open(path, "w", encoding="utf-8") as f:
+    f.write(original)
+
+with open(path, "r", encoding="utf-8") as f:
+    doc = tomlkit.parse(f.read())
+
+assert doc["server"]["port"] == 8080
+doc["server"]["port"] = 9090
+
+with open(path, "w", encoding="utf-8") as f:
+    f.write(tomlkit.dumps(doc))
+
+with open(path, "r", encoding="utf-8") as f:
+    result = f.read()
+
+expected = original.replace("port = 8080", "port = 9090")
+assert result == expected, repr(result)
+for c in ("# Top-level comment", "# inline title comment", "# Server host comment",
+          "# port comment", "# db name comment"):
+    assert c in result, c
+reparsed = tomlkit.parse(result)
+assert reparsed["server"]["port"] == 9090
+assert reparsed["server"]["host"] == "localhost"
+assert reparsed["title"] == "Example" and reparsed["database"]["name"] == "prod"
+print("FIT_OK")

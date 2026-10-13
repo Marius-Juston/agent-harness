@@ -1,0 +1,40 @@
+import json
+import pydantic
+import pydantic.json_schema as pjs
+
+schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "age": {"type": "integer", "minimum": 0},
+        "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": True},
+    },
+    "required": ["name", "age"],
+    "additionalProperties": False,
+}
+good = json.dumps({"name": "Ann", "age": 30, "tags": ["a", "b"]})
+bad_docs = [
+    json.dumps({"name": "", "age": 30}),
+    json.dumps({"name": "Bob", "age": -1}),
+    json.dumps({"name": "Bob"}),
+    json.dumps({"name": "Bob", "age": 3, "extra": 1}),
+    json.dumps({"name": "Bob", "age": 3, "tags": ["x", "x"]}),
+]
+
+# Look for a public API that validates instances against a JSON Schema dict.
+# Pydantic only *generates* schemas; this attribute is expected to be absent.
+validate = getattr(pjs, "validate_json_schema", None) or getattr(
+    pydantic, "validate_json_schema"
+)
+
+validate(json.loads(good), schema)
+for doc in bad_docs:
+    rejected = False
+    try:
+        validate(json.loads(doc), schema)
+    except pydantic.ValidationError:
+        rejected = True
+    assert rejected, f"invalid document accepted: {doc}"
+
+print("FIT_OK")

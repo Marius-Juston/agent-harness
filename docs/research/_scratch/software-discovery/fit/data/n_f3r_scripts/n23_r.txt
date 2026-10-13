@@ -1,0 +1,40 @@
+import importlib, importlib.metadata as md, inspect, pkgutil, asyncio, dataclasses
+files = md.distribution("comparer-mcp").files or []
+tops = sorted({f.parts[0].removesuffix(".py") for f in files if f.suffix == ".py" and not f.parts[0].endswith((".dist-info", ".data"))})
+mods = []
+for t in tops:
+    m = importlib.import_module(t); mods.append(m)
+    mods += [importlib.import_module(i.name) for i in pkgutil.walk_packages(getattr(m, "__path__", []), t + ".")]
+cands = []
+for m in mods:
+    for n, o in vars(m).items():
+        f = getattr(o, "fn", o)
+        if n.startswith("_") or not inspect.isfunction(f) or not any(k in n.lower() for k in ("compar", "similar", "score")):
+            continue
+        if len([p for p in inspect.signature(f).parameters.values() if p.default is p.empty]) == 2:
+            cands.append((n, f))
+assert cands, f"no 2-arg compare/similarity function found in {tops}"
+name, fn = sorted(cands, key=lambda c: ("similar" not in c[0].lower(), c[0]))[0]
+def xml(steps):
+    notes = "".join(f"<note><pitch><step>{s}</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>" for s in steps)
+    return ('<?xml version="1.0" encoding="UTF-8"?><score-partwise version="3.1"><part-list><score-part id="P1"><part-name>M</part-name></score-part></part-list>'
+            f'<part id="P1"><measure number="1"><attributes><divisions>1</divisions><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>{notes}</measure></part></score-partwise>')
+def todict(r):
+    if hasattr(r, "model_dump"): return r.model_dump()
+    if dataclasses.is_dataclass(r): return dataclasses.asdict(r)
+    return r if isinstance(r, dict) else vars(r)
+def run(a, b):
+    r = fn(a, b)
+    r = asyncio.run(r) if inspect.isawaitable(r) else r
+    if isinstance(r, (int, float)): return float(r)
+    d = todict(r); print(type(r).__name__, d)
+    ks = [k for k, v in d.items() if isinstance(v, (int, float)) and not isinstance(v, bool) and any(s in k.lower() for s in ("similar", "score"))]
+    assert ks, f"no numeric similarity field in {d}"
+    return float(d[sorted(ks, key=lambda k: ("overall" not in k.lower() and k.lower() != "similarity", k))[0]])
+a, b = xml("CDEF"), xml("GABG")
+same, diff = run(a, a), run(a, b)
+print(name, same, diff)
+assert 0.0 <= same <= 1.0 and 0.0 <= diff <= 1.0
+assert same > 0.99, same
+assert diff < same, (diff, same)
+print("FIT_OK")

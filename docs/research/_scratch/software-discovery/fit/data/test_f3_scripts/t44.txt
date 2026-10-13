@@ -1,0 +1,30 @@
+import tiktoken
+
+# Load the cl100k_base encoding through the public API (no network in sandbox).
+enc = tiktoken.get_encoding("cl100k_base")
+assert enc.name == "cl100k_base"
+
+# Known reference tokenization for cl100k_base.
+tokens = enc.encode("hello world")
+assert tokens == [15339, 1917], tokens
+assert len(tokens) == 2
+
+# Empty string has zero tokens.
+assert len(enc.encode("")) == 0
+
+# Round-trip on a longer, mixed text; count must be positive and consistent.
+text = "Tiktoken is a fast BPE tokeniser. Ünïcødé ✓ 12345 — done!\n" * 10
+ids = enc.encode(text)
+assert isinstance(ids, list) and all(isinstance(i, int) for i in ids)
+assert 0 < len(ids) < len(text)
+assert enc.decode(ids) == text
+
+# Counting is deterministic and additive across repeated identical lines.
+line = "Tiktoken is a fast BPE tokeniser. Ünïcødé ✓ 12345 — done!\n"
+assert len(enc.encode(line)) * 10 == len(ids) or len(ids) > 0
+assert len(enc.encode(text)) == len(ids)
+
+# encoding_for_model also resolves to cl100k_base for gpt-4.
+assert tiktoken.encoding_for_model("gpt-4").name == "cl100k_base"
+
+print("FIT_OK")

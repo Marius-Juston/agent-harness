@@ -1,0 +1,36 @@
+from datetime import datetime, timedelta
+
+import dateparser
+
+base = datetime(2024, 1, 10, 12, 0, 0)
+settings = {"RELATIVE_BASE": base, "PREFER_DATES_FROM": "past"}
+
+cases = {
+    "3 days ago": base - timedelta(days=3),
+    "2 weeks ago": base - timedelta(weeks=2),
+    "5 hours ago": base - timedelta(hours=5),
+    "10 minutes ago": base - timedelta(minutes=10),
+    "1 day ago": base - timedelta(days=1),
+}
+
+for phrase, expected in cases.items():
+    result = dateparser.parse(phrase, languages=["en"], settings=settings)
+    assert result is not None, f"failed to parse {phrase!r}"
+    assert isinstance(result, datetime), f"{phrase!r} -> {type(result)}"
+    result = result.replace(tzinfo=None)
+    assert result == expected, f"{phrase!r}: got {result}, expected {expected}"
+    print(f"{phrase!r} -> {result}")
+
+# 'yesterday' should land on the previous calendar day
+y = dateparser.parse("yesterday", languages=["en"], settings=settings)
+assert y is not None and y.date() == (base - timedelta(days=1)).date(), y
+
+# Without explicit language, auto-detection should still work
+auto = dateparser.parse("3 days ago", settings={"RELATIVE_BASE": base})
+assert auto is not None
+assert auto.replace(tzinfo=None) == base - timedelta(days=3), auto
+
+# Garbage should not parse
+assert dateparser.parse("not a date at all xyz", languages=["en"]) is None
+
+print("FIT_OK")

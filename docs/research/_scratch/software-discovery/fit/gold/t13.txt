@@ -1,0 +1,7 @@
+import importlib, pkgutil
+try:
+    import pyzbar.pyzbar as z
+    print([n for n in dir(z) if not n.startswith("_")])
+    print("GOLD_FIT" if any("encode" in n.lower() for n in dir(z)) else "GOLD_NOT")
+except Exception as e:
+    print("import", type(e).__name__, e); print("GOLD_NOT")

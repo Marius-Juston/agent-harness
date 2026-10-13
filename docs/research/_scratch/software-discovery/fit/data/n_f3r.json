@@ -1,0 +1,853 @@
+{
+ "n01": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 851.8,
+    "tokens_in": 98486,
+    "tokens_out": 128876,
+    "cost_usd": 3.3377719999999993,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 11.7,
+    "tokens_in": 4531,
+    "tokens_out": 1122,
+    "cost_usd": 0.054507,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "ImportError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.06,
+   "fit_ok": false,
+   "error_type": "TypeError"
+  }
+ },
+ "n02": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 18.3,
+    "tokens_in": 2987,
+    "tokens_out": 2142,
+    "cost_usd": 0.062555,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 13.9,
+    "tokens_in": 3074,
+    "tokens_out": 1251,
+    "cost_usd": 0.045431,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.06,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  },
+  "run0": {
+   "exit": null,
+   "seconds": null,
+   "fit_ok": null,
+   "error_type": null
+  }
+ },
+ "n03": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 25.2,
+    "tokens_in": 3005,
+    "tokens_out": 2851,
+    "cost_usd": 0.076879,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 11.8,
+    "tokens_in": 4231,
+    "tokens_out": 1216,
+    "cost_usd": 0.053987,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.31,
+   "fit_ok": false,
+   "error_type": "DatabaseError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.3,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n04": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 17.0,
+    "tokens_in": 2979,
+    "tokens_out": 1807,
+    "cost_usd": 0.05579100000000001,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.4,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "n05": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 39.2,
+    "tokens_in": 2996,
+    "tokens_out": 4782,
+    "cost_usd": 0.11542699999999999,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 795.9,
+    "tokens_in": 99358,
+    "tokens_out": 128853,
+    "cost_usd": 3.3386876,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.16,
+   "fit_ok": false,
+   "error_type": "AttributeError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.11,
+   "fit_ok": false,
+   "error_type": "ImportError"
+  }
+ },
+ "n06": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 13.1,
+    "tokens_in": 2980,
+    "tokens_out": 1452,
+    "cost_usd": 0.048699,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 11.4,
+    "tokens_in": 3438,
+    "tokens_out": 1256,
+    "cost_usd": 0.048443,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.11,
+   "fit_ok": false,
+   "error_type": "ImportError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.11,
+   "fit_ok": false,
+   "error_type": "ImportError"
+  }
+ },
+ "n07": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 14.0,
+    "tokens_in": 2998,
+    "tokens_out": 1285,
+    "cost_usd": 0.045503,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.03,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "n08": {
+  "verdict": "NOT_FIT",
+  "reason": "unparsed repair reply",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 18.1,
+    "tokens_in": 3007,
+    "tokens_out": 1821,
+    "cost_usd": 0.056295000000000005,
+    "error": null
+   },
+   {
+    "models": [],
+    "seconds": 900.1,
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "cost_usd": null,
+    "error": "TimeoutExpired"
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n09": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 861.8,
+    "tokens_in": 100339,
+    "tokens_out": 128966,
+    "cost_usd": 3.3545441999999994,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 896.6,
+    "tokens_in": 10277,
+    "tokens_out": 129043,
+    "cost_usd": 2.6292155999999998,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.07,
+   "fit_ok": false,
+   "error_type": null
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.08,
+   "fit_ok": false,
+   "error_type": "AttributeError"
+  }
+ },
+ "n10": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: ezgb only reads and writes git-bug data (its modules are _git, _models, _reader, _types, _writer), and nothing in its API, including the submodules, mentions GitHub or a bridge, so it has no way to import GitHub issues.",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 405.8,
+    "tokens_in": 6017,
+    "tokens_out": 1012,
+    "cost_usd": 0.0475106,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.2,
+    "tokens_in": 3830,
+    "tokens_out": 233,
+    "cost_usd": 0.031119,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.07,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n11": {
+  "verdict": "FIT",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 436.3,
+    "tokens_in": 6099,
+    "tokens_out": 1435,
+    "cost_usd": 0.0566188,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 1.07,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "n12": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 82.1,
+    "tokens_in": 3017,
+    "tokens_out": 11741,
+    "cost_usd": 0.25477500000000003,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 13.0,
+    "tokens_in": 3889,
+    "tokens_out": 1293,
+    "cost_usd": 0.052791000000000005,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  },
+  "run0": {
+   "exit": null,
+   "seconds": null,
+   "fit_ok": null,
+   "error_type": null
+  }
+ },
+ "n13": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 433.7,
+    "tokens_in": 6053,
+    "tokens_out": 903,
+    "cost_usd": 0.04561080000000001,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 27.7,
+    "tokens_in": 3967,
+    "tokens_out": 2892,
+    "cost_usd": 0.085395,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.51,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n14": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 16.4,
+    "tokens_in": 2991,
+    "tokens_out": 1676,
+    "cost_usd": 0.05326700000000001,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 16.6,
+    "tokens_in": 4581,
+    "tokens_out": 1832,
+    "cost_usd": 0.069107,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.34,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.47,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  }
+ },
+ "n15": {
+  "verdict": "FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 14.1,
+    "tokens_in": 3031,
+    "tokens_out": 1478,
+    "cost_usd": 0.049627000000000004,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.9,
+    "tokens_in": 3814,
+    "tokens_out": 861,
+    "cost_usd": 0.043551,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.03,
+   "fit_ok": true,
+   "error_type": null
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.05,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n16": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 421.2,
+    "tokens_in": 6111,
+    "tokens_out": 1099,
+    "cost_usd": 0.0500026,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 11.5,
+    "tokens_in": 3712,
+    "tokens_out": 1104,
+    "cost_usd": 0.047595,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.05,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  }
+ },
+ "n17": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 21.7,
+    "tokens_in": 3010,
+    "tokens_out": 2271,
+    "cost_usd": 0.065319,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 12.1,
+    "tokens_in": 3987,
+    "tokens_out": 1266,
+    "cost_usd": 0.053035,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.18,
+   "fit_ok": false,
+   "error_type": "TypeError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.16,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n18": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 14.7,
+    "tokens_in": 2980,
+    "tokens_out": 1473,
+    "cost_usd": 0.049118999999999996,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 841.6,
+    "tokens_in": 17959,
+    "tokens_out": 128807,
+    "cost_usd": 2.6865912,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.18,
+   "fit_ok": false,
+   "error_type": "ImportError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.15,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  }
+ },
+ "n19": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 390.2,
+    "tokens_in": 6101,
+    "tokens_out": 2555,
+    "cost_usd": 0.07903479999999999,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 11.4,
+    "tokens_in": 3116,
+    "tokens_out": 1046,
+    "cost_usd": 0.041667,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 2.56,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  },
+  "run0": {
+   "exit": null,
+   "seconds": null,
+   "fit_ok": null,
+   "error_type": null
+  }
+ },
+ "n20": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 351.8,
+    "tokens_in": 6109,
+    "tokens_out": 1124,
+    "cost_usd": 0.050471,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 14.0,
+    "tokens_in": 4007,
+    "tokens_out": 1327,
+    "cost_usd": 0.054415000000000005,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 2.17,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 3.33,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "n21": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 27.1,
+    "tokens_in": 3011,
+    "tokens_out": 3469,
+    "cost_usd": 0.08928699999999999,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 876.0,
+    "tokens_in": 10665,
+    "tokens_out": 130192,
+    "cost_usd": 2.657234,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  }
+ },
+ "n22": {
+  "verdict": "NOT_FIT",
+  "reason": "NOT_FIT: satusehat-integration's installed top-level package is broken (`builder/__init__.py` imports `src.builder...`, and no `src` package is shipped, so importing it raises ModuleNotFoundError); it is also a SATUSEHAT API client and resource builder, not a FHIR R4 validator that reports spec erro",
+  "repaired": false,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 17.0,
+    "tokens_in": 3017,
+    "tokens_out": 1566,
+    "cost_usd": 0.051275,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.1,
+    "tokens_in": 4355,
+    "tokens_out": 436,
+    "cost_usd": 0.039379,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  }
+ },
+ "n23": {
+  "verdict": "FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 194.2,
+    "tokens_in": 3012,
+    "tokens_out": 27949,
+    "cost_usd": 0.578895,
+    "error": null
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 12.0,
+    "tokens_in": 4117,
+    "tokens_out": 1315,
+    "cost_usd": 0.055055,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 1.6,
+   "fit_ok": true,
+   "error_type": null
+  },
+  "run0": {
+   "exit": 1,
+   "seconds": 1.42,
+   "fit_ok": false,
+   "error_type": "TypeError"
+  }
+ },
+ "n24": {
+  "verdict": "NOT_FIT",
+  "repaired": true,
+  "calls": [
+   {
+    "models": [],
+    "seconds": 900.1,
+    "tokens_in": 0,
+    "tokens_out": 0,
+    "cost_usd": null,
+    "error": "TimeoutExpired"
+   },
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 13.4,
+    "tokens_in": 3092,
+    "tokens_out": 1232,
+    "cost_usd": 0.045195,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 1.33,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  },
+  "run0": {
+   "exit": null,
+   "seconds": null,
+   "fit_ok": null,
+   "error_type": null
+  }
+ },
+ "_meta": {
+  "arm": "f3r",
+  "model_requested": "claude-opus-5-5",
+  "date": "2026-10-13",
+  "cases": "cases_n.json"
+ }
+}

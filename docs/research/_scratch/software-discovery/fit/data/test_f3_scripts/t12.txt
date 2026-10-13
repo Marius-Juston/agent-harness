@@ -1,0 +1,39 @@
+import xml.etree.ElementTree as ET
+import qrcode
+from qrcode.image.svg import SvgImage
+
+data = "Hello, QR world! 12345 https://example.com/?q=fit"
+
+qr = qrcode.QRCode(border=4, box_size=10)
+qr.add_data(data)
+qr.make(fit=True)
+matrix = qr.get_matrix()
+n = len(matrix)
+assert n == 4 * qr.version + 17 + 2 * 4, (n, qr.version)
+assert all(len(row) == n for row in matrix)
+dark = sum(sum(1 for c in row if c) for row in matrix)
+assert 0 < dark < n * n
+
+# Finder pattern sanity check (top-left corner, inside the border)
+assert all(matrix[4][4 + i] for i in range(7))
+assert all(matrix[4 + i][4] for i in range(7))
+assert not matrix[5][5] and matrix[6][6]
+
+img = qr.make_image(image_factory=SvgImage)
+path = "/tmp/qr_test.svg"
+img.save(path)
+
+with open(path, "rb") as f:
+    raw = f.read()
+assert raw.lstrip().startswith(b"<?xml") or b"<svg" in raw[:300]
+root = ET.fromstring(raw)
+assert root.tag.endswith("svg"), root.tag
+rects = [e for e in root.iter() if e.tag.endswith("rect")]
+assert len(rects) in (dark, dark + 1), (len(rects), dark)
+
+# Shortcut API also works
+img2 = qrcode.make(data, image_factory=SvgImage)
+img2.save("/tmp/qr_test2.svg")
+assert ET.parse("/tmp/qr_test2.svg").getroot().tag.endswith("svg")
+
+print("FIT_OK")

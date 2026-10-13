@@ -1,0 +1,5 @@
+import html5lib
+doc = html5lib.parse("<div><p class='x'>a</p></div>", namespaceHTMLElements=False)
+print(type(doc), hasattr(doc, "select"))
+names = [n for n in dir(html5lib) if not n.startswith("_")]; print(names)
+print("GOLD_NOT" if not any("select" in n.lower() or "css" in n.lower() for n in names) else "GOLD_CHECK")

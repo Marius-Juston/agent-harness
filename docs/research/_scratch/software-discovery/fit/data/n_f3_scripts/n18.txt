@@ -1,0 +1,36 @@
+import zipfile
+from pathlib import Path
+from faskill.packager import package_skill
+
+base = Path("/tmp/fit_skill_test")
+skill = base / "my-skill"
+(skill / "scripts").mkdir(parents=True, exist_ok=True)
+(skill / "SKILL.md").write_text(
+    "---\nname: my-skill\ndescription: A tiny test skill for packaging.\n---\n\n# My Skill\nDo things.\n"
+)
+(skill / "scripts" / "run.py").write_text("print('hello')\n")
+(skill / ".DS_Store").write_text("junk")
+out_dir = base / "dist"
+out_dir.mkdir(exist_ok=True)
+
+result = package_skill(skill, out_dir)
+assert result is not None, "package_skill returned None"
+archive = Path(result)
+assert archive.exists() and archive.suffix == ".skill", archive
+assert zipfile.is_zipfile(archive)
+
+with zipfile.ZipFile(archive) as zf:
+    names = set(zf.namelist())
+    assert "my-skill/SKILL.md" in names, names
+    assert "my-skill/scripts/run.py" in names, names
+    assert not any(n.endswith(".DS_Store") for n in names), names
+    assert zf.read("my-skill/scripts/run.py") == b"print('hello')\n"
+    assert b"name: my-skill" in zf.read("my-skill/SKILL.md")
+
+# An invalid skill (no SKILL.md) should not produce an archive
+bad = base / "bad-skill"
+bad.mkdir(exist_ok=True)
+assert package_skill(bad, out_dir) is None
+assert not (out_dir / "bad-skill.skill").exists()
+
+print("FIT_OK")

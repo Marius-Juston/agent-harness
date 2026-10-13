@@ -1,0 +1,38 @@
+import yaml
+
+src = """\
+# top-level comment
+name: demo  # inline comment on name
+version: 1
+# comment before settings
+settings:
+  debug: false  # debug flag
+  level: 3
+"""
+
+path = "/tmp/config.yaml"
+with open(path, "w") as f:
+    f.write(src)
+
+with open(path) as f:
+    data = yaml.safe_load(f)
+
+assert data["settings"]["level"] == 3
+data["settings"]["level"] = 5
+
+with open(path, "w") as f:
+    yaml.safe_dump(data, f, sort_keys=False)
+
+with open(path) as f:
+    out = f.read()
+print(out)
+
+reloaded = yaml.safe_load(out)
+assert reloaded["settings"]["level"] == 5
+assert reloaded["name"] == "demo"
+# The need: original comments must survive the round trip.
+for comment in ["# top-level comment", "# inline comment on name",
+                "# comment before settings", "# debug flag"]:
+    assert comment in out, f"comment lost: {comment!r}"
+
+print("FIT_OK")

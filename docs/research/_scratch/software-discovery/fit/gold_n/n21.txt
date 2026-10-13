@@ -1,0 +1,12 @@
+import json
+try:
+    from src.datatype.datatypes import HumanName
+    print("README import path works"); readme_ok = True
+except Exception as e:
+    print("README import path:", type(e).__name__, e); readme_ok = False
+try:
+    from datatype.datatypes import HumanName as H2
+    print("alt path:", json.dumps(H2(family="Doe", given=["John"], use="official").to_json()))
+except Exception as e:
+    print("alt path:", type(e).__name__, e)
+print("GOLD_FIT" if readme_ok else "GOLD_NOT")
