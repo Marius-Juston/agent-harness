@@ -8,7 +8,8 @@ what is already researched.
 ## Every session
 - A SessionStart hook injects `uv run dev orient` (handoff, board, worktrees, memory, quota). Run it again after long breaks.
 - The board is GitHub issues: `uv run dev board next`, `board brief <n>`, `board claim <n> --agent <name>`.
-  Work without an issue does not exist. Each issue has a measurable DONE WHEN.
+  Work without an issue does not exist. Each issue has a measurable DONE WHEN. A small fix found on the way
+  belongs to the current issue: the fix-now rule (multi-agent.md §3).
 - The main session is the **lead** for its machine. It plans, dispatches and integrates (the `harness-ops:lead`
   skill), and it never builds while workers run. Workers are `harness-ops:` subagents, one issue each, in their own
   worktree.

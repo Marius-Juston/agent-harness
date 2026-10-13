@@ -78,6 +78,11 @@ open); of several labels, the highest priority and the furthest status are kept;
 ## 3. Avoiding collisions
 - **Owns.** An issue lists the paths it may change. Two workers run at once only when their Owns do not overlap
   (`board brief` shows the overlaps). A small edit outside Owns that the issue needs is allowed. Name it in the hand-back.
+- **Fix now.** A defect or gap found while working goes in this PR as its own commit, prefixed `fix-now:` and
+  listed under `Fixed in passing` in the PR body, when all four hold: (1) at most 20 changed lines in at most 2
+  files; (2) the files are in the PR's diff or Owns, or this change exposed it; (3) no design choice, new interface
+  or dependency, or owner approval, and the gate checks it; (4) no other open item or hotspot holds the file. A
+  defect the PR itself introduced is fixed whatever its size. Otherwise file it and name the condition that failed.
 - **Append-only files** merge with git's union driver (`.gitattributes`): research notes, logs and OPEN_QUESTIONS.
   Append sections; never rewrite another agent's lines.
 - **Generated files** are never merged by hand. Regenerate them with `uv run dev docs`.
