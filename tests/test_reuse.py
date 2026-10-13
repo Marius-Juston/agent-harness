@@ -440,6 +440,76 @@ def test_licence_gate_by_blue_oak_tier(lic, allow, outcome):
     assert reuse.licence_gate("MIT", None, allow)[0] == "HOLD"  # lists down: not checked
 
 
+# Blue Oak's own families for the ids below (copyleft.json v11): LGPL and MPL weak, GPL strong.
+DUAL_TIERS = {
+    **dict.fromkeys(("MPL-1.1", "LGPL-2.1-only", "LGPL-2.1-or-later", "LGPL-3.0-only", "LGPL-3.0-or-later"), "weak"),
+    **dict.fromkeys(("GPL-2.0-only", "GPL-2.0-or-later", "GPL-3.0-only"), "strong"),
+}
+
+
+@pytest.mark.parametrize(
+    ("rec", "lic"),
+    [  # ecosyste.ms records as fetched 2026-10-13 (licenses, normalized_licenses)
+        (
+            {"licenses": "MPL-1.1 OR GPL-2.0-or-later OR LGPL-2.1-or-later",
+             "normalized_licenses": ["MPL-1.1", "GPL-2.0-or-later", "LGPL-2.1-or-later"]},
+            "MPL-1.1 OR GPL-2.0-or-later OR LGPL-2.1-or-later",
+        ),  # cchardet
+        (
+            {"licenses": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
+             "normalized_licenses": ["LGPL-3.0-only", "GPL-2.0-only", "GPL-3.0-only"]},
+            "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
+        ),  # pyside6
+        (
+            {"licenses": "GNU Lesser General Public License v3 or later (LGPLv3+)",
+             "normalized_licenses": ["LGPL-2.1", "GPL-2.0+"]},
+            "LGPL-2.1 OR GPL-2.0+",
+        ),  # dramatiq: a classifier, not an expression, so the normalized list joined with OR
+        ({"licenses": None, "normalized_licenses": ["LGPL-3.0-or-later"]}, "LGPL-3.0-or-later"),  # LGPL only
+    ],
+)  # fmt: skip
+def test_dual_licensed_and_lgpl_packages_pass_g5_as_weak_copyleft(rec, lic):
+    c = reuse.from_record({"name": "x", "ecosystem": "pypi", **rec})
+    assert c.license == lic
+    outcome, why = reuse.licence_gate(c.license, DUAL_TIERS, False)
+    assert outcome == "flag" and "weak copyleft" in why  # an OR passes when any option does; LGPL is weak
+    assert reuse.licence_gate("GPL-2.0-or-later AND LGPL-3.0-only", DUAL_TIERS, False)[0] == "FAIL"
+
+
+@pytest.mark.parametrize(
+    ("text", "expr"),
+    [
+        ("MIT", "MIT"),
+        ("(MIT OR Apache-2.0)  AND BSD-3-Clause", "(MIT OR Apache-2.0) AND BSD-3-Clause"),
+        ("GPL-2.0-or-later WITH Classpath-exception-2.0", "GPL-2.0-or-later WITH Classpath-exception-2.0"),
+        ("MIT License", ""),
+        ("MIT OR", ""),
+        ("MIT/Apache-2.0", ""),
+        ("BSD", "BSD"),
+        ("", ""),
+        (None, ""),
+    ],
+)
+def test_spdx_expression_accepts_only_expressions(text, expr):
+    assert reuse.spdx_expression(text) == expr
+
+
+@given(st.text(max_size=40))
+def test_spdx_expression_returns_its_input_or_nothing(text):
+    got = reuse.spdx_expression(text)
+    assert got in ("", " ".join(text.split()))
+
+
+def test_check_prefers_pypis_license_expression(tmp_path):
+    expr = "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only"
+    w = world(named={"pyside6": record("pyside6", "pyside/pyside6", lic=("GPL-3.0-only",))},
+              registry_body=lambda name: {"info": {"name": name, "license_expression": expr}},
+              registry=frozenset({"pyside6", "shiboken-gui"}))  # fmt: skip
+    rep = reuse.check(make(tmp_path, Net(w)), ["pyside6", "shiboken-gui"], "pypi")
+    for c in rep["candidates"]:  # the ecosyste.ms record and the registry fallback both read the expression
+        assert c.license == expr and c.gates["G5"].startswith("flag (") and "weak copyleft" in c.gates["G5"]
+
+
 def test_osi_flag():
     osi = {"MIT": True, "WTFPL": False}
     assert reuse.osi_flag("MIT", osi) == ""
