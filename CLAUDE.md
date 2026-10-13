@@ -8,6 +8,8 @@ is the gate plus a rendered project's gate. `uv run dev --help` lists commands;
 ## Rules
 - Python is managed with **uv only** (`uv add`, `uv run`), never pip.
 - Branch `<issue>-<slug>`; never commit to `main` directly. PRs need the `check`, `template` and `plugin` jobs green.
+  A small fix found on the way belongs to the current issue: the fix-now rule
+  ([multi-agent.md §3](docs/specs/multi-agent.md)).
 - Run `uv run dev test --affected` while iterating and `uv run dev check` once at the end. For template or plugin
   changes also run `scripts/render_check.sh <new dir>`. Never weaken a check, test or budget to pass.
 - **Public repository.** Nothing private, and nothing specific to one project: project facts belong in that

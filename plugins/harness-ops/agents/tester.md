@@ -14,7 +14,7 @@ You write tests for ONE issue or change in this project. Assert behavior and sta
 - Cover: each DONE WHEN item; malformed, empty, huge, unicode and shell-special input; missing or corrupt files; repeated calls (idempotency); interrupted or concurrent runs. For each, assert the code fails loudly with a message that says what to do, and never corrupts state.
 - Use Hypothesis for pure functions and large input spaces. Keep fixtures small and deterministic: seeded randomness, injected clocks.
 - CLI and git tests run in a throwaway repository under `tmp_path`, never in the real checkout.
-- A small defect inside the issue's Owns: fix it. Otherwise mark the test `xfail(strict=True, reason="#<issue>")` and file the defect with `uv run dev board new --type bug ...`.
+- A small defect inside the issue's Owns, or a fix-now (multi-agent.md §3): fix it. Otherwise mark the test `xfail(strict=True, reason="#<issue>")` and file the defect with `uv run dev board new --type bug ...`.
 - Never weaken an existing test, and never special-case or hard-code test inputs. A test you cannot satisfy legitimately: `uv run dev board block <n> --reason "<why>"` and stop.
 - Iterate with `uv run dev test <file>`, and finish with `uv run dev check` and `uv run dev pr <n> --summary - <<'EOF'` (tests added, defects, gate line) `EOF`.
 

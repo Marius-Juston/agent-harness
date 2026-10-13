@@ -15,15 +15,15 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 
 ## Orient
 1. If you were given an issue: `uv run dev board brief <n>`. Its Context and DONE WHEN are your scope.
-2. Read the research index (`docs/research/INDEX.md` unless `[tool.devkit] research_dir` moves it), then the 1-3 closest notes (`uv run dev code outline <note>` first, then the sections you need). Extend an existing note instead of writing a parallel one. If no note fits, run `uv run dev research new <slug> --title "..." --issue <n>`.
+2. Read the research index (`docs/research/INDEX.md` by default), then the 1-3 closest notes (`uv run dev code outline <note>` first, then the sections you need). Extend an existing note instead of writing a parallel one. If no note fits, run `uv run dev research new <slug> --title "..." --issue <n>`.
 
 ## Method
-- **Sources.** Prefer primary sources: peer-reviewed work in the field's leading venues (CLAUDE.md may name them; for ML: NeurIPS, ICML, ICLR, ACL, EMNLP), meta-analyses over single studies, official docs, and maintained repositories. Use Wikipedia for orientation only.
+- **Sources.** Prefer primary sources: peer-reviewed work in the field's leading venues (CLAUDE.md may name them), meta-analyses over single studies, official docs, and maintained repositories. Use Wikipedia for orientation only.
 - **Search tools, all free.** Run `uv run dev lit status` first; if it says DEGRADED, stop and report that instead of searching the weaker fallbacks. Then `uv run dev lit search "<q>"` (`--years 2015-`, `-n`): a shared, cached, rate-limited client; never call those APIs through WebFetch. `uv run dev lit get <doi|arxiv id>` for one paper's abstract. Then the arxiv MCP (`get_abstract` or `get_paper_outline` and one section at a time; never a whole paper), WebSearch, and context7 for library docs. A `note:` line means a source was skipped; say so if it matters.
 - **Never invent** a source, author, venue, year or number. Cite only what you fetched. If you cannot verify something, say so or drop it.
 - **Effect sizes, not adjectives.** Report study type, N and effect size with its interval when the source gives them. Note replication failures and contrary evidence.
 - **Software.** For every recommended tool or library, check it through the API (`https://api.github.com/repos/<o>/<r>`: stars, pushed_at, license, archived; `https://pypi.org/pypi/<pkg>/json`). Name the best free option.
-- **Check the math.** Where a number matters, check it with a small script in `.scratch/`. That makes it VERIFIED.
+- **Check the math.** Where a number matters, check it with a script in `_scratch/<slug>/scripts/`; that makes it VERIFIED.
 
 ## Output
 - Both modes record a `Search coverage:` line: the sources `lit status` showed up, any down, and the date.
@@ -31,7 +31,7 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 - Issue mode, house style: `# Research: <topic>`, `Status:`, `Labels:` and `Search coverage:` lines, then "0. Findings in one paragraph" (the answer first), numbered sections, a Recommendation for this project with concrete numbers and bounds, Sources, and Follow-ups (`- [ ] ... DONE WHEN ...`).
 - Every claim gets a label (VERIFIED / SOURCED / BELIEVED / ASSUMED) and an inline link whose text is the source's title, with author/year/venue after it.
 - In both modes, run `uv run dev cite-check <your file>` until it passes before handing back; issue mode then runs `uv run dev docs`.
-- File each important gap you did not close as an issue: `uv run dev board new --type research ... --done "..."`.
+- File each important gap you did not close as an issue (`uv run dev board new --type research ... --done "..."`); batch fix-ready edits (file, change, check) into one build issue.
 - Issue mode: commit on your branch, then finish with `uv run dev check` and `uv run dev pr <n> --summary - <<'EOF'` (findings, unverified, issues filed) `EOF`.
 
 Reply in at most 20 lines: the answer, its key numbers, what is unverified, and the issues filed.

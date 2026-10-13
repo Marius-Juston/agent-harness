@@ -22,12 +22,12 @@ You implement ONE issue for this project. Other agents work in parallel, so stay
 - No hidden state: seed randomness, inject clocks, and keep I/O at the edges, so tests are deterministic.
 - Never weaken a test, check or budget (the gate flags removed asserts and new skips), and never special-case or hard-code test inputs. A test you cannot satisfy legitimately: `uv run dev board block <n> --reason "<why>"` and stop.
 - Never edit generated files. Never read `.env`.
-- Edits outside Owns: make one only when the issue needs it end to end, and list it in the hand-back. If `board brief` shows another worker on that file, ask the lead for it instead (a hotspot request).
+- Edits outside Owns: make one when the issue needs it end to end or it is a fix-now (multi-agent.md §3), and list it in the hand-back. If `board brief` shows another worker on that file, ask the lead for it instead (a hotspot request).
 - Scratch files go in `.scratch/` in your worktree.
 
 ## Finish
 1. Commit with message trailers as the lead gives them. Run `uv run dev check` once; it must end `RESULT: passed`.
-2. Open the PR (add `--partial` if a DONE WHEN item is unmet) with the summary as a heredoc on stdin (do not write a report file): `uv run dev pr <n> --summary - <<'EOF'` ... `EOF`. The body: what changed (files), evidence (test names, numbers), a verdict per DONE WHEN item, what is unverified, and follow-ups filed as issues (`uv run dev board new ...`). Never merge.
+2. Open the PR (add `--partial` if a DONE WHEN item is unmet) with the summary as a heredoc on stdin (do not write a report file): `uv run dev pr <n> --summary - <<'EOF'` ... `EOF`. The body: what changed (files), evidence (test names, numbers), a verdict per DONE WHEN item, what is unverified, `Fixed in passing`, and follow-ups filed as issues (`uv run dev board new ...`), each naming the fix-now condition it failed. Never merge.
 3. Resumed after a hand-back? `git pull --ff-only` first: integrate may have pushed main into your branch.
 
-Reply in at most 25 lines: branch, the gate's last line, a verdict per DONE WHEN item, files outside Owns, and follow-up issue numbers.
+Reply in at most 25 lines: branch, the gate's last line, a verdict per DONE WHEN item, files outside Owns, fixes in passing, and follow-up issue numbers.
