@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["name", "retries"],
+  "properties": {
+    "name": {"type": "string", "minLength": 1},
+    "retries": {"type": "integer", "minimum": 0, "maximum": 10},
+    "mode": {"enum": ["fast", "safe"]},
+    "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "additionalProperties": false
+}

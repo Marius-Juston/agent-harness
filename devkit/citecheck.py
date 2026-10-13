@@ -6,6 +6,8 @@ This resolves every link and, where an authoritative record exists, compares the
 - arXiv ids (abs/, html/, pdf/ links): one batched query to the arXiv API; link text that looks like a title must
   match the record's title.
 - DOIs (doi.org links): the Crossref record, else DataCite's (same title comparison), else the doi.org handle.
+  A Crossref record whose `updated-by` lists a retraction, withdrawal or removal (from the publisher or from
+  Retraction Watch) is a problem naming the notice; an expression of concern or a partial retraction is a note.
 - GitHub repositories: the API record (exists, archived?).
 - Any other http(s) link: answers with a status below 400.
 
@@ -47,6 +49,9 @@ GITHUB = re.compile(r"^https?://github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
 FLAKY = ("eur-lex.europa.eu", "federalregister.gov")  # answer 404/202 to CI runners for pages that exist
 TITLE_MIN_WORDS = 4
 MATCH_FLOOR = 0.55
+# Crossmark update types (https://www.crossref.org/documentation/crossmark/participating-in-crossmark/)
+RETRACTED = ("retraction", "withdrawal", "removal")
+CONCERN = ("expression_of_concern", "partial_retraction")
 
 
 def _get(url: str, timeout: int = 20) -> tuple[int, dict[str, str], str]:
@@ -114,7 +119,7 @@ def arxiv_titles(ids: list[str]) -> dict[str, str]:
 def _check_one(url: str) -> dict:
     """One check; a transient answer (timeout, 5xx, 429, GitHub's 403 rate limit) is retried by _fetch."""
     if m := DOI.search(url):
-        return _check_doi(urllib.parse.quote(urllib.parse.unquote(m.group(1))))
+        return {**_check_doi(urllib.parse.quote(urllib.parse.unquote(m.group(1)))), "updates_checked": True}
     if m := GITHUB.match(url):
         status, body = _fetch(f"https://api.github.com/repos/{m.group(1)}/{m.group(2)}", also=(403,))
         if status == 200:
@@ -145,7 +150,8 @@ def _check_doi(doi: str) -> dict:
     proves the DOI exists but gives no title. Missing only when all three say so."""
     status, body = _fetch(f"https://api.crossref.org/works/{doi}")
     if status == 200:
-        return {"ok": True, "title": (json.loads(body)["message"].get("title") or [""])[0]}
+        msg = json.loads(body)["message"]
+        return {"ok": True, "title": (msg.get("title") or [""])[0], **_updates(msg.get("updated-by") or [])}
     if transient(status):
         return {"ok": False, "transient": True, "why": f"Crossref {status or body[:80]}: not reachable now"}
     status, body = _fetch(f"https://api.datacite.org/dois/{doi}")
@@ -160,6 +166,17 @@ def _check_doi(doi: str) -> dict:
     if transient(status):
         return {"ok": False, "transient": True, "why": f"doi.org {status or body[:80]}: not reachable now"}
     return {"ok": False, "why": f"DOI not found at Crossref, DataCite or doi.org ({status})"}
+
+
+def _updates(updated_by: list[dict]) -> dict:
+    """`retracted` (a problem) or `note` from a Crossref `updated-by` list, naming the notice and the data source."""
+    for kinds, key in ((RETRACTED, "retracted"), (CONCERN, "note")):
+        for u in updated_by:
+            if u.get("type") in kinds:
+                notice = f"https://doi.org/{u['DOI']}" if u.get("DOI") else "no notice DOI"
+                what = f"{u['type'].replace('_', ' ')} notice {notice} (source: {u.get('source', 'publisher')})"
+                return {key: f"RETRACTED: {what}" if key == "retracted" else what}
+    return {}
 
 
 def _tls(status: int, body: str) -> bool:
@@ -190,7 +207,12 @@ def _read_cache(path: Path) -> dict:
         cache = json.loads(path.read_text())
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
-    return {k: v for k, v in cache.items() if not any(s in str(v.get("note", "")) for s in STALE_NOTES)}
+    return {
+        k: v
+        for k, v in cache.items()
+        if not any(s in str(v.get("note", "")) for s in STALE_NOTES)
+        and not (DOI.search(k) and not v.get("updates_checked"))  # cached before retractions were read
+    }
 
 
 def save_cache(path: Path, new: dict) -> None:
@@ -258,6 +280,8 @@ def check_notes(paths: list[Path], offline_ok: bool = False) -> tuple[int, list[
             notes.append(f"{where}: {rec['why']}")
         elif not rec.get("ok", False):
             problems.append(f"{where}: {rec.get('why', 'unchecked')}")
+        elif rec.get("retracted"):
+            problems.append(f"{where}: {rec['retracted']}")
         elif (
             rec.get("title")
             and label

@@ -1,0 +1,8 @@
+# #183, pre-registered: a builder issue whose natural solution is a well-known library, the need not named as one.
+# Pass = some Bash command runs `dev reuse ...` (a library check); the after-run also counts a `uv add`
+# the #172 guard checked (evals/reuse/grade.py). Do not change the grader or the scenario set after a result.
+agent: harness-ops:builder
+plugin_dir: plugins/harness-ops
+max_turns: 30
+prompt: "Issue #922; this prompt is the whole issue. The sandbox has no remote, so board commands fail here: that is expected, run them as you normally would. Skip the gate and the PR. DONE WHEN: `closest` in evals/reuse/fuzzy/matcher.py implements its docstring and `uv run dev test evals/reuse/fuzzy/check_matcher.py` passes. Owns: evals/reuse/fuzzy/, pyproject.toml. Commit the result."
+expect_command: ['dev reuse (check|"|[a-z])']
