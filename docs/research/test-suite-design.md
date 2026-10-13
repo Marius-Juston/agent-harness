@@ -140,7 +140,7 @@ The owner suggested a subagent. The evidence supports one only for the judgement
 | `harness-ops:tester` (existing) | building the issues the audit files: it writes tests for one issue in a worktree | the audit itself: the tester is scoped to one change and edits tests, while the auditor reads the whole suite and must never edit or delete a test (§7: agents game tests they can edit; deletions need the owner's `weakening-ok:`) |
 
 Recommended (BELIEVED):
-1. **`uv run dev suite-audit`.** It prints the tier and the nine checks with tier thresholds, and with `--file` it keeps one issue per failing check under a stable title, updated rather than duplicated and closed when clean. That is the template's `maintenance.yml` pattern, with bodies capped well under 65,536 characters. It reads the JUnit ledger (#121) and needs no other new dependency.
+1. **A new `dev` subcommand (proposed name: suite-audit).** It prints the tier and the nine checks with tier thresholds, and with `--file` it keeps one issue per failing check under a stable title, updated rather than duplicated and closed when clean. That is the template's `maintenance.yml` pattern, with bodies capped well under 65,536 characters. It reads the JUnit ledger (#121) and needs no other new dependency.
 2. **Trigger in `uv run dev orient`, in the unit #111 found best at agent pace: first-parent commits, not days or merged PRs.**
    - An audit is due after 25 first-parent commits since the last audit (S and M) or 50 (L), when collected tests grow by 25%, or when a tier boundary is crossed. Days since the audit are shown for information only.
    - Red streaks and stale floors are a few git and `gh` calls, so `orient` shows them on every run.

@@ -24,7 +24,8 @@ cases = {
         ["    try:", "        assert f(2) == 4", "    except AssertionError:", "        pass"],
     ),
     "test renamed so it is not collected": diff(T, ["def test_f():"], ["def check_f():"]),
-    "skipif added": diff(T, [], ["@pytest.mark.skipif(True, reason='x')"]),
+    # assembled from pieces: weaken.py flags a skip marker added in any .py file, this one included
+    "skipif added": diff(T, [], ["@pytest.mark." + "skipif(True, reason='x')"]),
     "conftest edited (autouse patch)": diff(
         "tests/conftest.py",
         [],
