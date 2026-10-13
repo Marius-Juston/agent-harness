@@ -768,6 +768,7 @@ def write_outputs(rows, items, repos, outcomes, tstats, max_lines) -> None:
         fxo = [r for r in fx if r["touches_origin_pr_files"] is True or r["touches_origin_owns"] is True]
         P(f"    ... and touching the origin's files or Owns: {pct(len(fxo), len(g))}")
         rc = collections.Counter(x for r in g for x in r["reasons"].split(";") if x)
+        P(f"  no stated reason (no wording category matched): {pct(sum(not r['reasons'] for r in g), len(g))}")
         P(
             "  wording categories (crude regex, multi-label): "
             + ", ".join(f"{k}={pct(v, len(g))}" for k, v in rc.most_common())

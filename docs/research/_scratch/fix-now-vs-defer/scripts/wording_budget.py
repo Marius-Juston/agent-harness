@@ -84,8 +84,8 @@ EDITS: dict[str, list[tuple[str, str]]] = {
         (
             "A small edit outside Owns that the issue needs is allowed. Name it in the hand-back.\n",
             "A small edit outside Owns that the issue needs is allowed. Name it in the hand-back.\n"
-            "- **Fix now.** A defect or gap found while working goes in this PR, under `Fixed in passing` in its body,\n"
-            "  when all four hold: (1) at most 20 changed lines in at most 2 files; (2) the files are in the PR's diff or\n"
+            "- **Fix now.** A defect or gap found while working goes in this PR as its own commit, prefixed `fix-now:`\n"
+            "  and listed under `Fixed in passing` in the PR body, when all four hold: (1) at most 20 changed lines in at most 2 files; (2) the files are in the PR's diff or\n"
             "  Owns, or this change exposed it; (3) no design choice, new interface or dependency, or owner approval, and\n"
             "  the gate checks it; (4) no other open item or hotspot holds the file. A defect the PR itself introduced is\n"
             "  fixed whatever its size. Otherwise file it and name the condition that failed.\n",
