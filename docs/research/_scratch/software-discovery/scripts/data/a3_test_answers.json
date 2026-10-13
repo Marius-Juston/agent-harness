@@ -1,0 +1,704 @@
+{
+ "AI and Agents / Data Layer": [
+  "llama-index",
+  "mem0ai",
+  "instructor",
+  "memori",
+  "sciphi-ai/r2r",
+  "tigerless-labs/agent-memory",
+  "nvidia/auto-ontology",
+  "ai-knot"
+ ],
+ "AI and Agents / LLM Inference and Serving": [
+  "sglang",
+  "llama-cpp-python",
+  "xinference",
+  "llm-d/llm-d",
+  "modeltc/lightllm",
+  "alibaba/rtp-llm",
+  "ai-hypercomputer/jetstream",
+  "algorithmicsuperintelligence/optillm",
+  "gty111/gllm"
+ ],
+ "AI and Agents / Personal Assistants": [
+  "hkuds/nanobot",
+  "clickhouse/nerve",
+  "ethereal-lemons/limebot-os",
+  "zhixiangluo/10xproductivity",
+  "tysonchamp/small-ai-agent",
+  "mal19industries/jarvis-os-v.2",
+  "verconto/familia",
+  "shulya-tech/telegram-ai"
+ ],
+ "AI and Agents / Speech": [
+  "faster-whisper",
+  "nvidia-nemo/speech",
+  "mlx-audio",
+  "speech-to-speech",
+  "parrots",
+  "tarun7r/vocal-agent",
+  "opendilab/cleans2s",
+  "coss-india/voicera"
+ ],
+ "AI and Agents / Vendor Agent SDKs": [
+  "openai-agents",
+  "google-adk",
+  "claude-agent-sdk",
+  "getstream/vision-agents",
+  "google/adk-recipes"
+ ],
+ "Audio & Video Processing / Audio": [
+  "librosa",
+  "soundfile",
+  "torchaudio",
+  "audio-processor-mcp"
+ ],
+ "Audio & Video Processing / Video": [
+  "av",
+  "moviepy",
+  "vidgear",
+  "scenedetect",
+  "ffmpeg-mcp-lite",
+  "videoflow",
+  "streamlit-webrtc"
+ ],
+ "Authentication / JWT": [
+  "pyjwt",
+  "joserfc",
+  "python-jose"
+ ],
+ "Authentication / OAuth": [
+  "authlib",
+  "oauthlib",
+  "httpx-oauth",
+  "fastapi-sso",
+  "drf-social-oauth2",
+  "fastapi-oauth2"
+ ],
+ "Build Tools": [
+  "scons",
+  "doit",
+  "invoke",
+  "pybuilder",
+  "zc.recipe.egg",
+  "master-sake"
+ ],
+ "Built-in Classes Enhancement": [
+  "attrs",
+  "pydantic",
+  "msgspec",
+  "dacite",
+  "param"
+ ],
+ "CLI Development / Terminal Rendering": [
+  "rich",
+  "tqdm",
+  "textual",
+  "termcolor",
+  "rich-cli",
+  "textual-image"
+ ],
+ "CLI Tools / Project Scaffolding": [
+  "cookiecutter",
+  "copier",
+  "cruft",
+  "ningfastforge",
+  "drape"
+ ],
+ "CMS": [
+  "wagtail",
+  "django-cms",
+  "mezzanine",
+  "piccolo-admin"
+ ],
+ "Caching": [
+  "cachetools",
+  "dogpile.cache",
+  "cachier",
+  "klepto",
+  "cacheout",
+  "hishel",
+  "cachecontrol",
+  "django-cacheops",
+  "django-cacheback"
+ ],
+ "Code Analysis / Git Hooks": [
+  "pre-commit",
+  "prek",
+  "pre-commit-hooks",
+  "language-formatters-pre-commit-hooks",
+  "lucas-c/pre-commit-hooks",
+  "lucas-c/pre-commit-hooks-safety"
+ ],
+ "_model": "claude-opus-5-5",
+ "_date": "2026-10-13",
+ "_how": "claude -p --model claude-opus-5-5 --tools '' --strict-mcp-config --setting-sources '' --output-format json from an empty directory; prompt = a3_prompt.md body with a3_test_input.json, batches of 16",
+ "_config": "R4",
+ "Code Analysis / Linters and Formatters": [
+  "ruff",
+  "black",
+  "flake8",
+  "pycodestyle",
+  "autopep8",
+  "unimport"
+ ],
+ "Code Analysis / Refactoring": [
+  "libcst",
+  "rope",
+  "jedi",
+  "reorder-python-imports",
+  "repren",
+  "pydeprecate"
+ ],
+ "Computer Vision / OCR": [
+  "paddleocr",
+  "easyocr",
+  "pytesseract"
+ ],
+ "Data Visualization / Dashboards and Apps": [
+  "streamlit/streamlit",
+  "dash",
+  "gradio-app/gradio",
+  "reflex",
+  "vizro-dash-components",
+  "explainerdashboard",
+  "preswald"
+ ],
+ "Data Visualization / Plotting": [
+  "matplotlib",
+  "plotly",
+  "seaborn",
+  "plotnine",
+  "chartify"
+ ],
+ "Data Visualization / Specialized": [
+  "folium",
+  "missingno",
+  "geoplot"
+ ],
+ "Database / Analytical": [
+  "duckdb",
+  "chdb",
+  "datafusion",
+  "ibis-framework"
+ ],
+ "Database / Key-Value & Document": [
+  "tinydb",
+  "lmdb",
+  "plyvel"
+ ],
+ "Database Drivers / MySQL": [
+  "pymysql"
+ ],
+ "Database Drivers / Other Relational Databases": [
+  "pyodbc",
+  "oracledb",
+  "pymssql",
+  "sqlalchemy"
+ ],
+ "Date and Time": [
+  "pendulum",
+  "arrow",
+  "python-dateutil",
+  "isodate",
+  "datefinder",
+  "parsedatetime"
+ ],
+ "Debugging Tools / Tracing": [
+  "hunter",
+  "viztracer",
+  "snoop",
+  "pysnooper"
+ ],
+ "Debugging Tools / pdb-like Debugger": [
+  "pudb",
+  "pdbpp",
+  "pdbp",
+  "pdbr",
+  "ipdb",
+  "web-pdb"
+ ],
+ "Deep Learning / Frameworks": [
+  "pytorch/pytorch",
+  "jax",
+  "tensorflow"
+ ],
+ "Deep Learning / Reinforcement Learning": [
+  "stable-baselines3",
+  "gymnasium",
+  "pettingzoo",
+  "ray",
+  "d3rlpy",
+  "cleanrl"
+ ],
+ "Distributed Computing": [
+  "dask",
+  "ray",
+  "pyspark"
+ ],
+ "Distribution / Executables": [
+  "cx-freeze",
+  "py2app",
+  "zipapps"
+ ],
+ "Distribution / Obfuscation": [
+  "python-minifier",
+  "python-obfuscator",
+  "codeenigma",
+  "pyarmor.cli.core.windows"
+ ],
+ "ERP": [
+  "odoo",
+  "yousra-team/yousra-erp"
+ ],
+ "Email": [
+  "imap-tools",
+  "mail-parser",
+  "yagmail",
+  "email-reply-parser",
+  "mailworks"
+ ],
+ "Environment Management": [
+  "uv",
+  "virtualenv",
+  "pyenv-win"
+ ],
+ "File Format Processing / File Conversion": [
+  "markitdown",
+  "docling",
+  "unstructured"
+ ],
+ "File Format Processing / Markdown": [
+  "markdown-it-py",
+  "mistune",
+  "markdown"
+ ],
+ "File Format Processing / Word": [
+  "python-docx",
+  "docxtpl",
+  "docx2txt",
+  "docx-revisions",
+  "office-oxide"
+ ],
+ "File Manipulation": [
+  "watchfiles",
+  "watchdog",
+  "fsspec",
+  "python-magic"
+ ],
+ "GUI Development / Qt": [
+  "qtpy",
+  "superqt",
+  "magicgui"
+ ],
+ "GUI Development / Tkinter": [
+  "customtkinter",
+  "ttkbootstrap",
+  "tksheet",
+  "tkeasygui",
+  "ctkmessagebox",
+  "ctktable",
+  "customtkinterbuilder",
+  "pywinstyles"
+ ],
+ "Game Development / Visual Novels": [
+  "librian",
+  "unk1ndledac/galengine"
+ ],
+ "HTML Manipulation": [
+  "beautifulsoup4",
+  "lxml",
+  "selectolax",
+  "html5lib",
+  "domonic"
+ ],
+ "Hardware": [
+  "pyserial",
+  "pyusb",
+  "gpiozero",
+  "gpio",
+  "adafruit-circuitpython-hid",
+  "w1thermsensor",
+  "hardware"
+ ],
+ "Image Processing / Barcodes and QR Codes": [
+  "qrcode",
+  "python-barcode",
+  "pyzbar"
+ ],
+ "Job Schedulers / Workflow Orchestration": [
+  "apache/airflow",
+  "prefecthq/prefect",
+  "dagster",
+  "luigi",
+  "brickflows"
+ ],
+ "Logging": [
+  "structlog",
+  "loguru",
+  "logbook",
+  "eliot",
+  "logfmter",
+  "concurrent-log-handler",
+  "daiquiri"
+ ],
+ "Machine Learning / Gradient Boosting": [
+  "xgboost",
+  "lightgbm",
+  "catboost",
+  "lleaves",
+  "chefboost"
+ ],
+ "Machine Learning / Time Series Forecasting": [
+  "sktime",
+  "u8darts",
+  "prophet",
+  "gluonts",
+  "chronos-forecasting",
+  "time-series-foundation-models/lag-llama"
+ ],
+ "ORM / NoSQL Databases": [
+  "beanie",
+  "mongoengine",
+  "odmantic",
+  "ming"
+ ],
+ "Package Management / Package Managers": [
+  "uv",
+  "poetry",
+  "pdm",
+  "pip-compile-multi"
+ ],
+ "Quantum Computing": [
+  "qiskit",
+  "cirq",
+  "pennylane",
+  "qutip",
+  "pyquil",
+  "qibo",
+  "quimb",
+  "qiskit-machine-learning",
+  "quantumlib/openfermion",
+  "tensorflow-quantum"
+ ],
+ "Science / Biology and Chemistry": [
+  "biopython",
+  "rdkit",
+  "scikit-bio",
+  "pymatgen",
+  "datamol",
+  "biocommons.seqrepo",
+  "stk"
+ ],
+ "Science / Graphs and Networks": [
+  "networkx",
+  "python-easygraph",
+  "deepgraph"
+ ],
+ "Science / Physics and Engineering": [
+  "astropy",
+  "pint",
+  "sympy",
+  "thermo",
+  "newton",
+  "mph",
+  "quimb"
+ ],
+ "Science / Simulation and Modeling": [
+  "simpy",
+  "mesa",
+  "salabim"
+ ],
+ "Science / Statistics": [
+  "statsmodels",
+  "scipy",
+  "statstests"
+ ],
+ "Static Site Generators": [
+  "nikola",
+  "mkdocs",
+  "mkaz/hastie"
+ ],
+ "Task Queues": [
+  "celery",
+  "rq",
+  "pgqueuer",
+  "tasktiger",
+  "wakaq",
+  "flower"
+ ],
+ "Template Engines": [
+  "jinja2",
+  "mako",
+  "python-liquid",
+  "chameleon",
+  "jinja_partials",
+  "yte",
+  "slippers"
+ ],
+ "Testing / Fake Data": [
+  "faker",
+  "mimesis",
+  "factory-boy",
+  "faker-file",
+  "misata"
+ ],
+ "Testing / Load Testing": [
+  "locust",
+  "locust-grasshopper",
+  "yandextank"
+ ],
+ "Text Processing / Internationalization": [
+  "babel",
+  "pyicu",
+  "fastapi-babel",
+  "messageformat2"
+ ],
+ "Web APIs / Django": [
+  "djangorestframework",
+  "django-ninja",
+  "django-tastypie",
+  "djangorestframework-jsonapi",
+  "dj-rest-auth",
+  "djangorestframework-gis",
+  "djangorestframework-api-key",
+  "django-modern-rest"
+ ],
+ "Web APIs / Flask": [
+  "flask-smorest",
+  "apiflask",
+  "flask-restx"
+ ],
+ "Web APIs / Framework Agnostic": [
+  "falcon",
+  "fastapi",
+  "connexion",
+  "strawberry-graphql",
+  "webargs"
+ ],
+ "Web Frameworks / Asynchronous": [
+  "fastapi",
+  "starlette",
+  "sanic",
+  "tornado",
+  "quart",
+  "panther"
+ ],
+ "Web Scraping / Frameworks": [
+  "scrapy",
+  "crawlee",
+  "scrapling",
+  "trafilatura",
+  "mechanicalsoup",
+  "grab",
+  "scrapegraphai/scrapegraph-ai"
+ ],
+ "Web Security": [
+  "secure",
+  "rfc-st/humble"
+ ],
+ "Web Servers / ASGI": [
+  "uvicorn",
+  "granian",
+  "hypercorn",
+  "socketify",
+  "tremolo"
+ ],
+ "M-01": [
+  "tornado",
+  "httpx",
+  "sanic",
+  "twisted"
+ ],
+ "M-02": [
+  "flask",
+  "falcon",
+  "bobtail",
+  "kui"
+ ],
+ "M-03": [
+  "python-box",
+  "munch"
+ ],
+ "M-04": [
+  "charset-normalizer"
+ ],
+ "M-05": [
+  "typer",
+  "prompt_toolkit"
+ ],
+ "M-06": [
+  "flask",
+  "pyramid"
+ ],
+ "M-07": [
+  "drf-yasg",
+  "drf-spectacular"
+ ],
+ "M-08": [
+  "pynacl",
+  "cryptography"
+ ],
+ "M-09": [
+  "fab-classic",
+  "fabric",
+  "invoke"
+ ],
+ "M-10": [
+  "flask-appbuilder",
+  "frappe/frappe",
+  "emmett",
+  "sanic",
+  "quart",
+  "bottle",
+  "dash",
+  "pyramid",
+  "zango",
+  "emmapowers/trellis"
+ ],
+ "M-11": [
+  "falcon",
+  "flask-restx",
+  "sanic-restful-api",
+  "flask-restful"
+ ],
+ "M-12": [
+  "flask-restx",
+  "flask-smorest",
+  "flask-openapi3",
+  "connexion",
+  "apispec",
+  "flasgger",
+  "fastapi",
+  "flask-restful"
+ ],
+ "M-13": [
+  "googleapis/google-cloud-python",
+  "aiohttp"
+ ],
+ "M-14": [
+  "furo",
+  "sphinx-rtd-theme",
+  "pydata-sphinx-theme",
+  "sphinxawesome-theme",
+  "pallets-sphinx-themes"
+ ],
+ "M-15": [
+  "urllib3",
+  "requests"
+ ],
+ "M-16": [
+  "scrapinghub",
+  "shub",
+  "hubstorage-frontera"
+ ],
+ "M-17": [
+  "rq",
+  "wakaq",
+  "tasktiger",
+  "pgqueuer",
+  "chancy",
+  "celery"
+ ],
+ "M-18": [
+  "ipaddress",
+  "netaddr"
+ ],
+ "M-19": [
+  "confluent-kafka",
+  "aiokafka",
+  "afkak"
+ ],
+ "M-20": [
+  "filelock",
+  "portalocker",
+  "fasteners"
+ ],
+ "M-21": [
+  "mechanicalsoup",
+  "twill",
+  "robobrowser"
+ ],
+ "M-22": [
+  "billiard",
+  "multiprocess"
+ ],
+ "M-23": [
+  "netaddr",
+  "trigger"
+ ],
+ "M-24": [
+  "tabulate",
+  "texttable",
+  "ptable",
+  "veryprettytable"
+ ],
+ "M-25": [
+  "tqdm",
+  "progressbar2",
+  "alive-progress"
+ ],
+ "M-26": [
+  "cryptography"
+ ],
+ "M-27": [
+  "pymilvus",
+  "milvus-lite"
+ ],
+ "M-28": [
+  "cryptography",
+  "m2crypto"
+ ],
+ "M-29": [
+  "pcap-ct",
+  "pcapy-ng",
+  "python-libpcap",
+  "pypcapkit"
+ ],
+ "M-30": [],
+ "M-31": [
+  "ldap3",
+  "ldaptor"
+ ],
+ "M-32": [
+  "pynput",
+  "pyautogui",
+  "keyboard",
+  "inputs"
+ ],
+ "M-33": [
+  "ruamel.yaml",
+  "strictyaml"
+ ],
+ "M-34": [
+  "httpx",
+  "urllib3",
+  "aiohttp"
+ ],
+ "M-35": [
+  "requests-oauthlib",
+  "requests-oauth2client",
+  "authlib",
+  "oauthlib"
+ ],
+ "M-36": [
+  "requests",
+  "httplib2"
+ ],
+ "M-37": [
+  "gpiozero",
+  "gpio"
+ ],
+ "M-38": [
+  "orjson",
+  "ujson",
+  "json-stream"
+ ],
+ "M-39": [
+  "furo",
+  "pydata-sphinx-theme"
+ ],
+ "M-40": [
+  "zeep"
+ ]
+}

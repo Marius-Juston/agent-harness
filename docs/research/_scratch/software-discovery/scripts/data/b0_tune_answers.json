@@ -1,0 +1,307 @@
+{
+ "AI and Agents / Agent Skills": [],
+ "AI and Agents / Fine-tuning": [
+  "peft",
+  "trl",
+  "unsloth"
+ ],
+ "AI and Agents / Model Context Protocol": [
+  "mcp",
+  "fastmcp",
+  "fastapi-mcp"
+ ],
+ "AI and Agents / Orchestration": [
+  "langchain",
+  "llama-index",
+  "langgraph"
+ ],
+ "Admin Panels": [
+  "flask-admin",
+  "sqladmin",
+  "django-grappelli"
+ ],
+ "Algorithms and Design Patterns / Algorithms": [
+  "networkx",
+  "sortedcontainers",
+  "algorithms"
+ ],
+ "Audio & Video Processing / Metadata": [
+  "mutagen",
+  "eyed3",
+  "tinytag"
+ ],
+ "CLI Tools / Database CLIs": [
+  "pgcli",
+  "mycli",
+  "litecli"
+ ],
+ "CLI Tools / Downloaders": [
+  "yt-dlp",
+  "gallery-dl",
+  "you-get"
+ ],
+ "CLI Tools / Shells": [
+  "xonsh"
+ ],
+ "Code Analysis / Type Checkers": [
+  "mypy",
+  "pyright",
+  "pyre-check"
+ ],
+ "Configuration Files": [
+  "pydantic-settings",
+  "python-dotenv",
+  "dynaconf"
+ ],
+ "Cryptography": [
+  "cryptography",
+  "pynacl",
+  "pycryptodome"
+ ],
+ "Data Analysis": [
+  "pandas",
+  "polars",
+  "duckdb"
+ ],
+ "Data Validation": [
+  "pydantic",
+  "marshmallow",
+  "cerberus"
+ ],
+ "Database Drivers / ClickHouse": [
+  "clickhouse-connect",
+  "clickhouse-driver",
+  "aiochclient"
+ ],
+ "Database Drivers / NoSQL Databases": [
+  "pymongo",
+  "redis",
+  "cassandra-driver"
+ ],
+ "Database Drivers / PostgreSQL": [
+  "psycopg",
+  "asyncpg",
+  "psycopg2"
+ ],
+ "Database Drivers / SQLite": [
+  "aiosqlite",
+  "sqlite-utils",
+  "apsw"
+ ],
+ "DevOps Tools / Cloud Providers": [
+  "boto3",
+  "pulumi",
+  "apache-libcloud"
+ ],
+ "DevOps Tools / Configuration Management": [
+  "ansible",
+  "fabric",
+  "pyinfra"
+ ],
+ "File Format Processing / Data Formats": [
+  "pyyaml",
+  "tomlkit",
+  "ruamel.yaml"
+ ],
+ "File Format Processing / PowerPoint": [
+  "python-pptx"
+ ],
+ "Functional Programming": [
+  "toolz",
+  "more-itertools",
+  "funcy"
+ ],
+ "GUI Development / Desktop": [
+  "pyside6",
+  "pyqt6",
+  "kivy"
+ ],
+ "GUI Development / Web-based": [
+  "nicegui",
+  "flet",
+  "pywebview"
+ ],
+ "Game Development / 3D Engines": [
+  "panda3d",
+  "ursina",
+  "harfang"
+ ],
+ "HTTP Clients / URL Manipulation": [
+  "furl",
+  "yarl",
+  "hyperlink"
+ ],
+ "Image Processing / Image Serving": [
+  "thumbor"
+ ],
+ "Implementations": [
+  "cython",
+  "nuitka"
+ ],
+ "Interactive Interpreter": [
+  "ipython",
+  "ptpython",
+  "bpython"
+ ],
+ "Job Schedulers / Task Scheduling": [
+  "apscheduler",
+  "schedule",
+  "rocketry"
+ ],
+ "Microsoft Windows": [
+  "pywin32",
+  "comtypes",
+  "wmi"
+ ],
+ "Natural Language Processing / Chinese": [
+  "jieba",
+  "pypinyin",
+  "snownlp"
+ ],
+ "Package Management / Build Backends": [
+  "hatchling",
+  "setuptools",
+  "flit-core"
+ ],
+ "Package Repositories": [
+  "pypiserver",
+  "devpi-server",
+  "bandersnatch"
+ ],
+ "Science / Core": [
+  "numpy",
+  "scipy",
+  "numba"
+ ],
+ "Science / Symbolic Mathematics": [
+  "sympy"
+ ],
+ "Testing / Code Coverage": [
+  "coverage",
+  "pytest-cov"
+ ],
+ "Testing / Frameworks": [
+  "pytest",
+  "hypothesis",
+  "robotframework"
+ ],
+ "Testing / Test Runners": [
+  "pytest",
+  "nose2",
+  "ward"
+ ],
+ "Text Processing / Fuzzy Matching": [
+  "rapidfuzz",
+  "thefuzz",
+  "jellyfish"
+ ],
+ "Text Processing / Parser": [
+  "lark",
+  "pyparsing",
+  "parsimonious"
+ ],
+ "Text Processing / Transliteration and Slugs": [
+  "python-slugify",
+  "unidecode",
+  "awesome-slugify"
+ ],
+ "Text Processing / Unique identifiers": [
+  "shortuuid",
+  "nanoid",
+  "hashids"
+ ],
+ "Web Asset Management": [
+  "webassets",
+  "django-compressor",
+  "django-pipeline"
+ ],
+ "Web Servers / WSGI": [
+  "gunicorn",
+  "waitress",
+  "uwsgi"
+ ],
+ "WebSocket": [
+  "websockets",
+  "python-socketio",
+  "websocket-client"
+ ],
+ "pilot / computerized adaptive testing with item response theory": [
+  "catsim",
+  "girth",
+  "py-irt"
+ ],
+ "pilot / convert HTML to Markdown": [
+  "markdownify",
+  "html2text",
+  "html-to-markdown"
+ ],
+ "pilot / cross-process file lock": [
+  "filelock",
+  "portalocker",
+  "fasteners"
+ ],
+ "pilot / deep difference between two python objects": [
+  "deepdiff",
+  "dictdiffer",
+  "jsondiff"
+ ],
+ "pilot / detect and anonymize personally identifiable information in text": [
+  "presidio-analyzer",
+  "presidio-anonymizer",
+  "scrubadub"
+ ],
+ "pilot / detect the character encoding of bytes": [
+  "charset-normalizer",
+  "chardet",
+  "cchardet"
+ ],
+ "pilot / fuzzy string matching": [
+  "rapidfuzz",
+  "thefuzz",
+  "levenshtein"
+ ],
+ "pilot / parse SPDX license expressions": [
+  "license-expression",
+  "spdx-tools"
+ ],
+ "pilot / parse and compare semantic version strings": [
+  "packaging",
+  "semver",
+  "semantic-version"
+ ],
+ "pilot / parse cron expressions and compute next run time": [
+  "croniter",
+  "python-crontab",
+  "cronsim"
+ ],
+ "pilot / property-based testing": [
+  "hypothesis"
+ ],
+ "pilot / rate limiting with a token bucket": [
+  "limits",
+  "pyrate-limiter",
+  "ratelimit"
+ ],
+ "pilot / retry a function call with exponential backoff": [
+  "tenacity",
+  "backoff",
+  "retry"
+ ],
+ "pilot / small fast static text embeddings": [
+  "model2vec",
+  "fastembed",
+  "sentence-transformers"
+ ],
+ "pilot / spaced repetition scheduler": [
+  "fsrs",
+  "supermemo2"
+ ],
+ "pilot / validate JSON against a schema": [
+  "jsonschema",
+  "fastjsonschema",
+  "jsonschema-rs"
+ ],
+ "_model": "claude-opus-5-5",
+ "_date": "2026-10-13",
+ "_how": "claude -p --tools '' --strict-mcp-config --setting-sources '' from an empty directory; prompt = b0_prompt.md body with b0_tune_input.json"
+}
