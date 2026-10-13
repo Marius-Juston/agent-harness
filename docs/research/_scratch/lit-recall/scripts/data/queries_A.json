@@ -1,0 +1,45 @@
+{
+ "A1": [
+  "when to refactor software codebase size churn duplication triggers",
+  "large-scale refactoring reduce code size preserving behavior",
+  "AI-generated code growth duplication maintainability empirical study",
+  "characterization tests legacy code safe refactoring",
+  "strangler fig pattern incremental system re-architecture",
+  "LLM agents automated refactoring repository-level",
+  "code clone detection consolidation technical debt reduction",
+  "feature inventory regression testing behavior preservation refactoring"
+ ],
+ "_model": "claude-opus-5-5",
+ "_date": "2026-10-13",
+ "_how": "claude -p --model claude-opus-5-5 --tools '' --strict-mcp-config --setting-sources '' --output-format json from an empty directory; prompt = query_prompt.md body with questions_A.json, batches of 1",
+ "A2": [
+  "self-admitted technical debt removal empirical study",
+  "TODO comments survival in software repositories",
+  "boy scout rule refactoring opportunistic code improvement",
+  "LLM coding agents scope creep task boundaries",
+  "autonomous software agents over-caution deferring work",
+  "issue tracker follow-up issues small fix resolution time",
+  "multi-agent software engineering role instructions planner builder",
+  "deferred maintenance cost technical debt repayment effort"
+ ],
+ "A3": [
+  "semantic code search for reusable open source libraries",
+  "software package recommendation from source code context",
+  "LLM agents library discovery before implementing code",
+  "package hallucination large language model code generation",
+  "open source repository maintenance health metrics",
+  "embedding retrieval reranking GitHub repository search",
+  "Model Context Protocol tools for coding agents",
+  "LLM agent literature search research automation"
+ ],
+ "A4": [
+  "test pyramid versus testing trophy empirical comparison",
+  "test-to-code ratio open source projects empirical study",
+  "mutation score versus code coverage test suite effectiveness",
+  "flaky tests root causes detection mitigation",
+  "regression test selection change impact analysis continuous integration",
+  "continuous integration build duration merge queue delivery performance",
+  "LLM generated unit tests quality redundancy evaluation",
+  "property-based testing contract testing microservices end-to-end tests"
+ ]
+}

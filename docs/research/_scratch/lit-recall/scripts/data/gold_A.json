@@ -1,0 +1,1189 @@
+{
+ "A1": [
+  {
+   "title": "Are mutants a valid substitute for real faults in software testing?",
+   "year": 2014,
+   "first_author": "just",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/2635868.2635929",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2135937266"
+   },
+   "key": "g000"
+  },
+  {
+   "title": "Software reconnaissance: Mapping program features to code",
+   "year": 1995,
+   "first_author": "wilde",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1002/smr.4360070105",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2121234902"
+   },
+   "key": "g001"
+  },
+  {
+   "title": "A field study of refactoring challenges and benefits",
+   "year": 2012,
+   "first_author": "kim",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/2393596.2393655",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2166993820"
+   },
+   "key": "g002"
+  },
+  {
+   "title": "An Empirical Study of RefactoringChallenges and Benefits at Microsoft",
+   "year": 2014,
+   "first_author": "kim",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/tse.2014.2318734",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2159725273"
+   },
+   "key": "g003"
+  },
+  {
+   "title": "Identifying and quantifying architectural debt",
+   "year": 2016,
+   "first_author": "xiao",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/2884781.2884822",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2359516361"
+   },
+   "key": "g004"
+  },
+  {
+   "title": "An empirical investigation into the impact of refactoring on regression testing",
+   "year": 2012,
+   "first_author": "rachatasumrit",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/icsm.2012.6405293",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2041703907"
+   },
+   "key": "g005"
+  },
+  {
+   "title": "Cross-project defect prediction",
+   "year": 2009,
+   "first_author": "zimmermann",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/1595696.1595713",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W25935857"
+   },
+   "key": "g006"
+  },
+  {
+   "title": "RefAgent: A Multi-agent LLM-based Framework for Automatic Software Refactoring",
+   "year": 2026,
+   "first_author": "oueslati",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3744916.3773153",
+    "arxiv": "2511.03153",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4416018599"
+   },
+   "key": "g007"
+  },
+  {
+   "title": "Use of relative code churn measures to predict system defect density",
+   "year": 2005,
+   "first_author": "nagappan",
+   "type": "conference-abstract",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/1062455.1062514",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2100945416"
+   },
+   "key": "g008"
+  },
+  {
+   "title": "Do code clones matter?",
+   "year": 2009,
+   "first_author": "juergens",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/icse.2009.5070547",
+    "arxiv": "1701.05472",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2119887272"
+   },
+   "key": "g009"
+  },
+  {
+   "title": "Exploring the potential of general purpose LLMs in automated software refactoring: an empirical study",
+   "year": 2025,
+   "first_author": "liu",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1007/s10515-025-00500-0",
+    "arxiv": "2411.04444",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4408077546"
+   },
+   "key": "g010"
+  },
+  {
+   "title": "Speed at the Cost of Quality",
+   "year": 2026,
+   "first_author": "he",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3793302.3793349",
+    "arxiv": "2511.04427",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4416026021"
+   },
+   "key": "g011"
+  },
+  {
+   "title": "Echoes of AI: Investigating the downstream effects of AI assistants on software maintainability",
+   "year": 2026,
+   "first_author": "borg",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1007/s10664-026-10889-1",
+    "arxiv": "2507.00788",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4416888427"
+   },
+   "key": "g012"
+  },
+  {
+   "title": "Debt Behind the AI Boom: A Large-Scale Empirical Study of AI-Generated Code in the Wild",
+   "year": 2026,
+   "first_author": "liu",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2603.28592",
+    "arxiv": "2603.28592",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7147672442"
+   },
+   "key": "g013"
+  },
+  {
+   "title": "Agentic Refactoring: An Empirical Study of AI Coding Agents",
+   "year": 2025,
+   "first_author": "kosei",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2511.04824",
+    "arxiv": "2511.04824",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7104698776"
+   },
+   "key": "g014"
+  },
+  {
+   "title": "RefactorBench: Evaluating Stateful Reasoning in Language Agents Through Code",
+   "year": 2025,
+   "first_author": "dhruv",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2503.07832",
+    "arxiv": "2503.07832",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4414566032"
+   },
+   "key": "g015"
+  },
+  {
+   "title": "SWE-Refactor: A Repository-Level Benchmark for Real-World LLM-Based Code Refactoring",
+   "year": 2026,
+   "first_author": "xu",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2602.03712",
+    "arxiv": "2602.03712",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7127640710"
+   },
+   "key": "g016"
+  },
+  {
+   "title": "A Differential Fuzzing-Based Evaluation of Functional Equivalence in LLM-Generated Code Refactorings",
+   "year": 2026,
+   "first_author": "dristi",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2602.15761",
+    "arxiv": "2602.15761",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7130382468"
+   },
+   "key": "g017"
+  },
+  {
+   "title": "From Restructuring to Stabilization: A Large-Scale Experiment on Iterative Code Readability Refactoring with Large Language Models",
+   "year": 2026,
+   "first_author": "peitek",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2602.21833",
+    "arxiv": "2602.21833",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7131674884"
+   },
+   "key": "g018"
+  },
+  {
+   "title": "CodeTaste: Can LLMs Generate Human-Level Code Refactorings?",
+   "year": 2026,
+   "first_author": "thillen",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2603.04177",
+    "arxiv": "2603.04177",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7133767058"
+   },
+   "key": "g019"
+  },
+  {
+   "title": "AI-Generated Smells: An Analysis of Code and Architecture in LLM and Agent-Driven Development",
+   "year": 2026,
+   "first_author": "zhu",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2605.02741",
+    "arxiv": "2605.02741",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7160302034"
+   },
+   "key": "g020"
+  },
+  {
+   "title": "\"Refactoring Runaway\": Understanding and Mitigating Tangled Refactorings in Coding Agents for Issue Resolution",
+   "year": 2026,
+   "first_author": "tian",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2605.22526",
+    "arxiv": "2605.22526",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7162100199"
+   },
+   "key": "g021"
+  },
+  {
+   "title": "Do Coding Agents Reuse Existing Code or Reinvent the Wheel?",
+   "year": 2026,
+   "first_author": "ma",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2609.35357",
+    "arxiv": "2609.35357",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7214707447"
+   },
+   "key": "g022"
+  }
+ ],
+ "A2": [
+  {
+   "title": "The impact of tangled code changes",
+   "year": 2013,
+   "first_author": "herzig",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/msr.2013.6624018",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2139885493"
+   },
+   "key": "g000"
+  },
+  {
+   "title": "When Does a Refactoring Induce Bugs? An Empirical Study",
+   "year": 2012,
+   "first_author": "bavota",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/scam.2012.20",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2000679946"
+   },
+   "key": "g001"
+  },
+  {
+   "title": "An Empirical Study on the Removal of Self-Admitted Technical Debt",
+   "year": 2017,
+   "first_author": "maldonado",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/icsme.2017.8",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2767729231"
+   },
+   "key": "g002"
+  },
+  {
+   "title": "Was self-admitted technical debt removal a real removal?",
+   "year": 2018,
+   "first_author": "zampetti",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3196398.3196423",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2805357019"
+   },
+   "key": "g003"
+  },
+  {
+   "title": "Identification and Remediation of Self-Admitted Technical Debt in Issue Trackers",
+   "year": 2020,
+   "first_author": "li",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/seaa51224.2020.00083",
+    "arxiv": "2007.01568",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W3040350607"
+   },
+   "key": "g004"
+  },
+  {
+   "title": "The effects of change decomposition on code review—a controlled experiment",
+   "year": 2019,
+   "first_author": "biase",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.7717/peerj-cs.193",
+    "arxiv": "1805.10978",
+    "pmid": "33816846",
+    "pmcid": "",
+    "openalex": "W2803847797"
+   },
+   "key": "g005"
+  },
+  {
+   "title": "On the Use of Agentic Coding: An Empirical Study of Pull Requests on GitHub",
+   "year": 2026,
+   "first_author": "watanabe",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3798166",
+    "arxiv": "2509.14745",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7134077757"
+   },
+   "key": "g006"
+  },
+  {
+   "title": "Are delayed issues harder to resolve? Revisiting cost-to-fix of defects throughout the lifecycle",
+   "year": 2016,
+   "first_author": "menzies",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1007/s10664-016-9469-x",
+    "arxiv": "1609.04886",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2521933324"
+   },
+   "key": "g007"
+  },
+  {
+   "title": "Why Are Agentic Pull Requests Merged or Rejected? An Empirical Study",
+   "year": 2026,
+   "first_author": "peralta",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2605.22534",
+    "arxiv": "2605.22534",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7162102920"
+   },
+   "key": "g008"
+  }
+ ],
+ "A3": [
+  {
+   "title": "Text Embeddings Reveal (Almost) As Much As Text",
+   "year": 2023,
+   "first_author": "morris",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.18653/v1/2023.emnlp-main.765",
+    "arxiv": "2310.06816",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4389520346"
+   },
+   "key": "g000"
+  },
+  {
+   "title": "Selecting third-party libraries: the practitioners’ perspective",
+   "year": 2020,
+   "first_author": "vargas",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3368089.3409711",
+    "arxiv": "2005.12574",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W3031471692"
+   },
+   "key": "g001"
+  },
+  {
+   "title": "Understanding and Remediating Open-Source License Incompatibilities in the PyPI Ecosystem",
+   "year": 2023,
+   "first_author": "xu",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/ase56229.2023.00175",
+    "arxiv": "2308.05942",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4388483277"
+   },
+   "key": "g002"
+  },
+  {
+   "title": "Do Software Security Practices Yield Fewer Vulnerabilities?",
+   "year": 2023,
+   "first_author": "zahan",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/icse-seip58684.2023.00032",
+    "arxiv": "2210.14884",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4383898619"
+   },
+   "key": "g003"
+  },
+  {
+   "title": "Retrieval Models Aren’t Tool-Savvy: Benchmarking Tool Retrieval for Large Language Models",
+   "year": 2025,
+   "first_author": "shi",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.18653/v1/2025.findings-acl.1258",
+    "arxiv": "2503.01763",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4412944602"
+   },
+   "key": "g004"
+  },
+  {
+   "title": "Six Million (Suspected) Fake Stars on GitHub: A Growing Spiral of Popularity Contests, Spams, and Malware",
+   "year": 2026,
+   "first_author": "he",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3744916.3764531",
+    "arxiv": "2412.13459",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7212252056"
+   },
+   "key": "g005"
+  },
+  {
+   "title": "When do Generative Query and Document Expansions Fail? A Comprehensive Study Across Methods, Retrievers, and Datasets",
+   "year": 2024,
+   "first_author": "weller",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.18653/v1/2024.findings-eacl.134",
+    "arxiv": "2309.08541",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7126387168"
+   },
+   "key": "g006"
+  },
+  {
+   "title": "What are the characteristics of highly-selected packages? A case study on the npm ecosystem",
+   "year": 2022,
+   "first_author": "mujahid",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2204.04562",
+    "arxiv": "2204.04562",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4223414248"
+   },
+   "key": "g007"
+  },
+  {
+   "title": "We Have a Package for You! A Comprehensive Analysis of Package Hallucinations by Code Generating LLMs",
+   "year": 2024,
+   "first_author": "spracklen",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2406.10279",
+    "arxiv": "2406.10279",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4399795583"
+   },
+   "key": "g008"
+  },
+  {
+   "title": "Importing Phantoms: Measuring LLM Package Hallucination Vulnerabilities",
+   "year": 2025,
+   "first_author": "krishna",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2501.19012",
+    "arxiv": "2501.19012",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4407090931"
+   },
+   "key": "g009"
+  },
+  {
+   "title": "Is ChatGPT a Good Software Librarian? An Exploratory Study on the Use of ChatGPT for Software Library Recommendations",
+   "year": 2024,
+   "first_author": "latendresse",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2408.05128",
+    "arxiv": "2408.05128",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4405621194"
+   },
+   "key": "g010"
+  },
+  {
+   "title": "LibRec: Benchmarking Retrieval-Augmented LLMs for Library Migration Recommendations",
+   "year": 2025,
+   "first_author": "han",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2508.09791",
+    "arxiv": "2508.09791",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4416902986"
+   },
+   "key": "g011"
+  },
+  {
+   "title": "On the abandonment and survival of open source projects: An empirical investigation",
+   "year": 2019,
+   "first_author": "avelino",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.1906.08058",
+    "arxiv": "1906.08058",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4288320284"
+   },
+   "key": "g012"
+  },
+  {
+   "title": "Assumptions to Evidence: Evaluating Security Practices Adoption and Their Impact on Outcomes in the npm Ecosystem",
+   "year": 2025,
+   "first_author": "zahan",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2504.14026",
+    "arxiv": "2504.14026",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4417151014"
+   },
+   "key": "g013"
+  },
+  {
+   "title": "Model Context Protocol (MCP) Tool Descriptions Are Smelly! Towards Improving AI Agent Efficiency with Augmented MCP Tool Descriptions",
+   "year": 2026,
+   "first_author": "hasan",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2602.14878",
+    "arxiv": "2602.14878",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7129522927"
+   },
+   "key": "g014"
+  },
+  {
+   "title": "Correct Code, Vulnerable Dependencies: A Large Scale Measurement Study of LLM-Specified Library Versions",
+   "year": 2026,
+   "first_author": "wang",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2605.06279",
+    "arxiv": "2605.06279",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7160631089"
+   },
+   "key": "g015"
+  },
+  {
+   "title": "The Range Shrinks, the Threat Remains: Re-evaluating LLM Package Hallucinations on the 2026 Frontier-Model Cohort",
+   "year": 2026,
+   "first_author": "churilov",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2605.17062",
+    "arxiv": "2605.17062",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7161692241"
+   },
+   "key": "g016"
+  },
+  {
+   "title": "Evaluating Skills, Not Just Agents: Agentic Continuous Evaluation of Skills",
+   "year": 2026,
+   "first_author": "kevin",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2608.20614",
+    "arxiv": "2608.20614",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7204093987"
+   },
+   "key": "g017"
+  },
+  {
+   "title": "Evaluating Inference-Time Defenses against Package Hallucination in LLM-Generated Code",
+   "year": 2026,
+   "first_author": "djire",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3832783.3837555",
+    "arxiv": "2608.22652",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7204189675"
+   },
+   "key": "g018"
+  },
+  {
+   "title": "Do Coding Agents Reuse Existing Code or Reinvent the Wheel?",
+   "year": 2026,
+   "first_author": "ma",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2609.35357",
+    "arxiv": "2609.35357",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7214707447"
+   },
+   "key": "g019"
+  },
+  {
+   "title": "Library Hallucinations in LLM-Generated Code: A Risk Analysis Grounded in Developer Queries",
+   "year": 2025,
+   "first_author": "twist",
+   "type": "preprint",
+   "domain": "",
+   "ids": {
+    "doi": "",
+    "arxiv": "2509.22202"
+   },
+   "key": "g020"
+  }
+ ],
+ "A4": [
+  {
+   "title": "Are mutants a valid substitute for real faults in software testing?",
+   "year": 2014,
+   "first_author": "just",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/2635868.2635929",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2135937266"
+   },
+   "key": "g000"
+  },
+  {
+   "title": "Practical regression test selection with dynamic file dependencies",
+   "year": 2015,
+   "first_author": "gligoric",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/2771783.2771784",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W1985896931"
+   },
+   "key": "g001"
+  },
+  {
+   "title": "An extensive study of static regression test selection in modern software evolution",
+   "year": 2016,
+   "first_author": "legunsen",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/2950290.2950361",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2547954490"
+   },
+   "key": "g002"
+  },
+  {
+   "title": "Assertions are strongly correlated with test suite effectiveness",
+   "year": 2015,
+   "first_author": "zhang",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/2786805.2786858",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2145733341"
+   },
+   "key": "g003"
+  },
+  {
+   "title": "Are mutation scores correlated with real fault detection?",
+   "year": 2018,
+   "first_author": "papadakis",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3180155.3180183",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2788962378"
+   },
+   "key": "g004"
+  },
+  {
+   "title": "FlakeFlagger: Predicting Flakiness Without Rerunning Tests",
+   "year": 2021,
+   "first_author": "alshammari",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/icse43902.2021.00140",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4239672721"
+   },
+   "key": "g005"
+  },
+  {
+   "title": "A large-scale longitudinal study of flaky tests",
+   "year": 2020,
+   "first_author": "lam",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3428270",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W3110368543"
+   },
+   "key": "g006"
+  },
+  {
+   "title": "How to fight production incidents?",
+   "year": 2022,
+   "first_author": "ghosh",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3542929.3563482",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4308361824"
+   },
+   "key": "g007"
+  },
+  {
+   "title": "Code Coverage and Postrelease Defects: A Large-Scale Study on Open Source Projects",
+   "year": 2017,
+   "first_author": "kochhar",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/tr.2017.2727062",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2754335648"
+   },
+   "key": "g008"
+  },
+  {
+   "title": "An Empirical Evaluation of Property-Based Testing in Python",
+   "year": 2025,
+   "first_author": "ravi",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3764068",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4414978328"
+   },
+   "key": "g009"
+  },
+  {
+   "title": "Are unit and integration test definitions still valid for modern Java projects? An empirical study on open-source projects",
+   "year": 2019,
+   "first_author": "trautsch",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1016/j.jss.2019.110421",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2973860448"
+   },
+   "key": "g010"
+  },
+  {
+   "title": "Test Alert Snooze: An Empirical Study of Consecutive Test Failures on CI",
+   "year": 2026,
+   "first_author": "shirakawa",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.4230/lipics.esem.2026.24",
+    "arxiv": "",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7220361649"
+   },
+   "key": "g011"
+  },
+  {
+   "title": "Predictive Test Selection",
+   "year": 2019,
+   "first_author": "machalica",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/icse-seip.2019.00018",
+    "arxiv": "1810.05286",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W2897352130"
+   },
+   "key": "g012"
+  },
+  {
+   "title": "An Empirical Study of Flaky Tests in Python",
+   "year": 2021,
+   "first_author": "gruber",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1109/icst49551.2021.00026",
+    "arxiv": "2101.09077",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W3167640545"
+   },
+   "key": "g013"
+  },
+  {
+   "title": "Less is More? An Empirical Study on Configuration Issues in Python PyPI Ecosystem",
+   "year": 2024,
+   "first_author": "peng",
+   "type": "conference-paper",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3597503.3639077",
+    "arxiv": "2310.12598",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4394769309"
+   },
+   "key": "g014"
+  },
+  {
+   "title": "An Empirical Study on the Characteristics of Database Access Bugs in Java Applications",
+   "year": 2024,
+   "first_author": "liu",
+   "type": "article",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.1145/3672449",
+    "arxiv": "2405.15008",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4399619591"
+   },
+   "key": "g015"
+  },
+  {
+   "title": "Practical Mutation Testing at Scale",
+   "year": 2021,
+   "first_author": "petrovic",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2102.11378",
+    "arxiv": "2102.11378",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W3129295186"
+   },
+   "key": "g016"
+  },
+  {
+   "title": "Evaluating LLM-Based Test Generation Under Software Evolution",
+   "year": 2026,
+   "first_author": "haroon",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2603.23443",
+    "arxiv": "2603.23443",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7140313187"
+   },
+   "key": "g017"
+  },
+  {
+   "title": "SpecBench: Measuring Reward Hacking in Long-Horizon Coding Agents",
+   "year": 2026,
+   "first_author": "zhao",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2605.21384",
+    "arxiv": "2605.21384",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7162002888"
+   },
+   "key": "g018"
+  },
+  {
+   "title": "ImpossibleBench: Measuring LLMs' Propensity of Exploiting Test Cases",
+   "year": 2025,
+   "first_author": "ziqian",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2510.20270",
+    "arxiv": "2510.20270",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4416245187"
+   },
+   "key": "g019"
+  },
+  {
+   "title": "EvilGenie: A Reward Hacking Benchmark",
+   "year": 2025,
+   "first_author": "gabor",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2511.21654",
+    "arxiv": "2511.21654",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W4416782598"
+   },
+   "key": "g020"
+  },
+  {
+   "title": "Are Coding Agents Generating Over-Mocked Tests? An Empirical Study",
+   "year": 2026,
+   "first_author": "hora",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2602.00409",
+    "arxiv": "2602.00409",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7127446789"
+   },
+   "key": "g021"
+  },
+  {
+   "title": "Test Coverage Analysis of Agentic Pull Requests",
+   "year": 2026,
+   "first_author": "dipongkor",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2607.18057",
+    "arxiv": "2607.18057",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7169847554"
+   },
+   "key": "g022"
+  },
+  {
+   "title": "The Quality of Claude AI-authored Python Tests Is Not Weaker Than Human-authored Tests",
+   "year": 2026,
+   "first_author": "leith",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2608.15188",
+    "arxiv": "2608.15188",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7203694983"
+   },
+   "key": "g023"
+  },
+  {
+   "title": "Can escalation channels redirect reward hacking toward defect disclosure?",
+   "year": 2026,
+   "first_author": "gomez",
+   "type": "preprint",
+   "domain": "Physical Sciences",
+   "ids": {
+    "doi": "10.48550/arxiv.2608.29460",
+    "arxiv": "2608.29460",
+    "pmid": "",
+    "pmcid": "",
+    "openalex": "W7204912185"
+   },
+   "key": "g024"
+  },
+  {
+   "title": "An Empirical Study of Testing Practices in Open Source AI Agent Frameworks and Agentic Applications",
+   "year": 2025,
+   "first_author": "hasan",
+   "type": "preprint",
+   "domain": "",
+   "ids": {
+    "doi": "",
+    "arxiv": "2509.19185"
+   },
+   "key": "g025"
+  }
+ ]
+}

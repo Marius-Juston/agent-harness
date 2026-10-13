@@ -1,0 +1,153 @@
+{
+ "arms": [
+  "L0",
+  "X",
+  "W",
+  "LA"
+ ],
+ "gold": 496,
+ "missed_by_all": 449,
+ "sample": [
+  {
+   "unit": "P08",
+   "key": "g034",
+   "own_title_top5": true,
+   "year": 2025,
+   "domain": "Physical Sciences"
+  },
+  {
+   "unit": "P01",
+   "key": "g034",
+   "own_title_top5": false,
+   "year": 2024,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P06",
+   "key": "g114",
+   "own_title_top5": true,
+   "year": 2026,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P06",
+   "key": "g014",
+   "own_title_top5": true,
+   "year": 2015,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P01",
+   "key": "g016",
+   "own_title_top5": true,
+   "year": 2023,
+   "domain": "Health Sciences"
+  },
+  {
+   "unit": "P09",
+   "key": "g000",
+   "own_title_top5": false,
+   "year": 2013,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P01",
+   "key": "g003",
+   "own_title_top5": true,
+   "year": 2007,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P01",
+   "key": "g018",
+   "own_title_top5": true,
+   "year": 2005,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P06",
+   "key": "g106",
+   "own_title_top5": true,
+   "year": 2025,
+   "domain": "Life Sciences"
+  },
+  {
+   "unit": "P08",
+   "key": "g065",
+   "own_title_top5": true,
+   "year": 2025,
+   "domain": "Health Sciences"
+  },
+  {
+   "unit": "P01",
+   "key": "g067",
+   "own_title_top5": true,
+   "year": 2010,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P08",
+   "key": "g033",
+   "own_title_top5": true,
+   "year": 2023,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P01",
+   "key": "g024",
+   "own_title_top5": true,
+   "year": 2023,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P08",
+   "key": "g030",
+   "own_title_top5": true,
+   "year": 2021,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P08",
+   "key": "g056",
+   "own_title_top5": true,
+   "year": 2024,
+   "domain": "Physical Sciences"
+  },
+  {
+   "unit": "P08",
+   "key": "g042",
+   "own_title_top5": true,
+   "year": 1999,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P06",
+   "key": "g119",
+   "own_title_top5": true,
+   "year": 2025,
+   "domain": "Health Sciences"
+  },
+  {
+   "unit": "P02",
+   "key": "g007",
+   "own_title_top5": false,
+   "year": 2026,
+   "domain": "Physical Sciences"
+  },
+  {
+   "unit": "P01",
+   "key": "g125",
+   "own_title_top5": true,
+   "year": 2026,
+   "domain": "Social Sciences"
+  },
+  {
+   "unit": "P06",
+   "key": "g118",
+   "own_title_top5": false,
+   "year": 2011,
+   "domain": "Social Sciences"
+  }
+ ],
+ "sample_found_by_own_title_top5": 16
+}

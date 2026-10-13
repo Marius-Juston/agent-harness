@@ -1,0 +1,20 @@
+{
+ "rule": "units are stratified by domain into EDU and the rest (CS + SEC). Each stratum is sorted by id, shuffled with\nrandom.Random(\"192-split\"), and its first round(0.4 * n) units go to TUNE, the others to TEST.",
+ "tune": [
+  "A3",
+  "P03",
+  "P04",
+  "P05",
+  "P07"
+ ],
+ "test": [
+  "A1",
+  "A2",
+  "A4",
+  "P01",
+  "P02",
+  "P06",
+  "P08",
+  "P09"
+ ]
+}

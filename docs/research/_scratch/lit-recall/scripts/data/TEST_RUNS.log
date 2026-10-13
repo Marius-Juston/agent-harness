@@ -1,0 +1,12 @@
+2026-10-13T11:38:46-04:00 TEST run #1 started: W (unscored until L* is fixed on TUNE)
+2026-10-13T11:41:25-04:00 TEST run #1 continued: L0, LA
+2026-10-13T11:43:04-04:00 TEST scored (part 1, X pending): L0, L0-1, LA, W, L0+W
+2026-10-13T11:53:48-04:00 TEST X run (amendment 4) and full scoring (part 2): L0, X, W, L0-1, LA, L0+X, L0+W
+Pre-squash commit record (squashed into one commit for the public-repo scrub; the originals are in the private
+backup's pre-squash-192.bundle, SHA-256 2ee69c76e83be78915658477c0baf66caf3432bc1e1831524bad797ee48cc287):
+  e766bc2 11:00:28 protocol, frozen split, arms (before any query or run)
+  fe29295 11:04:10 frozen queries and gold, amendment 1
+  88397c9 11:18:59 amendment 2 (L0 had run on TUNE, LA not yet)
+  e606f0c 11:26:05 TUNE runs so far, scorer, amendment 3
+  7c72628 11:41:18 amendment 4 (L* = L0); W TEST had begun at 11:38:46 and was unscored; TEST scoring began 11:43:04
+  7eed68b 11:57:34 TEST run complete (L0, X, W, LA), scoring, misses, amendment 5

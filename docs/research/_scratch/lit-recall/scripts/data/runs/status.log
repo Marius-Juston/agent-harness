@@ -1,0 +1,4 @@
+L0 tune before: discovery: OK, partial (s2 down; openalex, crossref, europepmc, arxiv answered) | after: discovery: OK, partial (s2 down; openalex, crossref, europepmc, arxiv answered)
+L2 tune before: discovery: OK, partial (s2 down; openalex, crossref, europepmc, arxiv answered) | after: discovery: OK, partial (s2 down; openalex, crossref, europepmc, arxiv answered)
+L4 tune before: discovery: OK, partial (s2 down; openalex, crossref, europepmc, arxiv answered) | after: discovery: OK, partial (s2 down; openalex, crossref, europepmc, arxiv answered)
+L0 test before: discovery: OK, partial (s2 down; openalex, crossref, europepmc answered) | after: discovery: OK, partial (s2 down; openalex, crossref, europepmc answered)
