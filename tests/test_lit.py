@@ -1004,6 +1004,22 @@ def test_get_stops_at_the_first_complete_record(tmp_path):
     assert len(net.calls) == 1
 
 
+def test_get_stops_at_an_abstract_even_without_authors(tmp_path):
+    net = FakeNet({OA: [(200, {}, json.dumps(oa_work("10.1234/a", authors=False)))]})
+    p, _ = make(tmp_path, net).lookup("10.1234/a")
+    assert p is not None and p.authors == [] and len(net.calls) == 1
+
+
+def test_get_skips_s2_while_its_pool_is_held_off(tmp_path):
+    cr = {"message": {"DOI": "10.1234/x", "title": ["Crossref"], "abstract": "<p>Abs.</p>"}}
+    net = FakeNet({OA: [(200, {}, json.dumps(oa_work("10.1234/x", abstract=False)))], CR: [(200, {}, json.dumps(cr))]})
+    c = make(tmp_path, net)
+    c.bucket.cooldown("s2", 600)
+    p, notes = c.lookup("10.1234/x")
+    assert p is not None and p.abstract.strip() == "Abs." and not any(u.startswith(S2) for u, _ in net.calls)
+    assert any(n.startswith("s2: rate limited") for n in notes) and c.clock.slept == []
+
+
 def test_get_many_batches_openalex_and_falls_back_per_id_without_asking_openalex_again(tmp_path):
     works = [oa_work("10.1234/a", "W1"), oa_work("10.1234/B", "W2")]
     s2p = {"paperId": "d" * 40, "title": "Only in S2", "abstract": "S2.", "authors": [{"name": "X"}],

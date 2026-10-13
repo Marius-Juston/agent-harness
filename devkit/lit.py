@@ -269,9 +269,6 @@ class Paper:
             out.append("  " + (text[: snippet - 1].rstrip() + "…" if cut else text))
         return "\n".join(out)
 
-    def complete(self) -> bool:
-        return bool(self.abstract and self.authors)
-
 
 def _strip_doi(doi: str | None) -> str:
     return re.sub(r"^https?://(dx\.)?doi\.org/", "", doi or "", flags=re.I)
@@ -723,13 +720,17 @@ class Client:
     def lookup(
         self, ident: str, found: Paper | None = None, skip: tuple[str, ...] = ()
     ) -> tuple[Paper | None, list[str]]:
-        """One paper by id: each source in get_urls order (but `skip`) fills what the record still lacks, until it has
-        an abstract and authors. `found` is a record already in hand."""
+        """One paper by id: each source in get_urls order (but `skip`, and S2 while its pool is held off) fills what the
+        record still lacks, until it has an abstract (authors alone are not worth more calls). `found` is a record
+        already in hand."""
         notes: list[str] = []
         for src, url in get_urls(ident):
-            if found and found.complete():
+            if found and found.abstract:
                 break
             if src in skip:
+                continue
+            if src == "s2" and (left := self.bucket.held_off(src, self.keyed(src))) > 0:
+                notes.append(f"s2: rate limited for another {left:.0f}s; skipped")
                 continue
             try:
                 papers = PARSE[src](self.fetch(src, url))

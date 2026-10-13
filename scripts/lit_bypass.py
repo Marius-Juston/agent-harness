@@ -6,7 +6,7 @@
 """Direct literature-API calls that skip `dev lit` (agent-harness#174, #30), per researcher and auditor run.
 
 Reads Claude Code subagent transcripts (``<projects>/**/subagents/*.jsonl`` with their ``.meta.json``) and counts,
-per agent type, the runs that call OpenAlex, Crossref, Semantic Scholar or Europe PMC directly: a WebFetch to the
+per agent type, the runs and the tool calls (not HTTP requests: one Bash loop is one call) that call OpenAlex, Crossref, Semantic Scholar or Europe PMC directly: a WebFetch to the
 API host, or a Bash command that fetches from it (curl, wget, or a Python/HTTP one-liner). `dev lit` itself never
 counts (it never names an API host). Read-only; prints a table, or JSON with --json.
 
@@ -25,7 +25,7 @@ APIS = {
     "openalex": r"api\.openalex\.org",
     "crossref": r"api\.crossref\.org",
     "s2": r"api\.semanticscholar\.org",
-    "europepmc": r"ebi\.ac\.uk/europepmc",
+    "europepmc": r"ebi\.ac\.uk/europepmc|europepmc\.org/(api|webservices)",
 }
 FETCHER = re.compile(r"\b(curl|wget|urllib|requests|httpx|urlopen|WebFetch)\b")
 TYPES = ("harness-ops:researcher", "harness-ops:research-auditor", "researcher", "research-auditor")
@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(res, indent=1))
         return 0
     print(f"direct literature-API calls (skipping dev lit) since {a.since or 'the first transcript'}")
-    print("| agent type | runs | runs with a direct call | calls | by API |")
+    print("| agent type | runs | runs with a direct call | tool calls | by API |")
     print("|---|---|---|---|---|")
     for t, r in res.items():
         by = ", ".join(f"{k} {v}" for k, v in r["calls"].most_common()) or "-"
