@@ -35,9 +35,8 @@ Crossref, WebSearch/WebFetch, context7, Wikipedia (orientation only).
    `uv run dev cite-check` passes on that file (link text is the title; author/year/venue follow the link).
 3. **Gap pass.** When all have returned, read their hand-backs, not the files. Write
    `_scratch/<slug>/gaps-r<round>.md` with: new findings that change the recommendation, contradictions between
-   researchers, claims resting on one weak source, and questions nobody answered. Snowball from the key papers
-   for what keyword search missed: `uv run dev lit refs <id>` (what it cites) and `uv run dev lit cited-by <id>`
-   (newer work citing it), and give the next round any paper the notes lack.
+   researchers, claims resting on one weak source, and questions nobody answered. Snowball the key papers
+   (`uv run dev lit refs <id>`, `uv run dev lit cited-by <id>`); new papers go to the next round.
 4. **Stop or loop.** Run another round only on the gaps, never the whole question again. Stop when any of these holds:
    - a round adds no finding that changes the recommendation (saturation);
    - 4 rounds have run;
