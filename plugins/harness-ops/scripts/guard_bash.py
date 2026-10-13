@@ -563,7 +563,7 @@ class Checker:
             for body, _ in c.stdin:
                 if why := self.code(body, lang, depth):
                     return why
-        if self.read_only and (why := read_only(argv, c.writes, self.read_only)):
+        if self.read_only and (why := read_only(argv, c.writes, self.read_only, tuple(assigns))):
             return why
         if not argv:
             return None
@@ -871,17 +871,57 @@ READ_CMDS = {"cat", "head", "tail", "wc", "ls", "grep", "egrep", "fgrep", "rg", 
 READ_CMDS |= {"echo", "printf", "pwd", "stat", "file", "diff", "cmp", "tree", "du", "df", "basename", "dirname"}
 READ_CMDS |= {"realpath", "readlink", "test", "[", "[[", "true", "false", "column", "nl", "date", "which", "cd"}
 READ_GIT = {"log", "show", "diff", "status", "blame", "grep", "ls-files", "ls-tree", "rev-parse", "cat-file"}
-READ_GIT_GLOBAL = {"-C", "-c", "--no-pager", "-P", "--git-dir", "--work-tree"}
+READ_GIT_GLOBAL = {"-C", "--no-pager", "-P", "--git-dir", "--work-tree"}  # no -c: core.fsmonitor, alias.x=!cmd run code
 READ_GH = {"issue": {"view", "list", "create", "comment", "status"}, "pr": {"view", "list", "diff", "checks", "status"}}
 READ_GH |= {"search": {"issues", "prs", "code", "repos", "commits"}}
 READ_DEV = {"board", "code", "--help", "-h"}
+# Options of allowed read commands that run a program or write a file (#145): (short letters that do, short letters
+# that take a value and so end a cluster, long options; git-style prefixes of 3+ characters count).
+RISKY_OPTS = {
+    "sort": ("o", "ktST", {"--output", "--compress-program"}),
+    "tree": ("o", "LPIHT", set()),
+    "rg": ("", "", {"--pre"}),
+    "file": ("C", "mPeFf", {"--compile"}),
+    "date": ("s", "dfIr", {"--set"}),
+    "git grep": ("O", "efABCm", {"--open-files-in-pager"}),
+}
+# Environment variables a read-only agent may set: the rest (GIT_CONFIG_*, GIT_EXTERNAL_DIFF, LD_PRELOAD, ...) can run
+# code. A pager may only be turned off.
+SAFE_VARS = {"NO_COLOR", "TERM", "COLUMNS", "LINES", "LANG", "LC_ALL", "TZ"}
+SAFE_PAGERS = {"GIT_PAGER=", "GIT_PAGER=cat", "PAGER=", "PAGER=cat"}
 SINKS = {"/dev/null", "/dev/stdout", "/dev/stderr", "-"}
 
 
-def read_only(argv: list[str], writes: list[str], report: str = "") -> str | None:
+def risky(name: str, args: list[str]) -> bool:
+    """An option in RISKY_OPTS, or a second file operand for uniq (its output file)."""
+    if name == "uniq":
+        valued, files, i = ("-f", "-s", "-w"), 0, 0
+        while i < len(args):
+            files += not args[i].startswith("-") or args[i] == "-"
+            i += 2 if args[i] in valued else 1
+        return files > 1
+    letters, valued, longs = RISKY_OPTS.get(name, ("", "", set()))
+    for a in args:
+        if a == "--":
+            break
+        if a.startswith("--"):
+            if any(long_opt(a, opt, 3) for opt in longs):
+                return True
+        elif a.startswith("-"):
+            for ch in a[1:]:
+                if ch in letters:
+                    return True
+                if ch in valued:
+                    break
+    return False
+
+
+def read_only(argv: list[str], writes: list[str], report: str = "", assigns: tuple[str, ...] = ()) -> str | None:
     """READ_ONLY unless the command only reads, files issues through `dev board` / `gh`, or runs the agent's own
     `dev <report>` (READ_ONLY_AGENTS)."""
     if any(not (w.isdigit() or w in SINKS) for w in writes):
+        return READ_ONLY
+    if any(a.split("=", 1)[0] not in SAFE_VARS and a not in SAFE_PAGERS for a in assigns):
         return READ_ONLY
     if not argv:
         return None
@@ -897,15 +937,16 @@ def read_only(argv: list[str], writes: list[str], report: str = "") -> str | Non
         bad = {"-delete", "-fprint", "-fprint0", "-fprintf", "-fls", "-ok", "-okdir"}
         return READ_ONLY if bad & set(args) else None  # -exec's command is checked on its own
     if name in READ_CMDS:
-        return None
+        return READ_ONLY if risky(name, args) else None
     if name == "git":
         i = 0
         while i < len(args) and args[i].startswith("-"):
             if args[i] not in READ_GIT_GLOBAL:
                 return READ_ONLY
-            i += 2 if args[i] in ("-C", "-c", "--git-dir", "--work-tree") else 1
+            i += 2 if args[i] in ("-C", "--git-dir", "--work-tree") else 1
         rest = args[i:]
         ok = rest and rest[0] in READ_GIT and not any(a.startswith(("--output", "-o")) for a in rest[1:])
+        ok = ok and not (rest[0] == "grep" and risky("git grep", rest[1:]))
         return None if ok else READ_ONLY
     if name == "gh":
         if args[:1] == ["api"]:
