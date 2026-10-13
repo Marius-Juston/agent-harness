@@ -1,6 +1,8 @@
-"""`dev pr`: the PR body comes from a file or, with `--summary -`, from stdin (subagents may not write report files)."""
+"""`dev pr`: the PR body comes from a file or, with `--summary -`, from stdin (subagents may not write report files).
+The PR summary's `Reuse:` line (#173), which the completion gate checks."""
 
 import io
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -71,3 +73,132 @@ def test_partial_with_a_closes_line_is_refused_before_anything_is_pushed(opened,
     with pytest.raises(board.BoardError, match="--partial"):
         workflow.pr(33, "-", draft=False, partial=True)
     assert opened == []
+
+
+PYPROJECT = '[project]\nname = "p"\ndependencies = ["rich>=13"]\n[dependency-groups]\ndev = ["pytest"]\n'
+
+
+def _git(repo, *args):
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *args], cwd=repo, check=True)
+
+
+@pytest.fixture
+def branch(tmp_path, monkeypatch):
+    """A repository whose main has pyproject.toml, pkg/old.py and one research note, on issue branch 9-x. Returns a
+    function that commits one file."""
+    repo = tmp_path / "repo"
+    (repo / "pkg").mkdir(parents=True)
+    (repo / "pyproject.toml").write_text(PYPROJECT)
+    (repo / "pkg/old.py").write_text("".join(f"X{i} = {i}\n" for i in range(10)))
+    (repo / "docs/research").mkdir(parents=True)
+    (repo / "docs/research/http.md").write_text("# http clients\n")
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["add", "."],
+        ["commit", "-q", "-m", "base"],
+        ["checkout", "-qb", "9-x"],
+    ):
+        _git(repo, *args)
+    monkeypatch.chdir(repo)
+
+    def commit(path: str, text: str) -> None:
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text(text)
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-q", "-m", path)
+
+    commit.repo = repo
+    return commit
+
+
+def test_a_new_dependency_needs_a_reuse_line(branch):
+    branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', '"rich>=13", "HTTPX[http2]>=0.27"'))
+    assert workflow.reuse_needs("main") == ["dependency httpx"]
+    assert "has no `Reuse:` line" in workflow.reuse_problem("Closes #9\n\nadded httpx")
+    assert workflow.reuse_problem("Closes #9\n\nReuse: httpx PASS (chosen), requests HOLD dormant") is None
+
+
+def test_a_new_dependency_group_entry_counts_too(branch):
+    branch("pyproject.toml", PYPROJECT.replace('["pytest"]', '["pytest", "hypothesis"]'))
+    assert workflow.reuse_needs("main") == ["dependency hypothesis"]
+
+
+def test_a_uv_dev_dependency_counts_and_the_project_itself_does_not(branch):
+    """Review on #186: [tool.uv] dev-dependencies is uv's legacy group, and `p[extra]` is a self-reference."""
+    extra = '[project.optional-dependencies]\nall = ["P[dev]"]\n[tool.uv]\ndev-dependencies = ["ruff"]\n'
+    branch("pyproject.toml", PYPROJECT.replace("[dependency-groups]", extra + "[dependency-groups]"))
+    assert workflow.reuse_needs("main") == ["dependency ruff"]
+
+
+def test_an_unparsable_pyproject_adds_no_dependency(branch):
+    """A broken pyproject.toml fails the gate on its own; the reuse check does not guess at its names."""
+    branch("pyproject.toml", PYPROJECT + "[broken\n")
+    assert workflow.reuse_needs("main") == []
+
+
+def test_a_new_non_test_module_needs_a_reuse_line(branch):
+    branch("pkg/new.py", "Y = 2\n")
+    assert workflow.reuse_needs("main") == ["module pkg/new.py"]
+    assert "module pkg/new.py" in workflow.reuse_problem("Closes #9")
+
+
+def test_neither_needs_no_line(branch):
+    """Tests, edits to existing modules, renames, version bumps, non-Python files and empty or whitespace-only
+    modules (package markers) do not count."""
+    branch("tests/test_new.py", "def test(): pass\n")
+    branch("pkg/conftest.py", "")
+    branch("pkg/sub/__init__.py", "")
+    branch("pkg/blank.py", " \n\n\t\n")
+    branch("pkg/old.py", "".join(f"X{i} = {i}\n" for i in range(9)))
+    branch("pyproject.toml", PYPROJECT.replace("rich>=13", "rich>=14"))
+    branch("docs/new.md", "text\n")
+    _git(branch.repo, "mv", "pkg/old.py", "pkg/moved.py")
+    _git(branch.repo, "commit", "-qm", "mv")
+    assert workflow.reuse_needs("main") == []
+    assert workflow.reuse_problem("Closes #9") is None
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Reuse: httpx PASS (chosen), requests HOLD dormant",
+        "- **Reuse:** aiohttp FAIL (archived); none of the rest fit",
+        "Reuse: requestz NOT FOUND, httpx: UNVERIFIED, pyside6 FLAG",
+        "Reuse: docs/research/http.md weighed them",
+        "Reuse: none: a 20-line parser over our own TOML keys",
+        "Reuse: none: harness adoption",
+        "reuse: None - glue code over devkit.board",
+        "Reuse: none – en dash",
+        "Reuse: none — em dash",
+    ],
+)
+def test_each_documented_form_is_accepted(branch, line):
+    branch("pkg/new.py", "Y = 2\n")
+    assert workflow.reuse_problem(f"Closes #9\n\nwhat changed\n{line}\n") is None
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Reuse: looked around",
+        "Reuse: docs/research/missing.md",
+        "Reuse: none:",
+        "Reuse:",
+        "We did not Reuse: anything",
+        "Reuse: tests pass",
+        "Reuse: httpx pass",
+    ],
+)
+def test_a_line_in_none_of_the_forms_is_refused(branch, line):
+    branch("pkg/new.py", "Y = 2\n")
+    assert workflow.reuse_problem(f"Closes #9\n\n{line}\n") is not None
+
+
+def test_the_forms_are_documented_in_one_place():
+    for form in (
+        "Reuse: httpx PASS",
+        "Reuse: docs/research/",
+        "Reuse: none: <reason>",
+        "Reuse: none: harness adoption",
+    ):
+        assert form in workflow.REUSE_FORMS
