@@ -2,6 +2,8 @@
 name: builder
 description: Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. Use for any code change larger than a few lines, one issue per builder; parallel builders only on issues whose Owns do not overlap.
 model: opus
+maxTurns: 300
+color: blue
 isolation: worktree
 experimental:
   cacheTtl: 1h

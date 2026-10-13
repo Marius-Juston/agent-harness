@@ -2,6 +2,8 @@
 name: research-auditor
 description: Adversarial, read-only audit of one research note. Re-fetches its sources and checks that each claim is supported, labelled correctly and not overstated. Use before a research PR is integrated, or when a note drives a design decision.
 model: opus
+maxTurns: 120
+color: orange
 effort: high
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers
 ---

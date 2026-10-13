@@ -17,46 +17,63 @@ from devkit.paths import git, root
 from devkit.ran import Ran
 
 DESCRIPTION_CAP = 1536  # Claude Code truncates a skill/agent description (+ when_to_use) at this many characters
+# The documented frontmatter fields; Claude Code silently ignores any other key, and a value outside the options
+# (code.claude.com/docs/en/sub-agents#supported-frontmatter-fields, code.claude.com/docs/en/skills#frontmatter-reference).
 AGENT_KEYS = {
     "name",
     "description",
     "tools",
     "disallowedTools",
     "model",
-    "effort",
+    "permissionMode",
     "maxTurns",
     "skills",
-    "memory",
-    "hooks",
-    "permissionMode",
-    "color",
-    "omitClaudeMd",
-    "isolation",
-    "background",
-    "experimental",
     "mcpServers",
+    "hooks",
+    "memory",
+    "background",
+    "omitClaudeMd",
+    "effort",
+    "isolation",
+    "color",
     "initialPrompt",
+    "experimental",
 }
 SKILL_KEYS = {
-    "compatibility",
     "name",
     "description",
     "when_to_use",
-    "allowed-tools",
-    "paths",
-    "hooks",
+    "argument-hint",
+    "arguments",
     "disable-model-invocation",
     "user-invocable",
+    "allowed-tools",
+    "disallowed-tools",
     "model",
     "effort",
     "context",
     "agent",
-    "argument-hint",
-    "arguments",
-    "license",
+    "background",
+    "hooks",
+    "paths",
+    "shell",
     "metadata",
-    "version",
+    "license",
+    "compatibility",
 }
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+AGENT_VALUES = {
+    "effort": EFFORTS,
+    "isolation": ("worktree",),
+    "memory": ("user", "project", "local"),
+    "color": ("red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan"),
+}
+SKILL_VALUES = {"effort": EFFORTS, "context": ("fork",), "shell": ("bash", "powershell")}
+# A !`cmd` placeholder at a line start or after whitespace; a failing command aborts the whole skill invocation
+# (code.claude.com/docs/en/skills#inject-dynamic-context).
+INJECTION = re.compile(r"(?:^|(?<=\s))!`([^`\n]+)`", re.M)
+INJECTION_BLOCK = re.compile(r"^```!\s*\n(.*?)^```", re.M | re.S)  # the multi-line form
+PIPE_TAIL = re.compile(r"\|\s*(?:head|tail)(?:\s+-n?\s*\d+|\s+-\d+)?\s*$")  # without pipefail, head/tail decide
 REPO_PATH = re.compile(r"^\.?[\w-]+/[\w./-]*$")  # a backticked `dir/...`; checked when `dir` is a top-level dir
 MD_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 BACKTICK = re.compile(r"`([^`\n]+)`")
@@ -148,13 +165,44 @@ def check_surface() -> Ran:
             ran.problems.append(f"{where}: description is {len(desc)} chars, cap {DESCRIPTION_CAP}")
         if unknown := sorted(set(meta) - keys):
             ran.problems.append(f"{where}: unknown frontmatter keys {unknown} (silently ignored by Claude Code)")
+        ran.problems += [f"{where}: {p}" for p in value_problems(meta, skill=path.name == "SKILL.md")]
         if path.name != "SKILL.md" and is_plugin(path) and (ignored := sorted(set(meta) & PLUGIN_AGENT_IGNORED)):
             ran.problems.append(f"{where}: {ignored} are ignored in a plugin agent; use plugin hooks or MCP servers")
         if not body.strip():
             ran.problems.append(f"{where}: empty body")
         if path.name == "SKILL.md":
             ran.problems += [f"{where}: {p}" for p in skill_spec_problems(meta, body, path.parent.name)]
+            ran.problems += [f"{where}: {p}" for p in injection_problems(meta, body)]
     return ran
+
+
+def injection_problems(meta: dict, body: str) -> list[str]:
+    """Injected bash commands that can exit non-zero, which aborts the whole skill invocation. A ```! block runs as
+    one script, so its last command decides. `shell: powershell` skills are skipped: the docs give `|| true` for bash
+    only."""
+    if meta.get("shell") == "powershell":
+        return []
+    cmds = INJECTION.findall(body)
+    cmds += [lines[-1] for block in INJECTION_BLOCK.findall(body) if (lines := [s for s in block.splitlines() if s])]
+    return [
+        f"!`{c}` aborts the skill if it exits non-zero; end it with `|| true` (or `| head`/`| tail`), and allow it "
+        "(a permission rule or `allowed-tools`): outside auto mode an unallowed command aborts it too"
+        for c in (c.strip() for c in cmds)
+        if not (c.endswith("|| true") or PIPE_TAIL.search(c))
+    ]
+
+
+def value_problems(meta: dict, skill: bool) -> list[str]:
+    """Values outside a field's documented options, which Claude Code would not apply."""
+    out = [
+        f"{k} {meta[k]!r} must be one of {', '.join(opts)}"
+        for k, opts in (SKILL_VALUES if skill else AGENT_VALUES).items()
+        if k in meta and meta[k] not in opts
+    ]
+    turns = meta.get("maxTurns")
+    if not skill and "maxTurns" in meta and (isinstance(turns, bool) or not isinstance(turns, int) or turns < 1):
+        out.append(f"maxTurns {turns!r} must be a positive whole number")
+    return out
 
 
 HOOK_SCRIPT = re.compile(r"\$\{?(CLAUDE_PROJECT_DIR|CLAUDE_PLUGIN_ROOT)\}?\"?/([^\s\"]+)")
