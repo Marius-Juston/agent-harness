@@ -35,7 +35,6 @@ import random
 import re
 import stat
 import sys
-import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -104,16 +103,8 @@ OPENER = urllib.request.build_opener(KeepKeysOnHost)
 
 
 def http_get(url: str, headers: dict[str, str], timeout: int = 30) -> tuple[int, dict[str, str], str]:
-    if why := netsafe.bad_scheme(url):
-        return 0, {}, why
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*", **headers})  # noqa: S310 - http(s)
     try:
-        with OPENER.open(req, timeout=timeout) as r:
-            return r.status, dict(r.headers), r.read(2_000_000).decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as e:
-        return e.code, dict(e.headers or {}), ""
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
-        return 0, {}, str(e)
+        return netsafe.http_get(url, ua=UA, headers=headers, timeout=timeout, cap=2_000_000, opener=OPENER)
     except (ValueError, UnicodeEncodeError):  # a header or url urllib cannot send; its message may quote the key
         raise SourceError("key contains non-ASCII characters (or a control character); fix the secrets file") from None
 
@@ -168,7 +159,7 @@ class Bucket:
                 except (FileNotFoundError, json.JSONDecodeError):
                     data = {}
                 yield data
-                _atomic_write(path, json.dumps(data))
+                netsafe.atomic_write(path, json.dumps(data))
             finally:
                 fcntl.flock(lock, fcntl.LOCK_UN)
 
@@ -217,18 +208,6 @@ class Bucket:
             if source in data:
                 data[source].pop(n, None)
                 data[source].pop(last, None)
-
-
-def _atomic_write(path: Path, text: str) -> None:
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(text)
-        os.replace(tmp, path)
-    except BaseException:
-        with contextlib.suppress(FileNotFoundError):
-            os.unlink(tmp)
-        raise
 
 
 # ---- records ----
@@ -579,7 +558,7 @@ class Client:
                 raise SourceError(f"{source}: {exc}") from None
             if status == 200:
                 self.bucket.succeeded(source, keyed)
-                _atomic_write(path, json.dumps({"t": self.clock(), "url": url, "body": body}))
+                netsafe.atomic_write(path, json.dumps({"t": self.clock(), "url": url, "body": body}))
                 return body
             if status == 404:
                 raise SourceError(f"{source}: not found")
