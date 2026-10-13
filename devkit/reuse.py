@@ -5,23 +5,25 @@ Agents searched GitHub, PyPI, npm and OSV by hand, each with their own queries a
 - queries: the need, each `--also` paraphrase the agent writes, or `--from <file>[:<symbol>]`, which reads a
   hand-written helper's name, docstring, comments and imports (devkit.code.source) so it gets library suggestions.
   Each query is stopword-relaxed to at most QUERY_TERMS words;
-- recall: GitHub repository search per query (an OR query when the AND one returns under OR_FALLBACK), the
+- recall: GitHub repository search per query (is:public, so a token never brings private repositories in) (an OR query when the AND one returns under OR_FALLBACK), the
   packages.ecosyste.ms keyword lists of the query words (filtered to the ecosystem: the endpoint ignores it), and
   topic expansion (topics shared by TOPIC_MIN of the TOPIC_TOP first repositories). Candidates are deduplicated by
   repository;
 - relevance R (0-1): cosine to the mean query vector with model2vec potion-base-8M (MIT; the optional extra
   `agent-harness[semantic]`), else BM25 scaled to the best candidate. The output names the re-rank that ran. The
-  first 2n by R + STAR_WEIGHT * log10(1 + stars) (the lead's pilot, #169: 14/16 against 10/16 hit@10) are enriched;
+  first SHORTLIST * n by R + STAR_WEIGHT * log10(1 + stars) (the lead's pilot, #169: 14/16 against 10/16 hit@10)
+  are all enriched, gated and scored before the best n by S are kept;
 - gates (#169 note, F2), shown per candidate; a FAIL is dropped with a note, a HOLD is shown with its reason:
   G1 the name exists on its registry (PyPI, npm, crates.io) or GitHub, the package-hallucination guard (arXiv
-  2406.10279), else FAIL; G2 no malicious-package advisory (an OSV MAL- id on deps.dev, or a GitHub MALWARE advisory
-  on ecosyste.ms), else FAIL; G3 first release at least NEW_DAYS ago, else HOLD; G4 not archived or deprecated (else
-  FAIL) and released within DORMANT_DAYS (else HOLD); G5 licence by Blue Oak Council tier: permissive (Model to
+  2406.10279), else FAIL, asked again after REGISTRY_MAX_AGE; G2 no malicious-package advisory (an OSV MAL- id on
+  deps.dev, or a GitHub MALWARE advisory on ecosyste.ms), else FAIL, and HOLD when neither answered; G3 first release
+  at least NEW_DAYS ago, else HOLD; G4 not archived, deprecated or wholly yanked (else FAIL) and released within
+  DORMANT_DAYS (else HOLD); G5 licence by Blue Oak Council tier: permissive (Model to
   Bronze) passes, weak copyleft passes with a flag, strong, network or maximal copyleft FAILs unless
   `--allow-copyleft`, unknown or Lead HOLDs; G6 advisories open on the default version are flagged, never failed.
   A licence that is not OSI-approved (spdx.org) or missing is flagged too;
 - quality Q (0-1, `quality()`): the sum of Q_WEIGHTS (developer survey shares, arXiv 2005.12574) over maturity
-  (months since the first release, release count), documentation (a docs URL), maintenance (the larger of Scorecard
+  (months since the first release, release count), documentation (a docs URL, else README size), maintenance (the larger of Scorecard
   Maintained / 10 and release recency: 1 up to FRESH_DAYS, 0 at DORMANT_DAYS), security (Scorecard / 10, 0.5 when
   unknown), popularity (monthly downloads, stars) and community (contributors, else forks); each raw signal s is
   normalised as log(1+s) / log(1+max(s, T)) with its cap T (OpenSSF criticality_score). Sources: ecosyste.ms,
@@ -58,6 +60,7 @@ from devkit.paths import state_dir
 # crates.io asks for at most one request a second.
 RATES: dict[str, tuple[float, float]] = {
     "github": (0.15, 2.0),
+    "githubcore": (1.0, 2.0),  # repos/<o>/<r>/readme: GitHub's core API, 5000 an hour with a token, 60 without
     "ecosystems": (2.0, 4.0),
     "depsdev": (5.0, 5.0),
     "spdx": (1.0, 1.0),
@@ -66,9 +69,10 @@ RATES: dict[str, tuple[float, float]] = {
     "npm": (5.0, 5.0),
     "cargo": (1.0, 1.0),
 }
-KEYS = {"github": "GITHUB_TOKEN"}  # GH_TOKEN or `gh auth token` fill it (client())
+KEYS = {"github": "GITHUB_TOKEN", "githubcore": "GITHUB_TOKEN"}  # GH_TOKEN or `gh auth token` fill it (client())
 
 GITHUB = "https://api.github.com/search/repositories?"
+GITHUB_REPOS = "https://api.github.com/repos/"
 ECOSYSTEMS = "https://packages.ecosyste.ms/api/v1/"
 DEPSDEV = "https://api.deps.dev/v3/"
 SPDX = "https://spdx.org/licenses/licenses.json"
@@ -92,6 +96,7 @@ TOPIC_TOP, TOPIC_MIN, TOPIC_CAP = 10, 2, 2
 TOPIC_STOP = {"python", "python3", "javascript", "typescript", "nodejs", "rust", "hacktoberfest", "library"}
 MODEL = "minishlab/potion-base-8M"
 STAR_WEIGHT = 0.03  # shortlist prior only (pilot); popularity enters S through Q
+SHORTLIST = 2  # SHORTLIST * n candidates by that prior are enriched, gated and scored; the best n by S are shown
 BM25_K1, BM25_B = 1.5, 0.75
 NEED_WORDS = 40  # words of a --from need
 
@@ -105,6 +110,8 @@ Q_WEIGHTS = {
     "community": 0.117,
 }
 T_MONTHS, T_RELEASES, T_DOWNLOADS, T_STARS, T_CONTRIBUTORS, T_FORKS = 60, 50, 1e6, 1e4, 50, 50  # caps T
+T_README = 10_000  # bytes: the documentation factor without a docs URL
+REGISTRY_MAX_AGE = 86400  # seconds: G1 answers are re-asked daily, so a pulled package stops verifying soon
 SECURITY_UNKNOWN = 0.5
 FRESH_DAYS = 180  # release recency 1 up to here, falling linearly to 0 at DORMANT_DAYS
 NEW_DAYS = 90  # G3: a first release more recent than this holds
@@ -145,10 +152,13 @@ class Candidate:
     scorecard: float | None = None
     maintained: float | None = None  # the Scorecard Maintained check, 0-10
     docs: str = ""
+    readme_bytes: int | None = None
     advisories: int | None = None  # open on the default version
     malicious: list[str] = field(default_factory=list)
+    malware_checked: bool = False  # deps.dev or an ecosyste.ms record answered with its advisories (G2)
     archived: bool = False
     deprecated: bool = False
+    yanked: bool = False  # every release yanked (G4)
     verified: str = ""  # who answered for the name: "github" or the registry
     relevance: float = 0.0
     prior: float = 0.0
@@ -314,6 +324,7 @@ def from_record(p: dict) -> Candidate:
         maintained=maintained if maintained is not None and maintained >= 0 else None,
         docs=p.get("documentation_url") or "",
         malicious=list(dict.fromkeys(mal)),
+        malware_checked=isinstance(p.get("advisories"), list),
         archived=bool(rm.get("archived")),
         deprecated=(p.get("status") or "") in {"deprecated", "removed"},
         found_by=["ecosyste.ms"],
@@ -328,7 +339,13 @@ def keyword(client: lit.Client, term: str, ecos: tuple[str, ...], notes: list[st
     return [from_record(p) for p in pkgs or [] if p.get("ecosystem") in ecos and p.get("name")]
 
 
-MERGED = ("found_by", "topics", "malicious")  # unions; every other empty field takes the other source's value
+MERGED = ("found_by", "topics", "malicious")
+BOOLS = (
+    "archived",
+    "deprecated",
+    "yanked",
+    "malware_checked",
+)  # unions; every other empty field takes the other source's value
 
 
 def merge(into: dict[str, Candidate], c: Candidate) -> None:
@@ -346,7 +363,7 @@ def merge(into: dict[str, Candidate], c: Candidate) -> None:
         mine, theirs = getattr(a, f.name), getattr(c, f.name)
         if f.name in MERGED:
             setattr(a, f.name, list(dict.fromkeys(mine + theirs)))
-        elif f.name in ("archived", "deprecated"):
+        elif f.name in BOOLS:
             setattr(a, f.name, mine or theirs)
         elif mine is None or mine == "":
             setattr(a, f.name, theirs)
@@ -355,7 +372,8 @@ def merge(into: dict[str, Candidate], c: Candidate) -> None:
 def recall(client: lit.Client, queries: list[str], ecosystem: str, notes: list[str]) -> dict[str, Candidate]:
     ecos = tuple(ECOS) if ecosystem == "any" else (ecosystem,)
     lang = "" if ecosystem == "any" else ECOS[ecosystem][1]
-    qual = f" language:{lang}" if lang else ""
+    # is:public: a gh token also finds the user's private repositories, which must never reach output or the cache
+    qual = " is:public" + (f" language:{lang}" if lang else "")
     found: dict[str, Candidate] = {}
     repos: list[Candidate] = []
     asked: set[str] = set()
@@ -503,6 +521,7 @@ def enrich(client: lit.Client, c: Candidate, ecosystem: str, notes: list[str]) -
             if ver:
                 v = _json(client, "depsdev", f"{base}/versions/{urllib.parse.quote(ver, safe='')}", notes, True)
                 if isinstance(v, dict):
+                    c.malware_checked = True
                     keys = v.get("advisoryKeys") or []
                     ids = [k.get("id", "") if isinstance(k, dict) else str(k) for k in keys]
                     c.malicious = list(dict.fromkeys(c.malicious + [i for i in ids if i.startswith("MAL-")]))
@@ -511,6 +530,10 @@ def enrich(client: lit.Client, c: Candidate, ecosystem: str, notes: list[str]) -
                     c.license = c.license or " AND ".join(v.get("licenses") or [])
                     links = {x.get("label"): x.get("url") for x in v.get("links") or [] if isinstance(x, dict)}
                     c.docs = c.docs or links.get("DOCUMENTATION") or ""
+    if not c.docs and c.repo:
+        readme = _json(client, "githubcore", f"{GITHUB_REPOS}{c.repo.removeprefix('github.com/')}/readme", notes, True)
+        if isinstance(readme, dict):
+            c.readme_bytes = _int(readme.get("size"))
     if (c.scorecard is None or c.maintained is None) and c.repo:
         proj = _json(client, "depsdev", f"{DEPSDEV}projects/{urllib.parse.quote(c.repo, safe='')}", notes, True)
         if isinstance(proj, dict):
@@ -527,7 +550,7 @@ def verify(client: lit.Client, c: Candidate, notes: list[str]) -> bool:
     """G1: True when the printed name exists, the package on its registry, else the repository on GitHub."""
     if c.ecosystem in ECOS:
         try:
-            client.fetch(c.ecosystem, ECOS[c.ecosystem][2](c.name))
+            body = client.fetch(c.ecosystem, ECOS[c.ecosystem][2](c.name), max_age=REGISTRY_MAX_AGE)
         except lit.SourceError as exc:
             if c.verified == "github" and c.repo:  # the package is gone or unverifiable; the repository stands
                 notes.append(f"{c.repo}: package {c.name} not verified on {c.ecosystem} ({exc}); shown as a repository")
@@ -536,8 +559,27 @@ def verify(client: lit.Client, c: Candidate, notes: list[str]) -> bool:
             notes.append(f"dropped {c.ecosystem}:{c.name}: G1 FAIL, not verified on its registry ({exc})")
             return False
         c.verified = c.ecosystem
+        registry_state(c, body)
         return True
     return c.verified == "github"
+
+
+def registry_state(c: Candidate, body: str) -> None:
+    """From the registry's own answer: every release yanked (PyPI files, crates.io versions), or npm's deprecation."""
+    try:
+        data = json.loads(body)
+    except ValueError:  # a long PyPI answer is cut at the read cap: the state stays unknown
+        return
+    if not isinstance(data, dict):
+        return
+    if c.ecosystem == "pypi":
+        files = [f for fs in (data.get("releases") or {}).values() for f in fs or []]
+        c.yanked = bool(files) and all(f.get("yanked") for f in files)
+    elif c.ecosystem == "cargo":
+        versions = data.get("versions") or []
+        c.yanked = bool(versions) and all(v.get("yanked") for v in versions)
+    elif c.ecosystem == "npm" and data.get("deprecated"):
+        c.deprecated = True
 
 
 # ---- quality and gates ----
@@ -561,7 +603,7 @@ def factors(c: Candidate, now: float) -> dict[str, float]:
     months = (_days(c.first_release, now) or 0) / 30.44 if c.first_release else None
     return {
         "maturity": (norm(months, T_MONTHS) + norm(c.releases, T_RELEASES)) / 2,
-        "documentation": 1.0 if c.docs else 0.0,
+        "documentation": 1.0 if c.docs else norm(c.readme_bytes, T_README),
         "maintenance": max((c.maintained or 0) / 10, recency(c.last_release or c.last_push, now)),
         "security": c.scorecard / 10 if c.scorecard is not None else SECURITY_UNKNOWN,
         "popularity": (norm(c.downloads_month, T_DOWNLOADS) + norm(c.stars, T_STARS)) / 2,
@@ -647,13 +689,18 @@ def osi_flag(lic: str, osi: dict[str, bool] | None) -> str:
 def gates(c: Candidate, now: float, tiers: dict[str, str] | None, allow_copyleft: bool) -> dict[str, str]:
     """G1-G6 outcomes, each 'pass', 'flag', 'n/a', 'HOLD' or 'FAIL' with its reason (module docstring)."""
     out = {"G1": f"{PASS} ({c.verified})"}
-    out["G2"] = f"{FAIL} (malicious: {', '.join(c.malicious)})" if c.malicious else PASS
+    if c.malicious:
+        out["G2"] = f"{FAIL} (malicious: {', '.join(c.malicious)})"
+    elif not c.ecosystem:
+        out["G2"] = "n/a"  # a repository without a package: no registry advisories to check
+    else:  # silence is not a pass: a squatted name passes G1
+        out["G2"] = PASS if c.malware_checked else f"{HOLD} (malware not checked: no advisory source answered)"
     first = _days(c.first_release, now) if c.first_release else None
     out["G3"] = "n/a" if first is None else f"{HOLD} (first release {first:.0f} days ago)" if first < NEW_DAYS else PASS
     last = c.last_release or c.last_push
     idle = _days(last, now) if last else None
-    if c.archived or c.deprecated:
-        out["G4"] = f"{FAIL} ({'archived' if c.archived else 'deprecated'})"
+    if c.archived or c.deprecated or c.yanked:
+        out["G4"] = f"{FAIL} ({'archived' if c.archived else 'deprecated' if c.deprecated else 'all releases yanked'})"
     elif idle is not None and idle > DORMANT_DAYS:
         out["G4"] = f"{HOLD} (dormant: {idle:.0f} days since {'release' if c.last_release else 'push'})"
     else:
@@ -688,9 +735,7 @@ def search(
     found.sort(key=lambda c: -c.prior)
     tiers, osi = licence_lists(client, notes) if found else (None, None)
     kept: list[Candidate] = []
-    for c in found[: 2 * n]:
-        if len(kept) >= n:
-            break
+    for c in found[: SHORTLIST * n]:  # every shortlisted candidate is scored before the cut to n
         enrich(client, c, ecosystem, notes)
         if not verify(client, c, notes):
             continue
@@ -707,7 +752,9 @@ def search(
             c.flags.append(flag)
         kept.append(c)
     kept.sort(key=lambda c: -c.score)
+    scored, kept = len(kept), kept[:n]
     return {
+        "scored": scored,
         "queries": queries,
         "ecosystem": ecosystem,
         "rerank": rerank,
@@ -734,7 +781,7 @@ def _v(x, unit: str) -> str:
 def render(report: dict) -> str:
     out = [
         f"re-rank: {report['rerank']}; {len(report['queries'])} queries, {report['recalled']} recalled, "
-        f"{len(report['candidates'])} verified and shown ({report['ecosystem']}); {report['score']}"
+        f"{report.get('scored', len(report['candidates']))} scored, {len(report['candidates'])} shown ({report['ecosystem']}); {report['score']}"
     ]
     for i, c in enumerate(report["candidates"], 1):
         where = f"[{c.ecosystem}]" if c.ecosystem else "[repo]"
@@ -766,7 +813,7 @@ def render(report: dict) -> str:
 
 
 def auth(source: str, url: str, env: dict[str, str]) -> tuple[str, dict[str, str]]:
-    if source == "github" and (tok := env.get("GITHUB_TOKEN")):
+    if source in ("github", "githubcore") and (tok := env.get("GITHUB_TOKEN")):
         return url, {"authorization": f"Bearer {tok}", "accept": "application/vnd.github+json"}
     return url, {}
 

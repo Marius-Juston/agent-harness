@@ -553,13 +553,15 @@ class Client:
     def _cache_path(self, url: str) -> Path:
         return self.dir / "cache" / (hashlib.sha256(url.encode()).hexdigest()[:32] + ".json")
 
-    def fetch(self, source: str, url: str, *, live: bool = False, tries: int = TRIES) -> str:
-        """Body of a 200 answer for `url`, from the shared cache when fresh (never when `live`). Raises SourceError
-        otherwise."""
+    def fetch(
+        self, source: str, url: str, *, live: bool = False, tries: int = TRIES, max_age: float = CACHE_DAYS * 86400
+    ) -> str:
+        """Body of a 200 answer for `url`, from the shared cache when younger than `max_age` seconds (never when
+        `live`). Raises SourceError otherwise."""
         path = self._cache_path(url)
         with contextlib.suppress(FileNotFoundError, json.JSONDecodeError, KeyError):
             rec = json.loads(path.read_text())
-            if not live and self.clock() - rec["t"] < CACHE_DAYS * 86400:
+            if not live and self.clock() - rec["t"] < max_age:
                 return rec["body"]
         send, headers = self.auth(source, url, self.env)
         keyed = self.keyed(source)

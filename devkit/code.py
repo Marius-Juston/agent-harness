@@ -186,14 +186,17 @@ def find(pattern: str, notes: bool = False, ignore_case: bool = False) -> str:
 
 def source(path: str, name: str | None = None) -> str:
     """The text of `path`, or of definition `name` (Class.method too) in it, for tools that read code (dev reuse
-    --from). Raises LookupError when the file or the definition is missing."""
-    p = Path(path) if Path(path).is_absolute() else root() / path
+    --from, which sends its words to search APIs). Raises LookupError when the file or the definition is missing, or
+    the file is outside the repository."""
+    p = (Path(path) if Path(path).is_absolute() else root() / path).resolve()
+    if not p.is_relative_to(root().resolve()):
+        raise LookupError(f"outside the repository: {path}")
     if not p.is_file():
         raise LookupError(f"no such file: {path}")
     text = p.read_text(encoding="utf-8", errors="replace")
     if not name:
         return text
-    defs = _find_defs(name, str(p.relative_to(root())) if p.is_relative_to(root()) else str(p))
+    defs = _find_defs(name, str(p.relative_to(root().resolve())))
     if not defs:
         raise LookupError(f"no definition of {name} in {path}")
     node = defs[0][1]

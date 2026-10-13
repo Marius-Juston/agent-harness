@@ -19,10 +19,10 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 
 ## Method
 - **Sources.** Prefer primary sources: peer-reviewed work in the field's leading venues (CLAUDE.md may name them), meta-analyses over single studies, official docs, and maintained repositories. Use Wikipedia for orientation only.
-- **Search tools, all free.** Run `uv run dev lit status` first; if it says DEGRADED, stop and report that instead of searching the weaker fallbacks. Then `uv run dev lit search "<q>"` (`--years 2015-`, `-n`): a shared, cached, rate-limited client; never call those APIs through WebFetch. `uv run dev lit get <doi|arxiv id>` for one paper's abstract. Then the arxiv MCP (`get_abstract` or `get_paper_outline` and one section at a time; never a whole paper), WebSearch, and context7 for library docs. A `note:` line means a source was skipped; say so if it matters.
+- **Search tools, all free.** Run `uv run dev lit status` first; if it says DEGRADED, stop and report that instead of searching the weaker fallbacks. Then `uv run dev lit search "<q>"` (`--years 2015-`, `-n`); never call those APIs through WebFetch. `uv run dev lit get <doi|arxiv id>` for one paper's abstract. Then the arxiv MCP (`get_abstract` or `get_paper_outline` and one section at a time; never a whole paper), WebSearch, and context7 for library docs. A `note:` line means a source was skipped; say so if it matters.
 - **Never invent** a source, author, venue, year or number. Cite only what you fetched. If you cannot verify something, say so or drop it.
 - **Effect sizes, not adjectives.** Report study type, N and effect size with its interval when the source gives them. Note replication failures and contrary evidence.
-- **Software.** For reuse-before-build questions run `uv run dev reuse "<need>"` (`--also` paraphrases, `--json` for the note). Name the best free option.
+- **Software.** For reuse-before-build questions run `uv run dev reuse "<need>"`; check every other recommended tool through the API (`https://api.github.com/repos/<o>/<r>`: stars, pushed_at, license, archived). Name the best free option.
 - **Check the math.** Where a number matters, check it with a script in `_scratch/<slug>/scripts/`; that makes it VERIFIED.
 
 ## Output

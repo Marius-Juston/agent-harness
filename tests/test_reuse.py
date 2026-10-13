@@ -136,6 +136,8 @@ def world(
     registry=frozenset({"tenacity", "backoff", "retrying"}),
     advisories=(),
     down=(),
+    readme=None,
+    registry_body=None,
 ):
     """Routes for a small, consistent world. github(q) -> items; keywords[term] -> records; lookups[repo] -> records."""
     github = github or (lambda q: [gh_repo("jd/tenacity", "Retry code until it succeeds", 8000, ["retry", "python"])])
@@ -148,6 +150,8 @@ def world(
         host = u.netloc
         if host in down:
             return 503, {}, ""
+        if host == "api.github.com" and u.path.startswith("/repos/"):
+            return {"size": readme} if readme is not None else None
         if host == "api.github.com":
             items = github(q["q"][0])
             return {"total_count": len(items), "items": items}
@@ -182,7 +186,9 @@ def world(
             name = urllib.parse.unquote(u.path.split("/")[-2 if host == "pypi.org" else -1])
             if host == "registry.npmjs.org":
                 name = urllib.parse.unquote(u.path.split("/")[1])
-            return {"ok": True} if name in registry else None
+            if name not in registry:
+                return None
+            return registry_body(name) if registry_body else {"ok": True}
         return None
 
     return routes
@@ -240,13 +246,16 @@ def test_search_finds_and_deduplicates_by_repository(tmp_path):
     assert names.count("tenacity") == 1 and "backoff" in names
     t = next(c for c in rep["candidates"] if c.name == "tenacity")
     assert t.repo == "github.com/jd/tenacity" and set(t.found_by) == {"github", "ecosyste.ms"}
-    assert all("language:python" in urllib.parse.unquote_plus(u) for u in net.urls("https://api.github.com"))
+    searches = net.urls("https://api.github.com/search")
+    assert searches and all("is:public language:python" in urllib.parse.unquote_plus(u) for u in searches)
 
 
 def test_also_paraphrases_are_each_searched(tmp_path):
     net = Net(world())
     rep = reuse.search(make(tmp_path, net), ["retry flaky calls", "resilient decorator"], "pypi")
-    qs = [urllib.parse.parse_qs(urllib.parse.urlsplit(u).query)["q"][0] for u in net.urls("https://api.github.com")]
+    qs = [
+        urllib.parse.parse_qs(urllib.parse.urlsplit(u).query)["q"][0] for u in net.urls("https://api.github.com/search")
+    ]
     assert any(q.startswith("retry flaky calls") for q in qs) and any(q.startswith("resilient decorator") for q in qs)
     assert rep["queries"] == ["retry flaky calls", "resilient decorator"]
 
@@ -259,9 +268,11 @@ def test_or_fallback_when_and_query_is_thin_and_topic_expansion(tmp_path):
 
     net = Net(world(github=github, lookups={}))
     reuse.search(make(tmp_path, net), ["retry flaky"], "pypi")
-    qs = [urllib.parse.parse_qs(urllib.parse.urlsplit(u).query)["q"][0] for u in net.urls("https://api.github.com")]
-    assert "retry OR flaky language:python" in qs
-    assert "topic:resilience language:python" in qs and "topic:retry language:python" in qs
+    qs = [
+        urllib.parse.parse_qs(urllib.parse.urlsplit(u).query)["q"][0] for u in net.urls("https://api.github.com/search")
+    ]
+    assert "retry OR flaky is:public language:python" in qs
+    assert "topic:resilience is:public language:python" in qs and "topic:retry is:public language:python" in qs
 
 
 def test_keywords_are_filtered_to_the_ecosystem(tmp_path):
@@ -604,3 +615,95 @@ def test_constants_are_sane():
     assert reuse.FRESH_DAYS < reuse.DORMANT_DAYS and reuse.NEW_DAYS < reuse.DORMANT_DAYS
     assert reuse.STAR_WEIGHT * math.log10(1 + 1e5) == pytest.approx(reuse.LAMBDA, abs=0.001)  # #169 F1
     assert reuse.RATES["github"][0] * 60 <= 10  # below GitHub's keyless search limit
+
+
+# ---- review fixes (PR #171) ----
+
+
+def test_g2_holds_when_no_malware_source_answered(tmp_path):
+    silent = {k: v for k, v in TENACITY.items() if k != "advisories"}  # a record without its advisories
+    w = world(lookups={"github.com/jd/tenacity": [silent]}, advisories=("MAL-2026-1",), down=("api.deps.dev",))
+    rep = reuse.search(make(tmp_path, Net(w)), ["retry"], "pypi")
+    c = rep["candidates"][0]
+    assert c.gates["G2"].startswith("HOLD (malware not checked") and c.status == "HOLD"
+    assert gate(reuse.Candidate(name="o/r", verified="github"))["G2"] == "n/a"  # repo-only
+    assert gate(reuse.Candidate(name="p", ecosystem="pypi", verified="pypi", malware_checked=True))["G2"] == "pass"
+    rep = reuse.search(
+        make(tmp_path / "b", Net(world(lookups={"github.com/jd/tenacity": [silent]}))), ["retry"], "pypi"
+    )
+    assert rep["candidates"][0].gates["G2"] == "pass"  # deps.dev answered for the default version
+
+
+def test_every_github_search_is_public_only(tmp_path):
+    net = Net(world())
+    reuse.search(make(tmp_path, net), ["retry flaky", "resilient calls"], "any")
+    qs = [urllib.parse.parse_qs(urllib.parse.urlsplit(u).query)["q"][0] for u in net.urls(reuse.GITHUB)]
+    assert qs and all(" is:public" in q for q in qs)
+
+
+def test_the_whole_shortlist_is_scored_before_the_cut(tmp_path):
+    items = [gh_repo("big/thing", "retry", 100_000, lang=""), gh_repo("jd/tenacity", "retry", 10)]
+    rep = reuse.search(
+        make(tmp_path, Net(world(github=lambda q: items))), ["retry"], "pypi", n=1, encoder=lambda t: [[1.0]] * len(t)
+    )
+    assert [c.name for c in rep["candidates"]] == ["tenacity"]  # lower prior (stars), higher S
+    assert rep["scored"] == 2 and "2 scored, 1 shown" in reuse.render(rep)
+
+
+def test_researcher_checks_every_recommended_tool_and_names_dev_reuse():
+    text = (code.root() / "plugins/harness-ops/agents/researcher.md").read_text()
+    assert "every other recommended tool through the API" in text and "uv run dev reuse" in text
+
+
+def test_documentation_falls_back_to_readme_size(tmp_path):
+    f = reuse.factors(reuse.Candidate(name="r", readme_bytes=reuse.T_README), NOW)
+    assert f["documentation"] == pytest.approx(1.0)
+    assert 0 < reuse.factors(reuse.Candidate(name="r", readme_bytes=500), NOW)["documentation"] < 1
+    items = [gh_repo("o/tool", "retry", 10, lang="")]
+    rep = reuse.search(make(tmp_path, Net(world(github=lambda q: items, readme=4000))), ["retry"], "pypi")
+    assert rep["candidates"][0].readme_bytes == 4000
+
+
+@pytest.mark.parametrize(
+    ("eco", "body", "why"),
+    [
+        ("pypi", {"releases": {"1.0": [{"yanked": True}], "1.1": [{"yanked": True}, {"yanked": True}]}}, "yanked"),
+        ("cargo", {"versions": [{"yanked": True}]}, "yanked"),
+        ("npm", {"deprecated": "use x instead"}, "deprecated"),
+    ],
+)
+def test_g4_fails_a_wholly_yanked_or_deprecated_package(tmp_path, eco, body, why):
+    rec = record("tenacity", None, "retry", eco=eco)
+    w = world(github=lambda q: [], keywords={"retry": [rec]}, registry_body=lambda name: body)
+    rep = reuse.search(make(tmp_path, Net(w)), ["retry"], "any")
+    assert rep["candidates"] == [] and any("G4 FAIL" in n and why in n for n in rep["notes"])
+
+
+def test_partly_yanked_or_unreadable_registry_answer_passes(tmp_path):
+    c = reuse.Candidate(name="p", ecosystem="pypi")
+    reuse.registry_state(c, json.dumps({"releases": {"1.0": [{"yanked": True}], "1.1": [{"yanked": False}]}}))
+    assert not c.yanked
+    reuse.registry_state(c, '{"releases": {"1.0": [{"yan')  # cut at the read cap
+    reuse.registry_state(c, "[]")
+    assert not c.yanked and not c.deprecated
+
+
+def test_from_refuses_paths_outside_the_repository(fake_cli, tmp_path):
+    outside = tmp_path / "secret.py"
+    outside.write_text("def leak():\n    '''private words'''\n")
+    with pytest.raises(LookupError, match="outside the repository"):
+        code.source(str(outside))
+    with pytest.raises(LookupError, match="outside the repository"):
+        code.source("../" + outside.name)
+    assert dev(["reuse", "--from", f"{outside}:leak"]) == 2
+
+
+def test_g1_existence_is_asked_again_after_a_day(tmp_path):
+    net = Net(world())
+    c = make(tmp_path, net)
+    reuse.search(c, ["retry"], "pypi")
+    c.clock.t += reuse.REGISTRY_MAX_AGE + 1
+    before = len(net.calls)
+    reuse.search(c, ["retry"], "pypi")
+    again = [u for u, _ in net.calls[before:]]
+    assert again and all(u.startswith("https://pypi.org/") for u in again)  # deps.dev etc. still cached
