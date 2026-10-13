@@ -10,7 +10,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, frontmatter, suite_audit, workflow
+from devkit import board, cli, frontmatter, suite_audit, workflow
 from devkit.paths import root
 from devkit.suite_audit import Static, scan
 
@@ -324,8 +324,10 @@ FLAKY_SUITE = (FIXTURES / "flaky_suite.py.txt").read_text()
 
 
 def test_reruns_in_a_fresh_clone_find_a_flaky_test_and_a_tree_only_pass(repo, tmp_path, monkeypatch):
-    """The clone sees HEAD only: a test that passes on an untracked file passes in the tree and fails there."""
+    """The clone sees HEAD only: a test that passes on an untracked file passes in the tree and fails there. The
+    clone has no origin (#148 review), so a test that needs none passes there only."""
     repo.commit({"tests/test_s.py": FLAKY_SUITE, ".gitignore": "local.txt\n"})
+    _sh(repo.path, "git", "remote", "add", "origin", "https://github.com/o/r.git")
     (repo.path / "tests/local.txt").write_text("x")
     monkeypatch.setenv("SUITE_AUDIT_COUNTER", str(tmp_path / "counter"))
     monkeypatch.setattr(suite_audit.gate, "workers", lambda: 1)
@@ -333,8 +335,29 @@ def test_reruns_in_a_fresh_clone_find_a_flaky_test_and_a_tree_only_pass(repo, tm
     assert len(runs) == 2 and suite_audit.mixed(runs) == ["tests.test_s::test_alternates"]
     parity = suite_audit.check_parity(tree, suite_audit.outcomes(runs[0]), set(suite_audit.mixed(runs)))
     assert parity.problems == [
-        "tests.test_s::test_needs_an_untracked_file: passed in the working tree, failed in a fresh clone"
+        "tests.test_s::test_needs_an_untracked_file: passed in the working tree, failed in a fresh clone",
+        "tests.test_s::test_runs_where_no_origin_is_set: failed in the working tree, passed in a fresh clone",
     ]
+
+
+def test_at_tier_m_only_the_history_suspects_rerun_after_one_whole_run(repo, tmp_path, monkeypatch):
+    """Note §9: whole-suite reruns at tier S only; above it the suite runs once (parity) and suspects rerun."""
+    repo.commit({"tests/test_s.py": FLAKY_SUITE, ".gitignore": "local.txt\n"})
+    monkeypatch.setenv("SUITE_AUDIT_COUNTER", str(tmp_path / "counter"))
+    monkeypatch.setattr(suite_audit.gate, "workers", lambda: 1)
+    ledger = [run(**{"tests.test_s::test_alternates": ("failed", 0), "tests.test_s::test_steady": ("passed", 0)})]
+    ledger.append(run(**{"tests.gone::test_old": ("error", 0)}))  # a test no longer in the tree is skipped
+    assert suite_audit.suspects(ledger) == ["tests.gone::test_old", "tests.test_s::test_alternates"]
+    runs, _ = suite_audit.rerun(repo.path, [1, 2, 3], suite_audit.suspects(ledger))
+    assert [len(r["tests"]) for r in runs] == [4, 1, 1, 1]
+    assert suite_audit.mixed(runs) == ["tests.test_s::test_alternates"]
+
+
+def test_node_id_maps_junit_ids_back_to_files_and_classes(repo):
+    repo.commit({"tests/test_x.py": "", "tests/sub/test_y.py": ""})
+    assert suite_audit.node_id(repo.path, "tests.test_x::t[1]") == "tests/test_x.py::t[1]"
+    assert suite_audit.node_id(repo.path, "tests.sub.test_y.TestC::t") == "tests/sub/test_y.py::TestC::t"
+    assert suite_audit.node_id(repo.path, "tests.gone::t") is None
 
 
 def test_collect_reads_node_ids_after_marker_deselection(repo):
@@ -453,8 +476,9 @@ def test_the_lead_runs_the_audit_only_when_orient_says_it_is_due():
 # ---------------------------------------------------------------- the suite-auditor is read-only, enforced (#146)
 AUDITOR_OK = [
     "uv run dev suite-audit report --quick",
-    "uv run dev suite-audit report --json",  # its reruns run inside the dev command, in a temporary clone
+    "uv run dev suite-audit report --quick --json",
     "uv run dev suite-audit status",
+    "uv run dev suite-audit status --json",
     "uv run dev code show test_x",
     "uv run dev board new --type test --title 'x: y' --done 'z'",
     "gh issue list --search 'in:title flaky'",
@@ -462,6 +486,13 @@ AUDITOR_OK = [
 ]
 AUDITOR_DENIED = [
     "uv run dev suite-audit report --file",  # editing and closing the check issues stays with the lead
+    "uv run dev suite-audit report --quick --fi",  # any prefix of --file (argparse abbreviations, #148 review)
+    "uv run dev suite-audit report --quick --f",
+    "uv run dev suite-audit report --quick --json --fil",
+    "uv run dev suite-audit report --quick --file=x",
+    "uv run dev suite-audit report --json",  # a full report runs the suite, in the working tree too
+    "uv run dev suite-audit report",
+    "uv run dev suite-audit report --qui",
     "uv run dev consolidation report",  # the architect's report, not this agent's
     "sed -i s/assert/pass/ tests/test_x.py",
     "rm tests/test_x.py",
@@ -471,6 +502,17 @@ AUDITOR_DENIED = [
     "uv run pytest tests",
     "gh issue close 5",
 ]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["suite-audit", "report", "--fi"], ["suite-audit", "report", "--quick", "--f"], ["board", "new", "--ti", "x"]],
+)
+def test_dev_refuses_abbreviated_options_at_every_level(argv):
+    """#148 review: `--fi` must not mean `--file`, or the guard's allowlist is bypassed; subparsers inherit."""
+    assert cli.build().parse_args(["suite-audit", "report", "--quick", "--file"]).file
+    with pytest.raises(SystemExit):
+        cli.build().parse_args(argv)
 
 
 @pytest.mark.parametrize("cmd", AUDITOR_OK)

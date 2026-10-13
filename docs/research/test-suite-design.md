@@ -115,7 +115,7 @@ A project with no tests yet uses production size instead: S under 5 KLOC, M 5-50
 | **Counts** (audit signals, not gates; floors in [test-floors-and-coverage.md](test-floors-and-coverage.md)) | at least 80% of fix commits add a regression test; every explicitly signalled error path has a test; test:prod LOC ratio at least 0.3 | ratio at least 0.3, alarm on a relative fall over 10%; asserts per test tracked | ratio at least 0.5; single-oracle share tracked |
 | **Mix** | do not gate on shape; 80/15/5 by count is a sanity check only | same | same; E2E only on critical paths |
 | **Flake budget** (per test-run, for at most 5% spurious red; set at the tier's top, about 0.05/N) | 5.1e-5 (1,000 tests) | 1.0e-5 (5,000 tests) | 0.05/N |
-| **Flake detection** | the gate's outcome history (#121) at audit time; seeded reruns only to confirm a suspect id | same | same, plus 10 isolated reruns of each id that failed since the last audit |
+| **Flake detection** | the gate's outcome history (#121) at audit time, plus 5 seeded whole-suite reruns in a fresh clone (about 1 min on H, r2 F2) | the history; one fresh-clone run for parity, then 10 seeded reruns of the ids that failed in the history | same as M |
 | **Quarantine** | `flaky` marker plus an open issue; cap max(3, 0.5% of tests); entries 14 days at most | same | entries 7 days at most |
 | **Per change (gate)** | the full non-slow suite in random order with xdist; weakening check; replay warning | same; `--affected` and testmon for local iteration only | selected tests plus a fixed smoke set; the full suite moves to before merge |
 | **Before merge** | `dev integrate` re-gates the merged tree | same | full suite on the merged tree |

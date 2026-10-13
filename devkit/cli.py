@@ -36,8 +36,17 @@ Companions: (closest notes from INDEX.md)
 """
 
 
+class Parser(argparse.ArgumentParser):
+    """No prefix matching (`--fi` is not `--file`): guard_bash allowlists read-only agents' arguments, so it must see
+    the ones argparse acts on. Subparsers are built with the parent's class, so every level inherits this."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("allow_abbrev", False)
+        super().__init__(*args, **kwargs)
+
+
 def build() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="dev", description=__doc__)
+    p = Parser(prog="dev", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
     sub.add_parser("orient", help="session start: handoff, board, worktrees, gate, memory, quota (~60 lines)")
@@ -223,7 +232,12 @@ def build() -> argparse.ArgumentParser:
     y.add_argument("--json", action="store_true")
     y.add_argument("--file", action="store_true", help="keep one issue per failing check; record the audit")
     y.add_argument("--quick", action="store_true", help="no suite runs: history, git and gh only")
-    y.add_argument("--reruns", type=int, metavar="K", help="seeded fresh-clone reruns (default: the tier's)")
+    y.add_argument(
+        "--reruns",
+        type=int,
+        metavar="K",
+        help="seeds for fresh-clone reruns: whole suite at tier S, history suspects above (default: 5 or 10)",
+    )
     return p
 
 

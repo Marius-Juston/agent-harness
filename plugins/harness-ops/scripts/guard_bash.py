@@ -848,16 +848,25 @@ def current_branch(where: str) -> str | None:
 
 # Read-only agents (the PreToolUse input's `agent_type`, plugin prefix dropped), each with the one `dev` report it may
 # run besides `dev board|code`: the consolidation review (#113) and the suite audit (#114) propose, builders execute, so
-# a stray write can never delete progress or a test. Allowlist, not denylist: unknown means no. `suite-audit` reruns
-# the suite inside the dev command (a temporary clone), which this guard does not see; its `--file`, which edits and
-# closes issues, stays with the lead.
+# a stray write can never delete progress or a test. Allowlist, not denylist: unknown means no. The suite-auditor gets
+# `suite-audit status` and `report --quick` only: a full report runs the suite (also in the working tree), and
+# `--file` edits and closes issues; both stay with the lead. `dev` refuses abbreviated options, so `--fi` is no way in.
 READ_ONLY_AGENTS = {"architect": "consolidation", "suite-auditor": "suite-audit"}
 READ_ONLY = (
     "this agent is read-only: it reads, measures and files issues. Allowed: read commands (cat, grep, ls, "
     "sed -n, ...), `git log|show|diff|status`, `gh issue view|list|create|comment`, `gh pr view|list|diff`, GET-only "
     "`gh api`, `uv run dev board|code`, and its own report (architect: `dev consolidation`; suite-auditor: "
-    "`dev suite-audit` without --file). File an issue for a builder instead."
+    "`dev suite-audit status` or `dev suite-audit report --quick`). File an issue for a builder instead."
 )
+
+
+def quick_audit(args: list[str]) -> bool:
+    """`suite-audit status`, or `report --quick` with no --file (nor a prefix of it): reruns nothing, files nothing."""
+    if any(len(a) > 2 and "--file".startswith(a.split("=", 1)[0]) for a in args):
+        return False
+    return args[:1] == ["status"] or (args[:1] == ["report"] and "--quick" in args)
+
+
 READ_CMDS = {"cat", "head", "tail", "wc", "ls", "grep", "egrep", "fgrep", "rg", "sort", "uniq", "cut", "tr", "jq"}
 READ_CMDS |= {"echo", "printf", "pwd", "stat", "file", "diff", "cmp", "tree", "du", "df", "basename", "dirname"}
 READ_CMDS |= {"realpath", "readlink", "test", "[", "[[", "true", "false", "column", "nl", "date", "which", "cd"}
@@ -905,7 +914,7 @@ def read_only(argv: list[str], writes: list[str], report: str = "") -> str | Non
         return None if len(args) > 1 and args[1] in READ_GH.get(args[0], ()) else READ_ONLY
     if name == "dev" and args[:1] and args[0] in READ_DEV:
         return None
-    if name == "dev" and args[:1] == [report] and not (report == "suite-audit" and "--file" in args):
+    if name == "dev" and args[:1] == [report] and (report != "suite-audit" or quick_audit(args[1:])):
         return None
     return READ_ONLY
 

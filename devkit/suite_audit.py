@@ -35,7 +35,7 @@ from datetime import datetime
 from pathlib import Path
 
 from devkit import board, checks, config, gate
-from devkit.paths import state_dir
+from devkit.paths import default_branch, state_dir
 
 TRACKER = "Suite health"  # the closed issue whose footer records the last audit; check issues are "Suite health: x"
 FOOTER = re.compile(r"<!-- suite-audit: (\{.*?\}) -->")
@@ -45,7 +45,11 @@ FP_COMMITS = 100
 GROWTH, GROWTH_MIN = 0.25, 50
 # Tiers (note §9): the higher of collected tests and gate wall time; production SLOC when there are no tests.
 TIER_TESTS, TIER_GATE_S, TIER_SLOC = (1000, 5000), (120, 600), (5000, 50000)
-RERUNS = {"S": 5, "M": 10, "L": 0}  # seeded reruns of the gate suite in a fresh clone (L: the history only)
+# Flake detection (note §9): tier S reruns the whole gate suite with 5 seeds in a fresh clone; M and L run it once
+# there (for parity) and rerun only the history's suspects, 10 seeds.
+RERUNS = {"S": 5, "M": 10, "L": 10}
+MAX_SUSPECTS = 50
+GATE_PATHS = ["tests"]  # what the gate's test stage runs (gate.stages); the full collection reads testpaths
 QUARANTINE_MIN, QUARANTINE_SHARE = 3, 0.005  # cap: max(3, 0.5% of tests)
 QUARANTINE_DAYS = {"S": 14, "M": 14, "L": 7}
 RED_RUNS, RED_HOURS, CI_STALE_DAYS = 3, 24, 1
@@ -290,11 +294,11 @@ def outcomes(run: dict) -> dict[str, str]:
 
 
 def check_flaky(clone_runs: list[dict], ledger: list[dict]) -> Check:
-    c = Check("flaky", "flaky tests", f"0 mixed outcomes in {len(clone_runs) or 'k'} seeded reruns of the gate suite")
+    c = Check("flaky", "flaky tests", "0 mixed outcomes in the seeded fresh-clone reruns of the next audit")
     if clone_runs:
-        c.problems = [f"{t}: passed and failed in {len(clone_runs)} seeded runs of one tree" for t in mixed(clone_runs)]
+        c.problems = [f"{t}: passed and failed in seeded runs of one tree" for t in mixed(clone_runs)]
     else:
-        c.skipped = "no reruns (--quick, or tier L: confirm suspects with isolated reruns)"
+        c.skipped = "no reruns (--quick)"
     if suspects := [t for t in mixed(ledger) if t not in set(mixed(clone_runs))]:
         c.info.append(f"{len(suspects)} id(s) passed and failed across the gate history (any tree): suspects")
         c.info += suspects[:SHOWN]
@@ -565,9 +569,12 @@ def gate_seconds() -> list[float]:
     return out
 
 
-def run_suite(cwd: Path, seed: int, ledger: Path, prefix: list[str], env: dict | None = None) -> None:
-    """One gate-suite run (the gate's pytest command, random order from `seed`), appended to `ledger`."""
-    cmd = gate.pytest_cmd(["tests"])
+def run_suite(
+    cwd: Path, seed: int, ledger: Path, prefix: list[str], env: dict | None = None, ids: list[str] | None = None
+) -> None:
+    """One gate-suite run (the gate's pytest command, random order from `seed`; only `ids` when given), appended to
+    `ledger`."""
+    cmd = gate.pytest_cmd(ids or GATE_PATHS)
     cmd[:1] = prefix
     if importlib.util.find_spec("pytest_randomly"):
         cmd.append(f"--randomly-seed={seed}")
@@ -579,18 +586,50 @@ def run_suite(cwd: Path, seed: int, ledger: Path, prefix: list[str], env: dict |
         gate.record_history(junit, ledger, at=seed, keep=10_000)
 
 
-def rerun(repo: Path, seeds: list[int]) -> tuple[list[dict], dict[str, str] | None]:
-    """(the runs in a fresh `git clone --local` of HEAD, one per seed; the working tree's run with the first seed)."""
+def suspects(ledger: list[dict]) -> list[str]:
+    """Ids that failed or errored in any run of the gate history (any tree), newest first, at most MAX_SUSPECTS."""
+    seen: dict[str, None] = {}
+    for run in reversed(ledger):
+        for tid, (outcome, _) in run.get("tests", {}).items():
+            if outcome in ("failed", "error"):
+                seen.setdefault(tid)
+    return list(seen)[:MAX_SUSPECTS]
+
+
+def node_id(repo: Path, tid: str) -> str | None:
+    """The pytest node id of a JUnit-style id (`tests.test_x.TestC::t[1]` -> `tests/test_x.py::TestC::t[1]`), found
+    by the longest dotted prefix that is a file in `repo`; None when none is (the test is gone)."""
+    cls, _, name = tid.partition("::")
+    parts = cls.split(".")
+    for i in range(len(parts), 0, -1):
+        if (repo / ("/".join(parts[:i]) + ".py")).is_file():
+            return "::".join(["/".join(parts[:i]) + ".py", *parts[i:], name])
+    return None
+
+
+def rerun(
+    repo: Path, seeds: list[int], suspect_ids: list[str] | None = None
+) -> tuple[list[dict], dict[str, str] | None]:
+    """(the runs in a fresh `git clone --local` of HEAD, its origin removed; the working tree's run with the first
+    seed). Without `suspect_ids` (tier S) the whole gate suite runs once per seed; with them (tier M and L, note §9)
+    the whole suite runs once, for parity, and only the suspects run again with each seed."""
     sha = _git(repo, "rev-parse", "HEAD").strip()
     with tempfile.TemporaryDirectory(prefix="suite-audit-") as tmp:
         clone, ledger = Path(tmp) / "clone", Path(tmp) / "clone.jsonl"
         _git(Path(tmp), "clone", "--local", "-q", "--no-checkout", str(repo), str(clone))
+        _git(clone, "remote", "remove", "origin")  # nothing the suite runs can reach the real checkout through it
         _git(clone, "checkout", "-q", "--detach", sha)
         env = {k: v for k, v in os.environ.items() if k not in ("VIRTUAL_ENV", "UV_PROJECT_ENVIRONMENT")}
         uv = (clone / "uv.lock").exists()
         prefix = ["uv", "run", "--locked", "--quiet", "python"] if uv else [sys.executable]
-        for seed in seeds:
-            run_suite(clone, seed, ledger, prefix, env)
+        if suspect_ids is None:
+            for seed in seeds:
+                run_suite(clone, seed, ledger, prefix, env)
+        else:
+            run_suite(clone, seeds[0], ledger, prefix, env)
+            if ids := [n for t in suspect_ids if (n := node_id(clone, t))]:
+                for seed in seeds:
+                    run_suite(clone, seed, ledger, prefix, env, ids)
         runs = read_ledger(ledger)
         tree_ledger = Path(tmp) / "tree.jsonl"
         run_suite(repo, seeds[0], tree_ledger, [sys.executable])
@@ -613,7 +652,8 @@ def last_snapshot() -> tuple[int | None, dict | None]:
 
 def ci_runs() -> list[dict]:
     fields = "conclusion,createdAt,event,status,workflowName,databaseId"
-    out = board.gh("run", "list", "-R", board.repo(), "--branch", "main", "--limit", "100", "--json", fields)
+    branch = default_branch()
+    out = board.gh("run", "list", "-R", board.repo(), "--branch", branch, "--limit", "100", "--json", fields)
     return json.loads(out or "[]")
 
 
@@ -743,7 +783,8 @@ def _commits(repo: Path, base: str | None) -> list[tuple[str, str, list[str]]]:
 
 
 def report(repo: Path, reruns: int | None = None, quick: bool = False, now: float | None = None) -> dict:
-    """Measure the suite and run the nine checks. `reruns`: seeded fresh-clone runs (default: the tier's);
+    """Measure the suite and run the nine checks. `reruns`: seeds for the fresh-clone reruns (default: the tier's;
+    the whole suite at tier S, the history's suspects at M and L);
     `quick`: no runs at all (the history, git and `gh` only)."""
     t0, now = time.perf_counter(), time.time() if now is None else now
     sha = _git(repo, "rev-parse", "HEAD").strip()
@@ -758,7 +799,7 @@ def report(repo: Path, reruns: int | None = None, quick: bool = False, now: floa
     then = scan(py_files(repo, base)) if base else None
     marks, ini = gate_marks(), _pytest_ini(repo)
     testpaths = list(ini.get("testpaths", ["tests"]))
-    collected, gate_ids = collect(repo, None, testpaths), collect(repo, marks, ["tests"])
+    collected, gate_ids = collect(repo, None, testpaths), collect(repo, marks, GATE_PATHS)
     gate_s = gate_seconds()
     tier = tier_of(len(collected), gate_s[-1] if gate_s else None, head.prod_sloc)
     ledger = read_ledger(state_dir() / gate.HISTORY_FILE)
@@ -767,7 +808,7 @@ def report(repo: Path, reruns: int | None = None, quick: bool = False, now: floa
     tree: dict[str, str] | None = None
     if not quick and k > 0:
         with gate.gate_lock(state_dir() / "gate.lock", on_wait=lambda: print("suite audit: waiting for a gate ...")):
-            clone_runs, tree = rerun(repo, list(range(1, k + 1)))
+            clone_runs, tree = rerun(repo, list(range(1, k + 1)), None if tier == "S" else suspects(ledger))
     try:
         runs = ci_runs()
     except (board.BoardError, ValueError) as exc:
