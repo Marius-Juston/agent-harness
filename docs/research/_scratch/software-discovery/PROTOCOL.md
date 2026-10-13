@@ -49,3 +49,12 @@ Owner has a private server (4x A6000, 256 cores, 10 TiB), so compute no longer l
 ## Commitment (lead, 2026-10-13 03:40)
 - `scripts/data/split.json` SHA-256 `0a3a85c523bc7d0956401cda33981bda50d0311c0defcd99bd5d621e02b7ba04`, committed in the commit that adds this line, before any tuning run.
 - TEST run #0 for set C (code cases) happened before this protocol existed: see `scripts/data/TEST_RUNS.log`.
+
+## Amendment 3 (lead, 2026-10-13 03:45, before any tuning or TEST run): is the hard option worth it?
+Owner asked whether the index is the best option or something easier is as good.
+13. **Simplest sufficient arm wins.** Arms are ordered by cost: B1 (agent pick + gates) < A2 (live search + agent
+   names) < A3 (A2 + agent re-rank) < A4/A5 (offline index, GPU-built). An arm is adopted only if it beats the best
+   cheaper arm on TEST hit@3 with the 95% paired bootstrap interval above 0 and no higher harm share. The index is
+   built and published only if A4 or A5 clears this against A3.
+14. Report TEST results separately for needs whose gold is a top-1,000 PyPI package by downloads and for the rest
+   (long tail), since an agent's memory is expected to do well on the first group and worse on the second.
