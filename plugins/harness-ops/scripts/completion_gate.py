@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""SubagentStop(builder): a builder cannot finish until its tree is clean, the gate passed on HEAD and an open PR shows
-HEAD. A refusal (decision "block") names the one command to run next.
+"""SubagentStop(builder): a builder cannot finish until its tree is clean, the gate passed on HEAD, an open PR shows
+HEAD, and the PR summary has a `Reuse:` line when the branch adds a dependency or a new non-test module (#173; the
+forms: REUSE_FORMS in devkit/workflow.py). A refusal (decision "block") names the one command to run next.
 
 Capped at CAP refusals per agent and HEAD, TOTAL_CAP per agent. Claude Code ends the turn itself after 8 consecutive
 blocks and still reports success, but that count resets on every tool call (hooks docs, Stop input), so a worker doing
@@ -42,6 +43,21 @@ def gate_passed(top: str) -> bool:
     return found[-1] == "yes"
 
 
+def reuse_missing(top: str, body: str) -> str | None:
+    """What the PR body lacks by devkit's reuse rule (devkit.workflow.reuse_problem), with the accepted forms."""
+    code = (
+        "import json, sys; from devkit.workflow import REUSE_FORMS, reuse_problem; "
+        "p = reuse_problem(sys.stdin.read()); print('REUSE', json.dumps(p and f'{p}.\\n{REUSE_FORMS}'))"
+    )
+    cmd = ["uv", "run", "--quiet", "python", "-c", code]
+    out = subprocess.run(cmd, cwd=top, input=body, capture_output=True, text=True, timeout=120, check=False)
+    found = re.findall(r"^REUSE (.*)$", out.stdout, re.M)
+    if not found:
+        raise RuntimeError(f"reuse probe gave no answer: {(out.stderr or out.stdout).strip()[-300:]}")
+    why = json.loads(found[-1])
+    return why and f"{why}\nAdd the line to the PR body: `gh pr edit --body-file - <<'EOF'` ... `EOF`"
+
+
 def problem(top: str, branch: str, issue: str) -> str | None:
     """What still stands between this worktree and a finished hand-back, as the command to run; None when done."""
     if dirty := git(top, "status", "--porcelain", "--untracked-files=all"):
@@ -50,15 +66,16 @@ def problem(top: str, branch: str, issue: str) -> str | None:
     if not gate_passed(top):
         return "no gate pass on HEAD: run `uv run dev check` until it ends `RESULT: passed`"
     head = git(top, "rev-parse", "HEAD")
-    out = run(["gh", "pr", "list", "--head", branch, "--state", "open", "--json", "url,headRefOid"], top)
+    out = run(["gh", "pr", "list", "--head", branch, "--state", "open", "--json", "url,headRefOid,body"], top)
     if out.returncode:
         return f"cannot see an open PR (gh: {out.stderr.strip()[:200]}): retry `gh pr list --head {branch}`"
     prs = json.loads(out.stdout or "[]")
     if not prs:
         return f"no open PR: `uv run dev pr {issue} --summary - <<'EOF'` ... `EOF`"
-    if all(pr.get("headRefOid") != head for pr in prs):
+    current = [pr for pr in prs if pr.get("headRefOid") == head]
+    if not current:
         return f"the PR ({prs[0].get('url')}) is behind HEAD: `git push`"
-    return None
+    return reuse_missing(top, str(current[0].get("body") or ""))
 
 
 def blocked(top: str, issue: str) -> bool:

@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 import traceback
 from pathlib import Path, PurePosixPath
 
@@ -231,6 +232,70 @@ def pr_areas() -> list[str]:
     base = checks.merge_base()
     files = git("diff", "--name-only", "--no-renames", base, "HEAD").splitlines() if base else []
     return board.path_areas(files, board.area_globs())
+
+
+REUSE_FORMS = """\
+A branch that adds a dependency to pyproject.toml or a new non-test .py module needs one `Reuse:` line in its PR
+summary, in one of three forms (#173; why: docs/research/software-discovery.md §9):
+  Reuse: httpx pass (chosen), requests HOLD dormant   <- candidates named from memory, with their gate results
+                                                         from `uv run dev reuse check <name>...` (pass, HOLD or FAIL)
+  Reuse: docs/research/<note>.md                      <- the research note that already weighed them (must exist)
+  Reuse: none: <reason>                               <- why no library applies"""
+REUSE_LINE = re.compile(r"^[\s>*_-]*Reuse[*_]*:[*_]*[ \t]*(.*)$", re.M | re.I)
+GATE_RESULT = re.compile(r"\b[A-Za-z0-9][\w.\[\]-]*\W{0,3}(pass|hold|fail)\b", re.I)
+NOTE_PATH = re.compile(r"docs/research/[\w./-]+\.md")
+
+
+def _dependency_names(pyproject: str) -> set[str]:
+    """Normalized names in [project] dependencies, optional-dependencies and [dependency-groups] (PEP 735)."""
+    try:
+        data = tomllib.loads(pyproject)
+    except tomllib.TOMLDecodeError:
+        return set()
+    project = data.get("project", {})
+    specs = [*project.get("dependencies", [])]
+    for group in (*project.get("optional-dependencies", {}).values(), *data.get("dependency-groups", {}).values()):
+        specs += group
+    names = (re.match(r"\s*([A-Za-z0-9][\w.-]*)", s) for s in specs if isinstance(s, str))
+    return {re.sub(r"[-_.]+", "-", m.group(1)).lower() for m in names if m}
+
+
+def _is_test(path: str) -> bool:
+    p = PurePosixPath(path)
+    in_tests = bool({"tests", "test"} & set(p.parts[:-1]))
+    return in_tests or p.name == "conftest.py" or p.name.startswith("test_") or p.name.endswith("_test.py")
+
+
+def reuse_needs(base: str) -> list[str]:
+    """What on this branch since `base` calls for a `Reuse:` line: added dependencies and new non-test modules (a
+    renamed module is not new)."""
+    head_deps = _dependency_names(git("show", "HEAD:pyproject.toml", check=False))
+    deps = head_deps - _dependency_names(git("show", f"{base}:pyproject.toml", check=False))
+    added = git("diff", "--name-only", "-M", "--diff-filter=A", base, "HEAD").splitlines()
+    modules = [p for p in added if p.endswith(".py") and not _is_test(p)]
+    return [*(f"dependency {d}" for d in sorted(deps)), *(f"module {m}" for m in modules)]
+
+
+def reuse_line_problem(body: str) -> str | None:
+    """Why `body` has no `Reuse:` line in one of REUSE_FORMS, or None."""
+    lines = [m.group(1).strip() for m in REUSE_LINE.finditer(body)]
+    for line in lines:
+        if GATE_RESULT.search(line) or re.match(r"none\s*[:-]\s*\S", line, re.I):
+            return None
+        if (note := NOTE_PATH.search(line)) and (root() / note.group(0)).is_file():
+            return None
+    return f"its `Reuse:` line ({lines[0][:80]!r}) is in none of the forms" if lines else "has no `Reuse:` line"
+
+
+def reuse_problem(body: str) -> str | None:
+    """One line on why this branch's PR summary needs a `Reuse:` line it lacks, or None (#173)."""
+    base = checks.merge_base()
+    if base is None or not (needs := reuse_needs(base)):
+        return None
+    if (why := reuse_line_problem(body)) is None:
+        return None
+    shown = ", ".join(needs[:3]) + (f" and {len(needs) - 3} more" if len(needs) > 3 else "")
+    return f"the branch adds {shown}, but the PR summary {why}"
 
 
 def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> str:
