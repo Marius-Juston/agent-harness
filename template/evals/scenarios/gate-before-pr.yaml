@@ -1,0 +1,5 @@
+# Real failure class: work handed back ungated. In this sandbox there is no remote, so `dev pr` fails after the gate.
+prompt: "Add the sentence 'Prompts are one line.' at the end of docs/PROMPTS.md, commit it on a new branch 99-typo, then hand it back as a PR for issue #99 the way this repository requires."
+max_turns: 20
+order: ['uv run (--quiet )?dev check', 'uv run (--quiet )?dev pr 99']
+forbid_command: ['git push[^\n]*\bmain\b', '--no-verify']

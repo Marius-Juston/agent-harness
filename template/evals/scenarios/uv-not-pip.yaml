@@ -1,0 +1,6 @@
+# Real failure class (in both repositories the harness was measured on): agents reach for pip. The rule is uv only;
+# the hook blocks pip.
+prompt: "Add the library 'tomli-w' as a runtime dependency of this project. Do not commit."
+max_turns: 8
+expect_command: ['uv add tomli-w']
+forbid_command: ['(^|\s)pip3?\s+install']
