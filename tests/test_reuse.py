@@ -921,3 +921,43 @@ def test_from_registry_reads_each_registrys_repository_field(eco, body):
     c = reuse.from_registry("pkg", eco, body)
     assert (c.name, c.ecosystem, c.description) == ("pkg", eco, "d")
     assert c.repo == ("" if eco == "pypi" else "github.com/o/pkg") and c.record is body
+
+
+def test_cli_help_shows_the_check_form_and_its_options(capsys):  # #179
+    with pytest.raises(SystemExit):
+        dev(["reuse", "--help"])
+    lines = capsys.readouterr().out.splitlines()
+    check = next(line for line in lines if "reuse check NAME" in line)
+    assert all(o in check for o in ("--ecosystem {pypi,npm,cargo}", "--json", "--allow-copyleft"))
+    assert any('reuse "<need>"' in line and "--from" in line for line in lines)
+
+
+MIXED_TIERS = {"MIT": "Silver", "Apache-2.0": "Silver", "GPL-3.0-only": "strong"}
+
+
+@pytest.mark.parametrize(
+    ("rec", "outcome"),
+    [  # #182: a listed (undeclared) licence set mixing strong copyleft with others is flagged, never passed
+        ({"licenses": None, "normalized_licenses": ["MIT", "GPL-3.0-only"]}, "flag"),
+        ({"licenses": "MIT License", "normalized_licenses": ["GPL-3.0-only", "MIT"]}, "flag"),
+        ({"licenses": "MIT OR GPL-3.0-only", "normalized_licenses": ["MIT", "GPL-3.0-only"]}, "pass"),  # declared
+        ({"licenses": None, "normalized_licenses": ["MIT", "Apache-2.0"]}, "pass"),  # no strong copyleft
+        ({"licenses": None, "normalized_licenses": ["MIT"]}, "pass"),
+    ],
+)  # fmt: skip
+def test_g5_flags_an_undeclared_licence_list_mixing_strong_copyleft(rec, outcome):
+    c = reuse.from_record({"name": "x", "ecosystem": "pypi", **rec})
+    g5 = reuse.gates(c, NOW, MIXED_TIERS, False)["G5"]
+    assert g5.startswith(f"{outcome} (")
+    assert ("licence combination undeclared" in g5) == (outcome == "flag")
+
+
+def test_undeclared_licence_survives_a_merge_and_yields_to_the_registrys_expression(tmp_path):  # #182
+    into = {"github.com/o/duo": reuse.Candidate(name="o/duo", repo="github.com/o/duo", license="MIT")}
+    reuse.merge(into, reuse.from_record(record("duo", "o/duo", lic=("MIT", "GPL-3.0-only"))))
+    assert "licence combination undeclared" in reuse.gates(into["github.com/o/duo"], NOW, MIXED_TIERS, False)["G5"]
+    w = world(named={"duo": record("duo", "o/duo", lic=("MIT", "GPL-3.0-only"))},
+              registry_body=lambda name: {"info": {"name": name, "license_expression": "MIT OR GPL-3.0-only"}},
+              registry=frozenset({"duo"}))  # fmt: skip
+    (c,) = reuse.check(make(tmp_path, Net(w)), ["duo"], "pypi")["candidates"]
+    assert c.license == "MIT OR GPL-3.0-only" and "undeclared" not in c.gates["G5"]

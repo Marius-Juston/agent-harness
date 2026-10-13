@@ -214,6 +214,12 @@ def build() -> argparse.ArgumentParser:
         "reuse",
         help="reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); "
         '`"<need>"` searches for more (GitHub, ecosyste.ms, deps.dev; shares dev lit\'s cache and rate limits)',
+        # one parser, two forms: `check` is read from the first word, so the usage names both (#179)
+        usage=f"%(prog)s check NAME... [--ecosystem {{{','.join(reuse.ECOS)}}}] [--json] [--allow-copyleft]\n"
+        f'       %(prog)s "<need>" [--also NEED] [--from FILE[:SYMBOL]] [--ecosystem {{{",".join([*reuse.ECOS, "any"])}}}]'
+        " [-n N] [--json] [--allow-copyleft]",
+        description="check NAME...: verify the packages you name first; exits 1 unless every name passes or holds. "
+        '"<need>": search for more options only when you know no good candidate.',
     )
     x.add_argument(
         "need",

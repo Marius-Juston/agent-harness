@@ -25,7 +25,7 @@ NOT FOUND (the package-hallucination guard). search:
   deps.dev, or a GitHub MALWARE advisory on ecosyste.ms), else FAIL, and HOLD when neither answered; G3 first release
   at least NEW_DAYS ago, else HOLD; G4 not archived, deprecated or wholly yanked (else FAIL) and released within
   DORMANT_DAYS (else HOLD); G5 licence (the registry's SPDX expression, else the listed licences joined with OR, the
-  best option of an OR counting) by Blue Oak Council tier: permissive (Model to Bronze) passes, weak copyleft passes with a flag, strong, network or maximal copyleft FAILs unless
+  best option of an OR counting; a listed set mixing strong copyleft with others is flagged, as it may mean AND) by Blue Oak Council tier: permissive (Model to Bronze) passes, weak copyleft passes with a flag, strong, network or maximal copyleft FAILs unless
   `--allow-copyleft`, unknown or Lead HOLDs; G6 advisories open on the default version are flagged, never failed.
   A licence that is not OSI-approved (spdx.org) or missing is flagged too;
 - quality Q (0-1, `quality()`): the sum of Q_WEIGHTS (developer survey shares, arXiv 2005.12574) over maturity
@@ -154,6 +154,7 @@ class Candidate:
     stars: int | None = None
     forks: int | None = None
     license: str = ""
+    license_listed: bool = False  # several listed licences joined with OR, no declared expression (#182)
     first_release: str = ""  # ISO dates
     last_release: str = ""
     last_push: str = ""
@@ -342,6 +343,7 @@ def from_record(p: dict) -> Candidate:
         stars=rm.get("stargazers_count"),
         forks=rm.get("forks_count"),
         license=licence_of(p),
+        license_listed=not spdx_expression(p.get("licenses")) and len(p.get("normalized_licenses") or []) > 1,
         first_release=(p.get("first_release_published_at") or "")[:10],
         last_release=(p.get("latest_release_published_at") or "")[:10],
         last_push=(rm.get("pushed_at") or "")[:10],
@@ -387,7 +389,8 @@ def merge(into: dict[str, Candidate], c: Candidate) -> None:
     a = into[k]
     if c.record is not None and a.record is None:
         a.record, a.name, a.ecosystem = c.record, c.name, c.ecosystem
-        a.license = c.license or a.license  # what is installed is the package, under the registry's licence
+        if c.license:  # what is installed is the package, under the registry's licence
+            a.license, a.license_listed = c.license, c.license_listed
     for f in dataclasses.fields(Candidate):
         mine, theirs = getattr(a, f.name), getattr(c, f.name)
         if f.name in MERGED:
@@ -672,13 +675,23 @@ def _lookup(table: dict, lic: str):
     return None
 
 
-def licence_gate(lic: str, tiers: dict[str, str] | None, allow_copyleft: bool) -> tuple[str, str]:
-    """G5: (outcome, why). The best alternative of an OR wins; within one, the worst licence of an AND counts."""
+def licence_gate(lic: str, tiers: dict[str, str] | None, allow_copyleft: bool, listed: bool = False) -> tuple[str, str]:
+    """G5: (outcome, why). The best alternative of an OR wins; within one, the worst licence of an AND counts.
+    `listed`: the OR joins a registry's licence list, not a declared expression, so a list mixing strong copyleft
+    with other licences may mean AND; it is flagged, never passed (#182)."""
     if not lic:
         return HOLD, "no licence found"
     if tiers is None:
         return HOLD, "licence not checked (Blue Oak lists unavailable)"
     rank = {**dict.fromkeys(PERMISSIVE, 0), WEAK: 1, "Lead": 2, None: 2, **dict.fromkeys(COPYLEFT_FAIL, 3)}
+    outcome, why = _licence_outcome(lic, tiers, allow_copyleft, rank)
+    strong = [rank.get(_lookup(tiers, i), 2) == 3 for i in _ids(lic)]
+    if listed and any(strong) and not all(strong) and outcome in (PASS, FLAG):
+        return FLAG, f"{why}; licence combination undeclared (a listed set, not an SPDX expression)"
+    return outcome, why
+
+
+def _licence_outcome(lic: str, tiers: dict[str, str], allow_copyleft: bool, rank: dict) -> tuple[str, str]:
     best: tuple[int, str] | None = None
     for alt in lic.split(" OR "):
         worst = max(
@@ -733,7 +746,7 @@ def gates(c: Candidate, now: float, tiers: dict[str, str] | None, allow_copyleft
         out["G4"] = f"{HOLD} (dormant: {idle:.0f} days since {'release' if c.last_release else 'push'})"
     else:
         out["G4"] = PASS if idle is not None else "n/a"
-    outcome, why = licence_gate(c.license, tiers, allow_copyleft)
+    outcome, why = licence_gate(c.license, tiers, allow_copyleft, c.license_listed)
     out["G5"] = f"{outcome} ({why})"
     out["G6"] = "n/a" if c.advisories is None else f"{FLAG} ({c.advisories} open advisories)" if c.advisories else PASS
     return out
@@ -879,7 +892,8 @@ def named(client: lit.Client, name: str, ecosystem: str, body: str, notes: list[
     if isinstance(rec, dict) and rec.get("name"):
         c = from_record(rec)
         c.ecosystem = ecosystem
-        c.license = registry_licence(ecosystem, data) or c.license  # the registry's own expression first (#180)
+        if lic := registry_licence(ecosystem, data):  # the registry's own expression first (#180)
+            c.license, c.license_listed = lic, False
         return c
     return from_registry(name, ecosystem, data)
 
