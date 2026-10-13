@@ -2,7 +2,8 @@
 
 For each first-parent merge M of a clone: tests added or modified in tests/ by M^1..M are run on the tip (all code
 of M) and on the base (code of M^1 with the tests/ folder of M). A test that passes on the base did not need the
-PR's code change. Usage: uv run python replay_new_tests.py <clone> <n_merges> <head>
+PR's code change. Usage: uv run python replay_new_tests.py <clone> <n_merges> <head>; <clone> is a throwaway
+clone (made absolute here, because pytest runs inside it).
 """
 
 import ast
@@ -113,7 +114,7 @@ def outcomes(repo, node_ids):
 
 
 def main():
-    repo, n, head = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+    repo, n, head = str(Path(sys.argv[1]).resolve()), int(sys.argv[2]), sys.argv[3]  # absolute: pytest runs in repo
     git(repo, "checkout", "-q", "--force", head)
     merges = git(repo, "log", "--merges", "--first-parent", f"-{n}", "--format=%h %s", head).splitlines()
     total = {"new": 0, "changed": 0, "pass_before": 0, "pass_before_new": 0, "fail_after": 0}

@@ -15,3 +15,9 @@ for p in (0.0175, 0.01, 0.001, 5.1e-4, 5.1e-5):
 print("(c) per-test p for <=5% spurious red")
 for n in (100, 1000, 5000, 10000):
     print(f"  N={n}: p<={1 - 0.95 ** (1 / n):.1e}")
+print("(d) spurious-red rate when a budget set for N=100 (p=5.1e-4) is applied higher in the tier")
+for n in (927, 999):
+    print(f"  N={n}: {1 - (1 - 5.1e-4) ** n:.0%}")
+print("(e) the rule of thumb p ~ 0.05/N against the exact bound")
+for n in (1000, 5000, 10000):
+    print(f"  N={n}: 0.05/N={0.05 / n:.1e} exact={1 - 0.95 ** (1 / n):.1e}")
