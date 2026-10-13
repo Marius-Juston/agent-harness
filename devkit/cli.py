@@ -9,6 +9,7 @@ from pathlib import Path
 
 from devkit import board, checks, citecheck, code, config, consolidation, docs, evals, gate, lit, setup, stats, workflow
 from devkit.paths import root
+from devkit.suite_audit import due, file_report, last_snapshot, render, report
 
 NOTE_TEMPLATE = """# Research: {title}
 
@@ -35,8 +36,17 @@ Companions: (closest notes from INDEX.md)
 """
 
 
+class Parser(argparse.ArgumentParser):
+    """No prefix matching (`--fi` is not `--file`): guard_bash allowlists read-only agents' arguments, so it must see
+    the ones argparse acts on. Subparsers are built with the parent's class, so every level inherits this."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("allow_abbrev", False)
+        super().__init__(*args, **kwargs)
+
+
 def build() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="dev", description=__doc__)
+    p = Parser(prog="dev", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
     sub.add_parser("orient", help="session start: handoff, board, worktrees, gate, memory, quota (~60 lines)")
@@ -214,6 +224,20 @@ def build() -> argparse.ArgumentParser:
     y.add_argument("--tools", action="store_true", help="also run pinned pyscn and vulture on a git-archive copy")
     x = sub.add_parser("agent-stats", help="scorecard from transcripts: tokens, calls, big-result share per agent type")
     x.add_argument("--json", action="store_true")
+    x = sub.add_parser("suite-audit", help="size-tiered audit of the whole test suite: is one due, and the nine checks")
+    xs = x.add_subparsers(dest="sub", required=True)
+    y = xs.add_parser("status", help="is an audit due since the last one (what orient shows), and why")
+    y.add_argument("--json", action="store_true")
+    y = xs.add_parser("report", help="tier, the nine checks and the judgement items for harness-ops:suite-auditor")
+    y.add_argument("--json", action="store_true")
+    y.add_argument("--file", action="store_true", help="keep one issue per failing check; record the audit")
+    y.add_argument("--quick", action="store_true", help="no suite runs: history, git and gh only")
+    y.add_argument(
+        "--reruns",
+        type=int,
+        metavar="K",
+        help="seeds for fresh-clone reruns: whole suite at tier S, history suspects above (default: 5 or 10)",
+    )
     return p
 
 
@@ -302,6 +326,8 @@ def run(a: argparse.Namespace) -> int:
             return setup.doctor()
         case "usage-poll":
             return workflow.usage_poll(once=a.once)
+        case "suite-audit":
+            return run_suite_audit(a)
         case "eval":
             return evals.run(a.names, a.trials)
         case "agent-stats":
@@ -390,6 +416,20 @@ def run_board(a: argparse.Namespace) -> int:
             print(
                 "\n".join(board.pr_feedback_lines(board.pr_feedback(a.pr))) or "no new comments, no unresolved threads"
             )
+    return 0
+
+
+def run_suite_audit(a: argparse.Namespace) -> int:
+    if a.sub == "status":
+        d = due(root(), last_snapshot()[1])
+        print(
+            json.dumps(d, indent=1) if a.json else f"audit due: {'yes: ' + '; '.join(d['why']) if d['due'] else 'no'}"
+        )
+        return 0
+    r = report(root(), reruns=a.reruns, quick=a.quick)
+    print(json.dumps(r, indent=1) if a.json else render(r))
+    if a.file:
+        print("\n".join(file_report(r)))
     return 0
 
 

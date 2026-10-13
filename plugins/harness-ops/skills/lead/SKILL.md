@@ -5,20 +5,21 @@ description: The lead session's routine in a repository run with agent-harness â
 
 # Lead routine
 
-Rules that must hold:
-- Never build while workers run. The lead only plans, dispatches and integrates.
-- A worker's report is not evidence. `uv run dev integrate` re-gates the merged tree. Read PR numbers against the data.
+Rules:
+- Never build while workers run: the lead plans, dispatches, integrates.
+- A worker's report is not evidence: `uv run dev integrate` re-gates the merged tree; check PR numbers against data.
 - Spawn prompts are one line. The brief carries the rest.
-- At the quota cap, start nothing new. Commit, update HANDOFF, stop.
+- At the quota cap: start nothing; commit, update HANDOFF, stop.
 
 ## 1. Where things stand
 !`uv run --quiet dev status 2>/dev/null | head -20`
 
-Then run `uv run dev orient` if the SessionStart context is old, and `uv run dev board list --status review`.
+Then `uv run dev orient` if the SessionStart context is old, and `uv run dev board list --status review`.
+`Suite audit due` in orient: run what it names; `harness-ops:suite-auditor` takes its judgement items.
 
 ## 2. Close the loop first
 For each item in review, in priority order:
-1. `gh pr view <pr>`, `gh pr diff <pr> --name-only` and `uv run dev board feedback <pr>` (comments and reviews since the last commit, unresolved threads).
+1. `gh pr view <pr>`, `gh pr diff <pr> --name-only` and `uv run dev board feedback <pr>` (new comments, unresolved threads).
 2. Spawn a `harness-ops:reviewer` when the PR touches harness files, several Owns, or anything a user sees. Spawn a `harness-ops:research-auditor` for research PRs that drive a decision.
 3. Read every comment, from people and bots. Answer or fix each one (resume the worker for fixes), resolve its thread (outdated threads block too), and wait for green checks.
 4. `uv run dev integrate <pr>`; add `--harness-ok` only after reading the harness diff. It refuses failing or pending checks, requested changes and unresolved threads; `--override '<reason>'` only on the owner's word (logged on the PR). Its last line, `RESULT-JSON`, gives the outcome: on `conflict`, resume the worker it names; on `stopped` or `gate-failed`, comment the failure on the PR and resume or respawn the worker.
@@ -33,7 +34,7 @@ For each item in review, in priority order:
 ## 4. Dispatch
 - Builders, testers and issue researchers run with `isolation: worktree`. Use one line, for example: `Work on #N. Start with uv run dev board brief N.` Add only what the repository cannot know: the owner's words, or a decision you made.
 - Agents come from the `harness-ops` plugin, so their types are `harness-ops:builder`, `harness-ops:tester`,
-  `harness-ops:researcher`, `harness-ops:reviewer`, `harness-ops:research-auditor` and `harness-ops:architect`. A project's own agents in
+  `harness-ops:researcher`, `harness-ops:reviewer`, `harness-ops:research-auditor`, `harness-ops:architect`, `harness-ops:suite-auditor`. A project's own agents in
   `.claude/agents/` keep bare names. Agent files changed during a session register only at the next session start.
 - Claim for them first: `uv run dev board claim N --agent <type> --branch N-<slug>`.
 - A broad research question takes the `harness-ops:research` skill (researcher rounds, synthesis, audit), not one researcher.

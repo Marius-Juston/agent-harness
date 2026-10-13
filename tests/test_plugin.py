@@ -23,14 +23,16 @@ def test_the_marketplace_lists_the_plugin_under_its_manifest_name():
     assert market["name"] == "agent-harness" and manifest["name"] == "harness-ops"
 
 
-def test_the_plugin_has_the_six_agents_and_three_skills():
-    assert AGENTS == ["architect", "builder", "research-auditor", "researcher", "reviewer", "tester"]
+def test_the_plugin_has_the_seven_agents_and_three_skills():
+    assert AGENTS == ["architect", "builder", "research-auditor", "researcher", "reviewer", "suite-auditor", "tester"]
     assert sorted(p.parent.name for p in (PLUGIN / "skills").glob("*/SKILL.md")) == ["harness", "lead", "research"]
 
 
-def test_the_architect_gets_read_tools_only():
-    """#113: the consolidation review proposes and never edits; Bash is held read-only by guard_bash.py."""
-    meta, _ = frontmatter.read(PLUGIN / "agents/architect.md")
+@pytest.mark.parametrize("agent", ["architect", "suite-auditor"])
+def test_the_read_only_agents_get_read_tools_only(agent):
+    """#113, #114: the consolidation review and the suite audit propose and never edit; Bash is held read-only by
+    guard_bash.py (READ_ONLY_AGENTS)."""
+    meta, _ = frontmatter.read(PLUGIN / f"agents/{agent}.md")
     assert meta is not None
     assert [t.strip() for t in str(meta["tools"]).split(",")] == ["Read", "Grep", "Glob", "Bash"]
     assert not {"disallowedTools", "permissionMode", "hooks"} & set(meta)

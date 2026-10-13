@@ -1,0 +1,51 @@
+import pytest
+
+pytestmark = pytest.mark.e2e
+
+
+def helper():
+    assert True
+
+
+def test_one():
+    assert 1
+
+
+def test_two():
+    assert 1
+    with pytest.raises(ValueError):
+        int("x")
+
+
+def test_none():
+    helper()
+
+
+@pytest.mark.slow
+def test_slow():
+    m.assert_called_once()
+
+
+@pytest.mark.flaky(reason="#12 timing")
+def test_quarantined():
+    assert 1
+
+
+@pytest.mark.flaky  # no issue named
+def test_quarantined_bare():
+    assert 1
+
+
+@pytest.mark.xfail(reason="later")
+def test_x():
+    assert 0
+
+
+class TestGroup:
+    pytestmark = [pytest.mark.slow]
+
+    def test_in_class(self):
+        assert 1
+
+    def helper(self):
+        pass

@@ -464,8 +464,8 @@ def unwrap(argv: list[str], assigns: list[str]) -> list[str]:
 
 
 class Checker:
-    def __init__(self, cwd: str, read_only: bool = False):
-        self.read_only = read_only  # the architect subagent: reads, measures and files issues, nothing else
+    def __init__(self, cwd: str, read_only: str = ""):
+        self.read_only = read_only  # a read-only agent's own `dev` report (READ_ONLY_AGENTS); "": not read-only
         self.cwd = cwd
         self.start = cwd  # the session's worktree; a `cd ..` inside the command does not move it
         self.in_python = 0  # > 0 while checking a Python string literal as a shell command
@@ -563,7 +563,7 @@ class Checker:
             for body, _ in c.stdin:
                 if why := self.code(body, lang, depth):
                     return why
-        if self.read_only and (why := read_only(argv, c.writes)):
+        if self.read_only and (why := read_only(argv, c.writes, self.read_only)):
             return why
         if not argv:
             return None
@@ -846,14 +846,27 @@ def current_branch(where: str) -> str | None:
     return out.stdout.strip() or None
 
 
-# Read-only agents (the PreToolUse input's `agent_type`, plugin prefix dropped): the consolidation review proposes,
-# builders execute, so a stray write can never delete progress (#113). Allowlist, not denylist: unknown means no.
-READ_ONLY_AGENTS = {"architect"}
+# Read-only agents (the PreToolUse input's `agent_type`, plugin prefix dropped), each with the one `dev` report it may
+# run besides `dev board|code`: the consolidation review (#113) and the suite audit (#114) propose, builders execute, so
+# a stray write can never delete progress or a test. Allowlist, not denylist: unknown means no. The suite-auditor gets
+# `suite-audit status` and `report --quick` only: a full report runs the suite (also in the working tree), and
+# `--file` edits and closes issues; both stay with the lead. `dev` refuses abbreviated options, so `--fi` is no way in.
+READ_ONLY_AGENTS = {"architect": "consolidation", "suite-auditor": "suite-audit"}
 READ_ONLY = (
-    "the architect is read-only: it reads, measures and files issues. Allowed: read commands (cat, grep, ls, "
+    "this agent is read-only: it reads, measures and files issues. Allowed: read commands (cat, grep, ls, "
     "sed -n, ...), `git log|show|diff|status`, `gh issue view|list|create|comment`, `gh pr view|list|diff`, GET-only "
-    "`gh api`, `uv run dev board|consolidation|code`. File a step issue for a builder instead."
+    "`gh api`, `uv run dev board|code`, and its own report (architect: `dev consolidation`; suite-auditor: "
+    "`dev suite-audit status` or `dev suite-audit report --quick`). File an issue for a builder instead."
 )
+
+
+def quick_audit(args: list[str]) -> bool:
+    """`suite-audit status`, or `report --quick` with no --file (nor a prefix of it): reruns nothing, files nothing."""
+    if any(len(a) > 2 and "--file".startswith(a.split("=", 1)[0]) for a in args):
+        return False
+    return args[:1] == ["status"] or (args[:1] == ["report"] and "--quick" in args)
+
+
 READ_CMDS = {"cat", "head", "tail", "wc", "ls", "grep", "egrep", "fgrep", "rg", "sort", "uniq", "cut", "tr", "jq"}
 READ_CMDS |= {"echo", "printf", "pwd", "stat", "file", "diff", "cmp", "tree", "du", "df", "basename", "dirname"}
 READ_CMDS |= {"realpath", "readlink", "test", "[", "[[", "true", "false", "column", "nl", "date", "which", "cd"}
@@ -861,12 +874,13 @@ READ_GIT = {"log", "show", "diff", "status", "blame", "grep", "ls-files", "ls-tr
 READ_GIT_GLOBAL = {"-C", "-c", "--no-pager", "-P", "--git-dir", "--work-tree"}
 READ_GH = {"issue": {"view", "list", "create", "comment", "status"}, "pr": {"view", "list", "diff", "checks", "status"}}
 READ_GH |= {"search": {"issues", "prs", "code", "repos", "commits"}}
-READ_DEV = {"board", "consolidation", "code", "--help", "-h"}
+READ_DEV = {"board", "code", "--help", "-h"}
 SINKS = {"/dev/null", "/dev/stdout", "/dev/stderr", "-"}
 
 
-def read_only(argv: list[str], writes: list[str]) -> str | None:
-    """READ_ONLY unless the command only reads, or files issues through `dev board` / `gh`."""
+def read_only(argv: list[str], writes: list[str], report: str = "") -> str | None:
+    """READ_ONLY unless the command only reads, files issues through `dev board` / `gh`, or runs the agent's own
+    `dev <report>` (READ_ONLY_AGENTS)."""
     if any(not (w.isdigit() or w in SINKS) for w in writes):
         return READ_ONLY
     if not argv:
@@ -900,6 +914,8 @@ def read_only(argv: list[str], writes: list[str]) -> str | None:
         return None if len(args) > 1 and args[1] in READ_GH.get(args[0], ()) else READ_ONLY
     if name == "dev" and args[:1] and args[0] in READ_DEV:
         return None
+    if name == "dev" and args[:1] == [report] and (report != "suite-audit" or quick_audit(args[1:])):
+        return None
     return READ_ONLY
 
 
@@ -914,7 +930,7 @@ def main() -> int:
     cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
     agent = data.get("agent_type") if isinstance(data.get("agent_type"), str) else ""  # set inside a subagent
     try:
-        why = Checker(cwd, read_only=agent.rsplit(":", 1)[-1] in READ_ONLY_AGENTS).text(cmd)
+        why = Checker(cwd, read_only=READ_ONLY_AGENTS.get(agent.rsplit(":", 1)[-1], "")).text(cmd)
     except RecursionError:  # hundreds of nested substitutions: nobody writes that by hand
         why = DEEP
     if why:

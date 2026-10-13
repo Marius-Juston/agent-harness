@@ -13,6 +13,7 @@ from the template follows this protocol; agent types are those of the `harness-o
 | builder | subagent `harness-ops:builder` | one build issue, test-first, in its worktree → PR | merge, push to main, edit outside the issue's Owns without saying so |
 | tester | subagent `harness-ops:tester` | adversarial, property and regression tests for one issue → PR | weaken an existing test |
 | architect | subagent `harness-ops:architect` | when `dev orient` says a consolidation review is due: feature inventory → an epic of step issues | edit, move or delete code |
+| suite-auditor | subagent `harness-ops:suite-auditor` | when `dev suite-audit report` lists judgement items: reads those tests → at most 5 `type:test` issues | edit, move, skip or delete a test |
 | reviewer | subagent `harness-ops:reviewer` | read-only pre-merge review of a PR | edit, commit |
 
 Several machines can each run a lead. They coordinate only through GitHub: issues, claim comments, PRs and `main`.
