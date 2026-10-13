@@ -313,7 +313,8 @@ def run_consolidation(a: argparse.Namespace) -> int:
         why = "; ".join(r["why"])
         print(json.dumps(r, indent=1) if a.json else f"review due: {'yes: ' + why if r['review_due'] else 'no'}")
         return 0
-    r = consolidation.report(root(), tools=a.tools)
+    names = {name for top, subs in command_map().items() for name in (top, *subs)}
+    r = consolidation.report(root(), names, tools=a.tools)
     if n := r["parse_errors"]["count"]:
         print(f"warning: {n} Python file(s) failed to parse; see the report's parse errors", file=sys.stderr)
     print(json.dumps(r, indent=1) if a.json else consolidation.render(r))

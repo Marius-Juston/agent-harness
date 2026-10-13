@@ -231,7 +231,7 @@ def test_report_lists_parse_errors_growth_and_command_overlap(repo):
     repo.commit({"app/a.py": code(10)}, "start\n\nConsolidation-Review: #1")
     cli_src = 'import argparse\np = argparse.ArgumentParser()\ns = p.add_subparsers()\ns.add_parser("orient")\n'
     repo.commit({"tool/cli.py": cli_src, "tool/new.py": code(40), "app/bad.py": "def f(:\n    pass\n"})
-    r = consolidation.report(repo.path, cfg())
+    r = consolidation.report(repo.path, {"orient", "board"}, cfg())
     assert r["parse_errors"] == {"count": 1, "paths": ["app/bad.py"]}
     assert r["growth_by_dir"][0][:3] == ["tool", 0, 44]
     assert r["command_overlap"] == {"tool/cli.py": ["orient"]}
@@ -241,7 +241,8 @@ def test_report_lists_parse_errors_growth_and_command_overlap(repo):
 
 
 def test_report_ignores_the_harness_own_cli_when_it_is_tracked_here():
-    r = consolidation.report(Path(__file__).resolve().parents[1], cfg())
+    names = {n for top, subs in cli.command_map().items() for n in (top, *subs)}
+    r = consolidation.report(Path(__file__).resolve().parents[1], names, cfg())
     assert "devkit/cli.py" not in r["command_overlap"]
     assert r["parse_errors"]["count"] == 0
 

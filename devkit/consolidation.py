@@ -395,12 +395,6 @@ def cli_commands(tree: ast.AST) -> list[str]:
     )
 
 
-def _tooling_names() -> set[str]:
-    from devkit import cli  # the command tree of the installed harness (cli imports this module)
-
-    return {name for top_name, subs in cli.command_map().items() for name in (top_name, *subs)}
-
-
 def _own_package(repo: Path) -> str | None:
     """The installed devkit's directory relative to ``repo`` when the repository is the harness itself."""
     pkg = Path(__file__).resolve().parent
@@ -452,9 +446,10 @@ def run_tools(repo: Path) -> dict:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
-def report(repo: Path, cfg: dict | None = None, tools: bool = False, now: float | None = None) -> dict:
+def report(repo: Path, names: set[str], cfg: dict | None = None, tools: bool = False, now: float | None = None) -> dict:
     """What the architect reads first (note §8 item 2): the trigger's verdict, standing smells, LOC by directory
-    and its growth since the review, command names that copy the installed tooling, and files that do not parse."""
+    and its growth since the review, argparse command names that repeat ``names`` (the installed tooling's), and
+    files that do not parse."""
     cfg = cfg or config.get().consolidation
     r = due(repo, cfg, now)
     head, then = r.pop("head"), r.pop("at_base")
@@ -463,7 +458,7 @@ def report(repo: Path, cfg: dict | None = None, tools: bool = False, now: float 
         ([d, then_dir[d], now_dir[d], now_dir[d] - then_dir[d]] for d in set(now_dir) | set(then_dir)),
         key=lambda row: (-row[3], row[0]),
     )
-    names, own = _tooling_names(), _own_package(repo)
+    own = _own_package(repo)
     overlap: dict[str, list[str]] = {}
     broken: list[str] = []
     reader = BlobReader(repo)
