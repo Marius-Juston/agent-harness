@@ -12,7 +12,7 @@ A fix found adopting v0.1.5.
 Run `uvx copier update --data harness_ref=v0.1.6`, then `uv sync && uv run dev docs && uv run dev check`.
 
 ### Fixed
-- `uv run dev cite-check` with no paths skips `docs/research/README.md`, which the template ships since v0.1.5, as
+- `uv run dev cite-check` with no paths skips the research README.md, which the template ships since v0.1.5, as
   well as INDEX.md. Before, the first PR that brought the README in failed with `0 citations in 1 note(s)`. (#165)
 
 ## v0.1.5 (2026-10-13)
