@@ -24,9 +24,11 @@ jobs:
       - id: lychee
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0 (lychee v0.24.2)
         with:
-          # 429 is rate limiting, not rot. GitHub links use the job token (higher rate limit).
+          # 429 is rate limiting, not rot. GitHub links use the job token (higher rate limit). Research scratch is
+          # raw round output, not docs (--exclude-path takes a regex).
           args: >-
             --no-progress --max-retries 3 --timeout 30 --accept '200..=299,429'
+            --exclude-path 'docs/research/_scratch/'
             './docs/**/*.md' './*.md'
           output: lychee/out.md
           fail: false # the next step reports through the issue instead
@@ -44,7 +46,19 @@ jobs:
             if [ -n "$number" ]; then gh issue close "$number" --comment "Clean link check: $RUN_URL"; fi
             exit 0
           fi
-          { cat lychee/out.md; printf '\n\nFound by %s\n' "$RUN_URL"; } > body.md
+          echo "::group::full lychee report"; cat lychee/out.md; echo "::endgroup::"
+          # GitHub rejects issue bodies over 65,536 characters. Bytes >= characters, so a byte cap cut at a whole
+          # line keeps lychee's summary table (at the top) and stays under the limit.
+          limit=60000 size=$(wc -c < lychee/out.md)
+          {
+            if [ "$size" -le "$limit" ]; then
+              cat lychee/out.md
+            else
+              head -c "$limit" lychee/out.md | sed '$d'
+              printf '\n\n**Truncated** at %s of %s bytes: the full report is in the run log.\n' "$limit" "$size"
+            fi
+            printf '\n\nFound by %s\n' "$RUN_URL"
+          } > body.md
           if [ -n "$number" ]; then
             gh issue edit "$number" --body-file body.md
           else
