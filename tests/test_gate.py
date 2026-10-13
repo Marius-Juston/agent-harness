@@ -142,6 +142,51 @@ def test_a_failing_run_reports_its_own_output_not_the_floors(repo):
     assert not ran.ok and not any("floor" in p for p in ran.problems)
 
 
+def test_each_tests_stage_appends_per_test_outcome_and_duration_to_the_history(repo, monkeypatch):
+    (repo / "test_m.py").write_text(
+        "import pytest\n\n\ndef test_ok():\n    pass\n\n\ndef test_bad():\n    assert False\n"
+    )
+    history = repo / ".scratch" / "test-history.jsonl"
+    monkeypatch.setattr(gate, "HISTORY_CLOCK", lambda: 1234.5)
+    cmd = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "test_m.py"]
+    gate.tests_stage(cmd, {}, None, cwd=repo, history=history)
+    gate.tests_stage(cmd, {}, None, cwd=repo, history=history)
+    runs = [json.loads(line) for line in history.read_text().splitlines()]
+    assert len(runs) == 2 and runs[0]["at"] == 1234
+    tests = runs[-1]["tests"]
+    assert tests["test_m::test_ok"][0] == "passed" and tests["test_m::test_bad"][0] == "failed"
+    assert all(isinstance(seconds, float) and seconds >= 0 for _, seconds in tests.values())
+
+
+def test_the_history_keeps_only_the_latest_runs_and_skips_an_unreadable_report(tmp_path):
+    junit, history = tmp_path / "j.xml", tmp_path / "h.jsonl"
+    junit.write_text(
+        '<testsuites><testsuite><testcase classname="t" name="a" time="0.25"/>'
+        '<testcase classname="t" name="b"><skipped/></testcase>'
+        '<testcase classname="t" name="c" time="x"><error/></testcase></testsuite></testsuites>'
+    )
+    for at in range(5):
+        gate.record_history(junit, history, at=at, keep=3)
+    runs = [json.loads(line) for line in history.read_text().splitlines()]
+    assert [r["at"] for r in runs] == [2, 3, 4]
+    assert runs[-1]["tests"] == {"t::a": ["passed", 0.25], "t::b": ["skipped", 0.0], "t::c": ["error", 0.0]}
+    gate.record_history(tmp_path / "missing.xml", history, at=9, keep=3)
+    assert len(history.read_text().splitlines()) == 3  # nothing recorded, nothing lost
+
+
+@pytest.mark.parametrize("workflow_file", [".github/workflows/ci.yml", "template/.github/workflows/gate.yml"])
+def test_ci_uploads_the_test_history_after_the_gate(workflow_file):
+    steps = yaml.safe_load((gate.root() / workflow_file).read_text())["jobs"]["check"]["steps"]
+    gate_at = next(i for i, s in enumerate(steps) if s.get("run", "").startswith("uv run dev check"))
+    (upload,) = [s for s in steps if s.get("with", {}).get("name") == "test-history"]
+    assert steps.index(upload) > gate_at and "!cancelled()" in upload["if"]
+    assert (
+        upload["uses"].startswith("actions/upload-artifact@")
+        and upload["with"]["path"] == f".git/devkit/{gate.HISTORY_FILE}"
+    )
+    assert upload["with"]["include-hidden-files"] is True  # .git is hidden, and skipped by default
+
+
 def test_diff_coverage_never_fails_the_stage_when_it_cannot_measure(repo, monkeypatch):
     assert gate.diff_coverage(repo / "missing.xml", "HEAD", cwd=repo)[0].startswith("diff coverage: not measured")
     monkeypatch.setattr(gate, "tool", lambda name: None)
