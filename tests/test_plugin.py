@@ -114,6 +114,12 @@ def test_the_research_skill_takes_its_question_as_arguments():
     assert meta.get("argument-hint") and "$ARGUMENTS" in body
 
 
+def test_the_lead_skill_documents_cross_repo_dispatch():
+    """#170: the pattern tested in test_hooks.py (cross_repo) is the one the lead is told to use."""
+    _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
+    assert "Another repository's issue" in body and "prefix every command with cd <abs path> &&" in body
+
+
 def test_the_lead_skill_preloads_dev_status_without_aborting():
     _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
     cmds = checks.INJECTION.findall(body)
