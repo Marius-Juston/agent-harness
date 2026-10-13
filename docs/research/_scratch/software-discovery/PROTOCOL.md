@@ -69,3 +69,15 @@ Owner asked whether the index is the best option or something easier is as good.
    share either way.
 17. Order of the tuning grid (at most 12 configurations in total across amendments 1-4), written to
    `scripts/data/configs.json` and committed before its first run.
+
+## Amendment 5 (lead, 2026-10-13, after TUNE, before any TEST run of A or M): TEST execution details
+18. Chosen ranking: R4 (`scripts/data/chosen.json`, committed with this amendment). Lambda 1.0 was fitted on TUNE.
+19. TEST arms: B0, B1, A1 (R0 and R4), A2 (R4), A3. Per amendment 4 rule 16 (TUNE headroom 0.047 < 0.10) no GPU
+   index is built; P1 runs on TEST as an **exploratory** arm only, reported separately and never used in a decision.
+20. B0 on TEST reproduces the TUNE method: one tool-less `claude -p --model claude-opus-5-5` call from an empty
+   directory per batch, batches of at most 64 needs (TEST: 2 batches of 56), same prompt file. A3: batches of 16, as
+   on TUNE.
+21. Harm stays as pre-registered (top-3 names that do not exist or are HOLD/FAIL; copyleft FAIL counts). A secondary
+   harm share without licence outcomes is also reported.
+22. Validity fix applied to every arm alike: on M needs the migration source package is excluded from the candidate
+   list before scoring (it is the thing being replaced, not an answer).

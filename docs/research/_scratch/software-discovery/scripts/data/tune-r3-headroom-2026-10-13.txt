@@ -1,0 +1,6 @@
+TUNE needs 64; gold in the A2 pool 63; gold in index top 100 45
+headroom (PROTOCOL 16): needs with a gold repository in index top 100 absent from the A2 pool: 3/64 = 0.047
+needs whose only recalled gold is from the index: 0/64 = 0.000
+- DevOps Tools / Cloud Providers: googleapis/google-cloud-python
+- DevOps Tools / Configuration Management: ansible/ansible
+- Text Processing / Parser: python-parsy/parsy
