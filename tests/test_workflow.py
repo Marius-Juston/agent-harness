@@ -123,6 +123,12 @@ def test_a_new_dependency_group_entry_counts_too(branch):
     assert workflow.reuse_needs("main") == ["dependency hypothesis"]
 
 
+def test_an_unparsable_pyproject_adds_no_dependency(branch):
+    """A broken pyproject.toml fails the gate on its own; the reuse check does not guess at its names."""
+    branch("pyproject.toml", PYPROJECT + "[broken\n")
+    assert workflow.reuse_needs("main") == []
+
+
 def test_a_new_non_test_module_needs_a_reuse_line(branch):
     branch("pkg/new.py", "Y = 2\n")
     assert workflow.reuse_needs("main") == ["module pkg/new.py"]
