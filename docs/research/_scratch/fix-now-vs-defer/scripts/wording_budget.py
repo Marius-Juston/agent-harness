@@ -25,7 +25,10 @@ EDITS: dict[str, list[tuple[str, str]]] = {
             "what is unverified, `Fixed in passing`, and follow-ups filed as issues (`uv run dev board new ...`), each"
             " naming the fix-now condition it failed.",
         ),
-        ("files outside Owns, and follow-up issue numbers.", "files outside Owns, fixes in passing, and follow-up issue numbers."),
+        (
+            "files outside Owns, and follow-up issue numbers.",
+            "files outside Owns, fixes in passing, and follow-up issue numbers.",
+        ),
     ],
     "plugins/harness-ops/agents/tester.md": [
         (
@@ -36,16 +39,19 @@ EDITS: dict[str, list[tuple[str, str]]] = {
     "plugins/harness-ops/agents/researcher.md": [
         # added: fix-ready edits batched into one build issue; scripts kept where the note can link them
         (
-            "File each important gap you did not close as an issue: `uv run dev board new --type research ... --done \"...\"`.",
+            'File each important gap you did not close as an issue: `uv run dev board new --type research ... --done "..."`.',
             "File each important gap you did not close as an issue (`uv run dev board new --type research ... --done"
-            " \"...\"`); batch fix-ready edits (file, change, check) into one build issue.",
+            ' "..."`); batch fix-ready edits (file, change, check) into one build issue.',
         ),
         (
             "check it with a small script in `.scratch/`. That makes it VERIFIED.",
             "check it with a script in `_scratch/<slug>/scripts/`; that makes it VERIFIED.",
         ),
         # cut to pay for it
-        ("(`docs/research/INDEX.md` unless `[tool.devkit] research_dir` moves it)", "(`docs/research/INDEX.md` by default)"),
+        (
+            "(`docs/research/INDEX.md` unless `[tool.devkit] research_dir` moves it)",
+            "(`docs/research/INDEX.md` by default)",
+        ),
         ("(CLAUDE.md may name them; for ML: NeurIPS, ICML, ICLR, ACL, EMNLP)", "(CLAUDE.md may name them)"),
     ],
     "plugins/harness-ops/skills/lead/SKILL.md": [
@@ -60,7 +66,10 @@ EDITS: dict[str, list[tuple[str, str]]] = {
             "On its `RESULT-JSON` outcome `conflict`, resume the named worker;",
         ),
         ("Researchers fan out wide (no tests, little memory).", "Researchers fan out wide."),
-        ("`harness-ops:research` skill (researcher rounds, synthesis, audit), not", "`harness-ops:research` skill, not"),
+        (
+            "`harness-ops:research` skill (researcher rounds, synthesis, audit), not",
+            "`harness-ops:research` skill, not",
+        ),
         # cut to pay for it: the agent list is a derived fact (agent-surface.md)
         (
             "Agents come from the `harness-ops` plugin, so their types are `harness-ops:builder`, `harness-ops:tester`,\n"
