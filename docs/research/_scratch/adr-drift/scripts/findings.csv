@@ -1,0 +1,33 @@
+id,repo,ref,level,finding,found_by,existing_check_caught,cheapest_enforcement,caught_by_todays_checks
+1,AH,PR#168,prose,CHANGELOG named a docs/research/README.md path that did not exist,gate,Y,check (exists: check_links),Y
+2,PB,PR,template,template CONTRIBUTING linked README.md#quickstart; project B heading differed,gate,Y,check (exists: check_links),Y
+3,AH+PB,AH#6 PB,prose,link to a gitignored scratch file passed the local gate; only integrate's clean-tree re-gate failed,integrate re-gate,partial,check (AH#6 open),partial
+4,AH+PB,AH#11 PB,generated,INDEX.md stale after git auto-merged two branches' rows (3 PRs),gate,Y,generated (regenerate inside integrate; shipped),Y
+5,PB,PB,prompts,agent files told subagents to write .scratch/summary.md which Claude Code refuses for subagents,worker,N,eval scenario,N
+6,PB,PB,prompts,researcher.md described dev lit --source after a change of the default to an auto fallback,lead,N,generated (prompt line from --help),N
+7,AH,AH#174,prompts,research-auditor prompt never named dev lit; 7 of 11 auditor runs curled index APIs,measurement,N,hook (deny direct index-API calls),N
+8,AH,AH#174 comment,prompts,PR#171 trimmed the reason for dev lit from researcher.md to fit the word budget,lead,N,review,N
+9,AH,AH#179,cli,prompts said dev reuse check but --help showed only a need argument,worker,N,check (flags and positionals vs parser),N
+10,AH,AH#188 (PR#189 review),cli,G5 reason text says --allow-copyleft; the uv add hook reads DEVKIT_ALLOW_COPYLEFT instead,review,N,check (message names an option the entry point accepts),N
+11,AH,PR#151,cli,"issue DONE WHEN used positional board block <n> ""<why>""; CLI takes --reason",worker,N,check (board lint runs the flag check on issue bodies),N
+12,AH,PR#186 review,config,completion-gate probes 120+60+120 s exceed the 240 s hook timeout in hooks.json,review,N,check (test: sum of subprocess timeouts < hook timeout),N
+13,AH,AH#136,config,min_tests floor 759 while the gate printed raise to 874,research note,partial,generated (integrate writes the floor raise),partial
+14,AH+PB,AH#208 PB,template,template HARNESS.md grew 7 words and pushed project B's CLAUDE.md to 607/600,gate (project),Y,check (template-side budget; AH#208 open),Y
+15,AH,AH#47,upstream,IMPORT_HOPS = 5 while Claude Code docs say four hops,worker,N,sweep (re-fetch doc URLs cited in code),N
+16,AH,AH#44,upstream,word budget ignored .claude/rules and .claude/commands that Claude Code loads,audit (PB),N,check (shipped),Y
+17,AH,AH#153,upstream,agent and skill frontmatter not using the documented field set,owner,N,check (allowlist shipped),Y
+18,AH,software-discovery.md 49ed040->3635292,notes,note said ship R4 in PR#171 / R0 as built after PR#171 merged with R4,lead,N,check (note names constant; compare value),N
+19,AH,PR#148,notes,test-suite-design.md section 9 flake row contradicted its round file r2 F8,worker,N,review (auditor),N
+20,AH,AH#141,code copies,trigger logic duplicated in scripts/repo_metrics.py and devkit/consolidation.py (4 clone groups),sweep (consolidation),Y,sweep (exists),Y
+21,PB,PB,decisions,a research note recommended an experiment arm that an accepted policy ADR forbids,research round,N,check (note touching a decided topic links its ADR) + auditor sweep,N
+22,PB,PB,decisions,issue filed for a question already decided in OPEN_QUESTIONS,lead,N,generated (decision index searched by board new),N
+23,AH,AH#196,board,scope decision (F0 only) made in a comment; DONE WHEN in the body unchanged,lead,N,check (board lint: DONE WHEN revised in a comment),N
+24,AH+PB,27 issues,board,PR merged without closing its issue (AH 15 PB 12),automation,Y,automation (exists: board sync),Y
+25,AH+PB,PB AH#10,board,board new replaced DONE WHEN with blocker numbers; 5 PB issues reconstructed by hand,worker,N,check (board lint shipped),Y
+26,AH,AH#22,template,copier update conflicted on CLAUDE.md and README (template and project text mixed),worker,N,structure (HARNESS.md split; shipped) + render test,Y
+27,AH+PB,AH#115 PB PB,template,projects held local copies of generic files (PROMPTS spec memory script devkit),owner/lead,N,check (render test fails if copies drift; shipped),Y
+28,AH,AH#163,template,copier update keeps the stored harness_ref so pins never move,render test,partial,structure (derive pin from template version; open),partial
+29,AH,AH#165,template,template ships research README; project cite-check fails on 0 citations,project CI,Y,check (exists),Y
+30,PB,PB,memory,owner rules held only in machine-local auto memory,audit (PB),N,sweep + generated,N
+31,AH+PB,AH#37 PB,model,notes cite older-model numbers as if current,owner,N,check (AH#37 lint),N
+32,AH,AH#176 AH#155 AH#209,model,decisions resting on one model and date need a dated re-measure,lead,N,sweep (scheduled re-run),N
