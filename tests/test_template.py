@@ -286,7 +286,7 @@ def test_the_memory_script_is_named_for_the_project_and_round_trips(rendered, tm
     script = rendered / "scripts/claude-memory.sh"
     assert script.stat().st_mode & 0o111, "not executable"
     text = script.read_text()
-    assert "~/demo-project-claude-memory.tgz" in text and "theeye" not in text.lower()
+    assert text.count("-claude-memory.tgz") == text.count("demo-project-claude-memory.tgz") == 2  # no other name
     home = tmp_path / "home"
     key = re.sub(r"[^A-Za-z0-9]", "-", str(rendered.resolve()))
     memory = home / ".claude/projects" / key / "memory"
