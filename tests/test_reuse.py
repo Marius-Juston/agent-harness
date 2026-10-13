@@ -785,10 +785,44 @@ def test_check_falls_back_to_the_registry_and_holds_or_fails_by_gate(tmp_path):
     assert backoff.status == "FAIL" and backoff.gates["G4"].startswith("FAIL (deprecated")
 
 
-def test_check_marks_a_known_but_unverifiable_name(tmp_path):
-    w = world(named={"tenacity-pro": record("tenacity-pro", None)})
-    rep = reuse.check(make(tmp_path, Net(w)), ["tenacity-pro"], "pypi")
-    assert rep["candidates"][0].status == "UNVERIFIED" and any("G1 FAIL" in n for n in rep["notes"])
+def test_check_trusts_the_registrys_404_over_a_stale_ecosystems_record(tmp_path):
+    w = world(named={"renpy": record("renpy", None)})  # ecosyste.ms knows it; PyPI answers 404
+    rep = reuse.check(make(tmp_path, Net(w)), ["renpy"], "pypi")
+    assert rep["candidates"][0].status == "NOT FOUND"
+    assert not any("dropped" in n for n in rep["notes"])
+
+
+def test_check_says_unverified_not_missing_when_the_registry_is_down(tmp_path):
+    rep = reuse.check(make(tmp_path, Net(world(down=("pypi.org",)))), ["tenacity", "no-such-pkg"], "pypi")
+    assert [c.status for c in rep["candidates"]] == ["UNVERIFIED", "UNVERIFIED"]
+    assert "gave no answer" in rep["candidates"][1].gates["G1"]
+    assert "NOT FOUND" not in reuse.render(rep)
+
+
+def test_check_never_says_dropped(tmp_path):
+    def body(name):
+        return {"releases": {"1.0": [{"yanked": True}]}}  # G1 passes, G4 fails: shown, not dropped
+
+    rep = reuse.check(make(tmp_path, Net(world(registry_body=body))), ["tenacity"], "pypi")
+    assert rep["candidates"][0].status == "FAIL" and not any("dropped" in n for n in rep["notes"])
+    assert "dropped" not in reuse.render(rep)
+
+
+def test_g1_runs_before_the_shortlist_so_a_missing_name_takes_no_slot(tmp_path):
+    ghost = record("alpha", None, "alpha retry", dependent_repos_count=10**7)  # best R and most adopted, not on PyPI
+    beta = record("beta", "o/beta", "beta retry", dependent_repos_count=1, dependent_packages_count=0)
+    w = world(github=lambda q: [gh_repo("o/beta", "beta retry", 10)], keywords={"retry": [ghost]},
+              lookups={"github.com/o/beta": [beta]}, registry=frozenset({"beta"}))  # fmt: skip
+    rep = reuse.search(make(tmp_path, Net(w)), ["retry"], "pypi", n=1, encoder=encoder)
+    assert [c.name for c in rep["candidates"]] == ["beta"]
+
+
+def test_enrichment_is_capped_at_enrich_cap_times_n(tmp_path):
+    items = [gh_repo(f"o/alpha{i}", "alpha retry", 10) for i in range(20)]  # all at R 1.0, inside the floor
+    net = Net(world(github=lambda q: items, lookups={}, registry=frozenset()))
+    reuse.search(make(tmp_path, net), ["retry"], "pypi", n=2, encoder=encoder)
+    looked = [u for u in net.urls(reuse.ECOSYSTEMS) if "/packages/lookup" in u]
+    assert len(looked) == reuse.ENRICH_CAP * 2
 
 
 def test_cli_check_json_exit_codes_and_errors(fake_cli, capsys):

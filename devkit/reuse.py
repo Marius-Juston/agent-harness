@@ -17,7 +17,8 @@ NOT FOUND (the package-hallucination guard). search:
 - relevance R (0-1): cosine to the mean query vector with model2vec potion-base-8M (MIT; the optional extra
   `agent-harness[semantic]`), else BM25 scaled to the best candidate. The output names the re-rank that ran;
 - shortlist (union): the n best by R plus the n most adopted (dependents, then monthly downloads) among candidates
-  within R_FLOOR of the best R. All are enriched, gated and scored before the cut to n;
+  within R_FLOOR of the best R, both taken from candidates that passed G1 (enriched in R order, at most
+  ENRICH_CAP * n). All are gated and scored before the cut to n;
 - gates (#169 note, F2), shown per candidate; a FAIL is dropped with a note, a HOLD is shown with its reason:
   G1 the name exists on its registry (PyPI, npm, crates.io) or GitHub, the package-hallucination guard (arXiv
   2406.10279), else FAIL, asked again after REGISTRY_MAX_AGE; G2 no malicious-package advisory (an OSV MAL- id on
@@ -110,6 +111,7 @@ NEED_WORDS = 40  # words of a --from need
 # Search order R4 of docs/research/software-discovery.md (#169), chosen on TUNE, confirmed on TEST.
 PASS_BEFORE_HOLD = True  # every PASS above every HOLD: the largest single effect (#169 TUNE: +0.09 hit@3)
 R_FLOOR = 0.20  # union shortlist: the adoption half draws from candidates with R >= best R - R_FLOOR (fixed, untuned)
+ENRICH_CAP = 3  # at most ENRICH_CAP * n candidates are enriched per search (bounds the R_FLOOR half's cost)
 LAMBDA = 1.0  # S = R + LAMBDA * Q; fitted on #169's TUNE split (the cited prior was 0.15). No tier rule.
 Q_WEIGHTS = {
     "maturity": 0.242,
@@ -731,10 +733,8 @@ def adoption(c: Candidate) -> tuple[int, int]:
     )
 
 
-def judge(client: lit.Client, c: Candidate, tiers, osi, allow_copyleft: bool, notes: list[str]) -> bool:
-    """G1 (verify), then G2-G6, Q, S and flags on an enriched candidate; False when G1 fails."""
-    if not verify(client, c, notes):
-        return False
+def judge(client: lit.Client, c: Candidate, tiers, osi, allow_copyleft: bool) -> None:
+    """G2-G6 (G1 shown as verify() left it), Q, S and flags on an enriched, verified candidate."""
     now = client.clock()
     c.gates = gates(c, now, tiers, allow_copyleft)
     c.status = status(c.gates)
@@ -742,7 +742,6 @@ def judge(client: lit.Client, c: Candidate, tiers, osi, allow_copyleft: bool, no
     c.score = round(c.relevance + LAMBDA * c.quality, 4)
     if flag := osi_flag(c.license, osi):
         c.flags.append(flag)
-    return True
 
 
 def order(kept: list[Candidate]) -> list[Candidate]:
@@ -771,15 +770,22 @@ def search(
     rerank = rank_relevance(found, queries, encoder, why)
     found.sort(key=lambda c: -c.relevance)
     best = found[0].relevance if found else 0.0
-    near = [c for c in found if c.relevance >= best - R_FLOOR]
-    for c in {c.key(): c for c in found[:n] + near}.values():  # adoption needs the enriched record
+    # In R order, enrich and check existence (G1) before the shortlist, as #169's rank() drops unknown names first:
+    # the n best by R that exist, and every existing candidate within R_FLOOR (the adoption half needs the record),
+    # at most ENRICH_CAP * n enrichments.
+    real: list[Candidate] = []
+    for i, c in enumerate(found):
+        if i >= ENRICH_CAP * n or (len(real) >= n and c.relevance < best - R_FLOOR):
+            break
         enrich(client, c, ecosystem, notes)
-    shortlist = list({c.key(): c for c in found[:n] + sorted(near, key=adoption, reverse=True)[:n]}.values())
+        if verify(client, c, notes):
+            real.append(c)
+    near = [c for c in real if c.relevance >= best - R_FLOOR]
+    shortlist = list({c.key(): c for c in real[:n] + sorted(near, key=adoption, reverse=True)[:n]}.values())
     tiers, osi = licence_lists(client, notes) if found else (None, None)
     kept: list[Candidate] = []
     for c in shortlist:  # every shortlisted candidate is scored before the cut to n
-        if not judge(client, c, tiers, osi, allow_copyleft, notes):
-            continue
+        judge(client, c, tiers, osi, allow_copyleft)
         if c.status == FAIL:
             failed = "; ".join(f"{k} {v}" for k, v in c.gates.items() if v.startswith(FAIL))
             notes.append(f"dropped {c.name}: {failed}")
@@ -827,34 +833,49 @@ def from_registry(name: str, ecosystem: str, body: dict) -> Candidate:
     return Candidate(name=name, repo=_repo_in(urls), ecosystem=ecosystem, description=desc or "", record=body)
 
 
-def named(client: lit.Client, name: str, ecosystem: str, notes: list[str]) -> Candidate | None:
-    """The package an agent named: its ecosyste.ms record, else its registry answer; None when neither knows it."""
+def named(client: lit.Client, name: str, ecosystem: str, body: str, notes: list[str]) -> Candidate:
+    """The package an agent named, which its registry answered for: its ecosyste.ms record, else that answer."""
     url = f"{ECOSYSTEMS}registries/{REGISTRY_HOST[ecosystem]}/packages/{urllib.parse.quote(name, safe='@')}"
     rec = _json(client, "ecosystems", url, notes, missing_ok=True)
     if isinstance(rec, dict) and rec.get("name"):
         c = from_record(rec)
         c.ecosystem = ecosystem
         return c
-    body = _json(client, ecosystem, ECOS[ecosystem][2](name), notes, missing_ok=True)
-    return from_registry(name, ecosystem, body) if isinstance(body, dict) and body else None
+    try:
+        data = json.loads(body)
+    except ValueError:
+        data = {}
+    return from_registry(name, ecosystem, data if isinstance(data, dict) else {})
 
 
 def check(client: lit.Client, names: list[str], ecosystem: str = "pypi", allow_copyleft: bool = False) -> dict:
-    """The report for named packages, in the order given: existence, gates G1-G6, metadata. Nothing is dropped."""
+    """The report for named packages, in the order given: existence, gates G1-G6, metadata. Nothing is dropped.
+    NOT FOUND only when the registry answered 404 (whatever ecosyste.ms says); UNVERIFIED when it gave no answer."""
     if ecosystem not in ECOS:
         raise ValueError(f"unknown ecosystem {ecosystem!r} for check: pypi, npm or cargo")
     notes: list[str] = []
     tiers, osi = licence_lists(client, notes) if names else (None, None)
     out: list[Candidate] = []
     for name in dict.fromkeys(n.strip() for n in names if n.strip()):
-        c = named(client, name, ecosystem, notes)
-        if c is not None:
-            enrich(client, c, ecosystem, notes)
-        if c is None:
-            c = Candidate(name=name, ecosystem=ecosystem, status=NOT_FOUND)
-            c.gates = {"G1": f"{FAIL} (no {ecosystem} package of this name: do not install it)"}
-        elif not judge(client, c, tiers, osi, allow_copyleft, notes):
+        try:
+            body = client.fetch(ecosystem, ECOS[ecosystem][2](name), max_age=REGISTRY_MAX_AGE)
+        except lit.SourceError as exc:
+            if str(exc).endswith(": not found"):
+                c = Candidate(name=name, ecosystem=ecosystem, status=NOT_FOUND)
+                c.gates = {"G1": f"{FAIL} (no {ecosystem} package of this name: do not install it)"}
+            else:
+                c = Candidate(name=name, ecosystem=ecosystem, status=UNVERIFIED)
+                c.gates = {"G1": f"{FAIL} (the {ecosystem} registry gave no answer: {exc}; check again later)"}
+            out.append(c)
+            continue
+        c = named(client, name, ecosystem, body, notes)
+        enrich(client, c, ecosystem, notes)
+        mine: list[str] = []
+        if verify(client, c, mine):  # the registry answer is cached: this re-reads it for yanked and deprecated
+            judge(client, c, tiers, osi, allow_copyleft)
+        else:
             c.status, c.gates = UNVERIFIED, {"G1": f"{FAIL} (not verified on {ecosystem}: see the notes)"}
+        notes += [m.removeprefix("dropped ") for m in mine]
         out.append(c)
     return {
         "mode": "check",
