@@ -278,11 +278,11 @@ def run(a: argparse.Namespace) -> int:
         case "status":
             print(workflow.status(a.json))
         case "check":
-            return gate.check(command_map(), full=a.full, use_cache=not a.no_cache)
+            return gate.check(command_map(), command_help(), full=a.full, use_cache=not a.no_cache)
         case "test":
             return gate.test(a.paths, a.affected, a.slow, a.n)
         case "docs":
-            changed = docs.write()
+            changed = docs.write(command_help())
             print("updated: " + ", ".join(changed) if changed else "generated docs already current")
         case "code":
             print(
