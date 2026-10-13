@@ -697,3 +697,56 @@ def test_a_tls_error_is_unverified_not_a_problem(net):
     _, problems, notes = citecheck.check_notes([_note(tmp, url)])
     assert problems == [] and len(notes) == 1 and "unverified (TLS)" in notes[0]
     assert calls.count(url) == 1  # a certificate error is not transient: no retry, never an insecure one
+
+
+def _crossref(title: str, *updates: tuple[str, str]) -> str:
+    """A Crossref works answer whose `updated-by` lists (type, notice DOI) pairs, as Retraction Watch data fills it."""
+    by = [{"DOI": d, "type": t, "label": t.title(), "source": "retraction-watch"} for t, d in updates]
+    return json.dumps({"message": {"title": [title], "updated-by": by}})
+
+
+def test_a_doi_crossref_marks_retracted_is_a_problem_naming_the_notice(net):
+    answers, _, tmp = net
+    answers["https://api.crossref.org/works/10.1016/s0140-6736%2897%2911096-0"] = (
+        200,
+        _crossref("RETRACTED: Ileal-lymphoid-nodular hyperplasia", ("correction", "10.1/c"), ("retraction", "10.1/r")),
+    )
+    _, problems, _ = citecheck.check_notes([_note(tmp, "https://doi.org/10.1016/s0140-6736(97)11096-0")])
+    assert len(problems) == 1 and "RETRACTED" in problems[0] and "https://doi.org/10.1/r" in problems[0]
+
+
+@pytest.mark.parametrize("kind", ["withdrawal", "removal"])
+def test_a_withdrawn_or_removed_doi_is_a_problem_too(net, kind):
+    answers, _, tmp = net
+    answers["https://api.crossref.org/works/10.1234/x"] = (200, _crossref("T", (kind, "10.1/n")))
+    _, problems, _ = citecheck.check_notes([_note(tmp, "https://doi.org/10.1234/x")])
+    assert (
+        len(problems) == 1
+        and "RETRACTED" in problems[0]
+        and kind in problems[0]
+        and "https://doi.org/10.1/n" in problems[0]
+    )
+
+
+@pytest.mark.parametrize("kind", ["expression_of_concern", "partial_retraction"])
+def test_a_concern_or_partial_retraction_is_a_note_not_a_problem(net, kind):
+    answers, _, tmp = net
+    answers["https://api.crossref.org/works/10.1234/x"] = (200, _crossref("T", (kind, "10.1/n")))
+    _, problems, notes = citecheck.check_notes([_note(tmp, "https://doi.org/10.1234/x")])
+    assert problems == [] and len(notes) == 1 and "https://doi.org/10.1/n" in notes[0]
+
+
+def test_a_doi_with_only_corrections_passes(net):
+    answers, _, tmp = net
+    answers["https://api.crossref.org/works/10.1234/x"] = (200, _crossref("T", ("correction", "10.1/c")))
+    _, problems, notes = citecheck.check_notes([_note(tmp, "https://doi.org/10.1234/x")])
+    assert problems == [] and notes == []
+
+
+def test_a_cached_doi_from_before_retraction_checks_is_checked_again(net):
+    answers, _, tmp = net
+    url = "https://doi.org/10.1234/x"
+    (tmp / "cite-cache.json").write_text(json.dumps({url: {"t": 9e99, "ok": True, "title": "T"}}))
+    answers["https://api.crossref.org/works/10.1234/x"] = (200, _crossref("T", ("retraction", "10.1/r")))
+    _, problems, _ = citecheck.check_notes([_note(tmp, url)])
+    assert len(problems) == 1 and "RETRACTED" in problems[0]
