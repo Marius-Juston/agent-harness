@@ -64,22 +64,40 @@ def rank(cands: list[dict], cfg: dict, n: int = 10) -> list[dict]:
 
 def metrics(top: list[str], gold: set[str], holds: list[bool]) -> dict:
     r = next((k + 1 for k, nm in enumerate(top) if nm in gold), 0)
-    return {"hit1": float(r == 1), "hit3": float(0 < r <= 3), "hit10": float(r > 0), "mrr": 1 / r if r else 0.0,
-            "hold3": sum(holds[:3]) / max(1, min(3, len(holds)))}
+    return {
+        "hit1": float(r == 1),
+        "hit3": float(0 < r <= 3),
+        "hit10": float(r > 0),
+        "mrr": 1 / r if r else 0.0,
+        "hold3": sum(holds[:3]) / max(1, min(3, len(holds))),
+    }
 
 
 def table(rows: dict[str, list[dict]], base: str | None) -> None:
-    print("| arm | n | hit@3 [95% CI] | hit@1 | hit@10 | MRR | HOLD share of top 3 | hit@3 minus " + (base or "-") + " [95% CI] |")
+    print(
+        "| arm | n | hit@3 [95% CI] | hit@1 | hit@10 | MRR | HOLD share of top 3 | hit@3 minus "
+        + (base or "-")
+        + " [95% CI] |"
+    )
     print("|---|---|---|---|---|---|---|---|")
     for k, rs in rows.items():
         n = len(rs)
         h3 = rb.boot([r["hit3"] for r in rs])
-        d = rb.boot([a["hit3"] - b["hit3"] for a, b in zip(rs, rows[base], strict=True)]) if base and k != base else None
+        d = (
+            rb.boot([a["hit3"] - b["hit3"] for a, b in zip(rs, rows[base], strict=True)])
+            if base and k != base
+            else None
+        )
 
         def avg(key: str, rs: list[dict] = rs, n: int = n) -> float:
             return sum(r[key] for r in rs) / n
-        print(f"| {k} | {n} | {h3[0]:.2f} [{h3[1]:.2f}, {h3[2]:.2f}] | {avg('hit1'):.2f} | {avg('hit10'):.2f} | "
-              f"{avg('mrr'):.2f} | {avg('hold3'):.2f} | " + (f"{d[0]:+.2f} [{d[1]:+.2f}, {d[2]:+.2f}]" if d else "-") + " |")
+
+        print(
+            f"| {k} | {n} | {h3[0]:.2f} [{h3[1]:.2f}, {h3[2]:.2f}] | {avg('hit1'):.2f} | {avg('hit10'):.2f} | "
+            f"{avg('mrr'):.2f} | {avg('hold3'):.2f} | "
+            + (f"{d[0]:+.2f} [{d[1]:+.2f}, {d[2]:+.2f}]" if d else "-")
+            + " |"
+        )
 
 
 def main() -> None:
@@ -101,10 +119,14 @@ def main() -> None:
         gold = text[i]["gold"]
         cands = snaps[i]["candidates"]
         recalled = {repo_name(c) for c in cands}
-        rows.setdefault("recall: any gold in the pool", []).append({**metrics([], gold, []), "hit10": float(bool(gold & recalled))})
+        rows.setdefault("recall: any gold in the pool", []).append(
+            {**metrics([], gold, []), "hit10": float(bool(gold & recalled))}
+        )
         for k, cfg in configs.items():
             top = rank([dict(c) for c in cands], cfg)
-            rows.setdefault(k, []).append(metrics([repo_name(c) for c in top], gold, [c["status"] == "HOLD" for c in top]))
+            rows.setdefault(k, []).append(
+                metrics([repo_name(c) for c in top], gold, [c["status"] == "HOLD" for c in top])
+            )
     if "--b0" in sys.argv:
         answers = json.loads(Path(sys.argv[sys.argv.index("--b0") + 1]).read_text())
         for i in ids:
@@ -120,7 +142,9 @@ def main() -> None:
             m["hold3"] = sum(missing) / max(1, len(names))  # harm here = names PyPI does not know
             rows.setdefault("B0 agent memory (harm = name not on PyPI)", []).append(m)
     pool = rows.pop("recall: any gold in the pool")
-    print(f"gold anywhere in the recalled pool (ceiling for every config): {sum(r['hit10'] for r in pool) / len(pool):.2f}\n")
+    print(
+        f"gold anywhere in the recalled pool (ceiling for every config): {sum(r['hit10'] for r in pool) / len(pool):.2f}\n"
+    )
     table(rows, "R0" if "R0" in rows else None)
     digest = hashlib.sha256((HERE / "data" / "configs.json").read_bytes()).hexdigest()
     print(f"\nconfigs.json sha256 {digest}")

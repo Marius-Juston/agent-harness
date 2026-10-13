@@ -34,14 +34,31 @@ def main() -> None:
     answers: dict = json.loads(OUT.read_text()) if OUT.exists() else {}
     models = set()
     for s in range(0, len(needs), BATCH):
-        batch = needs[s:s + BATCH]
+        batch = needs[s : s + BATCH]
         if all(n["id"] in answers for n in batch):
             continue
         prompt = template.replace("<NEEDS>", json.dumps(batch, indent=1))
         with tempfile.TemporaryDirectory() as empty:
-            r = subprocess.run(["claude", "-p", "--tools", "", "--strict-mcp-config", "--setting-sources", "",
-                                "--output-format", "json", *MODEL], input=prompt, capture_output=True, text=True, cwd=empty,
-                               timeout=1800, check=False)
+            r = subprocess.run(
+                [
+                    "claude",
+                    "-p",
+                    "--tools",
+                    "",
+                    "--strict-mcp-config",
+                    "--setting-sources",
+                    "",
+                    "--output-format",
+                    "json",
+                    *MODEL,
+                ],
+                input=prompt,
+                capture_output=True,
+                text=True,
+                cwd=empty,
+                timeout=1800,
+                check=False,
+            )
         rep = json.loads(r.stdout)
         models |= set((rep.get("modelUsage") or {}).keys())
         text = rep.get("result") or ""
@@ -53,9 +70,11 @@ def main() -> None:
         answers["_model"] = sorted(models | set(answers.get("_model", "").split(",")) - {""})
         answers["_model"] = ",".join(answers["_model"])
         answers["_date"] = time.strftime("%Y-%m-%d")
-        answers["_how"] = (f"claude -p {' '.join(MODEL)} --tools '' --strict-mcp-config --setting-sources '' "
-                           f"--output-format json from an "
-                           f"empty directory; prompt = {PROMPT.name} body with {INPUT.name}, batches of {BATCH}")
+        answers["_how"] = (
+            f"claude -p {' '.join(MODEL)} --tools '' --strict-mcp-config --setting-sources '' "
+            f"--output-format json from an "
+            f"empty directory; prompt = {PROMPT.name} body with {INPUT.name}, batches of {BATCH}"
+        )
         answers.update(EXTRA)
         OUT.write_text(json.dumps(answers, indent=1))
 

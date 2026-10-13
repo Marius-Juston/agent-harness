@@ -33,18 +33,31 @@ def main() -> None:
     rest = sorted(n["id"] for n in a if n["id"] not in forced)
     random.Random("169-split").shuffle(rest)  # noqa: S311 (split, not security)
     a_tune = forced + rest[: 48 - len(forced)]
-    a_test = rest[48 - len(forced):]
+    a_test = rest[48 - len(forced) :]
     tune = sorted(a_tune) + sorted(n["id"] for n in p)
     test = sorted(a_test) + sorted(n["id"] for n in m)
     by_id = {n["id"]: n for n in [*text, *m]}
     tune_gold = set().union(*(by_id[i]["gold"] for i in tune))
-    overlaps = sorted([i for i in test if by_id[i]["gold"] & tune_gold]
-                      + [c["id"] for c in rb.CODE_CASES if rb.canon(c["gold"]) & tune_gold])
-    split = {"protocol": "PROTOCOL.md (lead, 2026-10-13)", "rules": __doc__.split("Rules")[1].strip(),
-             "tune": tune, "test": test, "code_test": [c["id"] for c in rb.CODE_CASES],
-             "forced_to_tune_by_pilot_overlap": forced, "overlaps_tune": overlaps,
-             "counts": {"tune_A": len(a_tune), "tune_P": len(p), "test_A": len(a_test), "test_M": len(m),
-                        "code_test": len(rb.CODE_CASES)}}
+    overlaps = sorted(
+        [i for i in test if by_id[i]["gold"] & tune_gold]
+        + [c["id"] for c in rb.CODE_CASES if rb.canon(c["gold"]) & tune_gold]
+    )
+    split = {
+        "protocol": "PROTOCOL.md (lead, 2026-10-13)",
+        "rules": __doc__.split("Rules")[1].strip(),
+        "tune": tune,
+        "test": test,
+        "code_test": [c["id"] for c in rb.CODE_CASES],
+        "forced_to_tune_by_pilot_overlap": forced,
+        "overlaps_tune": overlaps,
+        "counts": {
+            "tune_A": len(a_tune),
+            "tune_P": len(p),
+            "test_A": len(a_test),
+            "test_M": len(m),
+            "code_test": len(rb.CODE_CASES),
+        },
+    }
     out = Path(__file__).resolve().parent / "data" / "split.json"
     if out.exists():
         sys.exit(f"{out} exists: the split is frozen. Delete it only if no tuning run has used it.")

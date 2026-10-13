@@ -32,7 +32,9 @@ def main() -> None:
     k = len(rows)
     extra = [r for r in rows if r[3]]
     only = [r for r in rows if r[2] and not r[1]]
-    print(f"TUNE needs: {k}; gold in dev reuse pool {sum(r[1] for r in rows)}; gold in index top 100 {sum(r[2] for r in rows)}")
+    print(
+        f"TUNE needs: {k}; gold in dev reuse pool {sum(r[1] for r in rows)}; gold in index top 100 {sum(r[2] for r in rows)}"
+    )
     print(f"needs with a gold library in index top 100 absent from the pool: {len(extra)}/{k} = {len(extra) / k:.2f}")
     print(f"needs whose only recalled gold is from the index: {len(only)}/{k} = {len(only) / k:.2f}")
     for r in extra:

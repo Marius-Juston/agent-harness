@@ -21,8 +21,10 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 RRF_K, TOP, DEPTH = 60, 100, 1000
 MODELS = {"potion": "minishlab/potion-retrieval-32M", "qwen": "Qwen/Qwen3-Embedding-0.6B"}
-INSTRUCT = ("Instruct: Given a description of a programming need or a code snippet, retrieve Python packages that "
-            "provide it\nQuery: ")
+INSTRUCT = (
+    "Instruct: Given a description of a programming need or a code snippet, retrieve Python packages that "
+    "provide it\nQuery: "
+)
 
 
 def arg(name: str, default: str | None = None) -> str | None:
@@ -32,9 +34,11 @@ def arg(name: str, default: str | None = None) -> str | None:
 def encoder(kind: str):
     if kind == "potion":
         from model2vec import StaticModel
+
         m = StaticModel.from_pretrained(MODELS[kind])
         return lambda texts, query=False: m.encode(texts, batch_size=4096)
     from sentence_transformers import SentenceTransformer
+
     m = SentenceTransformer(MODELS[kind], device="cuda", model_kwargs={"torch_dtype": "bfloat16"})
     m.max_seq_length = 512
 
@@ -42,23 +46,31 @@ def encoder(kind: str):
         if query:
             return m.encode([INSTRUCT + t for t in texts], normalize_embeddings=True)
         order = np.argsort([len(t) for t in texts])[::-1]  # length-sorted batches: far less padding
-        out = m.encode([texts[i] for i in order], batch_size=128, normalize_embeddings=True, show_progress_bar=True,
-                       convert_to_numpy=True)
+        out = m.encode(
+            [texts[i] for i in order],
+            batch_size=128,
+            normalize_embeddings=True,
+            show_progress_bar=True,
+            convert_to_numpy=True,
+        )
         res = np.empty_like(out)
         res[order] = out
         return res
+
     return enc
 
 
 def build(corpus: Path, out: Path, kind: str) -> None:
     import bm25s
+
     out.mkdir(parents=True, exist_ok=True)
     rows = [json.loads(line) for line in corpus.open()]
     (out / "names.json").write_text(json.dumps([[r["name"], r["repo"]] for r in rows]))
     if not (out / "bm25").exists():
         t0 = time.time()
-        toks = bm25s.tokenize([f"{r['name']} {r['name'].replace('-', ' ').replace('_', ' ')} {r['text']}" for r in rows],
-                              stopwords="en")
+        toks = bm25s.tokenize(
+            [f"{r['name']} {r['name'].replace('-', ' ').replace('_', ' ')} {r['text']}" for r in rows], stopwords="en"
+        )
         bm = bm25s.BM25(k1=1.5, b=0.75)
         bm.index(toks)
         bm.save(str(out / "bm25"))
@@ -79,9 +91,13 @@ def needs(split_name: str) -> list[dict]:
 
 def query(idx: Path, kind: str, out: Path) -> None:
     import bm25s
+
     names = json.loads((idx / "names.json").read_text())
-    texts = ([json.loads(line)["text"] for line in Path(arg("--corpus")).read_text().splitlines()] if arg("--corpus")
-             else [""] * len(names))
+    texts = (
+        [json.loads(line)["text"] for line in Path(arg("--corpus")).read_text().splitlines()]
+        if arg("--corpus")
+        else [""] * len(names)
+    )
     bm = bm25s.BM25.load(str(idx / "bm25"))
     v = np.load(idx / f"dense-{kind}.npy", mmap_mode="r")
     enc = encoder(kind)
@@ -99,8 +115,15 @@ def query(idx: Path, kind: str, out: Path) -> None:
             for r, j in enumerate(lst):
                 fused[j] = fused.get(j, 0.0) + 1.0 / (RRF_K + r + 1)
         top = sorted(fused, key=lambda j: -fused[j])[:TOP]
-        res[n["id"]] = [{"name": names[j][0], "repo": names[j][1], "rrf": round(fused[j], 5),
-                         "desc": texts[j].split(" . ", 1)[0].removeprefix(names[j][0]).strip()[:300]} for j in top]
+        res[n["id"]] = [
+            {
+                "name": names[j][0],
+                "repo": names[j][1],
+                "rrf": round(fused[j], 5),
+                "desc": texts[j].split(" . ", 1)[0].removeprefix(names[j][0]).strip()[:300],
+            }
+            for j in top
+        ]
     out.write_text(json.dumps(res))
     print(f"top {TOP} for {len(res)} needs -> {out}")
 

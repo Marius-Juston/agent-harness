@@ -38,6 +38,7 @@ def main() -> None:
         print(f"{n['id']}: {n['q0']}", flush=True)
     sys.argv = [sys.argv[0], OUT, "--split", "code_test"]
     import run_reuse_snapshot as rrs
+
     rrs.needs_for = lambda _split: needs
     rrs.main()
 

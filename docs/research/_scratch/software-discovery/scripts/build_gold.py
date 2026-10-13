@@ -40,7 +40,7 @@ def parse(md: str) -> list[dict]:
             cur = {"section": sec, "sub": sub, "desc": desc, "gold": []}
             needs.append(cur)
             continue
-        if line.startswith("- ["):  # an item directly under the section
+        if line.startswith("- ["):  # an item directly under the section  # noqa: SIM102 - research script, kept as run
             if not needs or needs[-1]["section"] != sec or needs[-1]["sub"] is not None:
                 cur = {"section": sec, "sub": None, "desc": desc, "gold": []}
                 needs.append(cur)

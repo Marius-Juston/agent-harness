@@ -167,8 +167,13 @@ def rank(cands: list[dict], cfg: dict, force: str = "", n: int = 10, cut: int | 
 
 def metrics(repos: list[str], gold: set[str], harm: list[bool]) -> dict:
     r = next((k + 1 for k, nm in enumerate(repos[:10]) if nm in gold), 0)
-    return {"hit1": float(r == 1), "hit3": float(0 < r <= 3), "hit10": float(r > 0), "mrr": 1 / r if r else 0.0,
-            "harm3": sum(harm[:3]) / len(harm[:3]) if harm else 0.0}
+    return {
+        "hit1": float(r == 1),
+        "hit3": float(0 < r <= 3),
+        "hit10": float(r > 0),
+        "mrr": 1 / r if r else 0.0,
+        "harm3": sum(harm[:3]) / len(harm[:3]) if harm else 0.0,
+    }
 
 
 def find_named(d: dict, name: str) -> dict | None:
@@ -216,16 +221,21 @@ def b_arms(d: dict, names: list[str], gold: set[str]) -> tuple[dict, dict, list]
 
 
 def table(rows: dict[str, list[dict]], ids: list[str], base: list[str], strata: dict[str, set[str]]) -> list[str]:
-    out = ["| arm | hit@3 [95% CI] | hit@1 | hit@10 | MRR | harm share of top 3 | harm without licence | "
-           + " | ".join(f"hit@3 minus {b} [95% CI]" for b in base) + " | "
-           + " | ".join(f"hit@3 {s} (n={len(v)})" for s, v in strata.items()) + " |",
-           "|---" * (7 + len(base) + len(strata)) + "|"]
+    out = [
+        "| arm | hit@3 [95% CI] | hit@1 | hit@10 | MRR | harm share of top 3 | harm without licence | "
+        + " | ".join(f"hit@3 minus {b} [95% CI]" for b in base)
+        + " | "
+        + " | ".join(f"hit@3 {s} (n={len(v)})" for s, v in strata.items())
+        + " |",
+        "|---" * (7 + len(base) + len(strata)) + "|",
+    ]
     for k, rs in rows.items():
         n = len(rs)
         h3 = rb.boot([r["hit3"] for r in rs])
 
         def avg(key: str, rs: list[dict] = rs, n: int = n) -> float:
             return sum(r[key] for r in rs) / n
+
         diffs = []
         for b in base:
             if b == k or b not in rows:
@@ -234,9 +244,14 @@ def table(rows: dict[str, list[dict]], ids: list[str], base: list[str], strata: 
             d = rb.boot([a["hit3"] - c["hit3"] for a, c in zip(rs, rows[b], strict=True)])
             diffs.append(f"{d[0]:+.2f} [{d[1]:+.2f}, {d[2]:+.2f}]")
         st = [sum(r["hit3"] for i, r in zip(ids, rs, strict=True) if i in v) / max(1, len(v)) for v in strata.values()]
-        out.append(f"| {k} | {h3[0]:.2f} [{h3[1]:.2f}, {h3[2]:.2f}] | {avg('hit1'):.2f} | {avg('hit10'):.2f} | "
-                   f"{avg('mrr'):.2f} | {avg('harm3'):.2f} | {avg('harm3_nolic'):.2f} | " + " | ".join(diffs) + " | "
-                   + " | ".join(f"{x:.2f}" for x in st) + " |")
+        out.append(
+            f"| {k} | {h3[0]:.2f} [{h3[1]:.2f}, {h3[2]:.2f}] | {avg('hit1'):.2f} | {avg('hit10'):.2f} | "
+            f"{avg('mrr'):.2f} | {avg('harm3'):.2f} | {avg('harm3_nolic'):.2f} | "
+            + " | ".join(diffs)
+            + " | "
+            + " | ".join(f"{x:.2f}" for x in st)
+            + " |"
+        )
     return out
 
 
@@ -247,11 +262,13 @@ def display(c: dict) -> str:
 def shortlist_line(k: int, c: dict) -> str:
     gates = "; ".join(f"{g} {v}" for g, v in (c.get("gates") or {}).items() if not v.startswith(("pass", "n/a")))
     desc = re.sub(r"\s+", " ", c.get("description") or "")[:160]
-    return (f"{k}. {display(c)} | {c['status'].upper()}{' (' + gates + ')' if gates else ''} | {desc} | "
-            f"stars {c.get('stars') if c.get('stars') is not None else '?'} | downloads/month "
-            f"{c.get('downloads_month') if c.get('downloads_month') is not None else '?'} | dependents "
-            f"{c.get('dependents') if c.get('dependents') is not None else '?'} | last release "
-            f"{c.get('last_release') or '?'} | licence {c.get('license') or '?'}")
+    return (
+        f"{k}. {display(c)} | {c['status'].upper()}{' (' + gates + ')' if gates else ''} | {desc} | "
+        f"stars {c.get('stars') if c.get('stars') is not None else '?'} | downloads/month "
+        f"{c.get('downloads_month') if c.get('downloads_month') is not None else '?'} | dependents "
+        f"{c.get('dependents') if c.get('dependents') is not None else '?'} | last release "
+        f"{c.get('last_release') or '?'} | licence {c.get('license') or '?'}"
+    )
 
 
 def miss_cause(top: list[dict], gold: set[str], pool: list[dict]) -> str:
@@ -274,12 +291,15 @@ def main() -> None:
     def answers_of(path: str) -> dict:
         raw = json.loads(Path(path).read_text())
         return {idmap.get(k, k): v for k, v in raw.items()}
+
     if SPLIT == "code_test":  # set C: `dev reuse --from` alone, R0 vs R4 (PROTOCOL 7: never tuned on)
         a1 = load(Path(opt("--a1")), allowed)
         ids = [i for i in split["code_test"] if i in a1]
         with (HERE / "data" / "TEST_RUNS.log").open("a") as fh:
-            fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} r3_score.py TEST run #1 for set C ({len(ids)} cases, "
-                     f"`dev reuse --from`, R0 and R4), argv={ARGS}\n")
+            fh.write(
+                f"{time.strftime('%Y-%m-%dT%H:%M:%S')} r3_score.py TEST run #1 for set C ({len(ids)} cases, "
+                f"`dev reuse --from`, R0 and R4), argv={ARGS}\n"
+            )
         rows: dict[str, list[dict]] = {}
         lines = []
         for i in ids:
@@ -288,8 +308,10 @@ def main() -> None:
                 rows.setdefault(f"A1 {k} (--from)", []).append(arm_metrics(top, text[i]["gold"]))
                 if k == "R4":
                     m = rows["A1 R4 (--from)"][-1]
-                    lines.append(f"- {i}: query `{a1[i]['queries'][0]}`; top 3 {[c['name'] for c in top[:3]]}; "
-                                 + ("hit@3" if m["hit3"] else miss_cause(top, text[i]["gold"], a1[i]["candidates"])))
+                    lines.append(
+                        f"- {i}: query `{a1[i]['queries'][0]}`; top 3 {[c['name'] for c in top[:3]]}; "
+                        + ("hit@3" if m["hit3"] else miss_cause(top, text[i]["gold"], a1[i]["candidates"]))
+                    )
         print("\n".join([f"C cases scored: {len(ids)}", *table(rows, ids, ["A1 R0 (--from)"], {}), "", *lines]))
         return
     a2 = load(Path(opt("--a2")), allowed)
@@ -315,10 +337,14 @@ def main() -> None:
         k = len(rows)
         extra = [r for r in rows if r[3]]
         only = [r for r in rows if r[2] and not r[1]]
-        print(f"{SPLIT} needs {k}; gold in the A2 pool {sum(r[1] for r in rows)}; gold in index top 100 "
-              f"{sum(r[2] for r in rows)}")
-        print(f"headroom (PROTOCOL 16): needs with a gold repository in index top 100 absent from the A2 pool: "
-              f"{len(extra)}/{k} = {len(extra) / k:.3f}")
+        print(
+            f"{SPLIT} needs {k}; gold in the A2 pool {sum(r[1] for r in rows)}; gold in index top 100 "
+            f"{sum(r[2] for r in rows)}"
+        )
+        print(
+            f"headroom (PROTOCOL 16): needs with a gold repository in index top 100 absent from the A2 pool: "
+            f"{len(extra)}/{k} = {len(extra) / k:.3f}"
+        )
         print(f"needs whose only recalled gold is from the index: {len(only)}/{k} = {len(only) / k:.3f}")
         for r in extra:
             print(f"- {r[0]}: {', '.join(r[3])}")
@@ -327,11 +353,15 @@ def main() -> None:
     ids = [i for i in split[SPLIT] if i in a1 and i in a2]
     if SPLIT == "test":
         with (HERE / "data" / "TEST_RUNS.log").open("a") as fh:
-            fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} r3_score.py TEST run (A and M, {len(ids)} needs), "
-                     f"argv={ARGS}\n")
+            fh.write(
+                f"{time.strftime('%Y-%m-%dT%H:%M:%S')} r3_score.py TEST run (A and M, {len(ids)} needs), argv={ARGS}\n"
+            )
     heads = json.loads((HERE / "data" / "head_flags.json").read_text())
-    strata = {s: {i for i in ids if text[i]["stratum"] == s} for s in ("A", "P", "M") if any(
-        text[i]["stratum"] == s for i in ids)}
+    strata = {
+        s: {i for i in ids if text[i]["stratum"] == s}
+        for s in ("A", "P", "M")
+        if any(text[i]["stratum"] == s for i in ids)
+    }
     strata |= {"top-1,000": {i for i in ids if heads.get(i)}, "long tail": {i for i in ids if not heads.get(i)}}
     if SPLIT == "test":
         strata["no TUNE overlap"] = {i for i in ids if i not in set(split["overlaps_tune"])}
@@ -348,8 +378,11 @@ def main() -> None:
         if SPLIT == "tune":
             raw = rank(a1[i]["candidates"], configs["R0"])
             rows.setdefault("A1 = R0, uncanonicalised (round-1 check)", []).append(
-                {**metrics([cand_repo(c, raw=True) for c in raw], gold, [c["status"] == "HOLD" for c in raw]),
-                 "harm3_nolic": sum(nolic_harm(c) for c in raw[:3]) / len(raw[:3]) if raw else 0.0})
+                {
+                    **metrics([cand_repo(c, raw=True) for c in raw], gold, [c["status"] == "HOLD" for c in raw]),
+                    "harm3_nolic": sum(nolic_harm(c) for c in raw[:3]) / len(raw[:3]) if raw else 0.0,
+                }
+            )
         for pool, snap, force in (("A1", a1, ""), ("A2", a2, "agent")):
             cands = cands_of(snap[i])
             pool_hit[pool].append(in_gold({c.get("repo") or "" for c in cands}, gold))
@@ -365,7 +398,9 @@ def main() -> None:
         rows.setdefault("B1", []).append(b1)
         if not b1["hit3"]:
             why = "not named" if not any(r in gold for r, _, _ in named) else "gated out"
-            misses.setdefault("B1", []).append(f"{i}: {why} (B0 named {[c['name'] if c else '?' for _, _, c in named]})")
+            misses.setdefault("B1", []).append(
+                f"{i}: {why} (B0 named {[c['name'] if c else '?' for _, _, c in named]})"
+            )
         if a3 is not None:
             cfg = configs[json.loads(Path(opt("--a3")).read_text())["_config"]]
             short = {display(c): c for c in rank(cands_of(a2[i]), cfg, "agent", cut=20)}
@@ -374,20 +409,29 @@ def main() -> None:
             if not rows["A3"][-1]["hit3"]:
                 inshort = [c for c in short.values() if in_gold({c.get("repo") or ""}, gold)]
                 misses.setdefault("A3", []).append(
-                    f"{i}: " + ("on the shortlist but not picked in the top 3 (" + ", ".join(c["name"] for c in inshort)
-                                + ")" if inshort else "not on the shortlist: " + miss_cause([], gold, cands_of(a2[i]))))
+                    f"{i}: "
+                    + (
+                        "on the shortlist but not picked in the top 3 (" + ", ".join(c["name"] for c in inshort) + ")"
+                        if inshort
+                        else "not on the shortlist: " + miss_cause([], gold, cands_of(a2[i]))
+                    )
+                )
         for name, snap in extra.items():
             for k, cfg in show.items():
                 if SPLIT == "test" and k != "R4":
                     continue
                 top = rank(cands_of(snap[i]), cfg, "agent")
                 rows.setdefault(f"{name} {k} (exploratory)" if SPLIT == "test" else f"{name} {k}", []).append(
-                    arm_metrics(top, gold))
+                    arm_metrics(top, gold)
+                )
         per_need[i] = {k: v[-1]["hit3"] for k, v in rows.items()}
     base = ["B1", "A1 R0"] + (["A2 R4"] if SPLIT == "test" else [])
-    lines = [f"{SPLIT.upper()} needs scored: {len(ids)} of {len(split[SPLIT])}",
-             f"gold anywhere in the A1 pool {sum(pool_hit['A1']) / len(ids):.2f}; in the A2 pool "
-             f"{sum(pool_hit['A2']) / len(ids):.2f}", ""]
+    lines = [
+        f"{SPLIT.upper()} needs scored: {len(ids)} of {len(split[SPLIT])}",
+        f"gold anywhere in the A1 pool {sum(pool_hit['A1']) / len(ids):.2f}; in the A2 pool "
+        f"{sum(pool_hit['A2']) / len(ids):.2f}",
+        "",
+    ]
     lines += table(rows, ids, base, strata)
     if SPLIT == "test":
         lines += ["", "Paired hit@3 differences within strata [95% CI]:"]
@@ -409,14 +453,17 @@ def main() -> None:
             lines += [f"  - {m}" for m in ms]
     print("\n".join(lines))
     if "--choose" in ARGS:
+
         def key(k: str) -> tuple:
             m = sum(r["hit3"] for r in rows[f"A2 {k}"]) / len(ids)
             return (-round(m, 6), configs[k]["complexity"], k)
+
         ranked = sorted(configs, key=key)
         print("\nchoice order on the A2 pool (hit@3, then complexity, then id): " + ", ".join(ranked))
     if opt("--json"):
-        Path(opt("--json")).write_text(json.dumps({"ids": ids, "rows": rows, "per_need": per_need,
-                                                   "misses": misses}, indent=1))
+        Path(opt("--json")).write_text(
+            json.dumps({"ids": ids, "rows": rows, "per_need": per_need, "misses": misses}, indent=1)
+        )
 
 
 if __name__ == "__main__":

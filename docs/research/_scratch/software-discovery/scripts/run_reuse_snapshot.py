@@ -41,6 +41,7 @@ def needs_for(split_name: str) -> list[dict]:
     if "--bench-cache" in sys.argv and any(i.startswith("migration / ") for i in split[split_name]):
         sys.argv[1:1] = [sys.argv[sys.argv.index("--bench-cache") + 1]]  # recall_bench reads its cache from argv[1]
         import recall_bench as rb
+
         mig = {n["id"]: n for n in rb.load_migration_needs(sample=False)}
         del sys.argv[1]
         for i in split[split_name]:
@@ -71,9 +72,11 @@ def main() -> None:
         # Enough for every config in configs.json at n = 10: the 2n best by prior (prior2n), the n best by R, and every
         # candidate within 0.20 of the best R (the union rule's adoption pool and both tier rules).
         best = max((c.relevance for c in found), default=0.0)
-        enrich_set = ({c.key() for c in sorted(found, key=lambda c: -c.prior)[:2 * N]}
-                      | {c.key() for c in sorted(found, key=lambda c: -c.relevance)[:N]}
-                      | {c.key() for c in found if c.relevance >= best - FLOOR})
+        enrich_set = (
+            {c.key() for c in sorted(found, key=lambda c: -c.prior)[: 2 * N]}
+            | {c.key() for c in sorted(found, key=lambda c: -c.relevance)[:N]}
+            | {c.key() for c in found if c.relevance >= best - FLOOR}
+        )
         rows = []
         for c in found:
             if c.key() not in enrich_set:
@@ -90,10 +93,22 @@ def main() -> None:
             if flag := reuse.osi_flag(c.license, osi):
                 c.flags.append(flag)
             rows.append({key: v for key, v in dataclasses.asdict(c).items() if key != "record"})
-        f.write_text(json.dumps({"id": n["id"], "queries": queries, "rerank": rerank, "seconds": round(time.time() - t0, 1),
-                                 "date": time.strftime("%Y-%m-%d"), "candidates": rows,
-                                 "notes": list(dict.fromkeys(notes))}, default=str))
+        f.write_text(
+            json.dumps(
+                {
+                    "id": n["id"],
+                    "queries": queries,
+                    "rerank": rerank,
+                    "seconds": round(time.time() - t0, 1),
+                    "date": time.strftime("%Y-%m-%d"),
+                    "candidates": rows,
+                    "notes": list(dict.fromkeys(notes)),
+                },
+                default=str,
+            )
+        )
         print(f"{k + 1}/{len(needs)} {n['id']}: {len(rows)} candidates, {time.time() - t0:.0f}s", flush=True)
+
 
 if __name__ == "__main__":
     main()

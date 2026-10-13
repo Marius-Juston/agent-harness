@@ -18,8 +18,12 @@ texts = [f"{r['name']} {r['summary']} {' '.join(r['keywords'][:10])}" for r in r
 t = time.time()
 v = m.encode(texts)
 dt = time.time() - t
-print(f"rows {len(rows)} with summary {sum(bool(r['summary']) for r in rows)} with repo {sum(bool(r['repo']) for r in rows)}")
+print(
+    f"rows {len(rows)} with summary {sum(bool(r['summary']) for r in rows)} with repo {sum(bool(r['repo']) for r in rows)}"
+)
 print(f"min downloads in top {len(rows)}: {min(r['downloads'] for r in rows)}")
 print(f"embed {len(texts)} texts: {dt:.1f}s = {len(texts) / dt:.0f}/s; dim {v.shape[1]}; float32 bytes {v.nbytes}")
-print(f"extrapolated {ALL_PYPI:,} packages: {ALL_PYPI / (len(texts) / dt) / 60:.1f} min, "
-      f"{ALL_PYPI * v.shape[1] * 4 / 1e6:.0f} MB float32")
+print(
+    f"extrapolated {ALL_PYPI:,} packages: {ALL_PYPI / (len(texts) / dt) / 60:.1f} min, "
+    f"{ALL_PYPI * v.shape[1] * 4 / 1e6:.0f} MB float32"
+)

@@ -43,8 +43,39 @@ DATA = HERE / "data"
 CACHE = Path(sys.argv[1])
 CACHE.mkdir(parents=True, exist_ok=True)
 UA = {"User-Agent": "agent-harness-recall-bench/0.1 (research; github.com/Marius-Juston/agent-harness)"}
-STOP = {"a", "an", "the", "of", "to", "in", "for", "with", "and", "or", "between", "two", "into", "on", "from",
-        "without", "like", "by", "as", "at", "is", "be", "it", "its", "that", "this", "your", "using", "use", "&", "-"}
+STOP = {
+    "a",
+    "an",
+    "the",
+    "of",
+    "to",
+    "in",
+    "for",
+    "with",
+    "and",
+    "or",
+    "between",
+    "two",
+    "into",
+    "on",
+    "from",
+    "without",
+    "like",
+    "by",
+    "as",
+    "at",
+    "is",
+    "be",
+    "it",
+    "its",
+    "that",
+    "this",
+    "your",
+    "using",
+    "use",
+    "&",
+    "-",
+}
 NOT_LIBS = ("/websites/", "/llmstxt/", "/context7/")
 
 
@@ -92,10 +123,12 @@ def http_json(url: str, pause: float = 0.3):
                 time.sleep(5 * (attempt + 1))
         print(f"transient failure, not cached: {url}", file=sys.stderr)
         return FAIL
+
     return cached("http", url, fetch)
 
 
 # ---------------------------------------------------------------- sources
+
 
 def gh_search(q: str, sort: str = "", n: int = 30) -> list[dict]:
     def fetch():
@@ -106,12 +139,21 @@ def gh_search(q: str, sort: str = "", n: int = 30) -> list[dict]:
             r = subprocess.run(args, capture_output=True, text=True)
             if r.returncode == 0:
                 time.sleep(2.1)  # stay under 30 searches/min
-                return [{"name": i["full_name"].lower(), "stars": i["stargazers_count"], "desc": i["description"] or "",
-                         "topics": i.get("topics", []), "src": "gh"} for i in json.loads(r.stdout)["items"]]
+                return [
+                    {
+                        "name": i["full_name"].lower(),
+                        "stars": i["stargazers_count"],
+                        "desc": i["description"] or "",
+                        "topics": i.get("topics", []),
+                        "src": "gh",
+                    }
+                    for i in json.loads(r.stdout)["items"]
+                ]
             if "422" in r.stderr or "Validation Failed" in r.stderr:
                 return []
             time.sleep(15 * (attempt + 1))
         raise RuntimeError(r.stderr)
+
     return cached("gh", f"{q}|{sort}|{n}", fetch)
 
 
@@ -123,9 +165,15 @@ def eco_keyword(kw: str) -> list[dict]:
             continue
         m = re.match(r"https://github.com/([^/]+/[^/#?]+)", (p.get("repository_url") or "").lower())
         if m:
-            out.append({"name": m.group(1).removesuffix(".git"), "desc": p.get("description") or "",
-                        "stars": (p.get("repo_metadata") or {}).get("stargazers_count") or 0,
-                        "topics": p.get("keywords_array") or [], "src": "eco"})
+            out.append(
+                {
+                    "name": m.group(1).removesuffix(".git"),
+                    "desc": p.get("description") or "",
+                    "stars": (p.get("repo_metadata") or {}).get("stargazers_count") or 0,
+                    "topics": p.get("keywords_array") or [],
+                    "src": "eco",
+                }
+            )
     return out
 
 
@@ -142,8 +190,15 @@ def c7_search(q: str) -> list[dict]:
         i = r.get("id", "")
         if i.startswith(NOT_LIBS) or i.count("/") != 2:
             continue
-        out.append({"name": i.strip("/").lower(), "desc": f"{r.get('title', '')} {r.get('description', '')}",
-                    "stars": max(r.get("stars") or 0, 0), "topics": [], "src": "c7"})
+        out.append(
+            {
+                "name": i.strip("/").lower(),
+                "desc": f"{r.get('title', '')} {r.get('description', '')}",
+                "stars": max(r.get("stars") or 0, 0),
+                "topics": [],
+                "src": "c7",
+            }
+        )
     return out
 
 
@@ -153,8 +208,15 @@ def gh_repo(full: str) -> dict | None:
         if r.returncode:
             return None
         j = json.loads(r.stdout)
-        return {"name": j["full_name"].lower(), "language": j.get("language"), "stars": j["stargazers_count"],
-                "archived": j["archived"], "topics": j.get("topics", []), "desc": j.get("description") or ""}
+        return {
+            "name": j["full_name"].lower(),
+            "language": j.get("language"),
+            "stars": j["stargazers_count"],
+            "archived": j["archived"],
+            "topics": j.get("topics", []),
+            "desc": j.get("description") or "",
+        }
+
     return cached("repo", full.lower(), fetch)
 
 
@@ -173,12 +235,14 @@ def pypi_repo(info: dict) -> str | None:
 
 # ---------------------------------------------------------------- pooling and ranking
 
+
 def terms(q: str) -> list[str]:
     return [w for w in re.findall(r"[a-z0-9+#]+(?:[-.][a-z0-9]+)*", q.lower()) if w not in STOP]
 
 
-def retrieve(queries: list[str], *, relax: bool, topics: bool, lang: bool = True, c7: bool = False,
-             gh: bool = True) -> tuple[list[list[dict]], dict[str, dict]]:
+def retrieve(
+    queries: list[str], *, relax: bool, topics: bool, lang: bool = True, c7: bool = False, gh: bool = True
+) -> tuple[list[list[dict]], dict[str, dict]]:
     """Per-query result lists (for round-robin order) and the merged pool."""
     lists: list[list[dict]] = []
     suffix = " language:python" if lang else " python"
@@ -219,6 +283,7 @@ class PypiIndex:
 
     def __init__(self, path: Path, rk: "Ranker") -> None:
         import numpy as np
+
         self.rows = [json.loads(line) for line in path.read_text().splitlines()]
         t0 = time.time()
         texts = [f"{r['name']} {r['summary']} {' '.join(r['keywords'][:10])}" for r in self.rows]
@@ -226,8 +291,10 @@ class PypiIndex:
         self.embed_seconds = time.time() - t0
         self.v = v / (np.linalg.norm(v, axis=1, keepdims=True) + 1e-9)
         self.np = np
-        print(f"PyPI index: {len(self.rows)} packages, {sum(bool(r['repo']) for r in self.rows)} with a GitHub repo, "
-              f"embedded in {self.embed_seconds:.1f}s")
+        print(
+            f"PyPI index: {len(self.rows)} packages, {sum(bool(r['repo']) for r in self.rows)} with a GitHub repo, "
+            f"embedded in {self.embed_seconds:.1f}s"
+        )
 
     def search(self, qvec, k: int = 30) -> list[dict]:
         q = qvec / (self.np.linalg.norm(qvec) + 1e-9)
@@ -239,8 +306,9 @@ class PypiIndex:
             if name in seen:
                 continue
             seen.add(name)
-            out.append({"name": name, "desc": r["summary"], "stars": r["stars"], "topics": r["keywords"][:10],
-                        "src": "pypi"})
+            out.append(
+                {"name": name, "desc": r["summary"], "stars": r["stars"], "topics": r["keywords"][:10], "src": "pypi"}
+            )
             if len(out) == k:
                 break
         return out
@@ -266,6 +334,7 @@ def round_robin(lists: list[list[dict]]) -> list[dict]:
 class Ranker:
     def __init__(self) -> None:
         from model2vec import StaticModel
+
         self.m = StaticModel.from_pretrained("minishlab/potion-base-8M")
 
     def vec(self, texts: list[str]):
@@ -274,16 +343,26 @@ class Ranker:
     def embed(self, qvec, items: list[dict], star_w: float) -> list[dict]:
         if not items:
             return []
-        vs = self.m.encode([f"{i['name'].split('/')[-1].removeprefix('pypi:')} {i['desc']} {' '.join(i['topics'])}" for i in items])
+        vs = self.m.encode(
+            [f"{i['name'].split('/')[-1].removeprefix('pypi:')} {i['desc']} {' '.join(i['topics'])}" for i in items]
+        )
         qn = math.sqrt(float((qvec * qvec).sum())) + 1e-9
-        sc = [float((v * qvec).sum()) / (math.sqrt(float((v * v).sum())) * qn + 1e-9)
-              + star_w * math.log10(1 + i["stars"]) for v, i in zip(vs, items, strict=True)]
+        sc = [
+            float((v * qvec).sum()) / (math.sqrt(float((v * v).sum())) * qn + 1e-9)
+            + star_w * math.log10(1 + i["stars"])
+            for v, i in zip(vs, items, strict=True)
+        ]
         return [i for _, i in sorted(zip(sc, items, strict=True), key=lambda t: -t[0])]
 
 
 def bm25_rank(qtext: str, items: list[dict]) -> list[dict]:
-    docs = [terms(f"{i['name'].split('/')[-1].removeprefix('pypi:').replace('-', ' ').replace('_', ' ')} {i['desc']} "
-                  f"{' '.join(i['topics']).replace('-', ' ')}") for i in items]
+    docs = [
+        terms(
+            f"{i['name'].split('/')[-1].removeprefix('pypi:').replace('-', ' ').replace('_', ' ')} {i['desc']} "
+            f"{' '.join(i['topics']).replace('-', ' ')}"
+        )
+        for i in items
+    ]
     n = len(docs) or 1
     avg = sum(map(len, docs)) / n or 1
     df: dict[str, int] = {}
@@ -297,13 +376,20 @@ def bm25_rank(qtext: str, items: list[dict]) -> list[dict]:
         for w in qt:
             tf = d.count(w)
             if tf:
-                s += math.log(1 + (n - df[w] + 0.5) / (df[w] + 0.5)) * tf * 2.2 / (tf + 1.2 * (0.25 + 0.75 * len(d) / avg))
+                s += (
+                    math.log(1 + (n - df[w] + 0.5) / (df[w] + 0.5))
+                    * tf
+                    * 2.2
+                    / (tf + 1.2 * (0.25 + 0.75 * len(d) / avg))
+                )
         return s
+
     sc = [score(d) + 0.3 * math.log10(1 + i["stars"]) for d, i in zip(docs, items, strict=True)]
     return [i for _, i in sorted(zip(sc, items, strict=True), key=lambda t: -t[0])]
 
 
 # ---------------------------------------------------------------- the three sets
+
 
 def canon(names) -> set[str]:
     out = set()
@@ -330,63 +416,231 @@ def load_text_needs() -> list[dict]:
 
 # Hand-written helpers. gold_by says who named the answer: an outside source, or the researcher (BELIEVED mapping).
 CODE_CASES = [
-    {"id": "pip retry decorator", "repo": "pypa/pip", "sha": "fb1d16609222a4a44c64bd8b12805a5e10d65a06",
-     "path": "src/pip/_internal/utils/retry.py", "symbols": ["retry"], "gold": ["jd/tenacity"],
-     "gold_by": "pip NEWS.rst: 'Remove vendored tenacity' when this helper replaced it",
-     "need": ["retry a function call on error until a deadline", "retry decorator with fixed wait", "retrying library"]},
-    {"id": "devkit backoff", "repo": "Marius-Juston/agent-harness", "sha": "3b49fdcfb2f63dc2c2526bb1a6abc31f27ec39f8",
-     "path": "devkit/backoff.py", "symbols": ["full_jitter", "hinted", "retry"],
-     "gold": ["jd/tenacity", "litl/backoff", "hynek/stamina"], "gold_by": "researcher (tenacity is in best-of-python)",
-     "need": ["retry with exponential backoff and jitter", "honour Retry-After when retrying http calls", "retrying decorator"]},
-    {"id": "devkit token bucket", "repo": "Marius-Juston/agent-harness", "sha": "3b49fdcfb2f63dc2c2526bb1a6abc31f27ec39f8",
-     "path": "devkit/lit.py", "symbols": ["take"],
-     "gold": ["tomasbasham/ratelimit", "vutran1710/pyratelimiter", "alisaifee/limits"],
-     "gold_by": "researcher (ratelimit is in best-of-python)",
-     "need": ["token bucket rate limiter", "limit calls per second across processes", "throttle api requests"]},
-    {"id": "devkit .env parser", "repo": "Marius-Juston/agent-harness", "sha": "3b49fdcfb2f63dc2c2526bb1a6abc31f27ec39f8",
-     "path": "devkit/lit.py", "symbols": ["parse_secrets"], "gold": ["theskumar/python-dotenv"],
-     "gold_by": "awesome-python Configuration Files entry ('Reads key-value pairs from a .env file')",
-     "need": ["read KEY=value pairs from a .env file", "load environment variables from dotenv file", "parse shell style env file"]},
-    {"id": "devkit safe XML parse", "repo": "Marius-Juston/agent-harness", "sha": "3b49fdcfb2f63dc2c2526bb1a6abc31f27ec39f8",
-     "path": "devkit/netsafe.py", "symbols": ["parse_xml"], "gold": ["tiran/defusedxml"],
-     "gold_by": "ruff rule S314 docs recommend defusedxml",
-     "need": ["parse untrusted XML safely without entity expansion", "XML parser that blocks DTD and XXE attacks", "secure xml parsing"]},
-    {"id": "devkit frontmatter split", "repo": "Marius-Juston/agent-harness", "sha": "3b49fdcfb2f63dc2c2526bb1a6abc31f27ec39f8",
-     "path": "devkit/frontmatter.py", "symbols": ["split"], "gold": ["eyeseast/python-frontmatter"],
-     "gold_by": "researcher",
-     "need": ["parse YAML frontmatter from markdown files", "split markdown into metadata header and body", "frontmatter parser"]},
-    {"id": "cpython levenshtein", "repo": "python/cpython", "sha": "60403a5409ff2c3f3b07dd2ca91a7a3e096839c7",
-     "path": "Lib/traceback.py", "symbols": ["_levenshtein_distance"],
-     "gold": ["rapidfuzz/rapidfuzz", "rapidfuzz/levenshtein", "seatgeek/thefuzz", "jamesturk/jellyfish"],
-     "gold_by": "awesome-python Fuzzy Matching (rapidfuzz); researcher added the other three",
-     "need": ["levenshtein edit distance between two strings", "fast string distance metrics", "fuzzy string matching"]},
-    {"id": "django slugify", "repo": "django/django", "sha": "f1d11117c6a3e227ce7cdd263cf0743f0eb73070",
-     "path": "django/utils/text.py", "symbols": ["slugify"], "gold": ["un33k/python-slugify", "avian2/unidecode"],
-     "gold_by": "awesome-python Transliteration and Slugs",
-     "need": ["convert a title to a url slug", "transliterate unicode to ascii for slugs", "slugify strings"]},
-    {"id": "tqdm format_sizeof", "repo": "tqdm/tqdm", "sha": "9cf5a12b1f955468a17f0ba3c59092b23e4258ac",
-     "path": "tqdm/std.py", "symbols": ["tqdm.format_sizeof", "tqdm.format_interval"], "gold": ["python-humanize/humanize"],
-     "gold_by": "best-of-python entry humanize (jmoiron/humanize, now python-humanize/humanize)",
-     "need": ["human readable file sizes and durations", "format numbers with SI prefixes like 1.2k", "humanize numbers and times"]},
-    {"id": "home-assistant parse_datetime", "repo": "home-assistant/core", "sha": "dfafd830cffc8fab94210b7182a49008b4dcf165",
-     "path": "homeassistant/util/dt.py", "symbols": ["parse_datetime"],
-     "gold": ["dateutil/dateutil", "scrapinghub/dateparser", "python-pendulum/pendulum", "ariebovenberg/whenever"],
-     "gold_by": "awesome-python Date and Time",
-     "need": ["parse ISO 8601 datetime strings with timezone", "datetime parsing library", "timezone aware date handling"]},
+    {
+        "id": "pip retry decorator",
+        "repo": "pypa/pip",
+        "sha": "fb1d16609222a4a44c64bd8b12805a5e10d65a06",
+        "path": "src/pip/_internal/utils/retry.py",
+        "symbols": ["retry"],
+        "gold": ["jd/tenacity"],
+        "gold_by": "pip NEWS.rst: 'Remove vendored tenacity' when this helper replaced it",
+        "need": [
+            "retry a function call on error until a deadline",
+            "retry decorator with fixed wait",
+            "retrying library",
+        ],
+    },
+    {
+        "id": "devkit backoff",
+        "repo": "Marius-Juston/agent-harness",
+        "sha": "3b49fdcfb2f63dc2c2526bb1a6abc31f27ec39f8",
+        "path": "devkit/backoff.py",
+        "symbols": ["full_jitter", "hinted", "retry"],
+        "gold": ["jd/tenacity", "litl/backoff", "hynek/stamina"],
+        "gold_by": "researcher (tenacity is in best-of-python)",
+        "need": [
+            "retry with exponential backoff and jitter",
+            "honour Retry-After when retrying http calls",
+            "retrying decorator",
+        ],
+    },
+    {
+        "id": "devkit token bucket",
+        "repo": "Marius-Juston/agent-harness",
+        "sha": "3b49fdcfb2f63dc2c2526bb1a6abc31f27ec39f8",
+        "path": "devkit/lit.py",
+        "symbols": ["take"],
+        "gold": ["tomasbasham/ratelimit", "vutran1710/pyratelimiter", "alisaifee/limits"],
+        "gold_by": "researcher (ratelimit is in best-of-python)",
+        "need": ["token bucket rate limiter", "limit calls per second across processes", "throttle api requests"],
+    },
+    {
+        "id": "devkit .env parser",
+        "repo": "Marius-Juston/agent-harness",
+        "sha": "3b49fdcfb2f63dc2c2526bb1a6abc31f27ec39f8",
+        "path": "devkit/lit.py",
+        "symbols": ["parse_secrets"],
+        "gold": ["theskumar/python-dotenv"],
+        "gold_by": "awesome-python Configuration Files entry ('Reads key-value pairs from a .env file')",
+        "need": [
+            "read KEY=value pairs from a .env file",
+            "load environment variables from dotenv file",
+            "parse shell style env file",
+        ],
+    },
+    {
+        "id": "devkit safe XML parse",
+        "repo": "Marius-Juston/agent-harness",
+        "sha": "3b49fdcfb2f63dc2c2526bb1a6abc31f27ec39f8",
+        "path": "devkit/netsafe.py",
+        "symbols": ["parse_xml"],
+        "gold": ["tiran/defusedxml"],
+        "gold_by": "ruff rule S314 docs recommend defusedxml",
+        "need": [
+            "parse untrusted XML safely without entity expansion",
+            "XML parser that blocks DTD and XXE attacks",
+            "secure xml parsing",
+        ],
+    },
+    {
+        "id": "devkit frontmatter split",
+        "repo": "Marius-Juston/agent-harness",
+        "sha": "3b49fdcfb2f63dc2c2526bb1a6abc31f27ec39f8",
+        "path": "devkit/frontmatter.py",
+        "symbols": ["split"],
+        "gold": ["eyeseast/python-frontmatter"],
+        "gold_by": "researcher",
+        "need": [
+            "parse YAML frontmatter from markdown files",
+            "split markdown into metadata header and body",
+            "frontmatter parser",
+        ],
+    },
+    {
+        "id": "cpython levenshtein",
+        "repo": "python/cpython",
+        "sha": "60403a5409ff2c3f3b07dd2ca91a7a3e096839c7",
+        "path": "Lib/traceback.py",
+        "symbols": ["_levenshtein_distance"],
+        "gold": ["rapidfuzz/rapidfuzz", "rapidfuzz/levenshtein", "seatgeek/thefuzz", "jamesturk/jellyfish"],
+        "gold_by": "awesome-python Fuzzy Matching (rapidfuzz); researcher added the other three",
+        "need": [
+            "levenshtein edit distance between two strings",
+            "fast string distance metrics",
+            "fuzzy string matching",
+        ],
+    },
+    {
+        "id": "django slugify",
+        "repo": "django/django",
+        "sha": "f1d11117c6a3e227ce7cdd263cf0743f0eb73070",
+        "path": "django/utils/text.py",
+        "symbols": ["slugify"],
+        "gold": ["un33k/python-slugify", "avian2/unidecode"],
+        "gold_by": "awesome-python Transliteration and Slugs",
+        "need": ["convert a title to a url slug", "transliterate unicode to ascii for slugs", "slugify strings"],
+    },
+    {
+        "id": "tqdm format_sizeof",
+        "repo": "tqdm/tqdm",
+        "sha": "9cf5a12b1f955468a17f0ba3c59092b23e4258ac",
+        "path": "tqdm/std.py",
+        "symbols": ["tqdm.format_sizeof", "tqdm.format_interval"],
+        "gold": ["python-humanize/humanize"],
+        "gold_by": "best-of-python entry humanize (jmoiron/humanize, now python-humanize/humanize)",
+        "need": [
+            "human readable file sizes and durations",
+            "format numbers with SI prefixes like 1.2k",
+            "humanize numbers and times",
+        ],
+    },
+    {
+        "id": "home-assistant parse_datetime",
+        "repo": "home-assistant/core",
+        "sha": "dfafd830cffc8fab94210b7182a49008b4dcf165",
+        "path": "homeassistant/util/dt.py",
+        "symbols": ["parse_datetime"],
+        "gold": ["dateutil/dateutil", "scrapinghub/dateparser", "python-pendulum/pendulum", "ariebovenberg/whenever"],
+        "gold_by": "awesome-python Date and Time",
+        "need": [
+            "parse ISO 8601 datetime strings with timezone",
+            "datetime parsing library",
+            "timezone aware date handling",
+        ],
+    },
 ]
 
-PY_KW = {"self", "cls", "return", "none", "true", "false", "if", "else", "elif", "for", "while", "in", "not", "and", "or",
-         "def", "is", "str", "int", "float", "dict", "list", "len", "range", "raise", "try", "except", "with", "as",
-         "import", "from", "lambda", "yield", "pass", "break", "continue", "isinstance", "tuple", "set", "bool", "any",
-         "type", "value", "args", "kwargs", "max", "min", "get", "append", "strip", "split", "join", "items", "keys",
-         "the", "of", "a", "to", "t", "n", "s", "i", "x", "re", "e", "k", "v", "f", "d", "b", "c"}
+PY_KW = {
+    "self",
+    "cls",
+    "return",
+    "none",
+    "true",
+    "false",
+    "if",
+    "else",
+    "elif",
+    "for",
+    "while",
+    "in",
+    "not",
+    "and",
+    "or",
+    "def",
+    "is",
+    "str",
+    "int",
+    "float",
+    "dict",
+    "list",
+    "len",
+    "range",
+    "raise",
+    "try",
+    "except",
+    "with",
+    "as",
+    "import",
+    "from",
+    "lambda",
+    "yield",
+    "pass",
+    "break",
+    "continue",
+    "isinstance",
+    "tuple",
+    "set",
+    "bool",
+    "any",
+    "type",
+    "value",
+    "args",
+    "kwargs",
+    "max",
+    "min",
+    "get",
+    "append",
+    "strip",
+    "split",
+    "join",
+    "items",
+    "keys",
+    "the",
+    "of",
+    "a",
+    "to",
+    "t",
+    "n",
+    "s",
+    "i",
+    "x",
+    "re",
+    "e",
+    "k",
+    "v",
+    "f",
+    "d",
+    "b",
+    "c",
+}
 
 
 def snippet(case: dict) -> tuple[str, str, list[str]]:
     """(source of the symbols, docstrings+comments, identifier words ranked by count)."""
-    src = cached("raw", f"{case['repo']}@{case['sha']}:{case['path']}", lambda: urllib.request.urlopen(
-        urllib.request.Request(f"https://raw.githubusercontent.com/{case['repo']}/{case['sha']}/{case['path']}",
-                               headers=UA), timeout=40).read().decode())
+    src = cached(
+        "raw",
+        f"{case['repo']}@{case['sha']}:{case['path']}",
+        lambda: (
+            urllib.request.urlopen(
+                urllib.request.Request(
+                    f"https://raw.githubusercontent.com/{case['repo']}/{case['sha']}/{case['path']}", headers=UA
+                ),
+                timeout=40,
+            )
+            .read()
+            .decode()
+        ),
+    )
     tree = ast.parse(src)
     parts = []
     for sym in case["symbols"]:
@@ -433,8 +687,17 @@ def load_migration_needs(sample: bool = True) -> list[dict]:
             if info and info["name"] != srepo:
                 gold.add(info["name"])
         if gold:
-            needs.append({"id": f"migration / {s}", "pkg": s, "stratum": "M", "summary": summary, "src_repo": srepo, "gold": gold,
-                          "keywords": (sj["info"].get("keywords") or "")})
+            needs.append(
+                {
+                    "id": f"migration / {s}",
+                    "pkg": s,
+                    "stratum": "M",
+                    "summary": summary,
+                    "src_repo": srepo,
+                    "gold": gold,
+                    "keywords": (sj["info"].get("keywords") or ""),
+                }
+            )
     if not sample:
         return needs
     rng = random.Random(169)  # noqa: S311 (sampling, not security)
@@ -442,6 +705,7 @@ def load_migration_needs(sample: bool = True) -> list[dict]:
 
 
 # ---------------------------------------------------------------- arms
+
 
 def text_arms(n: dict, rk: Ranker, px: "PypiIndex | None") -> dict[str, tuple[list[dict], dict]]:
     q0, para = n["q0"], n["para"]
@@ -471,7 +735,10 @@ def text_arms(n: dict, rk: Ranker, px: "PypiIndex | None") -> dict[str, tuple[li
     a["S11 S6 without language:python"] = (rk.embed(mq, list(pooln.values()), 0.03), pooln)
     ext = [q0, n["desc"]] if n.get("desc") else [q0]
     _, poole = retrieve(ext, relax=True, topics=True)
-    a["S12 S6 on outside text only (label + section blurb)"] = (rk.embed(rk.vec(ext), list(poole.values()), 0.03), poole)
+    a["S12 S6 on outside text only (label + section blurb)"] = (
+        rk.embed(rk.vec(ext), list(poole.values()), 0.03),
+        poole,
+    )
     if px:
         hp = px.search(mq)
         a["S13 PyPI summary index only (top 30k), embed+stars"] = (rk.embed(mq, hp, 0.03), {i["name"]: i for i in hp})
@@ -494,7 +761,9 @@ def code_arms(c: dict, rk: Ranker, px: "PypiIndex | None") -> dict[str, tuple[li
     a["C1 docstring/comments as query, GitHub order"] = (round_robin(lists), pool)
     _, pool = retrieve([idq, docq], relax=True, topics=True)
     a["C2 C0+C1 pooled, embed(code text)+stars"] = (
-        rk.embed(rk.vec([docs + " " + " ".join(words[:20])]), list(pool.values()), 0.03), pool)
+        rk.embed(rk.vec([docs + " " + " ".join(words[:20])]), list(pool.values()), 0.03),
+        pool,
+    )
     _, pool = retrieve(c["need"], relax=True, topics=True)
     a["C3 agent-written need (3 lines) -> S6 pipeline"] = (rk.embed(nv, list(pool.values()), 0.03), pool)
     _, pool7 = retrieve(c["need"], relax=True, topics=True, c7=True)
@@ -528,12 +797,19 @@ def mig_arms(n: dict, rk: Ranker, px: "PypiIndex | None") -> dict[str, tuple[lis
 
 # ---------------------------------------------------------------- metrics
 
+
 def score(ranked: list[dict], pool: dict, gold: set[str], exclude: str | None = None) -> dict:
     top = [i["name"] for i in ranked if i["name"] != exclude][:10]
     rank = next((k + 1 for k, nm in enumerate(top) if nm in gold), 0)
-    return {"hit1": float(rank == 1), "hit3": float(0 < rank <= 3), "hit10": float(rank > 0),
-            "mrr": 1 / rank if rank else 0.0, "recall10": len(gold & set(top)) / min(len(gold), 10),
-            "pool": float(bool(gold & set(pool) - {exclude})), "pool_size": len(pool)}
+    return {
+        "hit1": float(rank == 1),
+        "hit3": float(0 < rank <= 3),
+        "hit10": float(rank > 0),
+        "mrr": 1 / rank if rank else 0.0,
+        "recall10": len(gold & set(top)) / min(len(gold), 10),
+        "pool": float(bool(gold & set(pool) - {exclude})),
+        "pool_size": len(pool),
+    }
 
 
 def boot(vals: list[float], reps: int = 10000) -> tuple[float, float, float]:
@@ -555,8 +831,10 @@ def report(title: str, rows: dict[str, list[dict]], pairs: list[tuple[str, str]]
         mrr = sum(r["mrr"] for r in rs) / n
         ph = sum(r["pool"] for r in rs) / n
         sizes = sorted(r["pool_size"] for r in rs)
-        print(f"| {s} | {h3[0]:.2f} [{h3[1]:.2f}, {h3[2]:.2f}] | {h1:.2f} | {h10[0]:.2f} [{h10[1]:.2f}, {h10[2]:.2f}] | "
-              f"{mrr:.2f} | {ph:.2f} | {sizes[len(sizes) // 2]} |")
+        print(
+            f"| {s} | {h3[0]:.2f} [{h3[1]:.2f}, {h3[2]:.2f}] | {h1:.2f} | {h10[0]:.2f} [{h10[1]:.2f}, {h10[2]:.2f}] | "
+            f"{mrr:.2f} | {ph:.2f} | {sizes[len(sizes) // 2]} |"
+        )
         out[s] = {"hit3": h3, "hit10": h10, "hit1": h1, "mrr": mrr, "pool": ph}
     if pairs:
         print("\npaired differences, B minus A, hit@3 and hit@10 [95% CI]:")
@@ -565,16 +843,24 @@ def report(title: str, rows: dict[str, list[dict]], pairs: list[tuple[str, str]]
             continue
         d3 = boot([rb["hit3"] - ra["hit3"] for ra, rb in zip(rows[a], rows[b], strict=True)])
         d10 = boot([rb["hit10"] - ra["hit10"] for ra, rb in zip(rows[a], rows[b], strict=True)])
-        print(f"- {b} vs {a}: hit@3 {d3[0]:+.2f} [{d3[1]:+.2f}, {d3[2]:+.2f}]; hit@10 {d10[0]:+.2f} [{d10[1]:+.2f}, {d10[2]:+.2f}]")
+        print(
+            f"- {b} vs {a}: hit@3 {d3[0]:+.2f} [{d3[1]:+.2f}, {d3[2]:+.2f}]; hit@10 {d10[0]:+.2f} [{d10[1]:+.2f}, {d10[2]:+.2f}]"
+        )
         out[f"diff {b} vs {a}"] = {"hit3": d3, "hit10": d10}
     return out
 
 
 S6 = "S6 S5, mean query vector (pilot S6)"
-TEXT_PAIRS = [("S0 one query, GitHub order", "S1 3 queries, round-robin"), ("S0 one query, GitHub order", S6),
-              (S6, "S7 S5 pool, BM25+stars"), (S6, "S8 S6 + context7"), (S6, "S11 S6 without language:python"),
-              (S6, "S12 S6 on outside text only (label + section blurb)"),
-              (S6, "S13 PyPI summary index only (top 30k), embed+stars"), (S6, "S14 S6 + PyPI summary index")]
+TEXT_PAIRS = [
+    ("S0 one query, GitHub order", "S1 3 queries, round-robin"),
+    ("S0 one query, GitHub order", S6),
+    (S6, "S7 S5 pool, BM25+stars"),
+    (S6, "S8 S6 + context7"),
+    (S6, "S11 S6 without language:python"),
+    (S6, "S12 S6 on outside text only (label + section blurb)"),
+    (S6, "S13 PyPI summary index only (top 30k), embed+stars"),
+    (S6, "S14 S6 + PyPI summary index"),
+]
 
 
 def run(needs: list[dict], arms, rk: Ranker, px) -> tuple[dict[str, list[dict]], dict]:
@@ -587,7 +873,10 @@ def run(needs: list[dict], arms, rk: Ranker, px) -> tuple[dict[str, list[dict]],
         for s, (ranked, pool) in computed.items():
             sc = score(ranked, pool, n["gold"], exclude=n.get("src_repo"))
             rows.setdefault(s, []).append(sc)
-            per.setdefault(n["id"], {})[s] = {**sc, "top3": [i["name"] for i in ranked if i["name"] != n.get("src_repo")][:3]}
+            per.setdefault(n["id"], {})[s] = {
+                **sc,
+                "top3": [i["name"] for i in ranked if i["name"] != n.get("src_repo")][:3],
+            }
     return rows, per
 
 
@@ -608,24 +897,33 @@ def main() -> None:
                 (text_arms(text[i], rk, px) if i in text else mig_arms(mig[i], rk, px))
         for i in split["code_test"]:
             code_arms(code[i], rk, px)
-        print(f"warm: {len(split['tune'])} TUNE, {len(split['test'])} TEST, {len(split['code_test'])} code needs cached")
+        print(
+            f"warm: {len(split['tune'])} TUNE, {len(split['test'])} TEST, {len(split['code_test'])} code needs cached"
+        )
         return
     if mode == "tune":
         needs = [text[i] for i in split["tune"]]
         out = {}
-        for label, sub in [("TUNE, all", needs), ("TUNE, stratum A (awesome-python)", [n for n in needs if n["stratum"] == "A"]),
-                           ("TUNE, stratum P (lead pilot)", [n for n in needs if n["stratum"] == "P"])]:
+        for label, sub in [
+            ("TUNE, all", needs),
+            ("TUNE, stratum A (awesome-python)", [n for n in needs if n["stratum"] == "A"]),
+            ("TUNE, stratum P (lead pilot)", [n for n in needs if n["stratum"] == "P"]),
+        ]:
             rows, _ = run(sub, text_arms, rk, px)
             no_c7 = {k: v for k, v in rows.items() if "context7" not in k}
             out[label] = report(label, no_c7, TEXT_PAIRS if label == "TUNE, all" else [])
             ok = [k for k, n in enumerate(sub) if n["c7_complete"]]
-            print(f"\ncontext7 answers cached for {len(ok)}/{len(sub)} needs (keyless quota); context7 arms on those only:")
+            print(
+                f"\ncontext7 answers cached for {len(ok)}/{len(sub)} needs (keyless quota); context7 arms on those only:"
+            )
             if ok:
                 c7 = {k: [v[j] for j in ok] for k, v in rows.items() if "context7" in k or k == S6}
-                out[label + ", context7 subset"] = report(label + ", context7 subset", c7,
-                                                          [(S6, "S8 S6 + context7")] if label == "TUNE, all" else [])
-        (CACHE / "results-tune.json").write_text(json.dumps({"results": out, "per_need": run(needs, text_arms, rk, px)[1]},
-                                                            indent=1, default=list))
+                out[label + ", context7 subset"] = report(
+                    label + ", context7 subset", c7, [(S6, "S8 S6 + context7")] if label == "TUNE, all" else []
+                )
+        (CACHE / "results-tune.json").write_text(
+            json.dumps({"results": out, "per_need": run(needs, text_arms, rk, px)[1]}, indent=1, default=list)
+        )
         print(f"\nper-need detail: {CACHE / 'results-tune.json'}")
         return
     if mode == "test":
@@ -639,16 +937,27 @@ def main() -> None:
         rows, per_t = run(tneeds, text_arms, rk, px)
         out["TEST A"] = report("TEST, stratum A (awesome-python)", rows, TEXT_PAIRS)
         rows, per_m = run(mneeds, mig_arms, rk, px)
-        out["TEST M"] = report("TEST, stratum M (PyMigBench)", rows, [
-            ("M1 source summary as query, GitHub order", "M2 summary+keywords + topics, embed+stars"),
-            ("M2 summary+keywords + topics, embed+stars", "M3 M2 + context7"),
-            ("M2 summary+keywords + topics, embed+stars", "M5 M2 + PyPI summary index")])
+        out["TEST M"] = report(
+            "TEST, stratum M (PyMigBench)",
+            rows,
+            [
+                ("M1 source summary as query, GitHub order", "M2 summary+keywords + topics, embed+stars"),
+                ("M2 summary+keywords + topics, embed+stars", "M3 M2 + context7"),
+                ("M2 summary+keywords + topics, embed+stars", "M5 M2 + PyPI summary index"),
+            ],
+        )
         rows, per_c = run([code[i] for i in split["code_test"]], code_arms, rk, px)
-        out["TEST C"] = report("TEST, code snippets", rows, [
-            ("C0 identifiers as query, GitHub order", "C3 agent-written need (3 lines) -> S6 pipeline"),
-            ("C3 agent-written need (3 lines) -> S6 pipeline", "C5 C3 + PyPI summary index")])
-        (CACHE / "results-test.json").write_text(json.dumps({"results": out, "per_need": {**per_t, **per_m, **per_c}},
-                                                            indent=1, default=list))
+        out["TEST C"] = report(
+            "TEST, code snippets",
+            rows,
+            [
+                ("C0 identifiers as query, GitHub order", "C3 agent-written need (3 lines) -> S6 pipeline"),
+                ("C3 agent-written need (3 lines) -> S6 pipeline", "C5 C3 + PyPI summary index"),
+            ],
+        )
+        (CACHE / "results-test.json").write_text(
+            json.dumps({"results": out, "per_need": {**per_t, **per_m, **per_c}}, indent=1, default=list)
+        )
         return
     sys.exit(f"unknown --mode {mode}")
 

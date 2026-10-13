@@ -59,8 +59,9 @@ def named(client, name: str, notes: list[str]) -> reuse.Candidate | None:
         if m := re.match(r"https?://(?:www\.)?github\.com/([^/]+/[^/#?]+)", u or ""):
             repo = "github.com/" + m.group(1).lower().removesuffix(".git")
             break
-    return reuse.Candidate(name=info.get("name") or name, repo=repo, ecosystem="pypi",
-                           description=info.get("summary") or "")
+    return reuse.Candidate(
+        name=info.get("name") or name, repo=repo, ecosystem="pypi", description=info.get("summary") or ""
+    )
 
 
 def main() -> None:
@@ -85,8 +86,9 @@ def main() -> None:
             if hit is not None:
                 hit["found_by"] = list(dict.fromkeys([*hit.get("found_by", []), TAG]))
                 continue
-            c = reuse.Candidate(name=e["name"], repo=repo, ecosystem="pypi", description=e.get("desc", ""),
-                                found_by=[TAG])
+            c = reuse.Candidate(
+                name=e["name"], repo=repo, ecosystem="pypi", description=e.get("desc", ""), found_by=[TAG]
+            )
             new.append(c)
             by_name[norm(c.name)] = {"name": c.name}
             if repo:
@@ -96,8 +98,17 @@ def main() -> None:
             if hit is None:
                 c = named(client, nm, notes)
                 if c is None:
-                    rows.append({"name": nm, "ecosystem": "pypi", "status": "NOT_FOUND", "found_by": [TAG],
-                                 "relevance": 0.0, "prior": 0.0, "repo": ""})
+                    rows.append(
+                        {
+                            "name": nm,
+                            "ecosystem": "pypi",
+                            "status": "NOT_FOUND",
+                            "found_by": [TAG],
+                            "relevance": 0.0,
+                            "prior": 0.0,
+                            "repo": "",
+                        }
+                    )
                     continue
                 hit = by_repo.get(c.repo) if c.repo else None
                 if hit is None:
@@ -109,22 +120,31 @@ def main() -> None:
             forced.add(hit["repo"] or f"{hit.get('ecosystem', '')}:{hit['name']}")
         if new:
             reuse.rank_relevance(new, d["queries"], encoder, why)
-        rows += [{**{key: v for key, v in dataclasses.asdict(c).items() if key != "record"}, "status": "NOT_ENRICHED"}
-                 for c in new]
+        rows += [
+            {**{key: v for key, v in dataclasses.asdict(c).items() if key != "record"}, "status": "NOT_ENRICHED"}
+            for c in new
+        ]
         live = {id(c): c for c in new}
         src = EXCL.get(d["id"])
 
         def is_src(r: dict, src: list | None = src) -> bool:
-            return bool(src) and (norm(r["name"]) in (norm(src[0]), norm(src[1] or "-")) or
-                                  (bool(src[1]) and r.get("repo", "").removeprefix("github.com/") == src[1].lower()))
+            return bool(src) and (
+                norm(r["name"]) in (norm(src[0]), norm(src[1] or "-"))
+                or (bool(src[1]) and r.get("repo", "").removeprefix("github.com/") == src[1].lower())
+            )
+
         found = [r for r in rows if r["status"] != "NOT_FOUND" and not is_src(r)]
         best = max((r["relevance"] for r in found), default=0.0)
 
         def key(r: dict) -> str:
             return r["repo"] or f"{r.get('ecosystem', '')}:{r['name']}"
-        want = ({key(r) for r in sorted(found, key=lambda r: -r["prior"])[:2 * N]}
-                | {key(r) for r in sorted(found, key=lambda r: -r["relevance"])[:N]}
-                | {key(r) for r in found if r["relevance"] >= best - FLOOR} | forced)
+
+        want = (
+            {key(r) for r in sorted(found, key=lambda r: -r["prior"])[: 2 * N]}
+            | {key(r) for r in sorted(found, key=lambda r: -r["relevance"])[:N]}
+            | {key(r) for r in found if r["relevance"] >= best - FLOOR}
+            | forced
+        )
         newc = {c.key(): c for c in live.values()}
         tiers, osi = reuse.licence_lists(client, notes)
         for i, r in enumerate(rows):
@@ -148,8 +168,11 @@ def main() -> None:
                 c.flags.append(flag)
             rows[i] = {key2: v for key2, v in dataclasses.asdict(c).items() if key2 != "record"}
         d["candidates"] = rows
-        d.setdefault("added", {})[TAG] = {"names": NAMES.get(d["id"], []), "date": time.strftime("%Y-%m-%d"),
-                                          "notes": list(dict.fromkeys(notes))}
+        d.setdefault("added", {})[TAG] = {
+            "names": NAMES.get(d["id"], []),
+            "date": time.strftime("%Y-%m-%d"),
+            "notes": list(dict.fromkeys(notes)),
+        }
         out.write_text(json.dumps(d, default=str))
         print(f"{k + 1} {d['id']}: +{len(new)} new, {time.time() - t0:.0f}s", flush=True)
 

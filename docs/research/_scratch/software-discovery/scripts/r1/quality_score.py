@@ -5,6 +5,7 @@ Weights = share of 115 surveyed developers rating each factor "high influence"
 OpenSSF criticality_score form log(1+S)/log(1+max(S,T)). Thresholds T are ASSUMED.
 Usage: python3 -I quality_score.py requests httpx nose
 """
+
 import datetime as dt
 import json
 import math
@@ -44,7 +45,9 @@ def score(name):
     ver = pypi["info"]["version"]
     dd = get(f"https://api.deps.dev/v3/systems/pypi/packages/{name}/versions/{urllib.parse.quote(ver, safe='')}")
     lic = dd.get("licenses", [])
-    repo = next((p["projectKey"]["id"] for p in dd.get("relatedProjects", []) if p.get("relationType") == "SOURCE_REPO"), None)
+    repo = next(
+        (p["projectKey"]["id"] for p in dd.get("relatedProjects", []) if p.get("relationType") == "SOURCE_REPO"), None
+    )
     proj = get(f"https://api.deps.dev/v3/projects/{urllib.parse.quote(repo, safe='')}") if repo else {}
     sc = proj.get("scorecard", {})
     checks = {c["name"]: c["score"] for c in sc.get("checks", [])}
@@ -58,15 +61,28 @@ def score(name):
         gates.append("FAIL: deprecated")
     f = {
         "maturity": 0.5 * pike(age_days / 30, 60) + 0.5 * pike(len(pypi["releases"]), 50),
-        "documentation": 1.0 if any("doc" in k.lower() for k in (pypi["info"].get("project_urls") or {})) else 0.5 * pike(len(pypi["info"].get("description") or ""), 10000),
-        "maintenance": (checks["Maintained"] / 10) if checks.get("Maintained", -1) >= 0 else max(0.0, min(1.0, (730 - idle_days) / (730 - 180))),
+        "documentation": 1.0
+        if any("doc" in k.lower() for k in (pypi["info"].get("project_urls") or {}))
+        else 0.5 * pike(len(pypi["info"].get("description") or ""), 10000),
+        "maintenance": (checks["Maintained"] / 10)
+        if checks.get("Maintained", -1) >= 0
+        else max(0.0, min(1.0, (730 - idle_days) / (730 - 180))),
         "security": (sc["overallScore"] / 10) if "overallScore" in sc else 0.5,
         "popularity": 0.5 * pike(dl, 1_000_000) + 0.5 * pike(proj.get("starsCount", 0), 10_000),
         "community": pike(proj.get("forksCount", 0), 1_000),  # proxy; contributor counts need GitHub
     }
     q = sum(W[k] * f[k] for k in W)
-    return {"name": name, "license": lic, "repo": repo, "age_days": age_days, "idle_days": idle_days,
-            "downloads_month": dl, "gates": gates or ["PASS"], "factors": {k: round(v, 2) for k, v in f.items()}, "Q": round(q, 3)}
+    return {
+        "name": name,
+        "license": lic,
+        "repo": repo,
+        "age_days": age_days,
+        "idle_days": idle_days,
+        "downloads_month": dl,
+        "gates": gates or ["PASS"],
+        "factors": {k: round(v, 2) for k, v in f.items()},
+        "Q": round(q, 3),
+    }
 
 
 if __name__ == "__main__":

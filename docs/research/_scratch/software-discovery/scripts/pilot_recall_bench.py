@@ -18,43 +18,91 @@ CACHE.mkdir(parents=True, exist_ok=True)
 
 # need, paraphrases an agent would write (no library names), accepted answers (owner/repo, lower case)
 NEEDS = [
-    ("spaced repetition scheduler", ["flashcard review interval algorithm", "memory model for scheduling reviews"],
-     {"open-spaced-repetition/py-fsrs"}),
-    ("computerized adaptive testing with item response theory", ["IRT item selection simulation", "adaptive test engine"],
-     {"douglasrizzo/catsim"}),
-    ("detect and anonymize personally identifiable information in text", ["PII redaction", "de-identification of names emails phone numbers"],
-     {"microsoft/presidio", "data-privacy-stack/presidio"}),
-    ("retry a function call with exponential backoff", ["retrying decorator", "retry transient failures with jitter"],
-     {"jd/tenacity", "litl/backoff", "hynek/stamina"}),
-    ("fuzzy string matching", ["string similarity levenshtein", "approximate text match ratio"],
-     {"rapidfuzz/rapidfuzz", "seatgeek/thefuzz"}),
-    ("validate JSON against a schema", ["JSON Schema validator", "check json documents follow a schema"],
-     {"python-jsonschema/jsonschema", "horejsek/python-fastjsonschema"}),
-    ("property-based testing", ["generate random test inputs and shrink failures", "quickcheck for python"],
-     {"hypothesisworks/hypothesis"}),
-    ("convert HTML to Markdown", ["html to markdown converter", "turn web page html into markdown text"],
-     {"matthewwithanm/python-markdownify", "alir3z4/html2text"}),
-    ("detect the character encoding of bytes", ["charset detection", "guess text encoding of a file"],
-     {"jawah/charset_normalizer", "chardet/chardet"}),
-    ("parse cron expressions and compute next run time", ["cron schedule iterator", "next occurrence of a crontab line"],
-     {"kiorky/croniter", "pallets-eco/croniter"}),
-    ("parse SPDX license expressions", ["license expression parser", "normalize open source license identifiers"],
-     {"aboutcode-org/license-expression", "nexb/license-expression"}),
-    ("deep difference between two python objects", ["compare nested dicts and lists", "diff of data structures"],
-     {"seperman/deepdiff"}),
-    ("rate limiting with a token bucket", ["rate limiter", "throttle calls per second leaky bucket"],
-     {"vutran1710/pyratelimiter", "alisaifee/limits"}),
-    ("parse and compare semantic version strings", ["semver", "version number comparison"],
-     {"python-semver/python-semver", "pypa/packaging"}),
-    ("cross-process file lock", ["file locking", "lock a file between processes"],
-     {"tox-dev/filelock", "tox-dev/py-filelock", "harlowja/fasteners"}),
-    ("small fast static text embeddings", ["sentence embeddings without a gpu", "distilled embedding model"],
-     {"minishlab/model2vec"}),
+    (
+        "spaced repetition scheduler",
+        ["flashcard review interval algorithm", "memory model for scheduling reviews"],
+        {"open-spaced-repetition/py-fsrs"},
+    ),
+    (
+        "computerized adaptive testing with item response theory",
+        ["IRT item selection simulation", "adaptive test engine"],
+        {"douglasrizzo/catsim"},
+    ),
+    (
+        "detect and anonymize personally identifiable information in text",
+        ["PII redaction", "de-identification of names emails phone numbers"],
+        {"microsoft/presidio", "data-privacy-stack/presidio"},
+    ),
+    (
+        "retry a function call with exponential backoff",
+        ["retrying decorator", "retry transient failures with jitter"],
+        {"jd/tenacity", "litl/backoff", "hynek/stamina"},
+    ),
+    (
+        "fuzzy string matching",
+        ["string similarity levenshtein", "approximate text match ratio"],
+        {"rapidfuzz/rapidfuzz", "seatgeek/thefuzz"},
+    ),
+    (
+        "validate JSON against a schema",
+        ["JSON Schema validator", "check json documents follow a schema"],
+        {"python-jsonschema/jsonschema", "horejsek/python-fastjsonschema"},
+    ),
+    (
+        "property-based testing",
+        ["generate random test inputs and shrink failures", "quickcheck for python"],
+        {"hypothesisworks/hypothesis"},
+    ),
+    (
+        "convert HTML to Markdown",
+        ["html to markdown converter", "turn web page html into markdown text"],
+        {"matthewwithanm/python-markdownify", "alir3z4/html2text"},
+    ),
+    (
+        "detect the character encoding of bytes",
+        ["charset detection", "guess text encoding of a file"],
+        {"jawah/charset_normalizer", "chardet/chardet"},
+    ),
+    (
+        "parse cron expressions and compute next run time",
+        ["cron schedule iterator", "next occurrence of a crontab line"],
+        {"kiorky/croniter", "pallets-eco/croniter"},
+    ),
+    (
+        "parse SPDX license expressions",
+        ["license expression parser", "normalize open source license identifiers"],
+        {"aboutcode-org/license-expression", "nexb/license-expression"},
+    ),
+    (
+        "deep difference between two python objects",
+        ["compare nested dicts and lists", "diff of data structures"],
+        {"seperman/deepdiff"},
+    ),
+    (
+        "rate limiting with a token bucket",
+        ["rate limiter", "throttle calls per second leaky bucket"],
+        {"vutran1710/pyratelimiter", "alisaifee/limits"},
+    ),
+    (
+        "parse and compare semantic version strings",
+        ["semver", "version number comparison"],
+        {"python-semver/python-semver", "pypa/packaging"},
+    ),
+    (
+        "cross-process file lock",
+        ["file locking", "lock a file between processes"],
+        {"tox-dev/filelock", "tox-dev/py-filelock", "harlowja/fasteners"},
+    ),
+    (
+        "small fast static text embeddings",
+        ["sentence embeddings without a gpu", "distilled embedding model"],
+        {"minishlab/model2vec"},
+    ),
 ]
 
 
 def gh_search(q: str, sort: str = "", n: int = 30) -> list[dict]:
-    key = hashlib.sha1(f"{q}|{sort}|{n}".encode()).hexdigest()
+    key = hashlib.sha1(f"{q}|{sort}|{n}".encode()).hexdigest()  # noqa: S324 - research script, kept as run
     f = CACHE / f"{key}.json"
     if f.exists():
         return json.loads(f.read_text())
@@ -69,8 +117,12 @@ def gh_search(q: str, sort: str = "", n: int = 30) -> list[dict]:
     else:
         raise RuntimeError(r.stderr)
     items = [
-        {"name": i["full_name"].lower(), "stars": i["stargazers_count"], "desc": i["description"] or "",
-         "topics": i.get("topics", [])}
+        {
+            "name": i["full_name"].lower(),
+            "stars": i["stargazers_count"],
+            "desc": i["description"] or "",
+            "topics": i.get("topics", []),
+        }
         for i in json.loads(r.stdout)["items"]
     ]
     f.write_text(json.dumps(items))
@@ -78,7 +130,24 @@ def gh_search(q: str, sort: str = "", n: int = 30) -> list[dict]:
     return items
 
 
-STOP = {"a", "an", "the", "of", "to", "in", "for", "with", "and", "or", "between", "two", "into", "on", "from", "without"}
+STOP = {
+    "a",
+    "an",
+    "the",
+    "of",
+    "to",
+    "in",
+    "for",
+    "with",
+    "and",
+    "or",
+    "between",
+    "two",
+    "into",
+    "on",
+    "from",
+    "without",
+}
 
 
 def terms(q: str) -> list[str]:
@@ -86,14 +155,17 @@ def terms(q: str) -> list[str]:
 
 
 def eco_keyword(kw: str) -> list[dict]:
-    key = hashlib.sha1(f"eco|{kw}".encode()).hexdigest()
+    key = hashlib.sha1(f"eco|{kw}".encode()).hexdigest()  # noqa: S324 - research script, kept as run
     f = CACHE / f"{key}.json"
     if f.exists():
         return json.loads(f.read_text())
     import urllib.request
+
     url = f"https://packages.ecosyste.ms/api/v1/keywords/{kw}?per_page=50"
     try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "recall-bench"}), timeout=30) as r:
+        with urllib.request.urlopen(
+            urllib.request.Request(url, headers={"User-Agent": "recall-bench"}), timeout=30
+        ) as r:
             pk = json.loads(r.read())["packages"]
     except Exception:
         pk = []
@@ -104,8 +176,14 @@ def eco_keyword(kw: str) -> list[dict]:
         ru = (p.get("repository_url") or "").lower()
         m = re.match(r"https://github.com/([^/]+/[^/#?]+)", ru)
         if m:
-            items.append({"name": m.group(1).removesuffix(".git"), "stars": (p.get("repo_metadata") or {}).get("stargazers_count") or 0,
-                          "desc": p.get("description") or "", "topics": p.get("keywords_array") or []})
+            items.append(
+                {
+                    "name": m.group(1).removesuffix(".git"),
+                    "stars": (p.get("repo_metadata") or {}).get("stargazers_count") or 0,
+                    "desc": p.get("description") or "",
+                    "topics": p.get("keywords_array") or [],
+                }
+            )
     f.write_text(json.dumps(items))
     return items
 
@@ -164,7 +242,12 @@ def main() -> None:
             if order == "gh":
                 ranked = items  # insertion order = GitHub best match, query by query
             elif order.startswith("lex"):
-                docs = [terms(f"{i['name'].split('/')[1].replace('-', ' ').replace('_', ' ')} {i['desc']} {' '.join(i['topics']).replace('-', ' ')}") for i in items]
+                docs = [
+                    terms(
+                        f"{i['name'].split('/')[1].replace('-', ' ').replace('_', ' ')} {i['desc']} {' '.join(i['topics']).replace('-', ' ')}"
+                    )
+                    for i in items
+                ]
                 n_ = len(docs) or 1
                 avg = sum(map(len, docs)) / n_ or 1
                 df: dict[str, int] = {}
@@ -172,14 +255,16 @@ def main() -> None:
                     for w in set(d):
                         df[w] = df.get(w, 0) + 1
                 qt = set(terms(" ".join([need, *para])))
+
                 def bm25(d):
                     sc = 0.0
-                    for w in qt:
+                    for w in qt:  # noqa: B023 - research script, kept as run
                         tf = d.count(w)
                         if tf:
-                            idf = math.log(1 + (n_ - df[w] + 0.5) / (df[w] + 0.5))
-                            sc += idf * tf * 2.2 / (tf + 1.2 * (0.25 + 0.75 * len(d) / avg))
+                            idf = math.log(1 + (n_ - df[w] + 0.5) / (df[w] + 0.5))  # noqa: B023 - research script, kept as run
+                            sc += idf * tf * 2.2 / (tf + 1.2 * (0.25 + 0.75 * len(d) / avg))  # noqa: B023 - research script, kept as run
                     return sc
+
                 score = [bm25(d) + 0.3 * math.log10(1 + i["stars"]) for d, i in zip(docs, items, strict=True)]
                 ranked = [i for _, i in sorted(zip(score, items, strict=True), key=lambda t: -t[0])]
             elif order == "stars":

@@ -26,6 +26,7 @@ The best way for an agent to find an existing library is to **name candidates fr
     - B0 ran in 2 batches of 56 (amendment 5, rule 20). The `test_arms` text in `chosen.json` still says batches of 16; amendment 5 supersedes it. B0's batching on TUNE was not recorded.
     - P1 ran on TEST as an exploratory arm only.
     - The P1 corpus catch-up used ClickHouse instead of the planned PyPI JSON crawl. This affects only the headroom figure.
+  - Edits after the runs, for this public repository's scrub and gate only: local paths in `TEST_RUNS.log` and the TUNE report became `<scratchpad>` or repository-relative; two words in third-party package descriptions in `a3_tune_input.json` became `[redacted]`; the sponsor banner's relative link in the awesome-python copy now points to GitHub; and the round scripts were formatted with ruff. `r3_score.py`, `add_named.py` and `run_agent.py` keep the same AST, so their bytes, not their behaviour, differ from the hashes in `chosen.json`; the hashed versions are at commit 9f52bc8. Scoring reads the answers and the gold, not the descriptions, so no number changes.
 
 ## 3. TEST results (VERIFIED, one shot)
 Scored by [r3_score.py](_scratch/software-discovery/scripts/r3_score.py) `score --split test`. Full report: [test-r3-2026-10-13.md](_scratch/software-discovery/scripts/data/test-r3-2026-10-13.md). The means and the three main paired intervals were re-computed with separate bootstrap code by [recheck_test.py](_scratch/software-discovery/scripts/recheck_test.py), and the intervals agree to within 0.01. Agent arms: claude-opus-5-5, 2026-10-13.
@@ -142,18 +143,18 @@ The evidence is in [r1-surface](_scratch/software-discovery/r1-surface.md). Tran
 - **A CLI named in the agent's own prompt is followed** (VERIFIED). harness-ops researchers ran `dev lit status` in 60 of 62 runs and `dev lit search/get` in 54. WebFetch breaches of the literature APIs fell from 16 of 38 legacy runs to 1 of 62.
 - **The CLI leaks through missing fields, not through its surface** (VERIFIED). 13 of 62 researcher runs (27 calls) and 7 of 11 research-auditor runs (15 calls) curl OpenAlex or Crossref directly, bypassing the shared rate limiter. They fetch authors, open-access PDF links and full abstracts. The auditor's prompt never names `dev lit`. Fix: #30 and #174.
 - **Builders rarely search before building** (VERIFIED, small N). 2 of 6 builder runs that wrote a new non-test module looked for a library first, and 8 of 39 builder runs did any lookup. Two of the four misses followed notes that had already weighed tools, so the true gap is smaller (BELIEVED). The harness's own rule is that a rule broken in a quarter of runs becomes a hook ([agent-harness.md](agent-harness.md) §2).
-- **Model-invoked skills trigger worst** (SOURCED):
-  - In Vercel's evals a skill was never invoked in 56% of cases, while an always-on docs index scored 100% ([Vercel 2026](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals)). This is a vendor benchmark of docs knowledge, not of a tool procedure.
-  - When a skill does run it helps: a mean Skill Lift of 0.213 [0.197, 0.230] over 947 paired cases ([ACES 2026](https://arxiv.org/abs/2608.20614)).
-  - Claude Code's own docs say the most common first finding of a plugin eval is a delta near zero with the skill-trigger grader failing ([plugin evals](https://code.claude.com/docs/en/plugin-evals)).
-- **MCP's token cost is mostly gone in Claude Code, but it buys nothing here** (SOURCED; BELIEVED reading).
-  - With tool search, only tool names and server instructions load at start ([MCP docs](https://code.claude.com/docs/en/mcp)), and the features overview rates MCP "Low until a tool is used" ([features overview](https://code.claude.com/docs/en/features-overview)).
+- **Model-invoked skills trigger worst:**
+  - In Vercel's evals a skill was never invoked in 56% of cases, while an always-on docs index scored 100% ([Vercel 2026](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals), SOURCED). This is a vendor benchmark of docs knowledge, not of a tool procedure.
+  - When a skill does run it helps: a mean Skill Lift of 0.213 [0.197, 0.230] over 947 paired cases ([ACES 2026](https://arxiv.org/abs/2608.20614), SOURCED).
+  - Claude Code's own docs say the most common first finding of a plugin eval is a delta near zero with the skill-trigger grader failing ([plugin evals](https://code.claude.com/docs/en/plugin-evals), SOURCED).
+- **MCP's token cost is mostly gone in Claude Code, but it buys nothing here** (the reading is BELIEVED):
+  - With tool search, only tool names and server instructions load at start ([MCP docs](https://code.claude.com/docs/en/mcp)), and the features overview rates MCP "Low until a tool is used" ([features overview](https://code.claude.com/docs/en/features-overview), SOURCED).
   - Vendor CLI-vs-MCP benchmarks disagree, and all ran on GitHub tasks with small n:
-    - CLI ahead: 25/25 against 18/25 success, all 7 MCP failures remote timeouts ([Scalekit](https://www.scalekit.com/blog/mcp-vs-cli-use)).
-    - Flat: 0.845 to 0.826 correctness across bash, MCP and skills ([Arize](https://arize.com/blog/mcp-vs-cli-skills-for-agents-what-our-eval-found-and-which-you-should-use/)).
-    - MCP ahead for many unfamiliar endpoints (Smithery, second-hand via [Nordic APIs](https://nordicapis.com/mcp-vs-cli-which-is-better-for-agentic-ai/)).
+    - CLI ahead: 25/25 against 18/25 success, all 7 MCP failures remote timeouts ([Scalekit](https://www.scalekit.com/blog/mcp-vs-cli-use), SOURCED).
+    - Flat: 0.845 to 0.826 correctness across bash, MCP and skills ([Arize](https://arize.com/blog/mcp-vs-cli-skills-for-agents-what-our-eval-found-and-which-you-should-use/), SOURCED).
+    - MCP ahead for many unfamiliar endpoints (Smithery, second-hand via [Nordic APIs](https://nordicapis.com/mcp-vs-cli-which-is-better-for-agentic-ai/), SOURCED; the original post returns 404).
   - `dev reuse` and `dev lit` are a few subcommands whose output agents pipe and filter. That favours the CLI.
-  - MCP adds a second process lifecycle and is invisible to `uv run dev check`. And 97.1% of 856 MCP tools had at least one description smell ([arXiv 2602.14878](https://arxiv.org/abs/2602.14878)).
+  - MCP adds a second process lifecycle and is invisible to `uv run dev check`. And 97.1% of 856 MCP tools had at least one description smell ([arXiv 2602.14878](https://arxiv.org/abs/2602.14878), SOURCED).
   - A warm server would save under 1 s per call: model load is 0.56-0.65 s against network calls of seconds (VERIFIED, [coldstart.sh](_scratch/software-discovery/scripts/coldstart.sh)).
   - No existing free package-search MCP server is fit to adopt (r1-surface F8).
 - **Decisions.**
@@ -167,7 +168,7 @@ The evidence is in [r1-surface](_scratch/software-discovery/r1-surface.md). Tran
   - or a `claude plugin eval` shows higher use as a typed MCP tool than as a prompted CLI, with the hook held constant.
 
 ## 10. Recommendation for this project
-1. **Default method, B1.** An agent that needs a library names up to 3 candidates from memory. The gates verify them before `uv add`. FAIL is dropped; HOLD is shown with its reason. Expected on this benchmark: hit@3 0.83 [0.76, 0.90] and harm 0.19 (VERIFIED, one model). PR #171's prompt lines ("Run `uv run dev reuse "<need>"` … first") make search the default. Reword them to name-then-verify, with search as the fallback below (BELIEVED wording; #29 owns the prompts).
+1. **Default method, B1.** An agent that needs a library names up to 3 candidates from memory. The gates verify them before `uv add`. FAIL is dropped; HOLD is shown with its reason. Expected on this benchmark: hit@3 0.83 [0.76, 0.90] and harm 0.19 (VERIFIED, one model). PR #171's prompt lines (run `dev reuse "<need>"` first) make search the default. Reword them to name-then-verify, with search as the fallback below (BELIEVED wording; #29 owns the prompts).
 2. **`dev reuse` search is a recall aid.** Use it when the agent can name no candidate that passes the gates, or for a research note that must list alternatives. Ship R4 in PR #171: PASS before HOLD; union shortlist with n by R plus n by adoption among R ≥ best R − 0.20; S = R + 1.0·Q, with λ fitted. It replaces R0, which put 0.45 of its top 3 in HOLD or FAIL (VERIFIED). When search runs, pass the agent's own names in with it (A2 − A1 +0.27 on TUNE) and let the agent re-rank the shortlist (A3 − A2 +0.12 [+0.04, +0.19] on TEST).
 3. **Gates G1-G6 as in §8.** The guard must check repository → canonical package, not trust a package's repository link (VERIFIED, §7), and must whitelist `sys.stdlib_module_names`. The licence policy (strong copyleft FAIL) is the default; the owner can override it per project (BELIEVED policy).
 4. **Enforcement:** the `uv add` guard hook (#172) and the `Reuse:` line (#173). No MCP server and no model-invoked reuse skill (BELIEVED, from the §9 evidence).

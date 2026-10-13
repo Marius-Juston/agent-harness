@@ -33,11 +33,13 @@ def delta(out: Path) -> None:
     for p in range(PARTS):
         f = out / f"p{p:02d}.jsonl"
         if not f.exists():
-            q = (f"SELECT name, argMax(summary, upload_time) AS summary, argMax(keywords, upload_time) AS keywords, "  # noqa: S608 (constants only)
-                 f"argMax(home_page, upload_time) AS home_page, argMax(project_urls, upload_time) AS project_urls, "
-                 f"argMax(classifiers, upload_time) AS classifiers, leftUTF8(argMax(description, upload_time), 2500) AS "
-                 f"description, max(upload_time) AS last_upload FROM pypi.projects WHERE upload_time >= '{SINCE}' "
-                 f"AND cityHash64(name) % {PARTS} = {p} GROUP BY name FORMAT JSONEachRow")
+            q = (
+                f"SELECT name, argMax(summary, upload_time) AS summary, argMax(keywords, upload_time) AS keywords, "  # noqa: S608 (constants only)
+                f"argMax(home_page, upload_time) AS home_page, argMax(project_urls, upload_time) AS project_urls, "
+                f"argMax(classifiers, upload_time) AS classifiers, leftUTF8(argMax(description, upload_time), 2500) AS "
+                f"description, max(upload_time) AS last_upload FROM pypi.projects WHERE upload_time >= '{SINCE}' "
+                f"AND cityHash64(name) % {PARTS} = {p} GROUP BY name FORMAT JSONEachRow"
+            )
             with urllib.request.urlopen(urllib.request.Request(CH, data=q.encode()), timeout=120) as r:
                 body = r.read()
             if b"TOO_MANY_ROWS_OR_BYTES" in body[-2000:] or b"Exception" in body[-500:]:
@@ -57,8 +59,9 @@ def repo_of(urls: list[str]) -> str:
     return ""
 
 
-BADGE = re.compile(r"\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)|!\[[^\]]*\]\([^)]*\)|\.\. \|[^|]+\| image::.*|^\.\. image::.*$",
-                   re.M)
+BADGE = re.compile(
+    r"\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)|!\[[^\]]*\]\([^)]*\)|\.\. \|[^|]+\| image::.*|^\.\. image::.*$", re.M
+)
 HTML = re.compile(r"<[^>]{0,400}>")
 FENCE = re.compile(r"```.*?```|~~~.*?~~~", re.S)
 LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
@@ -84,16 +87,30 @@ def doc_text(name: str, summary: str, keywords: str, classifiers: list[str], rea
 
 def build(packages: Path, delta_dir: Path, out: Path) -> None:
     import pyarrow.parquet as pq
+
     norm = lambda s: re.sub(r"[-_.]+", "-", s).lower()  # noqa: E731 (PEP 503)
     rows: dict[str, dict] = {}
-    cols = ["name", "summary", "description", "keywords", "classifiers_json", "project_urls_json", "home_page", "yanked"]
+    cols = [
+        "name",
+        "summary",
+        "description",
+        "keywords",
+        "classifiers_json",
+        "project_urls_json",
+        "home_page",
+        "yanked",
+    ]
     pf = pq.ParquetFile(packages)
     for batch in pf.iter_batches(columns=cols, batch_size=50_000):
         for r in batch.to_pylist():
             urls = [*(json.loads(r["project_urls_json"] or "null") or {}).values(), r["home_page"] or ""]
             cls = json.loads(r["classifiers_json"] or "null") or []
-            rows[norm(r["name"])] = {"name": r["name"], "repo": repo_of(urls), "src": "open-pypi",
-                                     "text": doc_text(r["name"], r["summary"], r["keywords"], cls, r["description"])}
+            rows[norm(r["name"])] = {
+                "name": r["name"],
+                "repo": repo_of(urls),
+                "src": "open-pypi",
+                "text": doc_text(r["name"], r["summary"], r["keywords"], cls, r["description"]),
+            }
     base = len(rows)
     upd = new = 0
     for f in sorted(delta_dir.glob("p*.jsonl")):
@@ -103,13 +120,19 @@ def build(packages: Path, delta_dir: Path, out: Path) -> None:
             k = norm(r["name"])
             new += k not in rows
             upd += k in rows
-            rows[k] = {"name": r["name"], "repo": repo_of(urls), "src": "clickhouse",
-                       "text": doc_text(r["name"], r["summary"], r["keywords"], r["classifiers"], r["description"])}
+            rows[k] = {
+                "name": r["name"],
+                "repo": repo_of(urls),
+                "src": "clickhouse",
+                "text": doc_text(r["name"], r["summary"], r["keywords"], r["classifiers"], r["description"]),
+            }
     with out.open("w") as fh:
         for r in rows.values():
             fh.write(json.dumps(r) + "\n")
-    print(f"open-pypi {base}; delta updated {upd}, new {new}; corpus {len(rows)}; "
-          f"with a GitHub repo {sum(bool(r['repo']) for r in rows.values())}")
+    print(
+        f"open-pypi {base}; delta updated {upd}, new {new}; corpus {len(rows)}; "
+        f"with a GitHub repo {sum(bool(r['repo']) for r in rows.values())}"
+    )
 
 
 if __name__ == "__main__":

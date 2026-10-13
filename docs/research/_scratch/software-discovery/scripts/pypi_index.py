@@ -33,10 +33,19 @@ def main() -> None:
                 sys.exit(f"page {page} failed")
             for p in body:
                 m = re.match(r"https://github.com/([^/]+/[^/#?]+)", (p.get("repository_url") or "").lower())
-                fh.write(json.dumps({
-                    "name": p["name"], "summary": p.get("description") or "", "keywords": p.get("keywords_array") or [],
-                    "repo": m.group(1).removesuffix(".git") if m else "", "downloads": p.get("downloads") or 0,
-                    "stars": (p.get("repo_metadata") or {}).get("stargazers_count") or 0}) + "\n")
+                fh.write(
+                    json.dumps(
+                        {
+                            "name": p["name"],
+                            "summary": p.get("description") or "",
+                            "keywords": p.get("keywords_array") or [],
+                            "repo": m.group(1).removesuffix(".git") if m else "",
+                            "downloads": p.get("downloads") or 0,
+                            "stars": (p.get("repo_metadata") or {}).get("stargazers_count") or 0,
+                        }
+                    )
+                    + "\n"
+                )
                 n += 1
             print(f"page {page}: {n} packages, {time.time() - t0:.0f}s", file=sys.stderr, flush=True)
             time.sleep(1)
