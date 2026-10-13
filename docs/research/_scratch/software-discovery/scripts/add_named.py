@@ -3,7 +3,7 @@ and enrich, verify and gate them with PR #171's own functions, so arms A2 and P1
 
 Usage (PR #171's devkit first on the path, as for run_reuse_snapshot.py):
   PYTHONPATH=<dir with devkit @ 4d61af0> uv run --with model2vec python add_named.py <in_snap> <out_snap> \
-      --names <json {need id: [pypi names]}> --tag agent|p1|p2|p3 [--rel <json {need id: {name: R}}>]
+      --names <json {need id: [pypi names] | [{name, repo, desc}]}> --tag agent|p1 [--exclude data/m_sources.json]
 
 Per need: every named package becomes a candidate, unless the pool already holds it (same PyPI name, or the same
 GitHub repository); its found_by gets the tag. Named candidates get R and the prior from PR #171's encoder, exactly as
@@ -11,6 +11,10 @@ search() computes them (cosine to the mean query vector, independent of the othe
 config could show at n=10 (the 20 best by prior, the 10 best by R, all within 0.20 of the best R) plus every named
 candidate is enriched, verified and gated; the rest stay NOT_ENRICHED. A name neither ecosyste.ms nor PyPI knows is
 kept with status NOT_FOUND (harm: the name does not exist).
+
+Index hits ({name, repo, desc} rows from p_index.py) are added without a lookup and are not forced; only those the
+shortlist rules reach are looked up (ecosyste.ms by name) and enriched. --exclude (amendment 5 item 22): an M need's
+source package is left out when the enrich set is computed, as the scorer leaves it out before ranking.
 """
 
 import dataclasses
@@ -26,6 +30,7 @@ from devkit import reuse  # PR #171's module (PYTHONPATH)
 IN, OUT = Path(sys.argv[1]), Path(sys.argv[2])
 NAMES = json.loads(Path(sys.argv[sys.argv.index("--names") + 1]).read_text())
 TAG = sys.argv[sys.argv.index("--tag") + 1]
+EXCL = json.loads(Path(sys.argv[sys.argv.index("--exclude") + 1]).read_text()) if "--exclude" in sys.argv else {}
 N, FLOOR = 10, 0.20
 FIELDS = {f.name for f in dataclasses.fields(reuse.Candidate)}
 OUT.mkdir(parents=True, exist_ok=True)
@@ -73,7 +78,20 @@ def main() -> None:
         by_repo = {c["repo"]: c for c in rows if c.get("repo")}
         new: list[reuse.Candidate] = []
         forced: set[str] = set()
-        for nm in NAMES.get(d["id"], []):
+        rows_in = [e for e in NAMES.get(d["id"], []) if isinstance(e, dict)]
+        for e in rows_in:  # index hits: no lookup now, not forced
+            repo = f"github.com/{e['repo']}" if e.get("repo") else ""
+            hit = by_name.get(norm(e["name"])) or (by_repo.get(repo) if repo else None)
+            if hit is not None:
+                hit["found_by"] = list(dict.fromkeys([*hit.get("found_by", []), TAG]))
+                continue
+            c = reuse.Candidate(name=e["name"], repo=repo, ecosystem="pypi", description=e.get("desc", ""),
+                                found_by=[TAG])
+            new.append(c)
+            by_name[norm(c.name)] = {"name": c.name}
+            if repo:
+                by_repo[repo] = {"name": c.name}
+        for nm in [e for e in NAMES.get(d["id"], []) if isinstance(e, str)]:
             hit = by_name.get(norm(nm))
             if hit is None:
                 c = named(client, nm, notes)
@@ -94,7 +112,12 @@ def main() -> None:
         rows += [{**{key: v for key, v in dataclasses.asdict(c).items() if key != "record"}, "status": "NOT_ENRICHED"}
                  for c in new]
         live = {id(c): c for c in new}
-        found = [r for r in rows if r["status"] != "NOT_FOUND"]
+        src = EXCL.get(d["id"])
+
+        def is_src(r: dict, src: list | None = src) -> bool:
+            return bool(src) and (norm(r["name"]) in (norm(src[0]), norm(src[1] or "-")) or
+                                  (bool(src[1]) and r.get("repo", "").removeprefix("github.com/") == src[1].lower()))
+        found = [r for r in rows if r["status"] != "NOT_FOUND" and not is_src(r)]
         best = max((r["relevance"] for r in found), default=0.0)
 
         def key(r: dict) -> str:
@@ -108,6 +131,12 @@ def main() -> None:
             if r["status"] != "NOT_ENRICHED" or key(r) not in want:
                 continue
             c = newc.get(key(r)) or to_cand(r)
+            if TAG in c.found_by and c.record is None and isinstance(NAMES.get(d["id"], [None])[0], dict):
+                rec = named(client, c.name, notes)  # an index hit reached the shortlist: look it up now
+                if rec is not None:
+                    rec.repo = rec.repo or c.repo
+                    rec.found_by, rec.relevance, rec.prior = c.found_by, c.relevance, c.prior
+                    c = rec
             reuse.enrich(client, c, "pypi", notes)
             ok = reuse.verify(client, c, notes)
             now = client.clock()

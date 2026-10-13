@@ -1,0 +1,800 @@
+[
+ {
+  "id": "AI and Agents / Data Layer",
+  "need": "data layer ai and agents",
+  "also_described_as": [
+   "structured output and retrieval augmented generation over documents for LLMs",
+   "long-term memory store for LLM agents"
+  ]
+ },
+ {
+  "id": "AI and Agents / LLM Inference and Serving",
+  "need": "llm inference and serving ai and agents",
+  "also_described_as": [
+   "serve large language models with high throughput",
+   "fast LLM inference engine"
+  ]
+ },
+ {
+  "id": "AI and Agents / Personal Assistants",
+  "need": "personal assistants ai and agents",
+  "also_described_as": [
+   "personal AI assistant that connects to chat apps",
+   "self-hosted AI assistant bot"
+  ]
+ },
+ {
+  "id": "AI and Agents / Speech",
+  "need": "speech ai and agents",
+  "also_described_as": [
+   "speech recognition and text to speech",
+   "transcribe audio to text with a neural model"
+  ]
+ },
+ {
+  "id": "AI and Agents / Vendor Agent SDKs",
+  "need": "vendor agent sdks ai and agents",
+  "also_described_as": [
+   "official SDK for building AI agents",
+   "agent development kit from a model provider"
+  ]
+ },
+ {
+  "id": "Audio & Video Processing / Audio",
+  "need": "audio audio & video processing",
+  "also_described_as": [
+   "audio analysis and manipulation",
+   "load, slice and convert audio files"
+  ]
+ },
+ {
+  "id": "Audio & Video Processing / Video",
+  "need": "video audio & video processing",
+  "also_described_as": [
+   "edit and process video files",
+   "cut, concatenate and transcode videos programmatically"
+  ]
+ },
+ {
+  "id": "Authentication / JWT",
+  "need": "jwt authentication",
+  "also_described_as": [
+   "encode and decode JSON web tokens",
+   "sign and verify JWT tokens"
+  ]
+ },
+ {
+  "id": "Authentication / OAuth",
+  "need": "oauth authentication",
+  "also_described_as": [
+   "OAuth 2.0 client and provider",
+   "implement OAuth authorization flow"
+  ]
+ },
+ {
+  "id": "Build Tools",
+  "need": "build tools",
+  "also_described_as": [
+   "build automation tool",
+   "compile and package software projects"
+  ]
+ },
+ {
+  "id": "Built-in Classes Enhancement",
+  "need": "built-in classes enhancement",
+  "also_described_as": [
+   "define classes without boilerplate",
+   "better data classes with validation and immutability"
+  ]
+ },
+ {
+  "id": "CLI Development / Terminal Rendering",
+  "need": "terminal rendering cli development",
+  "also_described_as": [
+   "rich colored text and tables in the terminal",
+   "progress bars and formatted terminal output"
+  ]
+ },
+ {
+  "id": "CLI Tools / Project Scaffolding",
+  "need": "project scaffolding cli tools",
+  "also_described_as": [
+   "generate a new project from a template",
+   "project scaffolding from cookiecutter style templates"
+  ]
+ },
+ {
+  "id": "CMS",
+  "need": "cms",
+  "also_described_as": [
+   "content management system for websites",
+   "web publishing platform with an admin editor"
+  ]
+ },
+ {
+  "id": "Caching",
+  "need": "caching",
+  "also_described_as": [
+   "memoize function results with expiry",
+   "cache data on disk or in memory with eviction"
+  ]
+ },
+ {
+  "id": "Code Analysis / Git Hooks",
+  "need": "git hooks code analysis",
+  "also_described_as": [
+   "run checks in git pre-commit hooks",
+   "manage pre-commit hooks"
+  ]
+ },
+ {
+  "id": "Code Analysis / Linters and Formatters",
+  "need": "linters and formatters code analysis",
+  "also_described_as": [
+   "lint and format python code",
+   "code style checker and auto formatter"
+  ]
+ },
+ {
+  "id": "Code Analysis / Refactoring",
+  "need": "refactoring code analysis",
+  "also_described_as": [
+   "automated code refactoring and rewriting",
+   "rewrite python source code with codemods"
+  ]
+ },
+ {
+  "id": "Computer Vision / OCR",
+  "need": "ocr computer vision",
+  "also_described_as": [
+   "optical character recognition from images",
+   "extract text from scanned documents"
+  ]
+ },
+ {
+  "id": "Data Visualization / Dashboards and Apps",
+  "need": "dashboards and apps data visualization",
+  "also_described_as": [
+   "build interactive data dashboards",
+   "turn data scripts into web apps"
+  ]
+ },
+ {
+  "id": "Data Visualization / Plotting",
+  "need": "plotting data visualization",
+  "also_described_as": [
+   "plot charts and graphs",
+   "interactive plotting library"
+  ]
+ },
+ {
+  "id": "Data Visualization / Specialized",
+  "need": "specialized data visualization",
+  "also_described_as": [
+   "specialized visualizations like maps or missing data",
+   "domain specific charting"
+  ]
+ },
+ {
+  "id": "Database / Analytical",
+  "need": "analytical database",
+  "also_described_as": [
+   "in-process analytical SQL database",
+   "fast OLAP queries on local files"
+  ]
+ },
+ {
+  "id": "Database / Key-Value & Document",
+  "need": "key-value & document database",
+  "also_described_as": [
+   "embedded key-value store",
+   "lightweight document database stored in a file"
+  ]
+ },
+ {
+  "id": "Database Drivers / MySQL",
+  "need": "mysql database drivers",
+  "also_described_as": [
+   "connect to a MySQL database",
+   "MySQL client driver"
+  ]
+ },
+ {
+  "id": "Database Drivers / Other Relational Databases",
+  "need": "other relational databases database drivers",
+  "also_described_as": [
+   "driver for relational databases like SQL Server or Oracle",
+   "connect to a SQL database server"
+  ]
+ },
+ {
+  "id": "Date and Time",
+  "need": "date and time",
+  "also_described_as": [
+   "parse, format and manipulate dates and times",
+   "timezone aware datetime handling"
+  ]
+ },
+ {
+  "id": "Debugging Tools / Tracing",
+  "need": "tracing debugging tools",
+  "also_described_as": [
+   "trace function calls and executed lines",
+   "log every function call for debugging"
+  ]
+ },
+ {
+  "id": "Debugging Tools / pdb-like Debugger",
+  "need": "pdb-like debugger debugging tools",
+  "also_described_as": [
+   "interactive debugger with a better interface than pdb",
+   "step through code in a terminal debugger"
+  ]
+ },
+ {
+  "id": "Deep Learning / Frameworks",
+  "need": "frameworks deep learning",
+  "also_described_as": [
+   "deep learning framework with autograd and GPU",
+   "train neural networks"
+  ]
+ },
+ {
+  "id": "Deep Learning / Reinforcement Learning",
+  "need": "reinforcement learning deep learning",
+  "also_described_as": [
+   "reinforcement learning environments and agents",
+   "train RL algorithms like PPO"
+  ]
+ },
+ {
+  "id": "Distributed Computing",
+  "need": "distributed computing",
+  "also_described_as": [
+   "parallel and distributed computing across a cluster",
+   "scale python computations to many machines"
+  ]
+ },
+ {
+  "id": "Distribution / Executables",
+  "need": "executables distribution",
+  "also_described_as": [
+   "bundle a python app into a standalone executable",
+   "freeze python programs into binaries"
+  ]
+ },
+ {
+  "id": "Distribution / Obfuscation",
+  "need": "obfuscation distribution",
+  "also_described_as": [
+   "obfuscate python source code",
+   "protect python scripts from reverse engineering"
+  ]
+ },
+ {
+  "id": "ERP",
+  "need": "erp",
+  "also_described_as": [
+   "enterprise resource planning software",
+   "business management suite with accounting and inventory"
+  ]
+ },
+ {
+  "id": "Email",
+  "need": "email",
+  "also_described_as": [
+   "send and parse email",
+   "email client and inbox handling"
+  ]
+ },
+ {
+  "id": "Environment Management",
+  "need": "environment management",
+  "also_described_as": [
+   "manage python versions and virtual environments",
+   "isolate project dependencies in virtualenvs"
+  ]
+ },
+ {
+  "id": "File Format Processing / File Conversion",
+  "need": "file conversion file format processing",
+  "also_described_as": [
+   "convert office documents and PDFs to text or markdown",
+   "document conversion to structured data"
+  ]
+ },
+ {
+  "id": "File Format Processing / Markdown",
+  "need": "markdown file format processing",
+  "also_described_as": [
+   "parse markdown and render HTML",
+   "markdown to html converter"
+  ]
+ },
+ {
+  "id": "File Format Processing / Word",
+  "need": "word file format processing",
+  "also_described_as": [
+   "create and edit Word documents",
+   "read and write docx files"
+  ]
+ },
+ {
+  "id": "File Manipulation",
+  "need": "file manipulation",
+  "also_described_as": [
+   "watch files for changes",
+   "detect file type and monitor filesystem events"
+  ]
+ },
+ {
+  "id": "GUI Development / Qt",
+  "need": "qt gui development",
+  "also_described_as": [
+   "Qt bindings for desktop apps",
+   "build GUIs with Qt widgets"
+  ]
+ },
+ {
+  "id": "GUI Development / Tkinter",
+  "need": "tkinter gui development",
+  "also_described_as": [
+   "modern themes and widgets for tkinter",
+   "simpler tkinter GUI building"
+  ]
+ },
+ {
+  "id": "Game Development / Visual Novels",
+  "need": "visual novels game development",
+  "also_described_as": [
+   "engine for visual novel games",
+   "make interactive story games"
+  ]
+ },
+ {
+  "id": "HTML Manipulation",
+  "need": "html manipulation",
+  "also_described_as": [
+   "parse and manipulate HTML and XML",
+   "navigate an HTML document tree"
+  ]
+ },
+ {
+  "id": "Hardware",
+  "need": "hardware",
+  "also_described_as": [
+   "control hardware like GPIO, sensors and microcontrollers",
+   "talk to devices over serial or USB"
+  ]
+ },
+ {
+  "id": "Image Processing / Barcodes and QR Codes",
+  "need": "barcodes and qr codes image processing",
+  "also_described_as": [
+   "generate and read QR codes",
+   "barcode decoding from images"
+  ]
+ },
+ {
+  "id": "Job Schedulers / Workflow Orchestration",
+  "need": "workflow orchestration job schedulers",
+  "also_described_as": [
+   "orchestrate data pipeline workflows as DAGs",
+   "workflow scheduler for batch jobs"
+  ]
+ },
+ {
+  "id": "Logging",
+  "need": "logging",
+  "also_described_as": [
+   "structured logging",
+   "nicer log output with less setup"
+  ]
+ },
+ {
+  "id": "Machine Learning / Gradient Boosting",
+  "need": "gradient boosting machine learning",
+  "also_described_as": [
+   "gradient boosted decision trees",
+   "boosting library for tabular data"
+  ]
+ },
+ {
+  "id": "Machine Learning / Time Series Forecasting",
+  "need": "time series forecasting machine learning",
+  "also_described_as": [
+   "forecast time series",
+   "time series prediction models"
+  ]
+ },
+ {
+  "id": "ORM / NoSQL Databases",
+  "need": "nosql databases orm",
+  "also_described_as": [
+   "object document mapper for MongoDB",
+   "map python objects to a NoSQL database"
+  ]
+ },
+ {
+  "id": "Package Management / Package Managers",
+  "need": "package managers package management",
+  "also_described_as": [
+   "install and manage python package dependencies",
+   "dependency resolver and lock file manager"
+  ]
+ },
+ {
+  "id": "Quantum Computing",
+  "need": "quantum computing",
+  "also_described_as": [
+   "simulate and program quantum circuits",
+   "quantum computing framework"
+  ]
+ },
+ {
+  "id": "Science / Biology and Chemistry",
+  "need": "biology and chemistry science",
+  "also_described_as": [
+   "bioinformatics and computational chemistry",
+   "parse biological sequences and molecules"
+  ]
+ },
+ {
+  "id": "Science / Graphs and Networks",
+  "need": "graphs and networks science",
+  "also_described_as": [
+   "graph and network analysis",
+   "create and analyze networks of nodes and edges"
+  ]
+ },
+ {
+  "id": "Science / Physics and Engineering",
+  "need": "physics and engineering science",
+  "also_described_as": [
+   "physics simulations and engineering calculations",
+   "astronomy and physical units computations"
+  ]
+ },
+ {
+  "id": "Science / Simulation and Modeling",
+  "need": "simulation and modeling science",
+  "also_described_as": [
+   "discrete event simulation",
+   "agent based modeling and simulation framework"
+  ]
+ },
+ {
+  "id": "Science / Statistics",
+  "need": "statistics science",
+  "also_described_as": [
+   "statistical models and tests",
+   "regression and hypothesis testing"
+  ]
+ },
+ {
+  "id": "Static Site Generators",
+  "need": "static site generators",
+  "also_described_as": [
+   "generate a static website from markdown",
+   "static site generator"
+  ]
+ },
+ {
+  "id": "Task Queues",
+  "need": "task queues",
+  "also_described_as": [
+   "distributed background task queue",
+   "run jobs asynchronously with workers"
+  ]
+ },
+ {
+  "id": "Template Engines",
+  "need": "template engines",
+  "also_described_as": [
+   "render text templates with variables",
+   "html templating language"
+  ]
+ },
+ {
+  "id": "Testing / Fake Data",
+  "need": "fake data testing",
+  "also_described_as": [
+   "generate fake test data",
+   "realistic random names addresses for tests"
+  ]
+ },
+ {
+  "id": "Testing / Load Testing",
+  "need": "load testing testing",
+  "also_described_as": [
+   "load test a web service",
+   "simulate many concurrent users against an http api"
+  ]
+ },
+ {
+  "id": "Text Processing / Internationalization",
+  "need": "internationalization text processing",
+  "also_described_as": [
+   "internationalization and localization of messages",
+   "format dates numbers per locale"
+  ]
+ },
+ {
+  "id": "Web APIs / Django",
+  "need": "django web apis",
+  "also_described_as": [
+   "build REST APIs with Django",
+   "django api framework"
+  ]
+ },
+ {
+  "id": "Web APIs / Flask",
+  "need": "flask web apis",
+  "also_described_as": [
+   "build a REST API with Flask",
+   "flask extension for restful endpoints"
+  ]
+ },
+ {
+  "id": "Web APIs / Framework Agnostic",
+  "need": "framework agnostic web apis",
+  "also_described_as": [
+   "build web APIs with request validation",
+   "graphql or rpc api server library"
+  ]
+ },
+ {
+  "id": "Web Frameworks / Asynchronous",
+  "need": "asynchronous web frameworks",
+  "also_described_as": [
+   "async web framework",
+   "high performance asyncio web framework"
+  ]
+ },
+ {
+  "id": "Web Scraping / Frameworks",
+  "need": "frameworks web scraping",
+  "also_described_as": [
+   "web crawling and scraping framework",
+   "crawl websites and extract data"
+  ]
+ },
+ {
+  "id": "Web Security",
+  "need": "web security",
+  "also_described_as": [
+   "protect web apps against common attacks",
+   "web security headers and sanitization"
+  ]
+ },
+ {
+  "id": "Web Servers / ASGI",
+  "need": "asgi web servers",
+  "also_described_as": [
+   "ASGI web server",
+   "run an async python web app in production"
+  ]
+ },
+ {
+  "id": "M-01",
+  "need": "Async http client/server framework (asyncio)",
+  "also_described_as": []
+ },
+ {
+  "id": "M-02",
+  "need": "Fast and simple WSGI-framework for small web-applications.",
+  "also_described_as": []
+ },
+ {
+  "id": "M-03",
+  "need": "A dot-accessible dictionary (a la JavaScript objects)",
+  "also_described_as": [
+   "bunch dict mapping container collection"
+  ]
+ },
+ {
+  "id": "M-04",
+  "need": "Universal character encoding detector",
+  "also_described_as": [
+   "chardet  charset  detection  encoding  unicode"
+  ]
+ },
+ {
+  "id": "M-05",
+  "need": "Composable command line interface toolkit",
+  "also_described_as": []
+ },
+ {
+  "id": "M-06",
+  "need": "A high-level Python web framework that encourages rapid development and clean, pragmatic design.",
+  "also_described_as": []
+ },
+ {
+  "id": "M-07",
+  "need": "Swagger UI for Django REST Framework 3.5+",
+  "also_described_as": []
+ },
+ {
+  "id": "M-08",
+  "need": "Ed25519 public-key signatures",
+  "also_described_as": []
+ },
+ {
+  "id": "M-09",
+  "need": "Fabric is a simple, Pythonic tool for remote execution and deployment (py2.7/py3.4+ compatible fork).",
+  "also_described_as": []
+ },
+ {
+  "id": "M-10",
+  "need": "A simple framework for building complex web applications.",
+  "also_described_as": []
+ },
+ {
+  "id": "M-11",
+  "need": "Simple framework for creating REST APIs",
+  "also_described_as": []
+ },
+ {
+  "id": "M-12",
+  "need": "Fully featured framework for fast, easy and documented API development with Flask",
+  "also_described_as": [
+   "flask restplus rest api swagger openapi"
+  ]
+ },
+ {
+  "id": "M-13",
+  "need": "Core Helpers for Asyncio Google Cloud Library",
+  "also_described_as": []
+ },
+ {
+  "id": "M-14",
+  "need": "Sphinx theme used by Guzzle.",
+  "also_described_as": []
+ },
+ {
+  "id": "M-15",
+  "need": "A comprehensive HTTP client library.",
+  "also_described_as": []
+ },
+ {
+  "id": "M-16",
+  "need": "Client interface for Scrapinghub HubStorage",
+  "also_described_as": []
+ },
+ {
+  "id": "M-17",
+  "need": "a little task queue",
+  "also_described_as": []
+ },
+ {
+  "id": "M-18",
+  "need": "Google's IP address manipulation library",
+  "also_described_as": []
+ },
+ {
+  "id": "M-19",
+  "need": "Pure Python client for Apache Kafka",
+  "also_described_as": [
+   "apache kafka  kafka"
+  ]
+ },
+ {
+  "id": "M-20",
+  "need": "Platform-independent file locking module",
+  "also_described_as": []
+ },
+ {
+  "id": "M-21",
+  "need": "Stateful, programmatic web browsing",
+  "also_described_as": []
+ },
+ {
+  "id": "M-22",
+  "need": "Backport of the multiprocessing package to Python 2.4 and 2.5",
+  "also_described_as": []
+ },
+ {
+  "id": "M-23",
+  "need": "A network address manipulation library for Python",
+  "also_described_as": [
+   "Networking  Systems Administration  IANA  IEEE  CIDR  IP  IPv4  IPv6  CIDR  EUI  MAC  MAC-48  EUI-48  EUI-64"
+  ]
+ },
+ {
+  "id": "M-24",
+  "need": "A simple Python library for easily displaying tabular data in a visually appealing ASCII table format",
+  "also_described_as": []
+ },
+ {
+  "id": "M-25",
+  "need": "Text progress bar library for Python.",
+  "also_described_as": []
+ },
+ {
+  "id": "M-26",
+  "need": "Cryptographic library for Python",
+  "also_described_as": []
+ },
+ {
+  "id": "M-27",
+  "need": "Python ORM Sdk for Milvus(>= 2.0)",
+  "also_described_as": []
+ },
+ {
+  "id": "M-28",
+  "need": "Python wrapper module around the OpenSSL library",
+  "also_described_as": []
+ },
+ {
+  "id": "M-29",
+  "need": "pypcap -- Python interface to pcap a packet capture library",
+  "also_described_as": []
+ },
+ {
+  "id": "M-30",
+  "need": "Python bindings for the Qt cross-platform application and UI framework",
+  "also_described_as": [
+   "Qt"
+  ]
+ },
+ {
+  "id": "M-31",
+  "need": "Python modules for implementing LDAP clients",
+  "also_described_as": [
+   "ldap  directory  authentication"
+  ]
+ },
+ {
+  "id": "M-32",
+  "need": "A simple, cross-platform module for mouse and keyboard control",
+  "also_described_as": [
+   "mouse keyboard user input event"
+  ]
+ },
+ {
+  "id": "M-33",
+  "need": "YAML parser and emitter for Python",
+  "also_described_as": []
+ },
+ {
+  "id": "M-34",
+  "need": "Python HTTP for Humans.",
+  "also_described_as": []
+ },
+ {
+  "id": "M-35",
+  "need": "OAuth2 support to Python-Requests HTTP library.",
+  "also_described_as": [
+   "requests python-requests OAuth OAuth2"
+  ]
+ },
+ {
+  "id": "M-36",
+  "need": "Python REST kit",
+  "also_described_as": []
+ },
+ {
+  "id": "M-37",
+  "need": "A module to control Raspberry Pi GPIO channels",
+  "also_described_as": [
+   "Raspberry Pi GPIO"
+  ]
+ },
+ {
+  "id": "M-38",
+  "need": "Simple, fast, extensible JSON encoder/decoder for Python",
+  "also_described_as": []
+ },
+ {
+  "id": "M-39",
+  "need": "Read the Docs theme for Sphinx",
+  "also_described_as": []
+ },
+ {
+  "id": "M-40",
+  "need": "Lightweight SOAP client",
+  "also_described_as": [
+   "soap wsdl basic http binding basic auth"
+  ]
+ }
+]

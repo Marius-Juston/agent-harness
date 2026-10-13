@@ -4,7 +4,7 @@ name repeated twice) and one dense embedder over the p_corpus.py corpus, fused w
 Usage:
   uv run --no-project --with bm25s --with model2vec --with numpy python p_index.py build <corpus.jsonl> <dir> --model potion
   uv run --no-project --with bm25s --with sentence-transformers --with numpy python p_index.py build <corpus.jsonl> <dir> --model qwen
-  ... p_index.py query <dir> --model potion|qwen --split tune --out <top100.json>
+  ... p_index.py query <dir> --model potion|qwen --split tune|test --out <top100.json> [--corpus <corpus.jsonl>]
 
 Models: potion = minishlab/potion-retrieval-32M (P1, CPU); qwen = Qwen/Qwen3-Embedding-0.6B (P2, GPU, 512 tokens,
 query instruction fixed in r2-pipeline.md). A need's queries are its label and its two paraphrases: BM25 gets them
@@ -71,16 +71,17 @@ def build(corpus: Path, out: Path, kind: str) -> None:
 
 
 def needs(split_name: str) -> list[dict]:
-    split = json.loads((HERE / "data" / "split.json").read_text())
-    if split_name != "tune":
-        sys.exit("round 3 queries TUNE only")
-    inp = {n["id"]: n for n in json.loads((HERE / "data" / "b0_tune_input.json").read_text())}
-    return [{"id": i, "queries": [inp[i]["need"], *inp[i]["also_described_as"]]} for i in split["tune"]]
+    """A need's queries are exactly the B0 input's (= `dev reuse`'s queries); TEST M ids are mapped back."""
+    ids = json.loads((HERE / "data" / "b0_test_ids.json").read_text()) if split_name == "test" else {}
+    inp = json.loads((HERE / "data" / f"b0_{split_name}_input.json").read_text())
+    return [{"id": ids.get(n["id"], n["id"]), "queries": [n["need"], *n["also_described_as"]]} for n in inp]
 
 
 def query(idx: Path, kind: str, out: Path) -> None:
     import bm25s
     names = json.loads((idx / "names.json").read_text())
+    texts = ([json.loads(line)["text"] for line in Path(arg("--corpus")).read_text().splitlines()] if arg("--corpus")
+             else [""] * len(names))
     bm = bm25s.BM25.load(str(idx / "bm25"))
     v = np.load(idx / f"dense-{kind}.npy", mmap_mode="r")
     enc = encoder(kind)
@@ -98,7 +99,8 @@ def query(idx: Path, kind: str, out: Path) -> None:
             for r, j in enumerate(lst):
                 fused[j] = fused.get(j, 0.0) + 1.0 / (RRF_K + r + 1)
         top = sorted(fused, key=lambda j: -fused[j])[:TOP]
-        res[n["id"]] = [{"name": names[j][0], "repo": names[j][1], "rrf": round(fused[j], 5)} for j in top]
+        res[n["id"]] = [{"name": names[j][0], "repo": names[j][1], "rrf": round(fused[j], 5),
+                         "desc": texts[j].split(" . ", 1)[0].removeprefix(names[j][0]).strip()[:300]} for j in top]
     out.write_text(json.dumps(res))
     print(f"top {TOP} for {len(res)} needs -> {out}")
 
