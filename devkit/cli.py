@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from devkit import board, checks, citecheck, code, config, docs, evals, gate, lit, setup, stats, workflow
+from devkit import board, checks, citecheck, code, config, consolidation, docs, evals, gate, lit, setup, stats, workflow
 from devkit.paths import root
 
 NOTE_TEMPLATE = """# Research: {title}
@@ -149,6 +149,12 @@ def build() -> argparse.ArgumentParser:
         action="store_true",
         help="no Actions minutes: required checks Actions does not run are run locally and posted as statuses",
     )
+    x.add_argument(
+        "--consolidation-review",
+        type=int,
+        metavar="EPIC",
+        help="the merge commit records a consolidation review (Consolidation-Review: #EPIC), resetting its trigger",
+    )
 
     x = sub.add_parser(
         "cite-check", help="resolve every source in research notes; flag dead links and title mismatches"
@@ -195,6 +201,17 @@ def build() -> argparse.ArgumentParser:
     x = sub.add_parser("eval", help="micro-scenario evals of the agent surface via claude -p in a remote-less clone")
     x.add_argument("names", nargs="*", help="scenario names (default: all in the evals dir)")
     x.add_argument("--trials", type=int, default=3)
+    x = sub.add_parser(
+        "consolidation", help="architecture review: is one due (orient shows it), and the report the architect reads"
+    )
+    xs = x.add_subparsers(dest="sub", required=True)
+    y = xs.add_parser("status", help="is a review due since the last Consolidation-Review: trailer, and why (fast)")
+    y.add_argument("--json", action="store_true")
+    y = xs.add_parser(
+        "report", help="read-only measurements: smells, growth by directory, command overlap, parse errors"
+    )
+    y.add_argument("--json", action="store_true")
+    y.add_argument("--tools", action="store_true", help="also run pinned pyscn and vulture on a git-archive copy")
     x = sub.add_parser("agent-stats", help="scorecard from transcripts: tokens, calls, big-result share per agent type")
     x.add_argument("--json", action="store_true")
     return p
@@ -257,7 +274,7 @@ def run(a: argparse.Namespace) -> int:
         case "pr":
             print(workflow.pr(a.number, a.summary, a.draft, a.partial))
         case "integrate":
-            return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override, a.local_ci)
+            return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
         case "cite-check":
             paths = [Path(p) for p in a.paths] or _changed_notes()
             if not paths:
@@ -289,6 +306,24 @@ def run(a: argparse.Namespace) -> int:
             return evals.run(a.names, a.trials)
         case "agent-stats":
             print(stats.report(a.json))
+        case "consolidation":
+            return run_consolidation(a)
+    return 0
+
+
+def run_consolidation(a: argparse.Namespace) -> int:
+    if a.sub == "status":
+        r = consolidation.due(root())
+        for k in ("head", "at_base"):
+            r[k].pop("loc")
+        why = "; ".join(r["why"])
+        print(json.dumps(r, indent=1) if a.json else f"review due: {'yes: ' + why if r['review_due'] else 'no'}")
+        return 0
+    names = {name for top, subs in command_map().items() for name in (top, *subs)}
+    r = consolidation.report(root(), names, tools=a.tools)
+    if n := r["parse_errors"]["count"]:
+        print(f"warning: {n} Python file(s) failed to parse; see the report's parse errors", file=sys.stderr)
+    print(json.dumps(r, indent=1) if a.json else consolidation.render(r))
     return 0
 
 

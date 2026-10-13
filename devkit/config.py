@@ -9,6 +9,23 @@ from dataclasses import dataclass, field
 
 from devkit.paths import root
 
+# `[tool.devkit.consolidation]`: the review trigger `dev orient` shows (devkit/consolidation.py). Defaults from
+# docs/research/architecture-consolidation.md §6 and §8, calibrated on four repositories; a table states only changes.
+CONSOLIDATION: dict[str, float | int | str | list[str]] = {
+    "growth": 2.0,  # code grew to this many times its size at the last review ...
+    "growth_min_loc": 5000,  # ... and by at least this many LOC
+    "fp_commits": 100,  # first-parent commits since the last review
+    "dormant_k": 30,  # a unit no commit touched in this many first-parent commits is dormant
+    "dormant_share": 0.05,  # orphaned dormant units (dormant, imported by no active unit): share of code LOC
+    "churny_loc": 1000,  # a non-test file over this many LOC ...
+    "churny_commits": 30,  # ... changed by at least this many non-merge commits
+    "lazy_cycle": 10,  # an import cycle of this many modules
+    "lazy_share": 0.10,  # share of import statements inside functions ...
+    "lazy_min_imports": 50,  # ... once there are this many imports
+    "exclude": ["migrations/*", "*/migrations/*"],  # globs of dynamically loaded trees, never orphaned
+    "since": "",  # a commit to count from instead of the newest `Consolidation-Review:` trailer
+}
+
 
 @dataclass(frozen=True)
 class Config:
@@ -42,6 +59,7 @@ class Config:
             "astral@astral-sh": "astral-sh/claude-code-plugins",
         }
     )
+    consolidation: dict[str, object] = field(default_factory=lambda: dict(CONSOLIDATION))
 
 
 class ConfigError(ValueError):
@@ -57,7 +75,25 @@ def parse(data: dict) -> Config:
         kind = getattr(want, "__origin__", want)
         if (isinstance(kind, type) and not isinstance(value, kind)) or (kind is int and isinstance(value, bool)):
             raise ConfigError(f"[tool.devkit] {key} = {value!r}: expected {want}")
+    if "consolidation" in data:
+        data = {**data, "consolidation": _consolidation(data["consolidation"])}
     return Config(**data)
+
+
+def _consolidation(table: dict) -> dict:
+    if unknown := sorted(set(table) - set(CONSOLIDATION)):
+        raise ConfigError(f"[tool.devkit.consolidation]: unknown key(s) {unknown}; known: {sorted(CONSOLIDATION)}")
+    for key, value in table.items():
+        default = CONSOLIDATION[key]
+        if isinstance(default, list):
+            ok = isinstance(value, list) and all(isinstance(v, str) for v in value)
+        elif isinstance(default, float):
+            ok = isinstance(value, int | float) and not isinstance(value, bool)
+        else:
+            ok = isinstance(value, type(default)) and not isinstance(value, bool)
+        if not ok:
+            raise ConfigError(f"[tool.devkit.consolidation] {key} = {value!r}: expected {type(default).__name__}")
+    return {**CONSOLIDATION, **table}
 
 
 @functools.cache

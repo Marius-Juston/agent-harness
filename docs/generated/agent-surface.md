@@ -6,6 +6,7 @@
 
 | name | model | effort | tools | words | use when |
 |---|---|---|---|---|---|
+| harness-ops:architect | opus | - | Read, Grep, Glob, Bash | 407 | Read-only consolidation review of the whole repository, run when `uv run dev orient` says a review is due or the owner asks for one. |
 | harness-ops:builder | opus | - | all | 409 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
 | harness-ops:research-auditor | opus | high | Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers | 190 | Adversarial, read-only audit of one research note. |
 | harness-ops:researcher | opus | high | all | 599 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
@@ -17,7 +18,7 @@
 | name | invocation | words | purpose |
 |---|---|---|---|
 | harness-ops:harness | model + /harness-ops:harness | 526 | How to change a project's agent surface safely — CLAUDE.md, .claude/ settings and agents, skills, hooks, the [tool.devkit] config, CI — without drift or bloa... |
-| harness-ops:lead | model + /harness-ops:lead | 649 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
+| harness-ops:lead | model + /harness-ops:lead | 646 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
 | harness-ops:research | model + /harness-ops:research | 610 | Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reve... |
 
 ## Hooks
@@ -89,6 +90,9 @@
 | `doctor` | read-only: what this machine still needs |
 | `usage-poll` | record the weekly usage percent every 10 min for the spawn guard (detach it) |
 | `eval` | micro-scenario evals of the agent surface via claude -p in a remote-less clone |
+| `consolidation` | architecture review: is one due (orient shows it), and the report the architect reads |
+| `consolidation status` | is a review due since the last Consolidation-Review: trailer, and why (fast) |
+| `consolidation report` | read-only measurements: smells, growth by directory, command overlap, parse errors |
 | `agent-stats` | scorecard from transcripts: tokens, calls, big-result share per agent type |
 
 ## Word budgets (`.devkit/ratchets.toml`, only tighten)
@@ -96,11 +100,12 @@
 | file | words | budget |
 |---|---|---|
 | CLAUDE.md | 260 | 600 |
+| plugins/harness-ops/agents/architect.md | 407 | 600 |
 | plugins/harness-ops/agents/builder.md | 409 | 600 |
 | plugins/harness-ops/agents/research-auditor.md | 190 | 600 |
 | plugins/harness-ops/agents/researcher.md | 599 | 600 |
 | plugins/harness-ops/agents/reviewer.md | 216 | 600 |
 | plugins/harness-ops/agents/tester.md | 205 | 600 |
 | plugins/harness-ops/skills/harness/SKILL.md | 526 | 650 |
-| plugins/harness-ops/skills/lead/SKILL.md | 649 | 650 |
+| plugins/harness-ops/skills/lead/SKILL.md | 646 | 650 |
 | plugins/harness-ops/skills/research/SKILL.md | 610 | 650 |
