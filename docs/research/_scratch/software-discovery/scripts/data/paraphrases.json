@@ -1,0 +1,482 @@
+{
+ "AI and Agents / Agent Skills": [
+  "reusable skills for coding agents",
+  "agent skill packs for code review and security audits"
+ ],
+ "AI and Agents / Data Layer": [
+  "structured output and retrieval augmented generation over documents for LLMs",
+  "long-term memory store for LLM agents"
+ ],
+ "AI and Agents / Fine-tuning": [
+  "fine-tune a large language model with LoRA",
+  "parameter efficient training of transformer models"
+ ],
+ "AI and Agents / Speech": [
+  "speech recognition and text to speech",
+  "transcribe audio to text with a neural model"
+ ],
+ "Audio & Video Processing / Metadata": [
+  "read and write audio file tags",
+  "edit ID3 metadata of mp3 and flac files"
+ ],
+ "Audio & Video Processing / Video": [
+  "edit and process video files",
+  "cut, concatenate and transcode videos programmatically"
+ ],
+ "Authentication / JWT": [
+  "encode and decode JSON web tokens",
+  "sign and verify JWT tokens"
+ ],
+ "Authentication / OAuth": [
+  "OAuth 2.0 client and provider",
+  "implement OAuth authorization flow"
+ ],
+ "Built-in Classes Enhancement": [
+  "define classes without boilerplate",
+  "better data classes with validation and immutability"
+ ],
+ "CLI Development / Terminal Rendering": [
+  "rich colored text and tables in the terminal",
+  "progress bars and formatted terminal output"
+ ],
+ "CLI Tools / Database CLIs": [
+  "command line client for SQL databases with autocompletion",
+  "interactive database shell with syntax highlighting"
+ ],
+ "CLI Tools / Shells": [
+  "python-powered interactive shell",
+  "a unix shell that runs python"
+ ],
+ "CMS": [
+  "content management system for websites",
+  "web publishing platform with an admin editor"
+ ],
+ "Caching": [
+  "memoize function results with expiry",
+  "cache data on disk or in memory with eviction"
+ ],
+ "Code Analysis / Refactoring": [
+  "automated code refactoring and rewriting",
+  "rewrite python source code with codemods"
+ ],
+ "Computer Vision / OCR": [
+  "optical character recognition from images",
+  "extract text from scanned documents"
+ ],
+ "Cryptography": [
+  "cryptographic primitives encryption and hashing",
+  "encrypt and sign data securely"
+ ],
+ "Data Validation": [
+  "validate data against a schema",
+  "check structure and types of input data"
+ ],
+ "Database / Key-Value & Document": [
+  "embedded key-value store",
+  "lightweight document database stored in a file"
+ ],
+ "Database Drivers / ClickHouse": [
+  "connect to ClickHouse and run queries",
+  "ClickHouse client driver"
+ ],
+ "Database Drivers / MySQL": [
+  "connect to a MySQL database",
+  "MySQL client driver"
+ ],
+ "Database Drivers / Other Relational Databases": [
+  "driver for relational databases like SQL Server or Oracle",
+  "connect to a SQL database server"
+ ],
+ "Date and Time": [
+  "parse, format and manipulate dates and times",
+  "timezone aware datetime handling"
+ ],
+ "Debugging Tools / Tracing": [
+  "trace function calls and executed lines",
+  "log every function call for debugging"
+ ],
+ "Debugging Tools / pdb-like Debugger": [
+  "interactive debugger with a better interface than pdb",
+  "step through code in a terminal debugger"
+ ],
+ "Deep Learning / Reinforcement Learning": [
+  "reinforcement learning environments and agents",
+  "train RL algorithms like PPO"
+ ],
+ "DevOps Tools / Configuration Management": [
+  "automate server configuration and provisioning",
+  "infrastructure automation over ssh"
+ ],
+ "ERP": [
+  "enterprise resource planning software",
+  "business management suite with accounting and inventory"
+ ],
+ "Environment Management": [
+  "manage python versions and virtual environments",
+  "isolate project dependencies in virtualenvs"
+ ],
+ "File Format Processing / Data Formats": [
+  "parse YAML and TOML files",
+  "read and write configuration data formats"
+ ],
+ "File Format Processing / Markdown": [
+  "parse markdown and render HTML",
+  "markdown to html converter"
+ ],
+ "File Manipulation": [
+  "watch files for changes",
+  "detect file type and monitor filesystem events"
+ ],
+ "Functional Programming": [
+  "functional programming utilities for iterables",
+  "composable functions, currying and immutable data"
+ ],
+ "GUI Development / Desktop": [
+  "build desktop GUI applications",
+  "cross-platform native windows and widgets"
+ ],
+ "Game Development / Visual Novels": [
+  "engine for visual novel games",
+  "make interactive story games"
+ ],
+ "HTML Manipulation": [
+  "parse and manipulate HTML and XML",
+  "navigate an HTML document tree"
+ ],
+ "HTTP Clients / URL Manipulation": [
+  "parse and build URLs",
+  "manipulate URL query strings and paths"
+ ],
+ "Image Processing / Barcodes and QR Codes": [
+  "generate and read QR codes",
+  "barcode decoding from images"
+ ],
+ "Image Processing / Image Serving": [
+  "on-the-fly image resizing server",
+  "serve thumbnails and cropped images over http"
+ ],
+ "Implementations": [
+  "alternative python interpreter",
+  "faster implementation of the python language"
+ ],
+ "Logging": [
+  "structured logging",
+  "nicer log output with less setup"
+ ],
+ "Machine Learning / Gradient Boosting": [
+  "gradient boosted decision trees",
+  "boosting library for tabular data"
+ ],
+ "Microsoft Windows": [
+  "access Windows APIs from python",
+  "windows specific python tooling"
+ ],
+ "ORM / NoSQL Databases": [
+  "object document mapper for MongoDB",
+  "map python objects to a NoSQL database"
+ ],
+ "Package Management / Package Managers": [
+  "install and manage python package dependencies",
+  "dependency resolver and lock file manager"
+ ],
+ "Package Repositories": [
+  "host a private PyPI server",
+  "local package index mirror"
+ ],
+ "Science / Core": [
+  "numerical arrays and scientific computing",
+  "linear algebra and scientific routines"
+ ],
+ "Science / Physics and Engineering": [
+  "physics simulations and engineering calculations",
+  "astronomy and physical units computations"
+ ],
+ "Science / Simulation and Modeling": [
+  "discrete event simulation",
+  "agent based modeling and simulation framework"
+ ],
+ "Science / Statistics": [
+  "statistical models and tests",
+  "regression and hypothesis testing"
+ ],
+ "Task Queues": [
+  "distributed background task queue",
+  "run jobs asynchronously with workers"
+ ],
+ "Testing / Load Testing": [
+  "load test a web service",
+  "simulate many concurrent users against an http api"
+ ],
+ "Testing / Test Runners": [
+  "run unit tests with fixtures",
+  "test framework and runner"
+ ],
+ "Text Processing / Fuzzy Matching": [
+  "fuzzy string matching",
+  "string similarity with edit distance"
+ ],
+ "Text Processing / Transliteration and Slugs": [
+  "convert unicode text to ascii slugs",
+  "make url friendly slugs from titles"
+ ],
+ "Text Processing / Unique identifiers": [
+  "short unique ids",
+  "generate concise url-safe uuids"
+ ],
+ "Web APIs / Flask": [
+  "build a REST API with Flask",
+  "flask extension for restful endpoints"
+ ],
+ "Web APIs / Framework Agnostic": [
+  "build web APIs with request validation",
+  "graphql or rpc api server library"
+ ],
+ "Web Scraping / Frameworks": [
+  "web crawling and scraping framework",
+  "crawl websites and extract data"
+ ],
+ "Web Servers / ASGI": [
+  "ASGI web server",
+  "run an async python web app in production"
+ ],
+ "AI and Agents / LLM Inference and Serving": [
+  "serve large language models with high throughput",
+  "fast LLM inference engine"
+ ],
+ "AI and Agents / Model Context Protocol": [
+  "build an MCP server",
+  "model context protocol client and server sdk"
+ ],
+ "AI and Agents / Orchestration": [
+  "framework for building LLM agents and chains",
+  "orchestrate multi-step LLM workflows with tools"
+ ],
+ "AI and Agents / Personal Assistants": [
+  "personal AI assistant that connects to chat apps",
+  "self-hosted AI assistant bot"
+ ],
+ "AI and Agents / Vendor Agent SDKs": [
+  "official SDK for building AI agents",
+  "agent development kit from a model provider"
+ ],
+ "Admin Panels": [
+  "admin dashboard for database models",
+  "auto-generated admin interface for a web app"
+ ],
+ "Algorithms and Design Patterns / Algorithms": [
+  "implementations of classic algorithms and data structures",
+  "sorted containers and graph algorithms"
+ ],
+ "Audio & Video Processing / Audio": [
+  "audio analysis and manipulation",
+  "load, slice and convert audio files"
+ ],
+ "Build Tools": [
+  "build automation tool",
+  "compile and package software projects"
+ ],
+ "CLI Tools / Downloaders": [
+  "download videos from websites on the command line",
+  "command line media downloader"
+ ],
+ "CLI Tools / Project Scaffolding": [
+  "generate a new project from a template",
+  "project scaffolding from cookiecutter style templates"
+ ],
+ "Code Analysis / Git Hooks": [
+  "run checks in git pre-commit hooks",
+  "manage pre-commit hooks"
+ ],
+ "Code Analysis / Linters and Formatters": [
+  "lint and format python code",
+  "code style checker and auto formatter"
+ ],
+ "Code Analysis / Type Checkers": [
+  "static type checker for python",
+  "check type annotations"
+ ],
+ "Configuration Files": [
+  "read configuration from files and environment variables",
+  "settings management for applications"
+ ],
+ "Data Analysis": [
+  "dataframes for data analysis",
+  "analyze tabular data fast"
+ ],
+ "Data Visualization / Dashboards and Apps": [
+  "build interactive data dashboards",
+  "turn data scripts into web apps"
+ ],
+ "Data Visualization / Plotting": [
+  "plot charts and graphs",
+  "interactive plotting library"
+ ],
+ "Data Visualization / Specialized": [
+  "specialized visualizations like maps or missing data",
+  "domain specific charting"
+ ],
+ "Database / Analytical": [
+  "in-process analytical SQL database",
+  "fast OLAP queries on local files"
+ ],
+ "Database Drivers / NoSQL Databases": [
+  "client for MongoDB, Redis or Cassandra",
+  "connect to a NoSQL database"
+ ],
+ "Database Drivers / PostgreSQL": [
+  "connect to PostgreSQL",
+  "PostgreSQL database adapter"
+ ],
+ "Database Drivers / SQLite": [
+  "work with SQLite databases",
+  "async or enhanced sqlite access"
+ ],
+ "Deep Learning / Frameworks": [
+  "deep learning framework with autograd and GPU",
+  "train neural networks"
+ ],
+ "DevOps Tools / Cloud Providers": [
+  "manage cloud resources from code",
+  "cloud provider SDK and infrastructure as code"
+ ],
+ "Distributed Computing": [
+  "parallel and distributed computing across a cluster",
+  "scale python computations to many machines"
+ ],
+ "Distribution / Executables": [
+  "bundle a python app into a standalone executable",
+  "freeze python programs into binaries"
+ ],
+ "Distribution / Obfuscation": [
+  "obfuscate python source code",
+  "protect python scripts from reverse engineering"
+ ],
+ "Email": [
+  "send and parse email",
+  "email client and inbox handling"
+ ],
+ "File Format Processing / File Conversion": [
+  "convert office documents and PDFs to text or markdown",
+  "document conversion to structured data"
+ ],
+ "File Format Processing / PowerPoint": [
+  "create PowerPoint presentations",
+  "read and write pptx files"
+ ],
+ "File Format Processing / Word": [
+  "create and edit Word documents",
+  "read and write docx files"
+ ],
+ "GUI Development / Qt": [
+  "Qt bindings for desktop apps",
+  "build GUIs with Qt widgets"
+ ],
+ "GUI Development / Tkinter": [
+  "modern themes and widgets for tkinter",
+  "simpler tkinter GUI building"
+ ],
+ "GUI Development / Web-based": [
+  "build a GUI that runs in the browser",
+  "desktop app with a web view frontend"
+ ],
+ "Game Development / 3D Engines": [
+  "3D game engine",
+  "render 3D scenes and games"
+ ],
+ "Hardware": [
+  "control hardware like GPIO, sensors and microcontrollers",
+  "talk to devices over serial or USB"
+ ],
+ "Interactive Interpreter": [
+  "enhanced interactive python shell",
+  "better REPL with autocompletion"
+ ],
+ "Job Schedulers / Task Scheduling": [
+  "schedule periodic jobs in process",
+  "run a function every day at a given time"
+ ],
+ "Job Schedulers / Workflow Orchestration": [
+  "orchestrate data pipeline workflows as DAGs",
+  "workflow scheduler for batch jobs"
+ ],
+ "Machine Learning / Time Series Forecasting": [
+  "forecast time series",
+  "time series prediction models"
+ ],
+ "Natural Language Processing / Chinese": [
+  "Chinese text segmentation",
+  "convert Chinese characters to pinyin"
+ ],
+ "Package Management / Build Backends": [
+  "build backend for python packages",
+  "pyproject build system for wheels"
+ ],
+ "Quantum Computing": [
+  "simulate and program quantum circuits",
+  "quantum computing framework"
+ ],
+ "Science / Biology and Chemistry": [
+  "bioinformatics and computational chemistry",
+  "parse biological sequences and molecules"
+ ],
+ "Science / Graphs and Networks": [
+  "graph and network analysis",
+  "create and analyze networks of nodes and edges"
+ ],
+ "Science / Symbolic Mathematics": [
+  "symbolic math and algebra",
+  "computer algebra system"
+ ],
+ "Static Site Generators": [
+  "generate a static website from markdown",
+  "static site generator"
+ ],
+ "Template Engines": [
+  "render text templates with variables",
+  "html templating language"
+ ],
+ "Testing / Code Coverage": [
+  "measure test code coverage",
+  "report which lines tests execute"
+ ],
+ "Testing / Fake Data": [
+  "generate fake test data",
+  "realistic random names addresses for tests"
+ ],
+ "Testing / Frameworks": [
+  "testing framework",
+  "write and run tests with fixtures and plugins"
+ ],
+ "Text Processing / Internationalization": [
+  "internationalization and localization of messages",
+  "format dates numbers per locale"
+ ],
+ "Text Processing / Parser": [
+  "write parsers for text formats",
+  "parsing library for grammars"
+ ],
+ "Web APIs / Django": [
+  "build REST APIs with Django",
+  "django api framework"
+ ],
+ "Web Asset Management": [
+  "bundle and compress static assets for web apps",
+  "manage css and javascript assets"
+ ],
+ "Web Frameworks / Asynchronous": [
+  "async web framework",
+  "high performance asyncio web framework"
+ ],
+ "Web Security": [
+  "protect web apps against common attacks",
+  "web security headers and sanitization"
+ ],
+ "Web Servers / WSGI": [
+  "WSGI HTTP server for production",
+  "serve a python web app with workers"
+ ],
+ "WebSocket": [
+  "websocket server and client",
+  "real-time bidirectional communication over websockets"
+ ]
+}

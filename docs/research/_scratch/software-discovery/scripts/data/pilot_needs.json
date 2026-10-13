@@ -1,0 +1,207 @@
+[
+ {
+  "id": "pilot / spaced repetition scheduler",
+  "q0": "spaced repetition scheduler",
+  "para": [
+   "flashcard review interval algorithm",
+   "memory model for scheduling reviews"
+  ],
+  "gold": [
+   "open-spaced-repetition/py-fsrs"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / computerized adaptive testing with item response theory",
+  "q0": "computerized adaptive testing with item response theory",
+  "para": [
+   "IRT item selection simulation",
+   "adaptive test engine"
+  ],
+  "gold": [
+   "douglasrizzo/catsim"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / detect and anonymize personally identifiable information in text",
+  "q0": "detect and anonymize personally identifiable information in text",
+  "para": [
+   "PII redaction",
+   "de-identification of names emails phone numbers"
+  ],
+  "gold": [
+   "data-privacy-stack/presidio",
+   "microsoft/presidio"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / retry a function call with exponential backoff",
+  "q0": "retry a function call with exponential backoff",
+  "para": [
+   "retrying decorator",
+   "retry transient failures with jitter"
+  ],
+  "gold": [
+   "hynek/stamina",
+   "jd/tenacity",
+   "litl/backoff"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / fuzzy string matching",
+  "q0": "fuzzy string matching",
+  "para": [
+   "string similarity levenshtein",
+   "approximate text match ratio"
+  ],
+  "gold": [
+   "rapidfuzz/rapidfuzz",
+   "seatgeek/thefuzz"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / validate JSON against a schema",
+  "q0": "validate JSON against a schema",
+  "para": [
+   "JSON Schema validator",
+   "check json documents follow a schema"
+  ],
+  "gold": [
+   "horejsek/python-fastjsonschema",
+   "python-jsonschema/jsonschema"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / property-based testing",
+  "q0": "property-based testing",
+  "para": [
+   "generate random test inputs and shrink failures",
+   "quickcheck for python"
+  ],
+  "gold": [
+   "hypothesisworks/hypothesis"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / convert HTML to Markdown",
+  "q0": "convert HTML to Markdown",
+  "para": [
+   "html to markdown converter",
+   "turn web page html into markdown text"
+  ],
+  "gold": [
+   "alir3z4/html2text",
+   "matthewwithanm/python-markdownify"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / detect the character encoding of bytes",
+  "q0": "detect the character encoding of bytes",
+  "para": [
+   "charset detection",
+   "guess text encoding of a file"
+  ],
+  "gold": [
+   "chardet/chardet",
+   "jawah/charset_normalizer"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / parse cron expressions and compute next run time",
+  "q0": "parse cron expressions and compute next run time",
+  "para": [
+   "cron schedule iterator",
+   "next occurrence of a crontab line"
+  ],
+  "gold": [
+   "kiorky/croniter",
+   "pallets-eco/croniter"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / parse SPDX license expressions",
+  "q0": "parse SPDX license expressions",
+  "para": [
+   "license expression parser",
+   "normalize open source license identifiers"
+  ],
+  "gold": [
+   "aboutcode-org/license-expression",
+   "nexb/license-expression"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / deep difference between two python objects",
+  "q0": "deep difference between two python objects",
+  "para": [
+   "compare nested dicts and lists",
+   "diff of data structures"
+  ],
+  "gold": [
+   "seperman/deepdiff"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / rate limiting with a token bucket",
+  "q0": "rate limiting with a token bucket",
+  "para": [
+   "rate limiter",
+   "throttle calls per second leaky bucket"
+  ],
+  "gold": [
+   "alisaifee/limits",
+   "vutran1710/pyratelimiter"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / parse and compare semantic version strings",
+  "q0": "parse and compare semantic version strings",
+  "para": [
+   "semver",
+   "version number comparison"
+  ],
+  "gold": [
+   "pypa/packaging",
+   "python-semver/python-semver"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / cross-process file lock",
+  "q0": "cross-process file lock",
+  "para": [
+   "file locking",
+   "lock a file between processes"
+  ],
+  "gold": [
+   "harlowja/fasteners",
+   "tox-dev/filelock",
+   "tox-dev/py-filelock"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ },
+ {
+  "id": "pilot / small fast static text embeddings",
+  "q0": "small fast static text embeddings",
+  "para": [
+   "sentence embeddings without a gpu",
+   "distilled embedding model"
+  ],
+  "gold": [
+   "minishlab/model2vec"
+  ],
+  "source": "lead pilot (pilot_recall_bench.py)"
+ }
+]

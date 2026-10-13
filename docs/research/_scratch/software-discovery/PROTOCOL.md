@@ -58,3 +58,14 @@ Owner asked whether the index is the best option or something easier is as good.
    built and published only if A4 or A5 clears this against A3.
 14. Report TEST results separately for needs whose gold is a top-1,000 PyPI package by downloads and for the rest
    (long tail), since an agent's memory is expected to do well on the first group and worse on the second.
+
+## Amendment 4 (lead, 2026-10-13, before any tuning or TEST run): index arms fixed from r2-pipeline.md
+15. Index arms, cheapest first (all recall stages; ranking stays `dev reuse` gates + Q + the TUNE-chosen order):
+   P1 BM25 (bm25s) + potion-retrieval-32M, RRF k=60, CPU only; P2 (= A4) BM25 + Qwen3-Embedding-0.6B, RRF k=60;
+   P3 (= A5) P2 re-ranked by Qwen3-Reranker-4B on the owner's server; P4 P2 over LLM-generated package profiles.
+   Each is unioned with the A2 pool. The corpus is open-index/open-pypi caught up from the PEP 691 simple index.
+16. **Headroom check on TUNE before building P2-P4** (threshold fixed now): if fewer than 10% of TUNE needs have a
+   gold library in P1's top 100 that is absent from the A2 pool, stop at A3 and build no GPU index. Report the
+   share either way.
+17. Order of the tuning grid (at most 12 configurations in total across amendments 1-4), written to
+   `scripts/data/configs.json` and committed before its first run.
