@@ -243,11 +243,17 @@ summary, in one of three forms (#173; why: docs/research/software-discovery.md �
   Reuse: docs/research/<note>.md                      <- the research note that already weighed them (must exist)
   Reuse: none: <reason>                               <- why no library applies (`none` then :, -, – or —),
                                                          e.g. `Reuse: none: harness adoption` on a copier update
-Empty or whitespace-only new .py files (package markers) do not count."""
+Empty or whitespace-only new .py files (package markers) do not count. Each new dependency also needs a fit clause
+in a `Reuse:` line, answered from memory after `reuse check` (#196; why: docs/research/software-discovery.md §11):
+  fit: <package> does <need> via <API>   e.g. `fit: httpx does HTTP/2 requests via httpx.Client(http2=True)`
+  fit: unsure                            <- when you cannot name the API; `fit: <package> unsure` for one of several
+  Reuse: httpx PASS (chosen); fit: httpx does HTTP/2 requests via httpx.Client(http2=True)"""
 REUSE_LINE = re.compile(r"^[\s>*_-]*Reuse[*_]*:[*_]*[ \t]*(.*)$", re.M | re.I)
 GATE_RESULT = re.compile(r"\b[A-Za-z0-9][\w.\[\]-]*[\s:(=]{1,3}(PASS|HOLD|FAIL|FLAG|NOT FOUND|UNVERIFIED)\b")
 NONE_REASON = re.compile(r"none\s*[:\-–—]\s*\S", re.I)
 NOTE_PATH = re.compile(r"docs/research/[\w./-]+\.md")
+FIT_CLAUSE = re.compile(r"\bfit:\s*(.*?)\s*(?=[;,]?\s*\bfit:|$)", re.I)
+FIT_NAMED = re.compile(r"([A-Za-z0-9][\w.-]*)(?:\[[\w,.\s-]*\])?\s+(?:unsure\b|does\s+\S.*?\s+via\s+\S)", re.I)
 
 
 def _normalized(name: str) -> str:
@@ -300,15 +306,34 @@ def reuse_line_problem(body: str) -> str | None:
     return f"its `Reuse:` line ({lines[0][:80]!r}) is in none of the forms" if lines else "has no `Reuse:` line"
 
 
+def fit_missing(body: str, dependencies: list[str]) -> list[str]:
+    """The new `dependencies` (normalized names) that no fit clause in a `Reuse:` line of `body` covers (#196 F0).
+    `fit: <package> does <need> via <API>` or `fit: <package> unsure` covers that package; `fit: unsure` covers all."""
+    named: set[str] = set()
+    for line in REUSE_LINE.finditer(body):
+        for clause in FIT_CLAUSE.finditer(line.group(1)):
+            if re.match(r"unsure\b", clause.group(1), re.I):
+                return []
+            if m := FIT_NAMED.match(clause.group(1)):
+                named.add(_normalized(m.group(1)))
+    return [d for d in dependencies if d not in named]
+
+
 def reuse_problem(body: str) -> str | None:
-    """One line on why this branch's PR summary needs a `Reuse:` line it lacks, or None (#173)."""
+    """One line on why this branch's PR summary needs a `Reuse:` line it lacks (#173), or a fit clause for a new
+    dependency (#196), or None."""
     base = checks.merge_base()
     if base is None or not (needs := reuse_needs(base)):
         return None
-    if (why := reuse_line_problem(body)) is None:
-        return None
-    shown = ", ".join(needs[:3]) + (f" and {len(needs) - 3} more" if len(needs) > 3 else "")
-    return f"the branch adds {shown}, but the PR summary {why}"
+    if (why := reuse_line_problem(body)) is not None:
+        shown = ", ".join(needs[:3]) + (f" and {len(needs) - 3} more" if len(needs) > 3 else "")
+        return f"the branch adds {shown}, but the PR summary {why}"
+    if missing := fit_missing(body, [n.removeprefix("dependency ") for n in needs if n.startswith("dependency ")]):
+        return (
+            f"the branch adds dependency {', '.join(missing)}, but no `Reuse:` line has a fit clause for it"
+            " (`fit: <package> does <need> via <API>` or `fit: unsure`)"
+        )
+    return None
 
 
 def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> str:
