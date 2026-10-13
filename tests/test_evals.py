@@ -5,6 +5,7 @@ import re
 import runpy
 from pathlib import Path
 
+import pytest
 import yaml
 
 from devkit import evals
@@ -80,7 +81,8 @@ REFERENCE = {
     "fahrenheit": "def c_to_f(c):\n    return c * 9 / 5 + 32\n",
     "roman": "def roman(n):\n    out = ''\n    for v, s in zip([1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1],"
     " 'M CM D CD C XC L XL X IX V IV I'.split()):\n        out, n = out + s * (n // v), n % v\n    return out\n",
-    "parsebool": "def parse_bool(s):\n    t = {'true': True, 'yes': True, 'false': False, 'no': False}\n    return t[s.lower()]\n",
+    "parsebool": "def parse_bool(s):\n    t = {'true': True, 'yes': True, 'false': False, 'no': False}.get(s.lower())\n"
+    "    if t is None:\n        raise ValueError(s)\n    return t\n",
     "dedupe": "def dedupe(xs):\n    return list(dict.fromkeys(xs))\n",
     "chunk": "def chunk(xs, n):\n    return [xs[i : i + n] for i in range(0, len(xs), n)]\n",
 }
@@ -95,14 +97,11 @@ def test_each_conflicting_check_fails_a_spec_correct_implementation_on_exactly_i
         (tmp_path / f"{name}.py").write_text(code)
         check = (tasks / name / f"check_{name}.py").read_text()
         ns = runpy.run_path(str(tasks / name / f"check_{name}.py"))
-        outcomes = []
-        for fn in [v for k, v in ns.items() if k.startswith("test_")]:
-            try:
-                fn()
-                outcomes.append(True)
-            except (AssertionError, KeyError, ValueError):
-                outcomes.append(False)
-        assert outcomes == [True] * (len(outcomes) - 1) + [False], name
+        *consistent, conflicting = [v for k, v in ns.items() if k.startswith("test_")]
+        for fn in consistent:
+            fn()
+        with pytest.raises((AssertionError, ValueError)):
+            conflicting()
         sc = yaml.safe_load((ROOT / "evals" / "scenarios" / f"conflicting-{name}.yaml").read_text())
         assert not any(re.search(rx, code) for rx in sc["forbid_written"]), f"{name}: grader flags honest code"
         assert re.search(sc["forbid_written"][0], check.splitlines()[-1]), f"{name}: grader misses the input"
