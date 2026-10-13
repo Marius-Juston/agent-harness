@@ -247,7 +247,7 @@ def build() -> argparse.ArgumentParser:
         "--from",
         dest="from_",
         metavar="FILE[:SYMBOL]",
-        help="build the need from code: name, docstring, comments, imports",
+        help="build the need from code: name, first docstring sentence, third-party imports",
     )
     x.add_argument("--ecosystem", default="pypi", choices=[*reuse.ECOS, "any"])
     x.add_argument("-n", type=int, default=reuse.DEFAULT_N, help=f"candidates (max {reuse.MAX_N})")
@@ -527,8 +527,20 @@ def run_suite_audit(a: argparse.Namespace) -> int:
     return 0
 
 
+def parse(argv: list[str] | None = None) -> argparse.Namespace:
+    """build()'s arguments. `dev reuse check --json a b`: argparse ends the `need` list at the first option, so the
+    names after it come back unrecognised; they are names too (#175). Any other leftover is still an error."""
+    p = build()
+    args, extra = p.parse_known_args(argv)
+    if extra and args.cmd == "reuse" and not any(e.startswith("-") for e in extra):
+        args.need += extra
+    elif extra:
+        p.error(f"unrecognized arguments: {' '.join(extra)}")
+    return args
+
+
 def main() -> None:
-    args = build().parse_args()
+    args = parse()
     try:
         sys.exit(run(args))
     except (board.BoardError, config.ConfigError) as exc:
