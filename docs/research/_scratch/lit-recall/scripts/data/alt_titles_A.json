@@ -1,0 +1,114 @@
+{
+ "A1": {},
+ "A2": {
+  "g002": [
+   "An Empirical Study on the Removal of Self-Admitted Technical Debt"
+  ],
+  "g004": [
+   "Identification and Remediation of Self-Admitted Technical Debt in Issue Trackers"
+  ],
+  "g003": [
+   "Was self-admitted technical debt removal a real removal?"
+  ],
+  "g007": [
+   "Are Delayed Issues Harder to Resolve?"
+  ],
+  "g000": [
+   "The impact of tangled code changes"
+  ],
+  "g005": [
+   "The effects of change decomposition on code review"
+  ],
+  "g006": [
+   "On the Use of Agentic Coding"
+  ],
+  "g008": [
+   "Why Are Agentic Pull Requests Merged or Rejected?"
+  ],
+  "g001": [
+   "When Does a Refactoring Induce Bugs?"
+  ]
+ },
+ "A3": {
+  "g008": [
+   "Spracklen 2024"
+  ],
+  "g016": [
+   "Churilov 2026"
+  ],
+  "g001": [
+   "Larios Vargas 2020"
+  ],
+  "g007": [
+   "Mujahid 2022"
+  ],
+  "g009": [
+   "Krishna 2025"
+  ],
+  "g012": [
+   "Avelino 2019"
+  ],
+  "g010": [
+   "Latendresse 2024"
+  ]
+ },
+ "A4": {
+  "g003": [
+   "Assertions are strongly correlated with test suite effectiveness"
+  ],
+  "g000": [
+   "Are mutants a valid substitute for real faults in software testing?"
+  ],
+  "g004": [
+   "Are mutation scores correlated with real fault detection?"
+  ],
+  "g012": [
+   "Predictive Test Selection"
+  ],
+  "g013": [
+   "An Empirical Study of Flaky Tests in Python"
+  ],
+  "g009": [
+   "An Empirical Evaluation of Property-Based Testing in Python"
+  ],
+  "g006": [
+   "A large-scale longitudinal study of flaky tests"
+  ],
+  "g005": [
+   "FlakeFlagger, ICSE 2021"
+  ],
+  "g011": [
+   "Test Alert Snooze: An Empirical Study of Consecutive Test Failures on CI"
+  ],
+  "g007": [
+   "How to fight production incidents?"
+  ],
+  "g008": [
+   "Code Coverage and Postrelease Defects: A Large-Scale Study on Open Source Projects"
+  ],
+  "g014": [
+   "Less is More? An Empirical Study on Configuration Issues in Python PyPI Ecosystem"
+  ],
+  "g015": [
+   "An Empirical Study on the Characteristics of Database Access Bugs in Java Applications"
+  ],
+  "g025": [
+   "Hasan et al."
+  ],
+  "g001": [
+   "Ekstazi, ISSTA 2015"
+  ],
+  "g002": [
+   "An extensive study of static regression test selection in modern software evolution"
+  ],
+  "g019": [
+   "ImpossibleBench, arXiv 2510.20270"
+  ],
+  "g018": [
+   "SpecBench, arXiv 2605.21384"
+  ],
+  "g016": [
+   "Practical Mutation Testing at Scale"
+  ]
+ }
+}

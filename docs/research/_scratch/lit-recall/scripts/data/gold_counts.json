@@ -1,0 +1,110 @@
+{
+ "A1": {
+  "raw_ids": 23,
+  "records": 23,
+  "works": 23,
+  "dropped_type": 0,
+  "unresolved_ids": 0,
+  "gold": 23,
+  "unresolved": []
+ },
+ "A2": {
+  "raw_ids": 9,
+  "records": 9,
+  "works": 9,
+  "dropped_type": 0,
+  "unresolved_ids": 0,
+  "gold": 9,
+  "unresolved": []
+ },
+ "A3": {
+  "raw_ids": 21,
+  "records": 21,
+  "works": 21,
+  "dropped_type": 0,
+  "unresolved_ids": 0,
+  "gold": 21,
+  "unresolved": []
+ },
+ "A4": {
+  "raw_ids": 26,
+  "records": 26,
+  "works": 26,
+  "dropped_type": 0,
+  "unresolved_ids": 0,
+  "gold": 26,
+  "unresolved": []
+ },
+ "P01": {
+  "raw_ids": 149,
+  "records": 144,
+  "works": 144,
+  "dropped_type": 0,
+  "unresolved_ids": 0,
+  "gold": 144
+ },
+ "P02": {
+  "raw_ids": 55,
+  "records": 55,
+  "works": 55,
+  "dropped_type": 0,
+  "unresolved_ids": 0,
+  "gold": 55
+ },
+ "P03": {
+  "raw_ids": 103,
+  "records": 102,
+  "works": 102,
+  "dropped_type": 0,
+  "unresolved_ids": 2,
+  "gold": 102
+ },
+ "P04": {
+  "raw_ids": 156,
+  "records": 156,
+  "works": 156,
+  "dropped_type": 1,
+  "unresolved_ids": 9,
+  "gold": 155
+ },
+ "P05": {
+  "raw_ids": 106,
+  "records": 104,
+  "works": 104,
+  "dropped_type": 1,
+  "unresolved_ids": 0,
+  "gold": 103
+ },
+ "P06": {
+  "raw_ids": 141,
+  "records": 138,
+  "works": 137,
+  "dropped_type": 2,
+  "unresolved_ids": 6,
+  "gold": 135
+ },
+ "P07": {
+  "raw_ids": 8,
+  "records": 8,
+  "works": 8,
+  "dropped_type": 0,
+  "unresolved_ids": 0,
+  "gold": 8
+ },
+ "P08": {
+  "raw_ids": 70,
+  "records": 68,
+  "works": 68,
+  "dropped_type": 0,
+  "unresolved_ids": 2,
+  "gold": 68
+ },
+ "P09": {
+  "raw_ids": 40,
+  "records": 36,
+  "works": 36,
+  "dropped_type": 0,
+  "unresolved_ids": 0,
+  "gold": 36
+ }
+}
