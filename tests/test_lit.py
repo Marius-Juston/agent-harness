@@ -1149,3 +1149,128 @@ def test_lit_bypass_script_counts_direct_api_calls_per_run(tmp_path):
     after = mod.measure(tmp_path / "p", since="2026-10-14")
     assert (after["harness-ops:researcher"]["runs"], after["harness-ops:researcher"]["bypass_runs"]) == (1, 0)
     assert after["harness-ops:research-auditor"]["bypass_runs"] == 1
+
+
+# ---- citation chasing: refs (backward) and cited-by (forward) through OpenAlex (#193) ----
+
+
+def chase_body(n: int, count: int) -> str:
+    return json.dumps({"meta": {"count": count}, **json.loads(oa_body(n, "10.9/c"))})
+
+
+def test_chase_urls_filter_sort_by_citations_and_take_years():
+    refs = lit.chase_url("refs", "W42", 5)
+    assert refs.startswith(OA + "works?filter=cited_by:W42&") and "sort=cited_by_count:desc" in refs
+    assert "per_page=5" in refs and "abstract_inverted_index" in refs
+    assert "filter=cites:W42,publication_year:2015-2020&" in lit.chase_url("cited-by", "W42", 5, "2015-2020")
+    with pytest.raises(ValueError):
+        lit.chase_url("sideways", "W42", 5)
+
+
+def test_refs_of_a_w_id_take_one_call_and_say_how_many_there_are(tmp_path):
+    net = FakeNet({OA + "works?filter=cited_by:W7&": [(200, {}, chase_body(3, 41))]})
+    papers, notes = make(tmp_path, net).chase("w7", "refs", n=3)
+    assert [p.title for p in papers] == [f"OpenAlex paper {i}" for i in range(3)]
+    assert len(net.calls) == 1
+    assert notes == ["3 of 41 references of W7, most cited first"]
+
+
+def test_cited_by_resolves_a_doi_or_arxiv_id_to_its_w_id_first_and_caches(tmp_path):
+    work = json.dumps({"id": "https://openalex.org/W99", "doi": "https://doi.org/10.1234/x", "title": "T"})
+    net = FakeNet(
+        {
+            OA + "works/doi:10.48550/arXiv.1706.03762?": [(200, {}, work)],
+            OA + "works/doi:10.1234/x?": [(200, {}, work)],
+            OA + "works?filter=cites:W99&": [(200, {}, chase_body(2, 2))],
+        }
+    )
+    c = make(tmp_path, net)
+    papers, notes = c.chase("arxiv:1706.03762v2", "cited-by", n=2)
+    assert len(papers) == 2 and notes == ["2 of 2 citing works of W99, most cited first"]
+    papers, _ = c.chase("doi:10.1234/x", "cited-by", n=2)
+    assert len(papers) == 2
+    assert sum("filter=cites:W99" in u for u, _ in net.calls) == 1  # the second chase came from the shared cache
+
+
+def test_chase_rejects_an_id_openalex_cannot_resolve_before_any_call(tmp_path):
+    net = FakeNet({})
+    for bad in ("a" * 40, "not an id"):
+        with pytest.raises(ValueError):
+            make(tmp_path, net).chase(bad, "refs")
+    assert net.calls == []
+
+
+def test_chase_failures_are_notes(tmp_path):
+    net = FakeNet({OA + "works/doi:": [(404, {}, "")]})
+    assert make(tmp_path, net).chase("10.1234/missing", "refs") == ([], ["openalex: not found"])
+    net = FakeNet({OA: [(429, {"Retry-After": "86400"}, "")]})
+    papers, notes = make(tmp_path / "b", net).chase("W1", "cited-by")
+    assert papers == [] and "rate limited" in notes[0]
+    net = FakeNet({OA: [(200, {}, "not json")]})
+    assert make(tmp_path / "c", net).chase("W1", "refs") == ([], ["openalex: unreadable answer (JSONDecodeError)"])
+
+
+def test_a_paper_nobody_cites_is_no_results_not_a_failure(tmp_path):
+    net = FakeNet({OA: [(200, {}, json.dumps({"meta": {"count": 0}, "results": []}))]})
+    assert make(tmp_path, net).chase("W1", "cited-by") == ([], [])
+
+
+def test_refs_with_no_reference_list_says_why_and_where_else_to_look(tmp_path):
+    """Live 2026-10-13: OpenAlex has referenced_works_count 0 for the preprint 10.48550/arXiv.2406.10279."""
+    work = json.dumps({"id": "https://openalex.org/W4399795583", "title": "A preprint"})
+    net = FakeNet(
+        {
+            OA + "works/doi:10.48550/arXiv.2406.10279?": [(200, {}, work)],
+            OA + "works?filter=cited_by:W4399795583&": [(200, {}, json.dumps({"meta": {"count": 0}, "results": []}))],
+        }
+    )
+    papers, notes = make(tmp_path, net).chase("10.48550/arXiv.2406.10279", "refs")
+    assert papers == [] and notes == [
+        "OpenAlex lists no references for W4399795583 (common for arXiv preprints); "
+        "try the published version's DOI or the arxiv MCP"
+    ]
+    assert "note: OpenAlex lists no references for W4399795583" in lit.render(papers, notes)
+
+
+def test_dev_lit_refs_and_cited_by_over_a_local_fake_server(tmp_path, monkeypatch, capsys):
+    """Over real HTTP: `dev lit refs` and `dev lit cited-by` print the compact lines `lit search` prints."""
+    from devkit import cli
+
+    seen: list[str] = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append(self.path)
+            body = chase_body(2, 9).encode() if "filter=" in self.path else b""
+            self.send_response(200 if body else 404)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}/"
+
+    def local(url: str, headers: dict) -> tuple[int, dict, str]:
+        return lit.http_get(base + url.split("://", 1)[1], headers, timeout=5)
+
+    clock = Clock()
+    monkeypatch.setattr(lit, "client", lambda: lit.Client(tmp_path, get=local, clock=clock, sleep=clock.sleep, env={}))
+    try:
+        assert cli.run_lit(cli.build().parse_args(["lit", "refs", "W5", "-n", "2", "--snippet", "0"])) == 0
+        refs = capsys.readouterr().out
+        assert cli.run_lit(cli.build().parse_args(["lit", "cited-by", "W5", "--years", "2020-"])) == 0
+        cited = capsys.readouterr().out
+        assert cli.run_lit(cli.build().parse_args(["lit", "refs", "10.1234/gone"])) == 1
+        gone = capsys.readouterr().out
+        assert cli.run_lit(cli.build().parse_args(["lit", "refs", "nonsense"])) == 2
+    finally:
+        server.shutdown()
+    assert refs.splitlines()[0] == lit.parse_openalex(chase_body(2, 9))[0].line(0)
+    assert refs.splitlines()[-1] == "note: 2 of 9 references of W5, most cited first" and "\n  " not in refs
+    assert "note: 2 of 9 citing works of W5, most cited first" in cited and "Retrieval practice works." in cited
+    assert any("filter=cites:W5,publication_year:2020-&" in p for p in seen)
+    assert "note: openalex: not found" in gone

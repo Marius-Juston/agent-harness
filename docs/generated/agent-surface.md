@@ -20,7 +20,7 @@
 |---|---|---|---|
 | harness-ops:harness | model + /harness-ops:harness | 526 | How to change a project's agent surface safely — CLAUDE.md, .claude/ settings and agents, skills, hooks, the [tool.devkit] config, CI — without drift or bloa... |
 | harness-ops:lead | model + /harness-ops:lead | 650 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
-| harness-ops:research | model + /harness-ops:research | 626 | Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reve... |
+| harness-ops:research | model + /harness-ops:research | 649 | Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reve... |
 
 ## Hooks
 
@@ -85,6 +85,8 @@
 | `lit search` | papers for a query: title, year, venue, cites, ids, abstract snippet |
 | `lit status` | each source's health now (live probe); exits 1 only when every default source is down: run before a research round |
 | `lit get` | papers by DOI, arXiv id, OpenAlex W-id or S2 id: authors, open-access link, full abstract; several ids batch into one OpenAlex call |
+| `lit refs` | citation chasing through OpenAlex: the works it cites (backward), most cited first, compact lines like search |
+| `lit cited-by` | citation chasing through OpenAlex: the works citing it (forward), most cited first, compact lines like search |
 | `reuse` | reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); `"<need>"` searches for more (GitHub, ecosyste.ms, deps.dev; shares dev lit's cache and rate limits) |
 | `research` | research notes: new |
 | `research new` | create <research_dir>/<slug>.md from the house template |
@@ -114,4 +116,4 @@
 | plugins/harness-ops/agents/tester.md | 234 | 600 |
 | plugins/harness-ops/skills/harness/SKILL.md | 526 | 650 |
 | plugins/harness-ops/skills/lead/SKILL.md | 650 | 650 |
-| plugins/harness-ops/skills/research/SKILL.md | 626 | 650 |
+| plugins/harness-ops/skills/research/SKILL.md | 649 | 650 |

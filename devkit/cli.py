@@ -214,6 +214,14 @@ def build() -> argparse.ArgumentParser:
     )
     x.add_argument("id", nargs="+")
     x.add_argument("--snippet", type=int, default=None, help="abstract characters (default: all; 0 = none)")
+    for name, what in (("refs", "the works it cites (backward)"), ("cited-by", "the works citing it (forward)")):
+        x = ls.add_parser(
+            name, help=f"citation chasing through OpenAlex: {what}, most cited first, compact lines like search"
+        )
+        x.add_argument("id", help="a DOI, arXiv id or OpenAlex W-id")
+        x.add_argument("-n", type=int, default=lit.DEFAULT_N, help=f"results (max {lit.MAX_N})")
+        x.add_argument("--years", default="", help="2019, 2015-, -2020 or 2015-2020")
+        x.add_argument("--snippet", type=int, default=lit.SNIPPET, help="abstract characters per paper (0 = none)")
     x = sub.add_parser(
         "reuse",
         help="reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); "
@@ -415,6 +423,8 @@ def run_lit(a: argparse.Namespace) -> int:
         if a.sub == "search":
             sources, fallback = lit.plan(a.source)
             papers, notes = lit.client().search(a.query, sources, a.n, a.years, fallback=fallback)
+        elif a.sub in lit.CHASE:
+            papers, notes = lit.client().chase(a.id, a.sub, a.n, a.years)
         else:
             found, notes = lit.client().lookup_many(a.id)
             print(lit.render_full([p for p in found if p], notes, a.snippet))
