@@ -1,6 +1,8 @@
 ---
 name: research
-description: Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reveals until saturation, then synthesize one cited house-style note, audit it adversarially, and verify every source. Use for any broad or decision-driving question (the domain's evidence, methods, models, tools, prior art), or when the owner asks to research something "in depth".
+description: Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reveals until saturation, then synthesize one cited house-style note, audit it adversarially, and verify every source.
+when_to_use: For any broad or decision-driving question (the domain's evidence, methods, models, tools, prior art), or when the owner asks to research something "in depth".
+argument-hint: "[question]"
 ---
 
 # Recursive research
@@ -15,7 +17,8 @@ Crossref, WebSearch/WebFetch, context7, Wikipedia (orientation only).
   Every file of this research lives there, under `docs/research/_scratch/<slug>/`, one file per sub-question.
   Give researchers absolute paths into it. Each writes only its own file, so nothing collides, and the synthesis
   later sees every round.
-- Write the question, its scope and the decision it serves to `_scratch/<slug>/QUESTION.md`.
+- The question: $ARGUMENTS (empty: take it from the issue or the conversation). Write it, its scope and the
+  decision it serves to `_scratch/<slug>/QUESTION.md`.
 
 ## 1. A round
 0. **Check discovery.** Run `uv run dev lit status`. If it reports DEGRADED (OpenAlex and Semantic Scholar both down
