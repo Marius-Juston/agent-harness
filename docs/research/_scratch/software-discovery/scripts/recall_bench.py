@@ -449,36 +449,36 @@ def text_arms(n: dict, rk: Ranker, px: "PypiIndex | None") -> dict[str, tuple[li
     mq, v0 = rk.vec(qs), rk.vec([q0])
     a: dict[str, tuple[list[dict], dict]] = {}
     lists, pool = retrieve([q0], relax=False, topics=False)
-    a["A0 one query, GitHub order"] = (round_robin(lists), pool)
+    a["S0 one query, GitHub order"] = (round_robin(lists), pool)
     lists, pool = retrieve(qs, relax=False, topics=False)
-    a["A1 3 queries, round-robin"] = (round_robin(lists), pool)
+    a["S1 3 queries, round-robin"] = (round_robin(lists), pool)
     lists, pool = retrieve(qs, relax=False, topics=True)
     items = list(pool.values())
-    a["A2 3q + topics, stars"] = (sorted(items, key=lambda i: -i["stars"]), pool)
-    a["A3 3q + topics, embed"] = (rk.embed(v0, items, 0.0), pool)
-    a["A4 3q + topics, embed+stars"] = (rk.embed(v0, items, 0.03), pool)
+    a["S2 3q + topics, stars"] = (sorted(items, key=lambda i: -i["stars"]), pool)
+    a["S3 3q + topics, embed"] = (rk.embed(v0, items, 0.0), pool)
+    a["S4 3q + topics, embed+stars"] = (rk.embed(v0, items, 0.03), pool)
     _, pool = retrieve(qs, relax=True, topics=True)
     items = list(pool.values())
-    a["A5 A4 + relaxed + ecosyste.ms"] = (rk.embed(v0, items, 0.03), pool)
-    a["A6 A5, mean query vector (pilot S6)"] = (rk.embed(mq, items, 0.03), pool)
-    a["A7 A5 pool, BM25+stars"] = (bm25_rank(" ".join(qs), items), pool)
+    a["S5 S4 + relaxed + ecosyste.ms"] = (rk.embed(v0, items, 0.03), pool)
+    a["S6 S5, mean query vector (pilot S6)"] = (rk.embed(mq, items, 0.03), pool)
+    a["S7 S5 pool, BM25+stars"] = (bm25_rank(" ".join(qs), items), pool)
     _, pool7 = retrieve(qs, relax=True, topics=True, c7=True)
-    a["A8 A6 + context7"] = (rk.embed(mq, list(pool7.values()), 0.03), pool7)
+    a["S8 S6 + context7"] = (rk.embed(mq, list(pool7.values()), 0.03), pool7)
     lists, poolc = retrieve(qs, relax=False, topics=False, c7=True, gh=False)
-    a["A9 context7 only, round-robin"] = (round_robin(lists), poolc)
-    a["A10 context7 only, embed+stars"] = (rk.embed(mq, list(poolc.values()), 0.03), poolc)
+    a["S9 context7 only, round-robin"] = (round_robin(lists), poolc)
+    a["S10 context7 only, embed+stars"] = (rk.embed(mq, list(poolc.values()), 0.03), poolc)
     _, pooln = retrieve(qs, relax=True, topics=True, lang=False)
-    a["A11 A6 without language:python"] = (rk.embed(mq, list(pooln.values()), 0.03), pooln)
+    a["S11 S6 without language:python"] = (rk.embed(mq, list(pooln.values()), 0.03), pooln)
     ext = [q0, n["desc"]] if n.get("desc") else [q0]
     _, poole = retrieve(ext, relax=True, topics=True)
-    a["A12 A6 on outside text only (label + section blurb)"] = (rk.embed(rk.vec(ext), list(poole.values()), 0.03), poole)
+    a["S12 S6 on outside text only (label + section blurb)"] = (rk.embed(rk.vec(ext), list(poole.values()), 0.03), poole)
     if px:
         hp = px.search(mq)
-        a["A13 PyPI summary index only (top 30k), embed+stars"] = (rk.embed(mq, hp, 0.03), {i["name"]: i for i in hp})
+        a["S13 PyPI summary index only (top 30k), embed+stars"] = (rk.embed(mq, hp, 0.03), {i["name"]: i for i in hp})
         pp = merged(pool, hp)
-        a["A14 A6 + PyPI summary index"] = (rk.embed(mq, list(pp.values()), 0.03), pp)
+        a["S14 S6 + PyPI summary index"] = (rk.embed(mq, list(pp.values()), 0.03), pp)
         pa = merged(pool7, hp)
-        a["A15 A6 + context7 + PyPI index"] = (rk.embed(mq, list(pa.values()), 0.03), pa)
+        a["S15 S6 + context7 + PyPI index"] = (rk.embed(mq, list(pa.values()), 0.03), pa)
     return a
 
 
@@ -496,7 +496,7 @@ def code_arms(c: dict, rk: Ranker, px: "PypiIndex | None") -> dict[str, tuple[li
     a["C2 C0+C1 pooled, embed(code text)+stars"] = (
         rk.embed(rk.vec([docs + " " + " ".join(words[:20])]), list(pool.values()), 0.03), pool)
     _, pool = retrieve(c["need"], relax=True, topics=True)
-    a["C3 agent-written need (3 lines) -> A6 pipeline"] = (rk.embed(nv, list(pool.values()), 0.03), pool)
+    a["C3 agent-written need (3 lines) -> S6 pipeline"] = (rk.embed(nv, list(pool.values()), 0.03), pool)
     _, pool7 = retrieve(c["need"], relax=True, topics=True, c7=True)
     a["C4 C3 + context7"] = (rk.embed(nv, list(pool7.values()), 0.03), pool7)
     if px:
@@ -570,11 +570,11 @@ def report(title: str, rows: dict[str, list[dict]], pairs: list[tuple[str, str]]
     return out
 
 
-S6 = "A6 A5, mean query vector (pilot S6)"
-TEXT_PAIRS = [("A0 one query, GitHub order", "A1 3 queries, round-robin"), ("A0 one query, GitHub order", S6),
-              (S6, "A7 A5 pool, BM25+stars"), (S6, "A8 A6 + context7"), (S6, "A11 A6 without language:python"),
-              (S6, "A12 A6 on outside text only (label + section blurb)"),
-              (S6, "A13 PyPI summary index only (top 30k), embed+stars"), (S6, "A14 A6 + PyPI summary index")]
+S6 = "S6 S5, mean query vector (pilot S6)"
+TEXT_PAIRS = [("S0 one query, GitHub order", "S1 3 queries, round-robin"), ("S0 one query, GitHub order", S6),
+              (S6, "S7 S5 pool, BM25+stars"), (S6, "S8 S6 + context7"), (S6, "S11 S6 without language:python"),
+              (S6, "S12 S6 on outside text only (label + section blurb)"),
+              (S6, "S13 PyPI summary index only (top 30k), embed+stars"), (S6, "S14 S6 + PyPI summary index")]
 
 
 def run(needs: list[dict], arms, rk: Ranker, px) -> tuple[dict[str, list[dict]], dict]:
@@ -623,7 +623,7 @@ def main() -> None:
             if ok:
                 c7 = {k: [v[j] for j in ok] for k, v in rows.items() if "context7" in k or k == S6}
                 out[label + ", context7 subset"] = report(label + ", context7 subset", c7,
-                                                          [(S6, "A8 A6 + context7")] if label == "TUNE, all" else [])
+                                                          [(S6, "S8 S6 + context7")] if label == "TUNE, all" else [])
         (CACHE / "results-tune.json").write_text(json.dumps({"results": out, "per_need": run(needs, text_arms, rk, px)[1]},
                                                             indent=1, default=list))
         print(f"\nper-need detail: {CACHE / 'results-tune.json'}")
@@ -645,8 +645,8 @@ def main() -> None:
             ("M2 summary+keywords + topics, embed+stars", "M5 M2 + PyPI summary index")])
         rows, per_c = run([code[i] for i in split["code_test"]], code_arms, rk, px)
         out["TEST C"] = report("TEST, code snippets", rows, [
-            ("C0 identifiers as query, GitHub order", "C3 agent-written need (3 lines) -> A6 pipeline"),
-            ("C3 agent-written need (3 lines) -> A6 pipeline", "C5 C3 + PyPI summary index")])
+            ("C0 identifiers as query, GitHub order", "C3 agent-written need (3 lines) -> S6 pipeline"),
+            ("C3 agent-written need (3 lines) -> S6 pipeline", "C5 C3 + PyPI summary index")])
         (CACHE / "results-test.json").write_text(json.dumps({"results": out, "per_need": {**per_t, **per_m, **per_c}},
                                                             indent=1, default=list))
         return
