@@ -88,11 +88,18 @@ def test_claude_plugin_validate_passes(target):
     assert out.returncode == 0 and "Validation passed" in out.stdout, out.stdout + out.stderr
 
 
-def test_every_plugin_agent_bounds_its_turns_and_sets_its_effort():
+def test_every_plugin_agent_bounds_its_turns():
     for p in (PLUGIN / "agents").glob("*.md"):
         meta, _ = frontmatter.read(p)
         assert isinstance(meta.get("maxTurns"), int) and meta["maxTurns"] > 0, p.name
-        assert meta.get("effort") in checks.EFFORTS, p.name
+
+
+def test_only_the_research_agents_override_the_session_effort():
+    """#153: effort is set only where a role's evidence justifies it (agent-harness.md §10); the rest inherit the
+    owner's session level."""
+    metas = {p.stem: frontmatter.read(p)[0] for p in (PLUGIN / "agents").glob("*.md")}
+    assert {n for n, m in metas.items() if "effort" in m} == {"researcher", "research-auditor"}
+    assert all(m["effort"] in checks.EFFORTS for m in metas.values() if "effort" in m)
 
 
 @pytest.mark.parametrize("agent", ["architect", "builder", "suite-auditor", "tester"])

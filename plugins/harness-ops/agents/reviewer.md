@@ -2,7 +2,6 @@
 name: reviewer
 description: Read-only pre-merge review of one PR against its issue's DONE WHEN, the research it cites and the project rules. Use for PRs touching the harness, several Owns, or anything a user sees.
 model: opus
-effort: high
 maxTurns: 80
 color: purple
 tools: Read, Grep, Glob, Bash

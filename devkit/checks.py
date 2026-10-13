@@ -72,6 +72,8 @@ SKILL_VALUES = {"effort": EFFORTS, "context": ("fork",), "shell": ("bash", "powe
 # A !`cmd` placeholder at a line start or after whitespace; a failing command aborts the whole skill invocation
 # (code.claude.com/docs/en/skills#inject-dynamic-context).
 INJECTION = re.compile(r"(?:^|(?<=\s))!`([^`\n]+)`", re.M)
+INJECTION_BLOCK = re.compile(r"^```!\s*\n(.*?)^```", re.M | re.S)  # the multi-line form
+PIPE_TAIL = re.compile(r"\|\s*(?:head|tail)(?:\s+-n?\s*\d+|\s+-\d+)?\s*$")  # without pipefail, head/tail decide
 REPO_PATH = re.compile(r"^\.?[\w-]+/[\w./-]*$")  # a backticked `dir/...`; checked when `dir` is a top-level dir
 MD_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 BACKTICK = re.compile(r"`([^`\n]+)`")
@@ -170,12 +172,24 @@ def check_surface() -> Ran:
             ran.problems.append(f"{where}: empty body")
         if path.name == "SKILL.md":
             ran.problems += [f"{where}: {p}" for p in skill_spec_problems(meta, body, path.parent.name)]
-            ran.problems += [
-                f"{where}: !`{c}` aborts the skill when it fails; end it with `|| true`"
-                for c in INJECTION.findall(body)
-                if not c.rstrip().endswith("|| true")
-            ]
+            ran.problems += [f"{where}: {p}" for p in injection_problems(meta, body)]
     return ran
+
+
+def injection_problems(meta: dict, body: str) -> list[str]:
+    """Injected bash commands that can exit non-zero, which aborts the whole skill invocation. A ```! block runs as
+    one script, so its last command decides. `shell: powershell` skills are skipped: the docs give `|| true` for bash
+    only."""
+    if meta.get("shell") == "powershell":
+        return []
+    cmds = INJECTION.findall(body)
+    cmds += [lines[-1] for block in INJECTION_BLOCK.findall(body) if (lines := [s for s in block.splitlines() if s])]
+    return [
+        f"!`{c}` aborts the skill if it exits non-zero; end it with `|| true` (or `| head`/`| tail`), and allow it "
+        "(a permission rule or `allowed-tools`): outside auto mode an unallowed command aborts it too"
+        for c in (c.strip() for c in cmds)
+        if not (c.endswith("|| true") or PIPE_TAIL.search(c))
+    ]
 
 
 def value_problems(meta: dict, skill: bool) -> list[str]:

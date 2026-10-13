@@ -2,6 +2,9 @@
 name: lead
 description: The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prompts, resume after limits or compaction, keep HANDOFF current.
 when_to_use: At the start of a working session, when the owner says "continue", "/goal", "dispatch", "integrate", or after a compaction.
+allowed-tools:
+  - Bash(uv run dev status*)
+  - Bash(head *)
 ---
 
 # Lead routine
@@ -13,7 +16,7 @@ Rules:
 - At the quota cap: start nothing; commit, update HANDOFF, stop.
 
 ## 1. Where things stand
-!`uv run --quiet dev status 2>/dev/null | head -20 || true`
+!`uv run dev status 2>/dev/null | head -20 || true`
 
 Then `uv run dev orient` if the SessionStart context is old, and `uv run dev board list --status review`.
 `Suite audit due` in orient: run what it names; `harness-ops:suite-auditor` takes its judgement items.

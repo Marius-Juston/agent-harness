@@ -410,16 +410,38 @@ def test_the_gate_flags_a_value_outside_the_documented_options(monkeypatch, tmp_
     assert any(field.split(":")[0] in p and "must be" in p for p in problems), problems
 
 
-@pytest.mark.parametrize("cmd", ["uv run dev status", "uv run dev status | head -20", "true || false"])
-def test_the_gate_flags_an_injection_that_can_abort_the_skill(monkeypatch, tmp_path, cmd):
+@pytest.mark.parametrize(
+    "body",
+    [
+        "!`uv run dev status`",
+        "!`true || false`",
+        "!`uv run dev status | head -20 | sort`",
+        "```!\nuv run dev status | head -20\ngit status --short\n```",  # a block: its last command decides
+    ],
+)
+def test_the_gate_flags_an_injection_that_can_abort_the_skill(monkeypatch, tmp_path, body):
     """A failed !`cmd` aborts the whole skill invocation (code.claude.com/docs/en/skills#inject-dynamic-context)."""
-    problems = _surface_problems(monkeypatch, tmp_path, "skills/a/SKILL.md", _md("", f"## Now\n!`{cmd}`"))
-    assert any("|| true" in p for p in problems), problems
+    problems = _surface_problems(monkeypatch, tmp_path, "skills/a/SKILL.md", _md("", f"## Now\n{body}"))
+    assert any("|| true" in p and "allowed-tools" in p for p in problems), problems
 
 
-def test_the_gate_accepts_a_guarded_injection_and_ignores_a_mid_word_bang(monkeypatch, tmp_path):
-    body = "## Now\n!`uv run dev status | head -20 || true`\nKEY=!`not run` and `!not` either"
-    assert _surface_problems(monkeypatch, tmp_path, "skills/a/SKILL.md", _md("", body)) == []
+@pytest.mark.parametrize(
+    "body",
+    [
+        "!`uv run dev status | head -20 || true`\nKEY=!`not run` and `!not` either",
+        "!`uv run dev status | head -20`",  # without pipefail the pipeline's status is head's
+        "!`uv run dev status 2>&1 | tail -n 5`",
+        "```!\ngit status --short\nuv run dev status || true\n```",
+    ],
+)
+def test_the_gate_accepts_an_injection_that_cannot_fail(monkeypatch, tmp_path, body):
+    assert _surface_problems(monkeypatch, tmp_path, "skills/a/SKILL.md", _md("", f"## Now\n{body}")) == []
+
+
+def test_the_gate_leaves_powershell_injections_alone(monkeypatch, tmp_path):
+    """The docs give `|| true` for the bash shell only."""
+    text = _md("shell: powershell", "## Now\n!`Get-Date`")
+    assert _surface_problems(monkeypatch, tmp_path, "skills/a/SKILL.md", text) == []
 
 
 # --- cite-check ------------------------------------------------------------------------------------------------------

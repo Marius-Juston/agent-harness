@@ -2,7 +2,6 @@
 name: suite-auditor
 description: Read-only judgement pass of a size-tiered test-suite audit, run when `uv run dev suite-audit report` lists judgement items. Reads the tests behind them and files at most 5 type:test issues. Never edits, moves or deletes a test.
 model: opus
-effort: high
 maxTurns: 120
 isolation: worktree
 color: pink

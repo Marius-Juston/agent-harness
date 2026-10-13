@@ -2,7 +2,6 @@
 name: tester
 description: Writes adversarial, property-based and regression tests for one issue or one merged change (inputs nobody planned for, wrong state, crashes midway), fixes small defects it exposes, files the rest. Use after merges that add behavior, or for "type:test" issues.
 model: opus
-effort: high
 maxTurns: 300
 color: green
 isolation: worktree

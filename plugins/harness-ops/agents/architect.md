@@ -2,7 +2,6 @@
 name: architect
 description: Read-only consolidation review of the whole repository, run when `uv run dev orient` says a review is due or the owner asks for one. Builds a feature inventory from `uv run dev consolidation report` and files a leaner structure as an epic of small issues for builders. It never edits, moves or deletes code.
 model: opus
-effort: high
 maxTurns: 200
 isolation: worktree
 color: yellow
