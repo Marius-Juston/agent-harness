@@ -266,7 +266,16 @@ def test_tarjan_matches_mutual_reachability(edges):
     for vs in list(graph.values()):
         for v in vs:
             graph.setdefault(v, set())
-    reach = {v: consolidation.reach(graph, {v}) for v in graph}
+
+    def reachable(v: str) -> set[str]:
+        seen, todo = {v}, [v]
+        while todo:
+            for w in graph[todo.pop()] - seen:
+                seen.add(w)
+                todo.append(w)
+        return seen
+
+    reach = {v: reachable(v) for v in graph}
     want = {frozenset(w for w in graph if w in reach[v] and v in reach[w]) for v in graph}
     want = {c for c in want if len(c) > 1}
     assert {frozenset(c) for c in consolidation.tarjan(graph)} == want

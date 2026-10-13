@@ -225,16 +225,6 @@ def tarjan(graph: dict[str, set[str]]) -> list[list[str]]:
     return out
 
 
-def reach(graph: dict[str, set[str]], roots: set[str]) -> set[str]:
-    seen, todo = set(roots), list(roots)
-    while todo:
-        for w in graph.get(todo.pop(), ()):
-            if w not in seen:
-                seen.add(w)
-                todo.append(w)
-    return seen
-
-
 def signals(repo: Path, rev: str, cfg: dict, reader: BlobReader | None = None) -> dict:
     """Size and structural smells at ``rev``, from git objects and regexes only."""
     own = reader is None
