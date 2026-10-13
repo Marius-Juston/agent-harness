@@ -101,7 +101,9 @@ def excluded(i: str, c: dict) -> bool:
         return False
     pkg, src = EXCL[i]
     r = (c.get("repo") or "").removeprefix("github.com/").lower()
-    return norm(c.get("name") or "") in (pkg, norm(src)) or bool(r and src and (r == src or canon(r) == src))
+    # a renamed copy of the source repository keeps its name part in the usual case: canonicalise only those
+    same = bool(r and src and r.split("/")[-1] == src.split("/")[-1])
+    return norm(c.get("name") or "") in (pkg, norm(src)) or bool(r and src and (r == src or (same and canon(r) == src)))
 
 
 def cands_of(d: dict) -> list[dict]:
