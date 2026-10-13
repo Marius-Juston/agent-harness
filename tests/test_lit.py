@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from devkit import lit
+from devkit import citecheck, lit, netsafe
 
 
 class FakeNet:
@@ -884,3 +884,55 @@ def test_no_key_leaks_on_error_paths(tmp_path, monkeypatch, capsys, answers):
     stored = "".join(p.read_text() for p in (tmp_path / "state").rglob("*") if p.is_file())
     for key in ("fake-oa-321", "fake-s2-654"):
         assert key not in out.out and key not in out.err and key not in stored
+
+
+# ---- shared helpers in devkit.netsafe, used by lit and citecheck (#139) ----
+
+
+def test_http_get_caps_the_body_and_sends_ua_and_headers():
+    seen: list[dict] = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append(dict(self.headers))
+            self.send_response(200)
+            self.send_header("Content-Length", "50")
+            self.end_headers()
+            self.wfile.write(b"x" * 50)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/x"
+        status, _, body = netsafe.http_get(url, ua="ua/1", headers={"X-T": "v"}, timeout=5, cap=10)
+    finally:
+        server.shutdown()
+    assert (status, body) == (200, "x" * 10)
+    assert seen[0]["User-Agent"] == "ua/1" and seen[0]["X-T"] == "v"
+
+
+def test_citecheck_keeps_its_400k_cap_and_lit_its_2m_cap(monkeypatch):
+    calls = []
+    monkeypatch.setattr(netsafe, "http_get", lambda url, **kw: calls.append(kw) or (200, {}, ""))
+    citecheck._get("https://example.org/x")
+    lit.http_get("https://example.org/x", {})
+    assert [(c["cap"], c["timeout"]) for c in calls] == [(400_000, 20), (2_000_000, 30)]
+    assert calls[0]["opener"] is netsafe.OPENER and calls[1]["opener"] is lit.OPENER
+
+
+def test_atomic_write_replaces_and_leaves_no_temp_on_failure(tmp_path, monkeypatch):
+    path = tmp_path / "f.json"
+    netsafe.atomic_write(path, "old")
+    netsafe.atomic_write(path, "new")
+    assert path.read_text() == "new"
+
+    def boom(src, dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", boom)
+    with pytest.raises(OSError, match="disk full"):
+        netsafe.atomic_write(path, "lost")
+    assert path.read_text() == "new" and [p.name for p in tmp_path.iterdir()] == ["f.json"]

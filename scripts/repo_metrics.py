@@ -5,6 +5,9 @@
 # ///
 """Read-only architecture metrics for a git repository (agent-harness#111).
 
+FROZEN (#141): superseded by `uv run dev consolidation`; do not extend. Kept unchanged as the research artifact that
+the architecture-consolidation note's VERIFIED numbers rest on.
+
 Reads only git objects (``git ls-tree`` / ``git cat-file``) and, for the optional external tools, an extracted
 ``git archive`` copy in a temporary directory, so the measured repository is never modified.
 
