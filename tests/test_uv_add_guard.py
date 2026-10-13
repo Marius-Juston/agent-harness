@@ -257,10 +257,7 @@ def test_the_hook_reaches_devkit_reuse_check_through_the_dev_cli(wired, monkeypa
 def test_the_hook_is_wired_on_bash_with_a_budget_above_its_own_timeout():
     data = json.loads((HOOKS.parent / "hooks/hooks.json").read_text())
     [entry] = [
-        (g, h)
-        for g in data["hooks"]["PreToolUse"]
-        for h in g["hooks"]
-        if h["command"].endswith("/uv_add_guard.py")
+        (g, h) for g in data["hooks"]["PreToolUse"] for h in g["hooks"] if h["command"].endswith("/uv_add_guard.py")
     ]
     group, h = entry
     assert group["matcher"] == "Bash" and h["timeout"] > G.TIMEOUT
