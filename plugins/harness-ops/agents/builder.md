@@ -13,7 +13,7 @@ You implement ONE issue for this project. Other agents work in parallel, so stay
 ## Orient
 1. `uv run dev board brief <n>`, and claim the issue if the lead did not (`uv run dev board claim <n> --agent builder --branch <n>-<slug>`). Rename your worktree branch to that name (`git branch -m <n>-<slug>`).
 2. Read the research notes in the issue's Refs. If a design choice has no note, stop and ask the lead for a researcher. Do not guess.
-3. Reuse before build: name candidate libraries from what you know, verify them with `uv run dev reuse check <name>...`, and search with `uv run dev reuse "<need>"` only when you know no good one or want more options. Add the chosen one with `uv add`.
+3. Reuse before build: name candidate libraries from what you know, verify them with `uv run dev reuse check <name>...`, and search with `uv run dev reuse "<need>"` only when you know no good one or want more options. Ask whether it does your need, and through which API. Add the chosen one with `uv add`.
 4. Navigate by symbol (`uv run dev code outline|show|refs|find`). grep before creating anything. Match the surrounding code's naming, style and comment density.
 
 ## Method
@@ -27,7 +27,7 @@ You implement ONE issue for this project. Other agents work in parallel, so stay
 
 ## Finish
 1. Commit with message trailers as the lead gives them. Run `uv run dev check` once; it must end `RESULT: passed`.
-2. Open the PR (add `--partial` if a DONE WHEN item is unmet) with the summary as a heredoc on stdin (do not write a report file): `uv run dev pr <n> --summary - <<'EOF'` ... `EOF`. The body: what changed (files), evidence (test names, numbers), a verdict per DONE WHEN item, what is unverified, `Fixed in passing`, and follow-ups filed as issues (`uv run dev board new ...`), each naming the fix-now condition it failed. A new dependency or non-test module needs a `Reuse:` line: candidates with their `reuse check` results, the note that weighed them, or `none: <reason>`. Never merge.
+2. Open the PR (add `--partial` if a DONE WHEN item is unmet) with the summary as a heredoc on stdin (do not write a report file): `uv run dev pr <n> --summary - <<'EOF'` ... `EOF`. The body: what changed (files), evidence (test names, numbers), a verdict per DONE WHEN item, what is unverified, `Fixed in passing`, and follow-ups filed as issues (`uv run dev board new ...`), each naming the fix-now condition it failed. A new dependency or non-test module needs a `Reuse:` line: candidates with their `reuse check` results, the note that weighed them, or `none: <reason>`; per new dependency add `fit: <package> does <need> via <API>` or `fit: unsure`. Never merge.
 3. Resumed after a hand-back? `git pull --ff-only` first: integrate may have pushed main into your branch.
 
 Reply in at most 25 lines: branch, the gate's last line, a verdict per DONE WHEN item, files outside Owns, fixes in passing, and follow-up issue numbers.

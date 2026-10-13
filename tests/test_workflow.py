@@ -6,6 +6,8 @@ import subprocess
 from types import SimpleNamespace
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from devkit import board, workflow
 
@@ -115,7 +117,7 @@ def test_a_new_dependency_needs_a_reuse_line(branch):
     branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', '"rich>=13", "HTTPX[http2]>=0.27"'))
     assert workflow.reuse_needs("main") == ["dependency httpx"]
     assert "has no `Reuse:` line" in workflow.reuse_problem("Closes #9\n\nadded httpx")
-    assert workflow.reuse_problem("Closes #9\n\nReuse: httpx PASS (chosen), requests HOLD dormant") is None
+    assert workflow.reuse_problem("Closes #9\n\nReuse: httpx PASS (chosen), requests HOLD dormant; fit: unsure") is None
 
 
 def test_a_new_dependency_group_entry_counts_too(branch):
@@ -201,4 +203,96 @@ def test_the_forms_are_documented_in_one_place():
         "Reuse: none: <reason>",
         "Reuse: none: harness adoption",
     ):
+        assert form in workflow.REUSE_FORMS
+
+
+# The fit clause (#196 F0, docs/research/software-discovery.md §10 item 9): each new dependency needs
+# "fit: <package> does <need> via <API>" or "fit: unsure" in a `Reuse:` line; new modules alone do not.
+HTTPX = '"rich>=13", "HTTPX[http2]>=0.27"'
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Reuse: httpx PASS (chosen); fit: httpx does HTTP/2 requests via httpx.Client(http2=True)",
+        "- **Reuse:** httpx PASS; FIT: HTTPX does async GET via `httpx.AsyncClient.get`",
+        "Reuse: httpx PASS; fit: unsure",
+        "Reuse: httpx PASS; fit: httpx unsure",
+        "Reuse: httpx[http2] PASS; fit: httpx[http2] does HTTP/2 via httpx.Client(http2=True)",
+        "Reuse: docs/research/http.md; fit: httpx does retries via httpx.HTTPTransport(retries=3)",
+        "Reuse: none: harness adoption; fit: unsure",
+    ],
+)
+def test_a_new_dependency_with_a_fit_clause_is_accepted(branch, line):
+    branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', HTTPX))
+    branch("docs/research/http.md", "note\n")
+    assert workflow.reuse_problem(f"Closes #9\n\n{line}\n") is None
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Reuse: httpx PASS (chosen), requests HOLD dormant",
+        "Reuse: httpx PASS; fit: httpx",
+        "Reuse: httpx PASS; fit: httpx does HTTP/2",
+        "Reuse: httpx PASS; fit: httpx does via",
+        "Reuse: httpx PASS; fit: requests does HTTP/2 requests via requests.get",
+        "Reuse: httpx PASS; fit:",
+        "Reuse: httpx PASS; fit: sure",
+        "Reuse: httpx PASS; benefit: httpx does HTTP/2 via httpx.Client",
+    ],
+)
+def test_a_new_dependency_without_a_fit_clause_is_refused(branch, line):
+    branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', HTTPX))
+    problem = workflow.reuse_problem(f"Closes #9\n\n{line}\n")
+    assert problem is not None and "fit:" in problem and "httpx" in problem
+
+
+def test_a_fit_clause_outside_the_reuse_line_does_not_count(branch):
+    branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', HTTPX))
+    assert workflow.reuse_problem("Closes #9\n\nReuse: httpx PASS\nfit: unsure\n") is not None
+
+
+def test_each_new_dependency_needs_its_own_fit_or_a_bare_unsure(branch):
+    branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', HTTPX + ', "tenacity>=9"'))
+    named = "Reuse: httpx PASS, tenacity PASS; fit: httpx does HTTP/2 via httpx.Client"
+    assert "tenacity" in workflow.reuse_problem(f"Closes #9\n\n{named}\n")
+    both = named + "; fit: tenacity does retry with backoff via tenacity.retry"
+    assert workflow.reuse_problem(f"Closes #9\n\n{both}\n") is None
+    assert workflow.reuse_problem(f"Closes #9\n\n{named}; fit: unsure\n") is None
+    split = "Reuse: httpx PASS, tenacity PASS; fit: httpx does HTTP/2 via httpx.Client\nReuse: fit: tenacity unsure"
+    assert workflow.reuse_problem(f"Closes #9\n\n{split}\n") is None
+
+
+def test_harness_adoption_exempts_new_dependencies_and_other_none_reasons_do_not(branch):
+    """Lead on #221: template-added dependencies are not the agent's pick, so `fit: unsure` there is not asked for."""
+    branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', HTTPX))
+    assert workflow.reuse_problem("Closes #9\n\nReuse: none: harness adoption\n") is None
+    assert workflow.reuse_problem("Closes #9\n\n- **Reuse:** None — Harness adoption (v0.1.8)\n") is None
+    for line in ("Reuse: none: glue code", "Reuse: none: not a harness adoption", "Reuse: httpx PASS"):
+        assert "fit clause" in workflow.reuse_problem(f"Closes #9\n\n{line}\n")
+
+
+def test_a_new_module_alone_needs_no_fit_clause(branch):
+    branch("pkg/new.py", "Y = 2\n")
+    assert workflow.reuse_problem("Closes #9\n\nReuse: none: glue code\n") is None
+
+
+NAMES = st.from_regex(r"[A-Za-z0-9][A-Za-z0-9._-]{0,20}", fullmatch=True).filter(lambda s: s.lower() != "unsure")
+TEXT = st.from_regex(r"[A-Za-z0-9/()=.` ]{0,30}", fullmatch=True)
+
+
+@given(names=st.lists(NAMES, min_size=1, max_size=4), need=TEXT, api=TEXT, covered=st.data())
+def test_fit_missing_is_exactly_the_dependencies_without_a_named_clause(names, need, api, covered):
+    """Property: a dependency is covered iff a `does ... via ...` clause names it (any case or separator spelling)."""
+    deps = sorted({workflow._normalized(n) for n in names})
+    chosen = covered.draw(st.lists(st.sampled_from(names), unique=True))
+    clauses = "; ".join(f"fit: {n.upper()} does x{need} via y{api}" for n in chosen)
+    body = f"Reuse: {names[0]} PASS; {clauses}\n"
+    assert workflow.fit_missing(body, deps) == [d for d in deps if d not in {workflow._normalized(n) for n in chosen}]
+    assert workflow.fit_missing(body + "Reuse: fit: unsure\n", deps) == []
+
+
+def test_the_fit_forms_are_documented():
+    for form in ("fit: <package> does <need> via <API>", "fit: unsure"):
         assert form in workflow.REUSE_FORMS
