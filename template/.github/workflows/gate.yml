@@ -31,6 +31,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }} # reads the issue's weakening-ok approval
         run: uv run dev check --no-cache
+      - name: per-test outcomes and durations of the gate's test run (for suite audits)
+        if: ${{ !cancelled() && github.event_name != 'schedule' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        # .git/devkit is the gate's state dir in a plain clone; hidden paths are skipped unless included
+        with: { name: test-history, path: .git/devkit/test-history.jsonl, include-hidden-files: true }
       - name: verify sources of changed research notes (a no-op when none changed)
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: uv run dev cite-check
