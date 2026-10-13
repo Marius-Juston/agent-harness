@@ -44,6 +44,9 @@ CONFIG_KEY = re.compile(
     r"|filterwarnings|required_plugins|fail_under|omit|exclude_lines|exclude_also)\b"
     r"|--deselect|--ignore|\s-k\s"
 )
+# A config line that only makes the suite stricter: xfail_strict turned on (added true, or removed false).
+STRICT_ON = re.compile(r"^\s*xfail_strict\s*=\s*true\s*$", re.IGNORECASE)
+STRICT_OFF = re.compile(r"^\s*xfail_strict\s*=\s*false\s*$", re.IGNORECASE)
 # The name a patch replaces: setattr(obj, "name"), patch.object(obj, "name"), or the last part of a dotted target.
 PATCH = re.compile(
     r"\b(?:setattr|patch\.object)\s*\(\s*[\w.]+\s*,\s*[\"'](\w+)[\"']"
@@ -213,8 +216,10 @@ def _test_file(f: FileDiff, read: Callable[[str], str]) -> list[str]:
 
 def _config(f: FileDiff) -> list[str]:
     """Changed test-selection or coverage options: the added lines, or the removed ones when none was added."""
-    lines = [ln for ln in f.added if CONFIG_KEY.search(_code(ln.text))]
-    lines = lines or [ln for ln in f.removed if CONFIG_KEY.search(_code(ln.text))]
+    lines = [ln for ln in f.added if CONFIG_KEY.search(code := _code(ln.text)) and not STRICT_ON.match(code)]
+    lines = lines or [
+        ln for ln in f.removed if CONFIG_KEY.search(code := _code(ln.text)) and not STRICT_OFF.match(code)
+    ]
     return [f"{ln.path}:{ln.number}: test config edit: {ln.text.strip()}" for ln in lines]
 
 

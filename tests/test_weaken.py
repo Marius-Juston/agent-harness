@@ -161,6 +161,16 @@ def test_a_removed_config_option_and_unrelated_config_edits():
     assert weaken.findings(diff("pyproject.toml", removed=[(2, 'version = "1"')], added=[(2, 'version = "2"')])) == []
 
 
+def test_turning_xfail_strict_on_is_not_a_weakening():
+    added = diff("pyproject.toml", added=[(8, "xfail_strict = true  # an xfail that passes fails the run")])
+    assert weaken.findings(added) == []
+    flipped = diff(
+        "template/pyproject.toml.jinja", removed=[(8, "xfail_strict = false")], added=[(8, "xfail_strict = True")]
+    )
+    assert weaken.findings(flipped) == []
+    assert kinds(weaken.findings(diff("pyproject.toml", added=[(8, "xfail_strict = false")]))) == ["test config edit"]
+
+
 def test_an_edited_golden_file_is_flagged_once_and_a_new_one_is_not():
     edited = weaken.findings(
         diff("tests/fixtures/expected.json", removed=[(1, '{"f": 4}'), (2, '{"g": 1}')], added=[(1, '{"f": 5}')])
