@@ -148,3 +148,88 @@ replayed offline from it with `scripts/r3_score.py`. The choice is in `scripts/d
   user `demo`) `pypi.projects`.
 - Models: [minishlab/potion-retrieval-32M](https://huggingface.co/minishlab/potion-retrieval-32M) (MIT),
   [bm25s](https://github.com/xhluca/bm25s) (MIT). Licences are as recorded in r2-pipeline.md.
+
+## TEST (one shot, PROTOCOL 5 and amendment 5; run 2026-10-13)
+The choice in `chosen.json` and amendment 5 were committed (8f97ea3) before any TEST score. The execution code and the
+agent answers were committed next (c84e764, 121271c, bdb57aa). Then came one scoring run of A and M. The first
+attempt crashed before printing anything: once the M source was excluded, an A1 shortlist reached an unenriched
+candidate. No number was seen. It is logged in `scripts/data/TEST_RUNS.log`, and the A1 snapshot was re-enriched
+under the exclusion (a45c30f).
+- **Set C** was scored once (TEST run #1 for C; run #0 predates the protocol).
+- **Snapshot.** `<git-common-dir>/devkit/bench/snapshot-2026-10-13-r3-test.tar.gz`, 71 MB, SHA-256 `492206a0…7eb`.
+- **Reports.** `scripts/data/test-r3-2026-10-13.md` and `scripts/data/test-r3-code-2026-10-13.md`.
+- **Inputs** (VERIFIED, `r3_score.py score --split test`, n = 112: 72 A + 40 M).
+  - B0 ran with `claude -p --model claude-opus-5-5`, 2 batches of 56. A3 ran in 7 batches of 16.
+  - M ids were opaque to the agent (`b0_test_ids.json`).
+  - B0 named 328 packages: 4 do not exist (renpy, python-scrapinghub, leon-ai, pyobfuscate), 1 is unverified
+    (erpnext), 25 are FAIL and 61 HOLD.
+
+### T1. Arms on TEST (VERIFIED)
+| arm | hit@3 [95% CI] | hit@1 | hit@10 | MRR | harm | harm without licence | A (72) | M (40) | top-1,000 (64) | long tail (48) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| A1 R0 (PR #171) | 0.33 [0.25, 0.42] | 0.22 | 0.47 | 0.29 | 0.45 | 0.35 | 0.36 | 0.28 | 0.38 | 0.27 |
+| A1 R4 | 0.42 [0.33, 0.51] | 0.30 | 0.50 | 0.37 | 0.06 | 0.04 | 0.47 | 0.33 | 0.47 | 0.35 |
+| A2 R4 | 0.71 [0.63, 0.79] | 0.49 | 0.85 | 0.62 | 0.04 | 0.02 | 0.79 | 0.57 | 0.84 | 0.54 |
+| B0 | 0.84 [0.77, 0.90] | 0.71 | 0.84 | 0.77 | 0.27 | 0.20 | 0.90 | 0.72 | 0.92 | 0.73 |
+| B1 | 0.83 [0.76, 0.90] | 0.71 | 0.83 | 0.77 | 0.19 | 0.16 | 0.90 | 0.70 | 0.91 | 0.73 |
+| A3 | 0.83 [0.76, 0.89] | 0.67 | 0.86 | 0.75 | 0.11 | 0.10 | 0.90 | 0.70 | 0.92 | 0.71 |
+| P1 R4 (exploratory, not a decision arm) | 0.71 [0.63, 0.79] | 0.45 | 0.84 | 0.58 | 0.02 | 0.01 | 0.79 | 0.57 | 0.84 | 0.54 |
+
+**Paired hit@3 differences [95% CI]** (10,000 resamples over needs, seed 169):
+
+| comparison | all (112) | A (72) | M (40) | top-1,000 (64) | long tail (48) |
+|---|---|---|---|---|---|
+| A2 R4 − B1 | −0.12 [−0.19, −0.05] | −0.11 [−0.19, −0.04] | −0.12 [−0.28, +0.03] | −0.06 [−0.14, +0.02] | −0.19 [−0.31, −0.08] |
+| A3 − B1 | +0.00 [−0.05, +0.05] | +0.00 [−0.04, +0.04] | +0.00 [−0.12, +0.12] | +0.02 [−0.05, +0.08] | −0.02 [−0.08, +0.04] |
+| A3 − A2 R4 | +0.12 [+0.04, +0.19] | +0.11 [+0.03, +0.19] | +0.12 [−0.03, +0.28] | +0.08 [−0.02, +0.17] | +0.17 [+0.04, +0.29] |
+| A1 R4 − A1 R0 | +0.09 [+0.02, +0.16] | +0.11 [+0.03, +0.21] | +0.05 [−0.07, +0.17] | +0.09 [+0.00, +0.20] | +0.08 [+0.00, +0.19] |
+
+- **Without the 7 needs that overlap TUNE (n = 105)** the result is the same: A2 − B1 −0.12, A3 − B1 +0.00.
+- **Harm, paired differences [95% CI]:**
+  - A2 − B1: −0.15 [−0.20, −0.10].
+  - A3 − B1: −0.07 [−0.11, −0.04].
+  - Without licence outcomes: A2 − B1 −0.14, A3 − B1 −0.07, both intervals below 0.
+- **P1** is exactly level with A2 (+0.00 [−0.05, +0.05]). The index adds nothing on TEST, as the TUNE headroom
+  predicted.
+- **Set C** (`dev reuse --from` alone, n = 10): R0 hit@3 0.20 [0.00, 0.50], R4 0.40 [0.10, 0.70], difference +0.20
+  [+0.00, +0.50].
+  - R4 hits: pip retry → tenacity, frontmatter, levenshtein → rapidfuzz, slugify.
+  - Not recalled: backoff, token bucket, .env, XML, tqdm.
+  - Ranked low: parse_datetime (dateparser).
+  - The --from need text is noisy, with module names and comment words (`test-r3-code-2026-10-13.md`).
+
+### T2. What each pre-registered rule decides
+- **PROTOCOL 10 (search as the default).** Not met.
+  - A2 − B1 is −0.12 [−0.19, −0.05]: worse.
+  - A3 − B1 is +0.00 [−0.05, +0.05]: the interval does not clear 0.
+  - So the gates ship as a verifier for named packages, and search stays an optional recall aid.
+- **PROTOCOL 13 (simplest sufficient arm).** B1 wins. Neither A2 nor A3 beats B1, the cheapest arm. No index is built
+  or published; P1 confirms this.
+- **PROTOCOL 5 (chosen config vs PR #171).**
+  - R4 beats R0 on the same recall: +0.09 [+0.02, +0.16]. The HOLD share of the top 3 falls from 0.45 to 0.06.
+  - Ship R4's ordering (PASS before HOLD, union shortlist, λ = 1) in `dev reuse` whatever its role. λ is fitted.
+  - S6 was dropped from the TEST arms by amendment 5 and was not run.
+- **PROTOCOL 14 (head vs tail).** Agent memory leads in both groups: B1 scores 0.91 on top-1,000 gold and 0.73 on the
+  long tail.
+  - The tail is where search was expected to help, but A2 is further behind B1 there: −0.19 [−0.31, −0.08].
+  - A3 is level with B1 in both groups.
+- **Harm.** Every search arm has a lower harm share than B1 (intervals below 0). A3 matches B1's hit@3 at 0.11 harm
+  against 0.19.
+  - This trade-off is outside the hit@3 rule. Whether "same hit@3, 42% less harm" justifies A3 is an owner decision
+    (BELIEVED: B1 is cheaper and already removes FAIL names; A3 additionally moves HOLD names out of the top 3).
+
+### T3. Misses with causes (PROTOCOL 8; full lists in `test-r3-2026-10-13.md`)
+- **B1, 19 misses.**
+  - 18 are "not named": the agent's names are not in the gold. This includes migrations where it named a sensible
+    alternative outside the gold, such as requests → httpx/urllib3 and pyyaml → ruamel.yaml.
+  - 1 is gated out: chardet → cchardet is GPL, so FAIL.
+- **A2 R4, 32 misses.**
+  - 10 not recalled.
+  - 21 recalled but ranked low. Gold is often HOLD (pyserial, biopython, ldap3, gpiozero) and sinks under PASS before
+    HOLD, or is a smaller PASS package below a more adopted one.
+  - 1 gated out (cchardet).
+- **A3, 19 misses.**
+  - 15 not on the shortlist, so recall- or order-limited upstream.
+  - 4 on the shortlist but not picked: pyarmor, quart/bottle for flask, celery for huey, pcapy.
+- **Benchmark limits** (BELIEVED). Gold lists are incomplete: renpy is not on PyPI, odoo is a repo only, and Qt gold
+  is outside GitHub. So all hit rates are lower bounds, and they are lower bounds for every arm alike.
