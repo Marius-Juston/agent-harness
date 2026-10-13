@@ -247,11 +247,13 @@ Empty or whitespace-only new .py files (package markers) do not count. Each new 
 in a `Reuse:` line, answered from memory after `reuse check` (#196; why: docs/research/software-discovery.md §11):
   fit: <package> does <need> via <API>   e.g. `fit: httpx does HTTP/2 requests via httpx.Client(http2=True)`
   fit: unsure                            <- when you cannot name the API; `fit: <package> unsure` for one of several
-  Reuse: httpx PASS (chosen); fit: httpx does HTTP/2 requests via httpx.Client(http2=True)"""
+  Reuse: httpx PASS (chosen); fit: httpx does HTTP/2 requests via httpx.Client(http2=True)
+`Reuse: none: harness adoption` needs no fit clause: the template, not the agent, picked those dependencies."""
 REUSE_LINE = re.compile(r"^[\s>*_-]*Reuse[*_]*:[*_]*[ \t]*(.*)$", re.M | re.I)
 GATE_RESULT = re.compile(r"\b[A-Za-z0-9][\w.\[\]-]*[\s:(=]{1,3}(PASS|HOLD|FAIL|FLAG|NOT FOUND|UNVERIFIED)\b")
 NONE_REASON = re.compile(r"none\s*[:\-–—]\s*\S", re.I)
 NOTE_PATH = re.compile(r"docs/research/[\w./-]+\.md")
+HARNESS_ADOPTION = re.compile(r"none\s*[:\-–—]\s*harness adoption\b", re.I)
 FIT_CLAUSE = re.compile(r"\bfit:\s*(.*?)\s*(?=[;,]?\s*\bfit:|$)", re.I)
 FIT_NAMED = re.compile(r"([A-Za-z0-9][\w.-]*)(?:\[[\w,.\s-]*\])?\s+(?:unsure\b|does\s+\S.*?\s+via\s+\S)", re.I)
 
@@ -311,6 +313,8 @@ def fit_missing(body: str, dependencies: list[str]) -> list[str]:
     `fit: <package> does <need> via <API>` or `fit: <package> unsure` covers that package; `fit: unsure` covers all."""
     named: set[str] = set()
     for line in REUSE_LINE.finditer(body):
+        if HARNESS_ADOPTION.match(line.group(1).strip()):
+            return []  # template-added dependencies are not the agent's pick
         for clause in FIT_CLAUSE.finditer(line.group(1)):
             if re.match(r"unsure\b", clause.group(1), re.I):
                 return []

@@ -264,6 +264,15 @@ def test_each_new_dependency_needs_its_own_fit_or_a_bare_unsure(branch):
     assert workflow.reuse_problem(f"Closes #9\n\n{split}\n") is None
 
 
+def test_harness_adoption_exempts_new_dependencies_and_other_none_reasons_do_not(branch):
+    """Lead on #221: template-added dependencies are not the agent's pick, so `fit: unsure` there is not asked for."""
+    branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', HTTPX))
+    assert workflow.reuse_problem("Closes #9\n\nReuse: none: harness adoption\n") is None
+    assert workflow.reuse_problem("Closes #9\n\n- **Reuse:** None — Harness adoption (v0.1.8)\n") is None
+    for line in ("Reuse: none: glue code", "Reuse: none: not a harness adoption", "Reuse: httpx PASS"):
+        assert "fit clause" in workflow.reuse_problem(f"Closes #9\n\n{line}\n")
+
+
 def test_a_new_module_alone_needs_no_fit_clause(branch):
     branch("pkg/new.py", "Y = 2\n")
     assert workflow.reuse_problem("Closes #9\n\nReuse: none: glue code\n") is None
