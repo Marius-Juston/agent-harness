@@ -10,6 +10,7 @@
 | harness-ops:research-auditor | opus | high | Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers | 190 | Adversarial, read-only audit of one research note. |
 | harness-ops:researcher | opus | high | all | 599 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
 | harness-ops:reviewer | opus | - | Read, Grep, Glob, Bash | 216 | Read-only pre-merge review of one PR against its issue's DONE WHEN, the research it cites and the project rules. |
+| harness-ops:suite-auditor | opus | - | Read, Grep, Glob, Bash | 244 | Read-only judgement pass of a size-tiered test-suite audit, run when `uv run dev suite-audit report` lists judgement items. |
 | harness-ops:tester | opus | - | all | 205 | Writes adversarial, property-based and regression tests for one issue or one merged change (inputs nobody planned for, wrong state, crashes midway), fixes sm... |
 
 ## Skills (`plugins/harness-ops`)
@@ -17,7 +18,7 @@
 | name | invocation | words | purpose |
 |---|---|---|---|
 | harness-ops:harness | model + /harness-ops:harness | 526 | How to change a project's agent surface safely — CLAUDE.md, .claude/ settings and agents, skills, hooks, the [tool.devkit] config, CI — without drift or bloa... |
-| harness-ops:lead | model + /harness-ops:lead | 649 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
+| harness-ops:lead | model + /harness-ops:lead | 652 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
 | harness-ops:research | model + /harness-ops:research | 610 | Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reve... |
 
 ## Hooks
@@ -90,6 +91,9 @@
 | `usage-poll` | record the weekly usage percent every 10 min for the spawn guard (detach it) |
 | `eval` | micro-scenario evals of the agent surface via claude -p in a remote-less clone |
 | `agent-stats` | scorecard from transcripts: tokens, calls, big-result share per agent type |
+| `suite-audit` | size-tiered audit of the whole test suite: is one due, and the nine checks |
+| `suite-audit status` | is an audit due since the last one (what orient shows), and why |
+| `suite-audit report` | tier, the nine checks and the judgement items for harness-ops:suite-auditor |
 
 ## Word budgets (`.devkit/ratchets.toml`, only tighten)
 
@@ -100,7 +104,8 @@
 | plugins/harness-ops/agents/research-auditor.md | 190 | 600 |
 | plugins/harness-ops/agents/researcher.md | 599 | 600 |
 | plugins/harness-ops/agents/reviewer.md | 216 | 600 |
+| plugins/harness-ops/agents/suite-auditor.md | 244 | 600 |
 | plugins/harness-ops/agents/tester.md | 205 | 600 |
 | plugins/harness-ops/skills/harness/SKILL.md | 526 | 650 |
-| plugins/harness-ops/skills/lead/SKILL.md | 649 | 650 |
+| plugins/harness-ops/skills/lead/SKILL.md | 652 | 650 |
 | plugins/harness-ops/skills/research/SKILL.md | 610 | 650 |

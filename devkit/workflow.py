@@ -22,6 +22,7 @@ from pathlib import Path, PurePosixPath
 from devkit import backoff, board, checks, config
 from devkit.gate import free_gb, tree_key
 from devkit.paths import git, main_checkout, root, state_dir
+from devkit.suite_audit import orient_lines
 
 # Every path is harness (it can change what the gate or an agent does, and the gate that judges a branch is the
 # branch's own code) except plain content under these directories. A PR touching harness needs the lead to read it.
@@ -191,6 +192,7 @@ def orient() -> str:
         if bad:
             n = len({f.number for f in bad})
             board_part.append(f"board lint: {len(bad)} problem(s) on {n} item(s); `uv run dev board lint`")
+        board_part += orient_lines(root())  # the suite audit (#114): due, red CI on main, a stale floor; never raises
     except board.BoardError as exc:
         board_part = ["", f"## Board unavailable: {exc}"]
     tail = ["", "## This machine", *board.cap(status().splitlines(), 10, "`uv run dev status`")]
