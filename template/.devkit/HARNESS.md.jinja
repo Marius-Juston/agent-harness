@@ -22,8 +22,8 @@ what is already researched.
   Never weaken a check, test or budget to pass. Ask the owner instead.
 - **Research before implementing.** Any design or algorithm choice needs a cited note in `docs/research/`.
   Check INDEX.md first and extend an existing note rather than writing a parallel one. Use the research skill.
-- **Reuse before build.** Search for a maintained library or repo first. Prefer free and open-source options.
-  Record the choice, its license and the alternatives in the note.
+- **Reuse before build.** Run `uv run dev reuse "<need>"` (or `--from <file>:<symbol>`) for maintained libraries
+  and repos first. Prefer free and open-source options. Record the choice, its license and the alternatives in the note.
 - Label claims **VERIFIED** (measured here, script named), **SOURCED** (cited and fetched), **BELIEVED** (judgment)
   or **ASSUMED**. Never cite a source you did not fetch. `uv run dev cite-check` must pass for changed notes.
 - Re-check a root cause with data before writing it down. First explanations are often wrong.

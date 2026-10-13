@@ -26,7 +26,7 @@ Crossref, WebSearch/WebFetch, context7, Wikipedia (orientation only).
    papers silently.
    Pass its output line to each researcher, who records it as the note's `Search coverage:` line.
 1. **Decompose** what is still open into sub-questions that do not overlap and together cover it. Use 3 by default
-   and up to 8 for a broad topic; split by mechanism, evidence base, prior art, tools, and risks or counter-evidence.
+   and up to 8 for a broad topic; split by mechanism, evidence base, prior art, tools (`uv run dev reuse`), and risks or counter-evidence.
    Always give one researcher the job of arguing *against* the current leading answer.
 2. **Fan out** all researchers in one response (parallel Agent calls, `subagent_type: harness-ops:researcher`,
    background).

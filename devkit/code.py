@@ -182,3 +182,20 @@ def refs(name: str) -> str:
 def find(pattern: str, notes: bool = False, ignore_case: bool = False) -> str:
     paths = ("docs",) if notes else ()
     return _group(_grep(pattern, *paths, ignore_case=ignore_case), REFS_CAP)
+
+
+def source(path: str, name: str | None = None) -> str:
+    """The text of `path`, or of definition `name` (Class.method too) in it, for tools that read code (dev reuse
+    --from). Raises LookupError when the file or the definition is missing."""
+    p = Path(path) if Path(path).is_absolute() else root() / path
+    if not p.is_file():
+        raise LookupError(f"no such file: {path}")
+    text = p.read_text(encoding="utf-8", errors="replace")
+    if not name:
+        return text
+    defs = _find_defs(name, str(p.relative_to(root())) if p.is_relative_to(root()) else str(p))
+    if not defs:
+        raise LookupError(f"no definition of {name} in {path}")
+    node = defs[0][1]
+    start = min([node.lineno, *[d.lineno for d in node.decorator_list]])
+    return "\n".join(text.splitlines()[start - 1 : node.end_lineno or node.lineno])
