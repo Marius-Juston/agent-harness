@@ -3,7 +3,7 @@
 Status: v1 (2026-10-12). Issue: #58.
 Labels: SOURCED = cited and fetched; VERIFIED = measured in this repo (script named); BELIEVED = judgment; ASSUMED = unchecked premise.
 Search coverage: one targeted paper plus tool documentation; `uv run dev lit status` on 2026-10-12 showed openalex, crossref, europepmc and arxiv up, s2 down (HTTP 429).
-Companions: [agent-harness.md](agent-harness.md) (why the gate enforces rather than describes).
+Companions: [agent-harness.md](agent-harness.md) (why the gate enforces rather than describes), [test-suite-design.md](test-suite-design.md) (which kinds of tests, E2E by project type, flakes and CI by project size).
 
 ## 0. Findings in one paragraph
 A gate that ran 0 tests already fails here; the remaining hole is a test file or a whole directory silently dropping out, which a passing suite never shows. A **test-count floor** (`[tests] min_tests` in `.devkit/ratchets.toml`) closes it. **Coverage is a poor quality target** (low to moderate correlation with fault detection once suite size is controlled), so it is used only as a **ratchet floor** that catches a large drop, never as a goal to climb. **Diff coverage** (the share of changed executable lines a test runs) is printed for each change and is **report-only**: a hard per-change gate buys tests written to satisfy a number. Tools: coverage.py through pytest-cov (works with pytest-xdist) and diff-cover, all free and open source. Measured cost here: none beyond noise.
