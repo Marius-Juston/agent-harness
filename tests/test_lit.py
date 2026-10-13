@@ -1029,6 +1029,17 @@ def test_get_many_reports_each_id_not_found(tmp_path):
     assert papers == [None, None] and "not found: 10.1234/x" in notes and "not found: 10.1234/y" in notes
 
 
+def test_a_failed_or_unreadable_batch_is_a_note_and_openalex_is_not_asked_per_id(tmp_path):
+    s2p = {"paperId": "d" * 40, "title": "From S2", "abstract": "S2.", "authors": [{"name": "X"}]}
+    for answer in [(400, {}, ""), (200, {}, "not json")]:
+        net = FakeNet({OA: [answer], S2: [(200, {}, json.dumps(s2p))]})
+        (tmp_path / str(answer[0])).mkdir()
+        papers, notes = make(tmp_path / str(answer[0]), net).lookup_many(["10.1234/a", "10.1234/b", "1706.03762"])
+        assert [p.title for p in papers if p] == ["From S2"] * 3 and notes[0].startswith("openalex: ")
+        assert sum(u.startswith(OA) for u, _ in net.calls) == 1  # the arXiv id is not batched: OpenAlex is no source
+    assert lit.openalex_key("1706.03762") is None and lit.openalex_key("10.1234/a|b") is None
+
+
 def test_get_many_rejects_a_bad_id_before_any_call(tmp_path):
     net = FakeNet({})
     with pytest.raises(ValueError):
