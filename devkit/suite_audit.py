@@ -300,7 +300,8 @@ def check_flaky(clone_runs: list[dict], ledger: list[dict]) -> Check:
     else:
         c.skipped = "no reruns (--quick)"
     if suspects := [t for t in mixed(ledger) if t not in set(mixed(clone_runs))]:
-        c.info.append(f"{len(suspects)} id(s) passed and failed across the gate history (any tree): suspects")
+        steady = "; steady in the reruns" if clone_runs else ""
+        c.info.append(f"{len(suspects)} id(s) passed and failed across the gate history (any tree){steady}:")
         c.info += suspects[:SHOWN]
     return c
 
