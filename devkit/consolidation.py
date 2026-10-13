@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import threading
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -29,6 +30,8 @@ REVIEW_TRAILER = "Consolidation-Review:"
 ADOPTION_FILE = ".copier-answers.yml"  # the Copier answers file: its first commit is when the harness was adopted
 PYSCN = "pyscn@1.32.4"  # pinned: pyscn's own skills call @latest and keep no baseline (note §7)
 VULTURE = "vulture==2.16"
+MAX_WALK = 5000  # commits any history walk reads (the trailer search, churn counts): bounded on any repository
+ORIENT_BUDGET_S = 10.0  # `dev orient` runs at SessionStart under a 45 s hook timeout; the trigger gets at most this
 
 COMMENT = {
     ".py": "#",
@@ -267,7 +270,9 @@ def signals(repo: Path, rev: str, cfg: dict, reader: BlobReader | None = None) -
             used |= {unit_of(mods[w]) for w in ws}
     tests = {u for u in unit_loc if all(is_test(p) for p in loc if unit_of(p) == u)}
     orphan = {u for u in dormant - used if u not in tests or not uses[u] - dormant}
-    commits = Counter(p for p in _git(repo, "log", "--no-merges", "--name-only", "--format=", rev).split("\n") if p)
+    commits = Counter(
+        p for p in _git(repo, "log", "--no-merges", f"-{MAX_WALK}", "--name-only", "--format=", rev).split("\n") if p
+    )
     churny = sorted(
         p for p, n in loc.items() if not is_test(p) and n > cfg["churny_loc"] and commits[p] >= cfg["churny_commits"]
     )
@@ -296,12 +301,18 @@ def signals(repo: Path, rev: str, cfg: dict, reader: BlobReader | None = None) -
 
 
 def last_review(repo: Path, cfg: dict) -> tuple[str, str]:
-    """(commit, source) the trigger counts from: the configured ``since``, else the newest commit with a
-    ``Consolidation-Review:`` trailer line, else the commit that adopted the harness, else the root commit."""
+    """(commit, source) the trigger counts from: the configured ``since``, else the newest first-parent commit (of the
+    last MAX_WALK) whose trailer block has ``Consolidation-Review:``, else the commit that adopted the harness, else
+    the root commit. First-parent only: on main that is the merge commits `dev integrate --consolidation-review`
+    writes, so a trailer on a worker's branch never resets the trigger."""
     if cfg.get("since"):
         return _git(repo, "rev-parse", "--verify", f"{cfg['since']}^{{commit}}").strip(), "config"
-    if sha := _git(repo, "log", "-1", "--format=%H", f"--grep=^{REVIEW_TRAILER}", "HEAD").strip():
-        return sha, "review"
+    key = REVIEW_TRAILER.rstrip(":")
+    fmt = f"--format=%H %(trailers:key={key},valueonly,separator=%x2C)%x1e"
+    for row in _git(repo, "log", "--first-parent", f"-{MAX_WALK}", fmt, "HEAD").split("\x1e"):
+        sha, _, value = row.strip().partition(" ")
+        if sha and value.strip():
+            return sha, "review"
     if adopted := _git(repo, "log", "--diff-filter=A", "--format=%H", "HEAD", "--", ADOPTION_FILE).split():
         return adopted[-1], "adoption"
     return _git(repo, "rev-list", "--first-parent", "--max-parents=0", "HEAD").split()[-1], "root"
@@ -354,12 +365,29 @@ def due(repo: Path, cfg: dict | None = None, now: float | None = None) -> dict:
     }
 
 
-def orient_line(repo: Path, cfg: dict | None = None) -> str | None:
-    """One line for `dev orient` when a review is due, else None (also outside a repository with commits)."""
+def orient_line(repo: Path, cfg: dict | None = None, budget_s: float = ORIENT_BUDGET_S) -> str | None:
+    """One line for `dev orient` when a review is due, else None (also outside a repository with commits). The
+    trigger runs in a daemon thread for at most ``budget_s``: past it, orient says so and moves on."""
     probe = subprocess.run(["git", "-C", str(repo), "rev-parse", "--verify", "-q", "HEAD"], capture_output=True)
     if probe.returncode != 0:
         return None
-    r = due(repo, cfg)
+    cfg = cfg or config.get().consolidation  # read in orient's thread, so a config error is reported, not lost
+    box: dict = {}
+
+    def work() -> None:
+        try:
+            box["r"] = due(repo, cfg)
+        except Exception as exc:  # re-raised below, in orient's thread
+            box["err"] = exc
+
+    t = threading.Thread(target=work, daemon=True)
+    t.start()
+    t.join(budget_s)
+    if t.is_alive():
+        return f"consolidation trigger skipped: over {budget_s:g} s (run `uv run dev consolidation status`)"
+    if "err" in box:
+        raise box["err"]
+    r = box["r"]
     if not r["review_due"]:
         return None
     return (

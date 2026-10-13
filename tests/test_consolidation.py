@@ -152,6 +152,36 @@ def test_a_review_trailer_resets_the_trigger(repo):
     assert consolidation.due(repo.path, cfg(growth_min_loc=15))["review_due"]
 
 
+def test_only_a_first_parent_trailer_block_resets_the_trigger(repo):
+    root = repo.commit({"a.py": code(10)})
+    repo.git("checkout", "-q", "-b", "feature")
+    repo.commit({"b.py": code(5)}, "a worker writes it\n\nConsolidation-Review: #9")  # on the merged branch only
+    repo.commit({}, "Consolidation-Review: #8\n\nprose after it, so not a trailer block")
+    repo.git("checkout", "-q", "main")
+    repo.git("merge", "-q", "--no-ff", "--no-edit", "feature")
+    assert consolidation.last_review(repo.path, cfg()) == (root, "root")
+    repo.git("checkout", "-q", "-b", "f2")
+    repo.commit({"c.py": code(5)})
+    repo.git("checkout", "-q", "main")
+    repo.git("merge", "-q", "--no-ff", "-m", "Merge pull request #3\n\nConsolidation-Review: #12", "f2")
+    assert consolidation.last_review(repo.path, cfg()) == (repo.git("rev-parse", "HEAD"), "review")
+
+
+def test_integrate_writes_the_trailer_into_the_merge_commit(monkeypatch):
+    from devkit import board
+
+    calls = []
+    monkeypatch.setattr(board, "gh", lambda *a, **k: calls.append(a) or "")
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(workflow, "_remote_shas", lambda n: ("h1", "m1"))
+    assert workflow._merge_if_unchanged(7, "h1", "m1", review=138) is None
+    assert calls[-1][calls[-1].index("--body") + 1] == "Consolidation-Review: #138"
+    assert workflow._merge_if_unchanged(7, "h1", "m1") is None
+    assert "--body" not in calls[-1]
+    args = cli.build().parse_args(["integrate", "5", "--consolidation-review", "138"])
+    assert args.consolidation_review == 138
+
+
 def test_first_parent_commits_since_the_review_trigger_it(repo):
     repo.commit({"a.py": code(10)}, "start\n\nConsolidation-Review: adopted")
     for k in range(3):
@@ -220,6 +250,37 @@ def test_orient_shows_the_review_line(monkeypatch, tmp_path):
 
     monkeypatch.setattr(consolidation, "orient_line", boom)
     assert "consolidation trigger failed: git broke" in workflow.orient()  # reported, never fatal
+
+
+def test_the_trailer_search_reads_at_most_max_walk_commits(monkeypatch, repo):
+    repo.commit({"a.py": code(10)}, "x\n\nConsolidation-Review: #1")
+    for k in range(3):
+        repo.commit({"a.py": code(11 + k)})
+    assert consolidation.last_review(repo.path, cfg())[1] == "review"
+    monkeypatch.setattr(consolidation, "MAX_WALK", 2)
+    assert consolidation.last_review(repo.path, cfg())[1] == "root"
+
+
+def test_orient_line_gives_up_after_its_budget(monkeypatch, repo):
+    import time
+
+    repo.commit({"a.py": code(10)})
+    monkeypatch.setattr(consolidation, "due", lambda *a, **k: time.sleep(5))
+    t0 = time.perf_counter()
+    line = consolidation.orient_line(repo.path, cfg(), budget_s=0.2)
+    assert time.perf_counter() - t0 < 2
+    assert line is not None and "skipped: over 0.2 s" in line
+
+
+def test_orient_line_reraises_a_trigger_error(monkeypatch, repo):
+    repo.commit({"a.py": code(10)})
+
+    def boom(*a, **k):
+        raise consolidation.GitError("bad object")
+
+    monkeypatch.setattr(consolidation, "due", boom)
+    with pytest.raises(consolidation.GitError, match="bad object"):
+        consolidation.orient_line(repo.path, cfg())
 
 
 def test_orient_skips_the_trigger_outside_a_git_repository(tmp_path):
@@ -293,3 +354,79 @@ def test_tarjan_matches_mutual_reachability(edges):
 )
 def test_regex_import_targets(src, mod, is_pkg, want):
     assert consolidation.regex_import_targets(src, mod, is_pkg) == want
+
+
+# ---------------------------------------------------------------- the architect is read-only, enforced (#113 review)
+ARCHITECT_OK = [
+    "uv run dev consolidation report --tools",
+    "uv run dev board new --type epic --title 'x' --context \"$(cat <<'X'\nbody > text\nX\n)\"",
+    "uv run dev code refs Config",
+    "uv run dev --help",
+    "git log --oneline -5 -- devkit",
+    "git -C /tmp/r show HEAD:pyproject.toml",
+    "git diff --stat main && git status --short",
+    "gh issue view 12 --comments",
+    "gh issue create --title t --body b",
+    "gh api repos/o/r/issues",
+    "cat README.md | head -20",
+    "grep -rn 'def ' devkit | wc -l",
+    "sed -n 1,40p devkit/cli.py",
+    "find devkit -name '*.py' -exec grep -l import {} +",
+    "ls -la 2>/dev/null; echo done >&2",
+    "cd devkit && wc -l *.py",
+]
+ARCHITECT_DENIED = [
+    "rm -rf devkit",
+    "rm old.py",
+    "git rm -r scripts",
+    "git mv a.py b.py",
+    "git commit -m x",
+    "git push origin HEAD",
+    "git checkout -- .",
+    "git diff --output=x.patch",
+    "echo x > devkit/cli.py",
+    "cat a >> b",
+    "> empty.py",
+    "sed -i s/a/b/ devkit/cli.py",
+    "sed -n '1w out' a.py",
+    "mv a.py b.py",
+    "cp a b",
+    "touch new.py",
+    "python3 -c 'print(1)'",
+    "bash -c 'ls'",
+    "find . -name '*.pyc' -delete",
+    "find . -exec rm {} +",
+    "ls | xargs rm",
+    "tee out.txt < a",
+    "awk '{print > \"f\"}' a",
+    "uv run dev integrate 5",
+    "uv run dev pr 5",
+    "uv add requests",
+    "gh pr merge 5",
+    "gh issue delete 5",
+    "gh issue close 5",
+    "gh repo delete o/r",
+    "gh api -X DELETE repos/o/r",
+    "gh api repos/o/r/issues -f title=x",
+    "uvx pyscn analyze .",
+]
+
+
+@pytest.mark.parametrize("agent", ["harness-ops:architect", "architect"])
+@pytest.mark.parametrize("cmd", ARCHITECT_OK)
+def test_architect_may_read_measure_and_file_issues(hook, cmd, agent):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "agent_type": agent})
+    assert code == 0, err
+
+
+@pytest.mark.parametrize("cmd", ARCHITECT_DENIED)
+def test_architect_may_not_write_move_or_delete(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "agent_type": "harness-ops:architect"})
+    assert code == 2 and "read-only" in err, (cmd, err)
+
+
+@pytest.mark.parametrize("cmd", ["mv a.py b.py", "touch new.py", "uv run dev pr 5", "sed -i s/a/b/ x"])
+def test_other_agents_and_the_main_session_are_not_read_only(hook, cmd):
+    for extra in ({}, {"agent_type": "harness-ops:builder"}):
+        code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, **extra})
+        assert code == 0, err

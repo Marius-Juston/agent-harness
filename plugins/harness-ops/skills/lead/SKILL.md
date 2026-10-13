@@ -27,7 +27,7 @@ For each item in review, in priority order:
 - `uv run dev board next -n 10`. Prefer P0, then what unblocks most.
 - Research comes first: a build issue whose Refs has no note waits for its research issue.
 - Run builders in parallel only when `board brief` shows no overlap in Owns. Researchers fan out wide (no tests, little memory).
-- Orient says `Consolidation review due`: spawn a `harness-ops:architect` (no worktree). Its steps run as normal issues; feature cuts wait for the owner. A commit trailer `Consolidation-Review: #<epic>` resets the trigger.
+- Orient says `Consolidation review due`: spawn a `harness-ops:architect` with `isolation: worktree`. Feature cuts wait for the owner. Only the lead resets the trigger: `dev integrate <pr> --consolidation-review <epic>`.
 - New work found: `uv run dev board new --title ... --type ... --prio ... --done "<measurable>" [--owns ...] [--blocked-by N]`. Split an item when its DONE WHEN would need two different measurements.
 
 ## 4. Dispatch

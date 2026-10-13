@@ -28,6 +28,14 @@ def test_the_plugin_has_the_six_agents_and_three_skills():
     assert sorted(p.parent.name for p in (PLUGIN / "skills").glob("*/SKILL.md")) == ["harness", "lead", "research"]
 
 
+def test_the_architect_gets_read_tools_only():
+    """#113: the consolidation review proposes and never edits; Bash is held read-only by guard_bash.py."""
+    meta, _ = frontmatter.read(PLUGIN / "agents/architect.md")
+    assert meta is not None
+    assert [t.strip() for t in str(meta["tools"]).split(",")] == ["Read", "Grep", "Glob", "Bash"]
+    assert not {"disallowedTools", "permissionMode", "hooks"} & set(meta)
+
+
 def test_every_hook_script_exists_and_is_executable():
     data = json.loads((PLUGIN / "hooks/hooks.json").read_text())
     commands = [h["command"] for groups in data["hooks"].values() for g in groups for h in g["hooks"]]

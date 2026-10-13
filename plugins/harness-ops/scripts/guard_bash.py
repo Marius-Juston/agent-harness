@@ -118,6 +118,7 @@ class Simple:
     words: list[Word] = field(default_factory=list)
     stdin: list[tuple[str, bool]] = field(default_factory=list)  # heredoc / here-string text, and "is a heredoc"
     reads: list[str] = field(default_factory=list)  # input redirection targets
+    writes: list[str] = field(default_factory=list)  # output redirection targets
 
 
 class Lexer:
@@ -130,7 +131,7 @@ class Lexer:
         self.pending: list[tuple[str, bool, bool, Simple]] = []
 
     def end_pipeline(self) -> None:
-        if any(c.words or c.stdin or c.reads for c in self.pipe):
+        if any(c.words or c.stdin or c.reads or c.writes for c in self.pipe):
             self.pipe = [Simple()]
             self.out.append(self.pipe)
 
@@ -197,6 +198,8 @@ class Lexer:
             cur.stdin.append((target.value, False))
         elif op in ("<", "<>", "<&"):
             cur.reads.append(target.value)
+        if op in (">", ">>", ">|", ">&", "&>", "&>>", "<>"):
+            cur.writes.append(target.value)
         return i
 
     def heredocs(self, i: int) -> int:
@@ -461,7 +464,8 @@ def unwrap(argv: list[str], assigns: list[str]) -> list[str]:
 
 
 class Checker:
-    def __init__(self, cwd: str):
+    def __init__(self, cwd: str, read_only: bool = False):
+        self.read_only = read_only  # the architect subagent: reads, measures and files issues, nothing else
         self.cwd = cwd
         self.start = cwd  # the session's worktree; a `cd ..` inside the command does not move it
         self.in_python = 0  # > 0 while checking a Python string literal as a shell command
@@ -471,7 +475,7 @@ class Checker:
         if depth > MAX_DEPTH:
             return DEEP
         for pipe in lex(text):
-            cmds = [c for c in pipe if c.words or c.stdin or c.reads]
+            cmds = [c for c in pipe if c.words or c.stdin or c.reads or c.writes]
             for k, c in enumerate(cmds):
                 if why := self.simple(c, depth):
                     return why
@@ -559,6 +563,8 @@ class Checker:
             for body, _ in c.stdin:
                 if why := self.code(body, lang, depth):
                     return why
+        if self.read_only and (why := read_only(argv, c.writes)):
+            return why
         if not argv:
             return None
         args = argv[1:]
@@ -840,6 +846,63 @@ def current_branch(where: str) -> str | None:
     return out.stdout.strip() or None
 
 
+# Read-only agents (the PreToolUse input's `agent_type`, plugin prefix dropped): the consolidation review proposes,
+# builders execute, so a stray write can never delete progress (#113). Allowlist, not denylist: unknown means no.
+READ_ONLY_AGENTS = {"architect"}
+READ_ONLY = (
+    "the architect is read-only: it reads, measures and files issues. Allowed: read commands (cat, grep, ls, "
+    "sed -n, ...), `git log|show|diff|status`, `gh issue view|list|create|comment`, `gh pr view|list|diff`, GET-only "
+    "`gh api`, `uv run dev board|consolidation|code`. File a step issue for a builder instead."
+)
+READ_CMDS = {"cat", "head", "tail", "wc", "ls", "grep", "egrep", "fgrep", "rg", "sort", "uniq", "cut", "tr", "jq"}
+READ_CMDS |= {"echo", "printf", "pwd", "stat", "file", "diff", "cmp", "tree", "du", "df", "basename", "dirname"}
+READ_CMDS |= {"realpath", "readlink", "test", "[", "[[", "true", "false", "column", "nl", "date", "which", "cd"}
+READ_GIT = {"log", "show", "diff", "status", "blame", "grep", "ls-files", "ls-tree", "rev-parse", "cat-file"}
+READ_GIT_GLOBAL = {"-C", "-c", "--no-pager", "-P", "--git-dir", "--work-tree"}
+READ_GH = {"issue": {"view", "list", "create", "comment", "status"}, "pr": {"view", "list", "diff", "checks", "status"}}
+READ_GH |= {"search": {"issues", "prs", "code", "repos", "commits"}}
+READ_DEV = {"board", "consolidation", "code", "--help", "-h"}
+SINKS = {"/dev/null", "/dev/stdout", "/dev/stderr", "-"}
+
+
+def read_only(argv: list[str], writes: list[str]) -> str | None:
+    """READ_ONLY unless the command only reads, or files issues through `dev board` / `gh`."""
+    if any(not (w.isdigit() or w in SINKS) for w in writes):
+        return READ_ONLY
+    if not argv:
+        return None
+    name, args = base(argv[0]), argv[1:]
+    if name == "sed":
+        if any(a.startswith(("-i", "--in-place")) for a in args):
+            return READ_ONLY
+        scripts = [args[i + 1] for i, a in enumerate(args[:-1]) if a == "-e"] or [
+            next((a for a in args if not a.startswith("-")), "")
+        ]
+        return None if all(re.fullmatch(r"[0-9,$;p ]*", s) for s in scripts) else READ_ONLY
+    if name == "find":
+        bad = {"-delete", "-fprint", "-fprint0", "-fprintf", "-fls", "-ok", "-okdir"}
+        return READ_ONLY if bad & set(args) else None  # -exec's command is checked on its own
+    if name in READ_CMDS:
+        return None
+    if name == "git":
+        i = 0
+        while i < len(args) and args[i].startswith("-"):
+            if args[i] not in READ_GIT_GLOBAL:
+                return READ_ONLY
+            i += 2 if args[i] in ("-C", "-c", "--git-dir", "--work-tree") else 1
+        rest = args[i:]
+        ok = rest and rest[0] in READ_GIT and not any(a.startswith(("--output", "-o")) for a in rest[1:])
+        return None if ok else READ_ONLY
+    if name == "gh":
+        if args[:1] == ["api"]:
+            write = {"-X", "--method", "-f", "-F", "--field", "--raw-field", "--input"}
+            return READ_ONLY if any(a.split("=", 1)[0] in write for a in args) else None
+        return None if len(args) > 1 and args[1] in READ_GH.get(args[0], ()) else READ_ONLY
+    if name == "dev" and args[:1] and args[0] in READ_DEV:
+        return None
+    return READ_ONLY
+
+
 def main() -> int:
     try:
         data = json.load(sys.stdin)
@@ -849,8 +912,9 @@ def main() -> int:
     if not isinstance(cmd, str):
         return 0
     cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
+    agent = data.get("agent_type") if isinstance(data.get("agent_type"), str) else ""  # set inside a subagent
     try:
-        why = Checker(cwd).text(cmd)
+        why = Checker(cwd, read_only=agent.rsplit(":", 1)[-1] in READ_ONLY_AGENTS).text(cmd)
     except RecursionError:  # hundreds of nested substitutions: nobody writes that by hand
         why = DEEP
     if why:

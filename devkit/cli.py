@@ -149,6 +149,12 @@ def build() -> argparse.ArgumentParser:
         action="store_true",
         help="no Actions minutes: required checks Actions does not run are run locally and posted as statuses",
     )
+    x.add_argument(
+        "--consolidation-review",
+        type=int,
+        metavar="EPIC",
+        help="the merge commit records a consolidation review (Consolidation-Review: #EPIC), resetting its trigger",
+    )
 
     x = sub.add_parser(
         "cite-check", help="resolve every source in research notes; flag dead links and title mismatches"
@@ -268,7 +274,7 @@ def run(a: argparse.Namespace) -> int:
         case "pr":
             print(workflow.pr(a.number, a.summary, a.draft, a.partial))
         case "integrate":
-            return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override, a.local_ci)
+            return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
         case "cite-check":
             paths = [Path(p) for p in a.paths] or _changed_notes()
             if not paths:

@@ -573,18 +573,23 @@ def _remote_shas(pr_number: int) -> tuple[str, str]:
     return head["headRefOid"], main
 
 
-def _merge_if_unchanged(pr_number: int, head: str, main: str, dry_run: bool = False) -> str | None:
+def _merge_if_unchanged(
+    pr_number: int, head: str, main: str, dry_run: bool = False, review: int | None = None
+) -> str | None:
     """Merge only what was gated: the head is pinned by --match-head-commit, main is re-read just before. Returns the
-    reason for not merging, or None."""
+    reason for not merging, or None. `review`: the merge commit carries `Consolidation-Review: #<review>`, the
+    first-parent trailer that resets the consolidation trigger (only the lead writes it, through integrate)."""
     now_head, now_main = _remote_shas(pr_number)
     if now_head != head:
         return f"the PR head moved during the gate ({head[:10]} -> {now_head[:10]}): rerun integrate"
     if now_main != main:
         return f"main moved during the gate ({main[:10]} -> {now_main[:10]}): rerun integrate"
     if not dry_run:
+        trailer = ["--body", f"{consolidation.REVIEW_TRAILER} #{review}"] if review else []
         board.gh(
-            "pr", "merge", str(pr_number), "-R", board.repo(), "--merge", "--match-head-commit", head, "--delete-branch"
-        )
+            "pr", "merge", str(pr_number), "-R", board.repo(), "--merge", "--match-head-commit", head, "--delete-branch",
+            *trailer,
+        )  # fmt: skip
     return None
 
 
@@ -714,11 +719,16 @@ def _wait_on_tip(pr_number: int, tip: str, expected: list[str], update: dict) ->
 
 
 def integrate(
-    pr_number: int, harness_ok: bool, dry_run: bool, override: str | None = None, local_ci: bool = False
+    pr_number: int,
+    harness_ok: bool,
+    dry_run: bool,
+    override: str | None = None,
+    local_ci: bool = False,
+    review: int | None = None,
 ) -> int:
     """`_integrate`, but every exit ends with a `result` line: a crash (even after a push) is `stopped` with its reason."""
     try:
-        return _integrate(pr_number, harness_ok, dry_run, override, local_ci)
+        return _integrate(pr_number, harness_ok, dry_run, override, local_ci, review)
     except Exception as exc:  # the lead branches on the last line, whatever failed
         traceback.print_exc()
         print(f"RESULT: stopped (integrate failed: {exc}); check the PR branch and the board, then rerun")
@@ -726,7 +736,12 @@ def integrate(
 
 
 def _integrate(
-    pr_number: int, harness_ok: bool, dry_run: bool, override: str | None = None, local_ci: bool = False
+    pr_number: int,
+    harness_ok: bool,
+    dry_run: bool,
+    override: str | None = None,
+    local_ci: bool = False,
+    review: int | None = None,
 ) -> int:
     """Lead only: merge a PR after re-gating the merged tree in a throwaway worktree: main merged into pull/N/head,
     generated files regenerated. When that tree differs from the head (the PR is behind main, or its generated files
@@ -858,7 +873,7 @@ def _integrate(
     elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update)) is not None:
         return code
     try:
-        reason = _merge_if_unchanged(pr_number, head if dry_run else tip, main, dry_run=dry_run)
+        reason = _merge_if_unchanged(pr_number, head if dry_run else tip, main, dry_run=dry_run, review=review)
     except board.BoardError as exc:  # e.g. branch protection waiting for checks on the update just pushed
         print(f"RESULT: stopped (GitHub refused the merge: {exc}); rerun integrate once its checks pass")
         return result(pr_number, 1, "stopped", reason=f"GitHub refused the merge: {exc}", **update)

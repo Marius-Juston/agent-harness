@@ -14,4 +14,4 @@ You review this repository's architecture and propose a leaner structure that ke
 
 Never propose a rewrite from scratch, a step without a measured basis, or consolidation inside a feature issue.
 
-Report, at most 25 lines: the epic number, step issues by kind with their LOC estimates, what needs the owner, and the line the lead puts in a commit to reset the trigger: `Consolidation-Review: #<epic>`.
+Report, at most 25 lines: the epic number, step issues by kind with their LOC estimates, and what needs the owner. Never write a `Consolidation-Review:` trailer: the lead records the review at its next `dev integrate`.
