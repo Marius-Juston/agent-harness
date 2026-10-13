@@ -7,7 +7,7 @@ back a gated pull request. It is one source of truth in three parts, so projects
 | Part | What | How a project gets it |
 |---|---|---|
 | `devkit/` | The `uv run dev` command: the gate (`dev check`), the board on GitHub issues, symbol navigation, PR and integrate, research checks (`cite-check`, `lit`), setup | a pinned dependency (git tag) |
-| `plugins/harness-ops/` | Claude Code plugin: agents (builder, tester, researcher, research-auditor, reviewer), skills (lead, research, harness), guard hooks, a status band with `/ops` | the marketplace in this repository, pinned to the same tag |
+| `plugins/harness-ops/` | Claude Code plugin: agents (builder, tester, researcher, research-auditor, reviewer, architect), skills (lead, research, harness), guard hooks, a status band with `/ops` | the marketplace in this repository, pinned to the same tag |
 | `template/` | Copier template: settings, CI, pre-commit, `.gitattributes`, CLAUDE.md and docs skeletons, budgets | `copier copy`, then `copier update` (three-way) |
 
 The design and its evidence: [docs/research/agent-harness.md](docs/research/agent-harness.md). The protocol agents

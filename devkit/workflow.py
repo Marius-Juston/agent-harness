@@ -19,7 +19,7 @@ import time
 import traceback
 from pathlib import Path, PurePosixPath
 
-from devkit import backoff, board, checks, config
+from devkit import backoff, board, checks, config, consolidation
 from devkit.gate import free_gb, tree_key
 from devkit.paths import git, main_checkout, root, state_dir
 
@@ -193,7 +193,11 @@ def orient() -> str:
             board_part.append(f"board lint: {len(bad)} problem(s) on {n} item(s); `uv run dev board lint`")
     except board.BoardError as exc:
         board_part = ["", f"## Board unavailable: {exc}"]
-    tail = ["", "## This machine", *board.cap(status().splitlines(), 10, "`uv run dev status`")]
+    try:  # a rare architecture review (#113): one line, only when due
+        review = ["", line] if (line := consolidation.orient_line(root())) else []
+    except Exception as exc:  # orientation is a convenience: report, never fail
+        review = ["", f"consolidation trigger failed: {exc}"[:200]]
+    tail = [*review, "", "## This machine", *board.cap(status().splitlines(), 10, "`uv run dev status`")]
     head = []
     name = config.get().handoff
     handoff = root() / name

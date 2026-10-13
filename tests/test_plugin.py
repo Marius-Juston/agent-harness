@@ -23,8 +23,8 @@ def test_the_marketplace_lists_the_plugin_under_its_manifest_name():
     assert market["name"] == "agent-harness" and manifest["name"] == "harness-ops"
 
 
-def test_the_plugin_has_the_five_agents_and_three_skills():
-    assert AGENTS == ["builder", "research-auditor", "researcher", "reviewer", "tester"]
+def test_the_plugin_has_the_six_agents_and_three_skills():
+    assert AGENTS == ["architect", "builder", "research-auditor", "researcher", "reviewer", "tester"]
     assert sorted(p.parent.name for p in (PLUGIN / "skills").glob("*/SKILL.md")) == ["harness", "lead", "research"]
 
 
