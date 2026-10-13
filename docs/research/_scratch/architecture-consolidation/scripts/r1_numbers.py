@@ -8,9 +8,9 @@ print("IC/C pooled", round(IC / C, 3))
 print("UIC/IC pooled", round(UIC / IC, 3))
 print("F/IC pooled", round(F / IC, 3))
 print("F/UIC pooled", round(F / UIC, 3))
-# Ma et al. 2026 RepoReuse Table 5 (OpenCode + Qwen3.7-plus): no memory vs interface memory
+# Ma et al. 2026 RepoReuse ablation (OpenCode + Qwen3.7-plus): "Lines" = distinct source lines viewed, not written
 lines_no, lines_if = 878, 576
-print("lines change with interface memory", round(lines_if / lines_no - 1, 3))
+print("distinct source lines viewed, change with interface memory", round(lines_if / lines_no - 1, 3))
 print("redundancy pp change", 46.7 - 65.1)
 # Liu et al. 2026 survival table
 print("survival", round(105364 / 464900, 4))

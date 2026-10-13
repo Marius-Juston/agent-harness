@@ -1,4 +1,5 @@
-"""Composite trigger variants over replayed history (#111 r2). Usage: PYTHONPATH=.scratch python3 .scratch/r2_composite.py"""
+"""Composite trigger variants over replayed history (#111 r2). Usage, from the worktree root with the env vars of codenames.py:
+python3 docs/research/_scratch/architecture-consolidation/scripts/r2_composite.py"""
 
 from r2_simulate import STATE, extra, rows_of
 
