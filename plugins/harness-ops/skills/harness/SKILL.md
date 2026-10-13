@@ -1,6 +1,7 @@
 ---
 name: harness
-description: How to change a project's agent surface safely — CLAUDE.md, .claude/ settings and agents, skills, hooks, the [tool.devkit] config, CI — without drift or bloat, and how to measure whether a change helped. Use before editing any of those files, when a rule is broken repeatedly, or when token use or error rates look high.
+description: How to change a project's agent surface safely — CLAUDE.md, .claude/ settings and agents, skills, hooks, the [tool.devkit] config, CI — without drift or bloat, and how to measure whether a change helped.
+when_to_use: Before editing any of those files, when a rule is broken repeatedly, or when token use or error rates look high.
 ---
 
 # Changing the harness

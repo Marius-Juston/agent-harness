@@ -2,6 +2,8 @@
 name: researcher
 description: Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). Use for any "type:research" issue, for one sub-question of a research round (the harness-ops:research skill), or before any design or algorithm choice.
 model: opus
+maxTurns: 250
+color: cyan
 effort: high
 disallowedTools: Agent
 experimental:

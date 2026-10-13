@@ -86,3 +86,36 @@ def test_claude_plugin_validate_passes(target):
         ["claude", "plugin", "validate", "--strict", target], cwd=root(), capture_output=True, text=True, check=False
     )
     assert out.returncode == 0 and "Validation passed" in out.stdout, out.stdout + out.stderr
+
+
+def test_every_plugin_agent_bounds_its_turns():
+    for p in (PLUGIN / "agents").glob("*.md"):
+        meta, _ = frontmatter.read(p)
+        assert isinstance(meta.get("maxTurns"), int) and meta["maxTurns"] > 0, p.name
+
+
+def test_only_the_research_agents_override_the_session_effort():
+    """#153: effort is set only where a role's evidence justifies it (agent-harness.md §10); the rest inherit the
+    owner's session level."""
+    metas = {p.stem: frontmatter.read(p)[0] for p in (PLUGIN / "agents").glob("*.md")}
+    assert {n for n, m in metas.items() if "effort" in m} == {"researcher", "research-auditor"}
+    assert all(m["effort"] in checks.EFFORTS for m in metas.values() if "effort" in m)
+
+
+@pytest.mark.parametrize("agent", ["architect", "builder", "suite-auditor", "tester"])
+def test_agents_that_read_or_change_the_tree_run_in_a_worktree(agent):
+    """#153: the read-only reviews read the default branch, not the lead's checkout mid-integration."""
+    meta, _ = frontmatter.read(PLUGIN / f"agents/{agent}.md")
+    assert meta.get("isolation") == "worktree"
+
+
+def test_the_research_skill_takes_its_question_as_arguments():
+    meta, body = frontmatter.read(PLUGIN / "skills/research/SKILL.md")
+    assert meta.get("argument-hint") and "$ARGUMENTS" in body
+
+
+def test_the_lead_skill_preloads_dev_status_without_aborting():
+    _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
+    cmds = checks.INJECTION.findall(body)
+    assert any("dev status" in c for c in cmds)
+    assert all(c.rstrip().endswith("|| true") for c in cmds)
