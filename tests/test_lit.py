@@ -503,6 +503,72 @@ def test_every_source_failing_reports_each(tmp_path):
     assert [n.split(":")[0] for n in notes] == ["openalex", "s2", "crossref", "europepmc"]
 
 
+def oa_titled(prefix: str, n: int, doi_prefix: str, cites: int = 0) -> str:
+    body = json.loads(oa_body(n, doi_prefix))
+    for i, w in enumerate(body["results"]):
+        w["id"], w["title"] = f"https://openalex.org/W{doi_prefix[-1]}{i}", f"{prefix} paper {i}"
+        w["cited_by_count"] = cites or w["cited_by_count"]
+    return json.dumps(body)
+
+
+def test_also_merges_and_dedupes_across_queries(tmp_path):
+    """--also (#194): each paraphrase is searched too, the lists interleave by rank, and a paper two queries find is
+    listed once with the union of its fields."""
+    beta = json.loads(oa_titled("Beta", 2, "10.1/b"))
+    beta["results"].insert(0, {**json.loads(oa_titled("Alpha", 3, "10.1/a"))["results"][2], "cited_by_count": 77})
+    net = FakeNet(
+        {
+            OA + "works?search=alpha": [(200, {}, oa_titled("Alpha", 3, "10.1/a"))],
+            OA + "works?search=beta": [(200, {}, json.dumps(beta))],
+        }
+    )
+    papers, notes = make(tmp_path, net).search("alpha", ("openalex",), n=10, also=("beta", "alpha", "beta"))
+    assert notes == [] and len(net.calls) == 2  # each distinct query asked once
+    assert [p.title for p in papers] == [
+        "Alpha paper 0",
+        "Alpha paper 2",  # beta's rank 0: Alpha paper 2 again, so it moves up and is listed once
+        "Alpha paper 1",
+        "Beta paper 0",
+        "Beta paper 1",
+    ]
+    assert papers[1].cites == 77
+
+
+def test_also_interleaves_so_a_paraphrase_reaches_the_top_n(tmp_path):
+    net = FakeNet(
+        {
+            OA + "works?search=alpha": [(200, {}, oa_titled("Alpha", 5, "10.1/a"))],
+            OA + "works?search=beta": [(200, {}, oa_titled("Beta", 5, "10.1/b"))],
+        }
+    )
+    papers, _ = make(tmp_path, net).search("alpha", ("openalex",), n=4, also=("beta",))
+    assert [p.title for p in papers] == ["Alpha paper 0", "Beta paper 0", "Alpha paper 1", "Beta paper 1"]
+
+
+def test_also_falls_back_per_query_until_n(tmp_path):
+    net = FakeNet({OA: SPENT, S2: SPENT, CR: [(200, {}, cr_body(1))], EP: [(200, {}, ep_body(3))]})
+    papers, notes = make(tmp_path, net).search("q", n=3, fallback=lit.FALLBACK_SOURCES, also=("r",))
+    crossref = [u for u, _ in net.calls if u.startswith(CR)]
+    assert len(crossref) == 2 and "query=r&" in crossref[1]  # the paraphrase asked Crossref too
+    assert len(papers) == 3 and "fallback: answered by crossref (1), europepmc (2)" in notes
+
+
+def test_cli_search_passes_also(monkeypatch):
+    from devkit import cli
+
+    seen = []
+
+    class Spy:
+        def search(self, query, sources, n, years, *, fallback=(), also=()):
+            seen.append((query, also))
+            return [], []
+
+    monkeypatch.setattr(lit, "client", Spy)
+    args = ["lit", "search", "spaced repetition", "--also", "distributed practice", "--also", "spacing effect"]
+    assert cli.run_lit(cli.build().parse_args(args)) == 0
+    assert seen == [("spaced repetition", ("distributed practice", "spacing effect"))]
+
+
 def test_fallback_against_a_local_fake_server(tmp_path):
     """Over real HTTP: OpenAlex and S2 answer 429 with a day-long Retry-After, Crossref is down, Europe PMC and arXiv
     answer. The search returns Europe PMC's and arXiv's papers and says which sources answered."""

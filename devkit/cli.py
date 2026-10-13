@@ -194,6 +194,9 @@ def build() -> argparse.ArgumentParser:
     x = ls.add_parser("search", help="papers for a query: title, year, venue, cites, ids, abstract snippet")
     x.add_argument("query")
     x.add_argument(
+        "--also", action="append", default=[], help="a paraphrase of the query (repeatable): results merged, deduped"
+    )
+    x.add_argument(
         "--source",
         default="auto",
         help=f"comma list of {', '.join(lit.SOURCES)}, or all; auto (default) asks {', '.join(lit.DEFAULT_SOURCES)}, "
@@ -422,7 +425,7 @@ def run_lit(a: argparse.Namespace) -> int:
     try:
         if a.sub == "search":
             sources, fallback = lit.plan(a.source)
-            papers, notes = lit.client().search(a.query, sources, a.n, a.years, fallback=fallback)
+            papers, notes = lit.client().search(a.query, sources, a.n, a.years, fallback=fallback, also=tuple(a.also))
         elif a.sub in lit.CHASE:
             papers, notes = lit.client().chase(a.id, a.sub, a.n, a.years)
         else:

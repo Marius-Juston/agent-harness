@@ -16,6 +16,7 @@ fell back to weaker sources. Every call here goes through one client:
   pool, and only holds callers of that pool off;
 - a fallback chain (`--source auto`, the default): OpenAlex and S2, then Crossref, Europe PMC and arXiv in turn
   until n papers are in hand, with a note naming the fallbacks that answered;
+- `search --also <paraphrase>` (repeatable) searches each paraphrase too and merges the lists by rank, deduped (#194);
 - compact output: one record per paper (title, year, venue, citations, ids, abstract snippet), capped; `get`
   adds authors, an open-access link and the full abstract, asks the next source only while the abstract or
   authors are missing, and batches several DOIs or W-ids into one OpenAlex call (#30, #174);
@@ -707,15 +708,19 @@ class Client:
         years: str = "",
         *,
         fallback: tuple[str, ...] = (),
+        also: tuple[str, ...] = (),
     ):
         """(papers merged across sources in rank order, alternating sources, at most n; notes on failed sources).
 
-        While fewer than n papers are in hand, each `fallback` source is asked in turn and its papers appended; a
-        note says which of them answered."""
+        Each `also` paraphrase is searched too (#194, as `dev reuse --also`: paraphrases doubled package recall in
+        #169); every (query, source) list takes its turn at each rank, so a paper several of them find is listed
+        once. While fewer than n papers are in hand, each `fallback` source is asked in turn, for each query, and its
+        papers appended; a note says which of them answered."""
         n = max(1, min(n, MAX_N))
+        queries = list(dict.fromkeys((query, *also)))
         merged: dict[str, Paper] = {}
         notes: list[str] = []
-        ranked = [r for src in sources if (r := self._ranked(src, query, n, years, notes)) is not None]
+        ranked = [r for q in queries for src in sources if (r := self._ranked(src, q, n, years, notes)) is not None]
         for i in range(max(map(len, ranked), default=0)):
             for papers in ranked:
                 if i < len(papers):
@@ -725,7 +730,7 @@ class Client:
             if len(merged) >= n:
                 break
             before = len(merged)
-            for p in self._ranked(src, query, n, years, notes) or []:
+            for p in (p for q in queries if len(merged) < n for p in self._ranked(src, q, n, years, notes) or []):
                 if len(merged) >= n:
                     break
                 _merge(merged, p)
