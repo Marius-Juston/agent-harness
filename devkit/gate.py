@@ -67,7 +67,7 @@ def passed_count(stdout: str, junit: Path) -> int:
 HISTORY_FILE = "test-history.jsonl"  # in state_dir(): machine-local, shared by worktrees, never committed
 HISTORY_RUNS = 50  # runs kept: a test failing 1 run in 20 shows up within 50 runs with ~92% chance (1 - 0.95**50)
 HISTORY_CLOCK = time.time
-OUTCOMES = (("error", "error"), ("failure", "failed"), ("skipped", "skipped"))  # JUnit child tag -> outcome
+OUTCOMES = (("error", "error"), ("failure", "failed"), ("skipped", "skipped"))  # JUnit tag inside a testcase -> outcome
 
 
 def record_history(junit: Path, history: Path, at: int, keep: int = HISTORY_RUNS) -> None:

@@ -31,11 +31,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }} # reads the issue's weakening-ok approval
         run: uv run dev check --no-cache
-      - name: per-test outcomes and durations of the gate's test run (for suite audits)
-        if: ${{ !cancelled() && github.event_name != 'schedule' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        # .git/devkit is the gate's state dir in a plain clone; hidden paths are skipped unless included
-        with: { name: test-history, path: .git/devkit/test-history.jsonl, include-hidden-files: true }
       # Free stand-ins for GitHub secret scanning and dependency alerts, which private user-owned repositories do not
       # get: gitleaks over every commit, uv audit (OSV) over uv.lock, and a CycloneDX SBOM of uv.lock kept with the
       # run. Network-bound, so CI runs these rather than `dev check`. A false positive: add its fingerprint to
@@ -52,6 +47,11 @@ jobs:
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with: { name: sbom, path: sbom.cdx.json, if-no-files-found: error }
+      - name: per-test outcomes and durations of the gate's test run (for suite audits)
+        if: ${{ !cancelled() && github.event_name != 'schedule' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        # .git/devkit is the gate's state dir in a plain clone; hidden paths are skipped unless included
+        with: { name: test-history, path: .git/devkit/test-history.jsonl, include-hidden-files: true }
       - name: the security steps still fail on a fake secret and a vulnerable pin (live)
         if: ${{ !cancelled() }}
         run: uv run pytest -m live tests/test_security.py

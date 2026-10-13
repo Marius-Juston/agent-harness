@@ -22,5 +22,5 @@ context = 600    # CLAUDE.md/AGENTS.md plus the files they @-import: loaded into
 # Coverage is a floor against a large drop, never a target; diff coverage is printed, never gated.
 # Evidence: docs/research/test-floors-and-coverage.md.
 [tests]
-min_tests = 759        # passed tests in the default gate run: 95% of 799 (2026-10-12)
+min_tests = 884        # passed tests in the default gate run: 95% of 931 (2026-10-12)
 min_coverage = 77      # line % of devkit/ ([tool.coverage.run] source): 77.8% measured (2026-10-12)
