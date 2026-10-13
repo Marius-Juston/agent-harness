@@ -74,6 +74,7 @@ ignore = ["E501", "RUF001", "RUF002", "RUF003", "S603", "S607"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers -p no:cacheprovider"
+xfail_strict = true  # an xfail test that starts passing fails the run (docs/research/test-suite-design.md)
 markers = [
     "slow: long-running tests (run with `uv run dev test --slow`)",
     "live: needs network or a model; never in the default gate",
