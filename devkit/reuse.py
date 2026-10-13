@@ -8,8 +8,8 @@ for 0.71. So check mode is the default step and search an optional recall aid. c
 NOT FOUND (the package-hallucination guard). search:
 
 - queries: the need, each `--also` paraphrase the agent writes, or `--from <file>[:<symbol>]`, which reads a
-  hand-written helper's name, docstring, comments and imports (devkit.code.source) so it gets library suggestions.
-  Each query is stopword-relaxed to at most QUERY_TERMS words;
+  hand-written helper's name, its docstring's first sentence and its third-party imports (need_from, #175) so it
+  gets library suggestions. Each query is printed, and stopword-relaxed to at most QUERY_TERMS words;
 - recall: GitHub repository search per query (is:public, so a token never brings private repositories in) (an OR query when the AND one returns under OR_FALLBACK), the
   packages.ecosyste.ms keyword lists of the query words (filtered to the ecosystem: the endpoint ignores it), and
   topic expansion (topics shared by TOPIC_MIN of the TOPIC_TOP first repositories). Candidates are deduplicated by
@@ -48,18 +48,18 @@ import contextlib
 import dataclasses
 import datetime as dt
 import importlib
-import io
 import json
 import math
 import os
 import re
 import shutil
 import subprocess
-import tokenize
+import sys
 import urllib.parse
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from devkit import code, lit
 from devkit.paths import state_dir
@@ -208,49 +208,87 @@ def relax(query: str) -> list[str]:
     return out[:QUERY_TERMS]
 
 
-def need_from(text: str, name: str = "") -> str:
-    """A need written from code: its definitions' names, docstrings, comments and imported modules."""
-    parts = [name.split(".")[-1]] if name else []
+def first_sentence(doc: str) -> str:
+    """A docstring's first sentence: up to the first `.`, `!` or `?` that a capital letter follows (so `e.g. 3` stays)."""
+    para = " ".join(doc.strip().split("\n\n")[0].split())
+    return re.split(r"(?<=[.!?])\s+(?=[A-Z])", para)[0]
+
+
+def need_from(text: str, name: str = "", own: Collection[str] = ()) -> str:
+    """A need written from code (#175): the symbol's name, its docstring's first sentence (the module's when no
+    definition is named `name`) and its third-party imports. Comments, other names, standard-library, relative and
+    the project's own (`own`) imports are left out: on #169's set C they crowded the need out."""
+    short = name.split(".")[-1]
+    parts = [short]
     try:
         tree = ast.parse(text)
-    except SyntaxError:
+    except (SyntaxError, ValueError):  # ValueError: a null byte
         tree = None
     if tree is not None:
+        defs = [
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) and n.name == short
+        ]
+        if doc := ast.get_docstring(defs[0] if defs else tree):
+            parts.append(first_sentence(doc))
         for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
-                parts.append(node.name)
-            if isinstance(node, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) and (
-                doc := ast.get_docstring(node)
-            ):
-                parts.append(doc.split("\n\n")[0])
-    with contextlib.suppress(tokenize.TokenError, IndentationError, SyntaxError):  # comments up to an error
-        for t in tokenize.generate_tokens(io.StringIO(text).readline):
-            if t.type == tokenize.COMMENT:
-                parts.append(t.string.lstrip("#"))
-    if tree is not None:
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                parts += [a.name.split(".")[0] for a in node.names]
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                parts.append(node.module.split(".")[0])
+            mods = [a.name for a in node.names] if isinstance(node, ast.Import) else []
+            if isinstance(node, ast.ImportFrom) and node.module and not node.level:
+                mods = [node.module]
+            for top in (m.split(".")[0] for m in mods):
+                if top not in sys.stdlib_module_names and top not in own and not top.startswith("_"):
+                    parts.append(top)
     seen: list[str] = []
     for w in words(" ".join(parts)):
-        if w not in seen and w not in STOP and len(w) > 1:
+        if w not in seen and w not in STOP and len(w) > 1 and not w.isdigit():
             seen.append(w)
     return " ".join(seen[:NEED_WORDS])
 
 
+def own_modules(files: Iterable[str], path: str) -> set[str]:
+    """The modules a project imports as its own, from its file list (posix paths relative to its root): top-level
+    `.py` files and directories holding Python, the same under `src/`, and the modules beside `path`."""
+    bases: list[tuple[str, ...]] = [(), ("src",)]
+    if (here := tuple(path.split("/")[:-1])) not in bases:
+        bases.append(here)
+    out: set[str] = set()
+    for f in files:
+        if not f.endswith(".py"):
+            continue
+        parts = tuple(f.split("/"))
+        for base in bases:
+            rest = parts[len(base) :]
+            if parts[: len(base)] == base and rest:
+                out.add(rest[0].removesuffix(".py"))
+    return out
+
+
+def _tracked() -> list[str]:
+    """The repository's files (git ls-files), or none when git cannot list them."""
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z"], cwd=code.root(), capture_output=True, text=True, check=True, timeout=30
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [f for f in out.stdout.split("\0") if f]
+
+
 def from_spec(spec: str) -> str:
-    """`<file>[:<symbol>]` to a need (LookupError when the file or symbol is missing)."""
+    """`<file>[:<symbol>]` to a need (LookupError when the file or symbol is missing): the symbol's name and
+    docstring, else the file's stem and module docstring; with the third-party imports of the symbol and the file."""
     path, _, symbol = spec.partition(":")
-    text = code.source(path)
+    text = code.source(path)  # raises outside the repository, so the path below is inside it
+    rel = (Path(path) if Path(path).is_absolute() else code.root() / path).resolve().relative_to(code.root().resolve())
+    own = own_modules(_tracked(), rel.as_posix())
     if not symbol:
-        return need_from(text)
+        return need_from(text, rel.stem, own)
     try:  # a symbol's own text, plus the file's imports: what the helper leans on
         imports = [ast.unparse(n) for n in ast.parse(text).body if isinstance(n, ast.Import | ast.ImportFrom)]
-    except SyntaxError:
+    except (SyntaxError, ValueError):
         imports = []
-    return need_from("\n".join([code.source(path, symbol), *imports]), symbol)
+    return need_from("\n".join([code.source(path, symbol), *imports]), symbol, own)
 
 
 # ---- recall ----
@@ -668,10 +706,14 @@ def _ids(alt: str) -> list[str]:
 
 
 def _lookup(table: dict, lic: str):
-    """An SPDX id's entry, also under its current name (GPL-3.0 is GPL-3.0-only, GPL-3.0+ GPL-3.0-or-later)."""
+    """An SPDX id's entry, also under its current name (GPL-3.0 is GPL-3.0-only, GPL-3.0+ GPL-3.0-or-later), in any
+    case: SPDX ids are case-insensitive, and registries send `mit` and `apache-2.0` too (#215)."""
+    folded = {k.casefold(): v for k, v in table.items()}
     for k in (lic, lic + "-only", lic.removesuffix("+") + "-or-later"):
         if k in table:
             return table[k]
+        if k.casefold() in folded:
+            return folded[k.casefold()]
     return None
 
 
@@ -987,6 +1029,7 @@ def render(report: dict) -> str:
             f"{report.get('scored', len(report['candidates']))} scored, {len(report['candidates'])} shown "
             f"({report['ecosystem']}); {report['score']}"
         ]
+        out += [f"query: {q}" for q in report["queries"]]  # what was searched, --from's built need included (#175)
         for i, c in enumerate(report["candidates"], 1):
             hold = " HOLD" if c.status == HOLD else ""
             out += block(i, c, f"{hold}  S {c.score:.2f} (R {c.relevance:.2f}, Q {c.quality:.2f})")
