@@ -1,4 +1,4 @@
-"""Literature search shared by every agent on this machine (`uv run dev lit search|get`).
+"""Literature search shared by every agent on this machine (`uv run dev lit search|get|refs|cited-by`).
 
 Parallel researchers on one IP got 429s from OpenAlex and Semantic Scholar and spent OpenAlex's daily budget, then
 fell back to weaker sources. Every call here goes through one client:
@@ -19,6 +19,7 @@ fell back to weaker sources. Every call here goes through one client:
 - compact output: one record per paper (title, year, venue, citations, ids, abstract snippet), capped; `get`
   adds authors, an open-access link and the full abstract, asks the next source only while the abstract or
   authors are missing, and batches several DOIs or W-ids into one OpenAlex call (#30, #174);
+- `refs` and `cited-by`: backward and forward citation chasing (snowballing) through OpenAlex filters (#193);
 - `dev lit status`: each source's health from a live probe; OK while at least one default source answers (partial
   names the ones down), DEGRADED and exit 1 only when all are down, so a research round never starts on the weaker
   fallbacks alone without knowing it (#8, #23).
@@ -424,6 +425,10 @@ def _years(years: str) -> tuple[str, str]:
     return lo, hi
 
 
+def _oa_years(lo: str, hi: str) -> str:
+    return "publication_year:" + (f"{lo}-{hi}" if lo != hi else lo)
+
+
 def search_url(source: str, query: str, n: int, years: str = "") -> str:
     q = urllib.parse.quote(query)
     lo, hi = _years(years) if years else ("", "")
@@ -433,9 +438,7 @@ def search_url(source: str, query: str, n: int, years: str = "") -> str:
                 f"https://api.openalex.org/works?search={q}&per_page={n}"
                 "&select=id,doi,title,publication_year,primary_location,cited_by_count,abstract_inverted_index"
             )
-            if lo or hi:
-                url += "&filter=publication_year:" + (f"{lo}-{hi}" if lo != hi else lo)
-            return url
+            return url + ("&filter=" + _oa_years(lo, hi) if lo or hi else "")
         case "s2":
             url = (
                 f"https://api.semanticscholar.org/graph/v1/paper/search?query={q}&limit={n}"
@@ -589,6 +592,33 @@ def limit_403(status: int, headers: dict[str, str]) -> bool:
     Retry-After: both are throttles, not refusals."""
     h = {k.lower(): v.strip() for k, v in headers.items()}
     return status == 403 and (h.get("x-ratelimit-remaining") == "0" or "retry-after" in h)
+
+
+# `refs` and `cited-by` (#193): snowballing through OpenAlex filters (cited_by:W = the works W cites, cites:W = the works
+# citing W), most cited first, so the call that reads the list is one cached, rate-limited request. VERIFIED live
+# 2026-10-13: /works?filter=cited_by:W2741809807 and filter=cites:W2741809807 with sort=cited_by_count:desc answer.
+CHASE = {"refs": ("cited_by", "references"), "cited-by": ("cites", "citing works")}
+OA_LIST_SELECT = "select=id,doi,title,publication_year,primary_location,cited_by_count,abstract_inverted_index"
+
+
+def chase_url(direction: str, wid: str, n: int, years: str = "") -> str:
+    if direction not in CHASE:
+        raise ValueError(f"direction is one of {', '.join(CHASE)}, not {direction!r}")
+    filt = f"{CHASE[direction][0]}:{wid}" + ("," + _oa_years(*_years(years)) if years else "")
+    return f"https://api.openalex.org/works?filter={filt}&sort=cited_by_count:desc&per_page={n}&{OA_LIST_SELECT}"
+
+
+def chase_target(ident: str) -> str:
+    """The W-id itself, or the DOI to resolve to one (an arXiv id through its DataCite DOI). ValueError for an id
+    OpenAlex cannot look up (an S2 paper id)."""
+    ident = ident.strip()
+    if re.fullmatch(r"W\d+", ident, flags=re.I):
+        return ident.upper()
+    if m := ARXIV_ID.match(ident):
+        return "10.48550/arXiv." + m.group(1)
+    if m := DOI_ID.match(ident):
+        return m.group(1)
+    raise ValueError(f"refs and cited-by need a DOI, arXiv id or OpenAlex W-id, not {ident!r}")
 
 
 @dataclass
@@ -774,6 +804,30 @@ class Client:
                 done[k], more = self.lookup(ident, found.get(keys[ident]), skip)
                 notes += more + ([] if done[k] else [f"not found: {ident}"])
         return [done[keys[i] or i] for i in idents], notes
+
+    def chase(self, ident: str, direction: str, n: int = DEFAULT_N, years: str = "") -> tuple[list[Paper], list[str]]:
+        """(the works `ident` cites (`refs`) or that cite it (`cited-by`), most cited first, at most n; notes): a DOI or
+        arXiv id costs one more OpenAlex call (shared with `get`'s cache) to find its W-id. A failure is a note."""
+        n = max(1, min(n, MAX_N))
+        target = chase_target(ident)
+        chase_url(direction, "W0", n, years)  # a bad direction or --years fails before any call
+        try:
+            if not target.startswith("W"):
+                (url,) = [u for src, u in get_urls(target) if src == "openalex"]
+                works = parse_openalex(self.fetch("openalex", url))
+                if not works or not works[0].ids.get("openalex"):
+                    return [], [f"openalex: no work for {ident}"]
+                target = works[0].ids["openalex"]
+            body = self.fetch("openalex", chase_url(direction, target, n, years))
+            papers = [p for p in parse_openalex(body) if p.title]
+            count = (json.loads(body).get("meta") or {}).get("count", len(papers))
+        except SourceError as exc:
+            return [], [str(exc)]
+        except ValueError as exc:
+            return [], [f"openalex: unreadable answer ({type(exc).__name__})"]
+        if not papers:
+            return [], []
+        return papers, [f"{len(papers)} of {count} {CHASE[direction][1]} of {target}, most cited first"]
 
 
 def _merge(merged: dict[str, Paper], p: Paper) -> None:
