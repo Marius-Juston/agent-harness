@@ -191,7 +191,9 @@ def test_copier_update_never_conflicts_on_project_owned_files(tmp_path):
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=dest, check=True)
     subprocess.run(["git", "add", "-A"], cwd=dest, check=True)
     subprocess.run([*git, "commit", "-q", "-m", "previous release, edited"], cwd=dest, check=True)
-    run_update(dest, data=data, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
+    # a stored answer beats the new default, so the pin moves only when the update passes it (as README says)
+    pin = {**data, "harness_ref": f"v{version()}"}
+    run_update(dest, data=pin, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
     for name, text in edited.items():
         assert (dest / name).read_text() == text, name
     files = [p for p in dest.rglob("*") if p.is_file() and ".git" not in p.parts]
