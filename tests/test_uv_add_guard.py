@@ -84,6 +84,74 @@ def test_nonexistent_and_strong_copyleft_packages_are_refused(wired, monkeypatch
     rc, _, err = run(monkeypatch, capsys, cmd)
     assert rc == 2 and re.search(why, err), err
     assert err.startswith("Blocked by project rule: uv add guard")
+    assert "--allow-copyleft" not in err  # the CLI flag does not reach uv add (review of PR #189)
+    if "pyqt6" in cmd:
+        assert f"only the owner can allow it: {G.ALLOW_ENV}" in err
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        "P=pyqt6; uv add $P",
+        'uv add "${P}"',
+        "uv add $(echo pyqt6)",
+        "uv add `echo pyqt6`",
+        "echo pyqt6 | xargs uv add",
+        "uv add -r $REQ",
+    ],
+)
+def test_names_the_hook_cannot_read_are_refused(wired, monkeypatch, capsys, cmd):
+    rc, _, err = run(monkeypatch, capsys, cmd)
+    assert rc == 2 and "write the package names literally" in err, err
+    assert "path, URL" not in err
+
+
+def test_a_requirements_file_is_read_and_checked(wired, monkeypatch, capsys, tmp_path):
+    (tmp_path / "req.txt").write_text("# deps\nrequests>=2  # http\n\n-e ./lib\npyqt6\n")
+    rc, _, err = run(monkeypatch, capsys, "uv add -r req.txt", str(tmp_path))
+    assert rc == 2 and "pyqt6: G5 FAIL" in err and "requests:" not in err
+    assert wired["calls"][0][-2:] == ["requests", "pyqt6"]
+    (tmp_path / "opt.txt").write_text("--index-url https://x\nrequests\n")
+    for cmd in ("uv add -r opt.txt", "uv add -r missing.txt"):
+        rc, _, err = run(monkeypatch, capsys, cmd, str(tmp_path))
+        assert rc == 2 and ("cannot follow this option" in err or "cannot read it" in err), err
+
+
+def test_workspace_members_and_uv_sources_are_not_checked_on_pypi(wired, monkeypatch, capsys, tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "root-app"\n[tool.uv.workspace]\nmembers = ["packages/*"]\n'
+        '[tool.uv.sources]\nzzqmember = { workspace = true }\nForked_Lib = { git = "https://example.org/f" }\n'
+    )
+    (tmp_path / "packages/other").mkdir(parents=True)
+    (tmp_path / "packages/other/pyproject.toml").write_text('[project]\nname = "other_member"\n')
+    rc, out, err = run(
+        monkeypatch, capsys, "cd packages/other && uv add zzqmember forked-lib other-member", str(tmp_path)
+    )
+    assert (rc, err, wired["calls"]) == (0, "", [])
+    assert all(
+        f"{n} was not checked: the project's own" in context(out) for n in ("zzqmember", "forked-lib", "other-member")
+    )
+    assert run(monkeypatch, capsys, "uv add zzqmember ghostlib", str(tmp_path))[0] == 2
+    assert wired["calls"][-1][-1:] == ["ghostlib"]
+
+
+def test_all_checks_of_one_call_share_one_deadline(wired, monkeypatch, capsys, tmp_path):
+    """Two uv adds in two directories with a dead registry: the second gets what is left, never a fresh TIMEOUT."""
+    now, budgets = [0.0], []
+
+    def slow(cmd, cwd, timeout):
+        budgets.append(timeout)
+        now[0] += timeout
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(G, "clock", lambda: now[0])
+    monkeypatch.setattr(G, "execute", slow)
+    rc, out, _ = run(monkeypatch, capsys, "uv add requests && cd sub && uv add tenacity", str(tmp_path))
+    assert rc == 0 and budgets == [G.TIMEOUT] and "no time left" in context(out)
+    budgets.clear()
+    now[0] = 0.0
+    run(monkeypatch, capsys, "uv add requests && uv add tenacity", str(tmp_path))
+    assert len(budgets) == 1  # one directory: one `dev reuse check` with every name
 
 
 def test_a_malicious_package_is_refused(wired, monkeypatch, capsys):
@@ -159,7 +227,8 @@ def test_hold_and_flags_are_a_warning_the_agent_sees(wired, monkeypatch, capsys,
         ("uv add -- -weird", []),
         ("uv add ./local ../x /abs/p file:///w.whl dist/a-1.0.whl 'b @ git+https://g/b' git+https://g/c", []),
         ("uv add -e ./lib", []),
-        ("uv add -r requirements.txt", []),
+        ("uv add --index https://private/simple --extra-index-url https://pypi.org/simple pyqt6", ["pyqt6"]),
+        ("uv add -f ./wheels -i https://pypi.org/simple x", ["x"]),
         ("uv remove attrs", []),
         ("echo uv add attrs", []),
         ("git commit -m 'uv add attrs'", []),
@@ -172,9 +241,9 @@ def test_names_are_parsed_from_every_uv_add(cmd, names):
 
 
 def test_skipped_sources_are_named_in_the_notes():
-    [a] = G.adds("uv add ./local 'b @ git+https://g/b' -r req.txt", "/w")
-    assert a.names == [] and len(a.notes) == 3
-    assert any("./local" in n for n in a.notes) and any("req.txt" in n for n in a.notes)
+    [a] = G.adds("uv add ./local 'b @ git+https://g/b' git+https://g/c", "/w")
+    assert a.names == [] and len(a.notes) == 3 and not a.refuse
+    assert any("./local" in n for n in a.notes) and any("direct reference" in n for n in a.notes)
 
 
 def test_a_stdlib_name_is_still_checked_and_noted():
@@ -182,9 +251,27 @@ def test_a_stdlib_name_is_still_checked_and_noted():
     assert a.names == ["pathlib"] and "standard-library" in a.notes[0]
 
 
-def test_a_custom_index_skips_the_pypi_gates_with_a_note():
-    [a] = G.adds("uv add --index https://private/simple corp-lib", "/w")
-    assert a.names == [] and "corp-lib" in a.notes[0] and "index" in a.notes[0]
+@pytest.mark.parametrize(
+    "opts",
+    ["--default-index https://private/simple", "-i https://private/simple", "--index-url=https://p/s", "--no-index"],
+)
+def test_only_an_index_that_replaces_pypi_skips_the_gates_with_a_note(opts):
+    [a] = G.adds(f"uv add {opts} corp-lib", "/w")
+    assert a.names == [] and "corp-lib" in a.notes[0] and "replaces PyPI" in a.notes[0]
+
+
+@pytest.mark.parametrize(
+    "opts",
+    [
+        "--index https://private/simple",
+        "--extra-index-url https://x",
+        "-f ./w",
+        "--default-index https://pypi.org/simple",
+    ],
+)
+def test_an_index_that_adds_to_pypi_keeps_the_gates(opts):
+    [a] = G.adds(f"uv add {opts} corp-lib", "/w")
+    assert a.names == ["corp-lib"]
 
 
 NAME = st.from_regex(r"[A-Za-z][A-Za-z0-9]{0,6}([-_.][A-Za-z0-9]{1,4}){0,2}", fullmatch=True)
@@ -251,7 +338,9 @@ def test_the_hook_reaches_devkit_reuse_check_through_the_dev_cli(wired, monkeypa
     assert run(monkeypatch, capsys, "uv add requests pyqt6")[0] == 2
     assert seen == [(["requests", "pyqt6"], "pypi", False)]
     source = (HOOKS / "uv_add_guard.py").read_text()  # no network and no gate sources of its own
-    assert not re.search(r"urllib|http\.client|deps\.dev|ecosyste\.ms|blueoak|spdx\.org|pypi\.org", source)
+    assert not re.search(
+        r"urlopen|urllib\.request|http\.client|socket|deps\.dev|ecosyste\.ms|blueoak|spdx\.org", source
+    )
 
 
 def test_the_hook_is_wired_on_bash_with_a_budget_above_its_own_timeout():
