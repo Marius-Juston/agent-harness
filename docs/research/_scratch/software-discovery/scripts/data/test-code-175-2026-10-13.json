@@ -1,0 +1,4058 @@
+{
+ "summary": {
+  "n": 25,
+  "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+  "old": {
+   "hit@1": 0.16,
+   "hit@3": 0.32,
+   "hit@10": 0.4,
+   "mrr@10": 0.24533333333333335,
+   "hit@3 ci": [
+    0.16,
+    0.52
+   ]
+  },
+  "new": {
+   "hit@1": 0.2,
+   "hit@3": 0.28,
+   "hit@10": 0.36,
+   "mrr@10": 0.24833333333333332,
+   "hit@3 ci": [
+    0.12,
+    0.48
+   ]
+  },
+  "diff hit@3": -0.04,
+  "diff hit@3 ci": [
+   -0.24,
+   0.16
+  ]
+ },
+ "rows": [
+  {
+   "id": "MediaMetadataExtractor:natural_sort_key",
+   "gold": "natsort",
+   "gold_repo": "sethmmorton/natsort",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "smart-encryptor",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "pass",
+      "score": 0.8055
+     },
+     {
+      "name": "keygen",
+      "ecosystem": "pypi",
+      "repo": "github.com/bobsans/keygen",
+      "status": "HOLD",
+      "score": 1.0066
+     },
+     {
+      "name": "tvsort-sl",
+      "ecosystem": "pypi",
+      "repo": "github.com/shlomilan/tvsort_sl",
+      "status": "HOLD",
+      "score": 0.9689
+     },
+     {
+      "name": "pyvi",
+      "ecosystem": "pypi",
+      "repo": "github.com/trungtv/pyvi",
+      "status": "HOLD",
+      "score": 0.821
+     },
+     {
+      "name": "annndy9527/chatlog-to-agent",
+      "ecosystem": "",
+      "repo": "github.com/annndy9527/chatlog-to-agent",
+      "status": "HOLD",
+      "score": 0.7228
+     },
+     {
+      "name": "rekhakumayan/resume-sorter",
+      "ecosystem": "",
+      "repo": "github.com/rekhakumayan/resume-sorter",
+      "status": "HOLD",
+      "score": 0.5979
+     },
+     {
+      "name": "pvqa",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "HOLD",
+      "score": 0.5807
+     }
+    ],
+    "notes": [
+     "dropped pypi:nlptextmatcher: G1 FAIL, not verified on its registry (pypi: not found)",
+     "dropped cheater/us_split: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped cheater/us_split_v3: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped blockstack-keys: G4 FAIL (archived)"
+    ],
+    "need_words": 3
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "smart-encryptor",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "pass",
+      "score": 0.8055
+     },
+     {
+      "name": "keygen",
+      "ecosystem": "pypi",
+      "repo": "github.com/bobsans/keygen",
+      "status": "HOLD",
+      "score": 1.0066
+     },
+     {
+      "name": "tvsort-sl",
+      "ecosystem": "pypi",
+      "repo": "github.com/shlomilan/tvsort_sl",
+      "status": "HOLD",
+      "score": 0.9689
+     },
+     {
+      "name": "pyvi",
+      "ecosystem": "pypi",
+      "repo": "github.com/trungtv/pyvi",
+      "status": "HOLD",
+      "score": 0.821
+     },
+     {
+      "name": "annndy9527/chatlog-to-agent",
+      "ecosystem": "",
+      "repo": "github.com/annndy9527/chatlog-to-agent",
+      "status": "HOLD",
+      "score": 0.7228
+     },
+     {
+      "name": "rekhakumayan/resume-sorter",
+      "ecosystem": "",
+      "repo": "github.com/rekhakumayan/resume-sorter",
+      "status": "HOLD",
+      "score": 0.5979
+     },
+     {
+      "name": "pvqa",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "HOLD",
+      "score": 0.5807
+     }
+    ],
+    "notes": [
+     "dropped pypi:nlptextmatcher: G1 FAIL, not verified on its registry (pypi: not found)",
+     "dropped cheater/us_split: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped cheater/us_split_v3: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped blockstack-keys: G4 FAIL (archived)"
+    ],
+    "need_words": 3
+   }
+  },
+  {
+   "id": "lucas-game:get_config_dir",
+   "gold": "platformdirs",
+   "gold_repo": "tox-dev/platformdirs",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "dir-assistant",
+      "ecosystem": "pypi",
+      "repo": "github.com/curvedinf/dir-assistant",
+      "status": "pass",
+      "score": 1.3412
+     },
+     {
+      "name": "adafruit-circuitpython-pathlib",
+      "ecosystem": "pypi",
+      "repo": "github.com/adafruit/adafruit_circuitpython_pathlib",
+      "status": "pass",
+      "score": 1.2257
+     },
+     {
+      "name": "oss-directory",
+      "ecosystem": "pypi",
+      "repo": "github.com/opensource-observer/oss-directory",
+      "status": "pass",
+      "score": 1.1235
+     },
+     {
+      "name": "cheap-settings",
+      "ecosystem": "pypi",
+      "repo": "github.com/evanjpw/cheap-settings",
+      "status": "pass",
+      "score": 1.1089
+     },
+     {
+      "name": "appdirs",
+      "ecosystem": "pypi",
+      "repo": "github.com/activestate/appdirs",
+      "status": "HOLD",
+      "score": 1.3544
+     },
+     {
+      "name": "python-ls",
+      "ecosystem": "pypi",
+      "repo": "github.com/gabrielcnr/python-ls",
+      "status": "HOLD",
+      "score": 1.014
+     },
+     {
+      "name": "kristovatlas/osx-config-check",
+      "ecosystem": "",
+      "repo": "github.com/kristovatlas/osx-config-check",
+      "status": "HOLD",
+      "score": 0.944
+     },
+     {
+      "name": "sosaa-gui",
+      "ecosystem": "pypi",
+      "repo": "github.com/juntyr/sosaa-gui",
+      "status": "HOLD",
+      "score": 0.9174
+     },
+     {
+      "name": "xyntax/dirbrute",
+      "ecosystem": "",
+      "repo": "github.com/xyntax/dirbrute",
+      "status": "HOLD",
+      "score": 0.9139
+     },
+     {
+      "name": "thejeffreystone/home-assistant-configuration",
+      "ecosystem": "",
+      "repo": "github.com/thejeffreystone/home-assistant-configuration",
+      "status": "HOLD",
+      "score": 0.8426
+     }
+    ],
+    "notes": [],
+    "need_words": 22
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "dir-assistant",
+      "ecosystem": "pypi",
+      "repo": "github.com/curvedinf/dir-assistant",
+      "status": "pass",
+      "score": 1.2602
+     },
+     {
+      "name": "cheap-settings",
+      "ecosystem": "pypi",
+      "repo": "github.com/evanjpw/cheap-settings",
+      "status": "pass",
+      "score": 1.188
+     },
+     {
+      "name": "adafruit-circuitpython-pathlib",
+      "ecosystem": "pypi",
+      "repo": "github.com/adafruit/adafruit_circuitpython_pathlib",
+      "status": "pass",
+      "score": 1.1418
+     },
+     {
+      "name": "oss-directory",
+      "ecosystem": "pypi",
+      "repo": "github.com/opensource-observer/oss-directory",
+      "status": "pass",
+      "score": 1.0981
+     },
+     {
+      "name": "pnbruckner/homeassistant-config",
+      "ecosystem": "",
+      "repo": "github.com/pnbruckner/homeassistant-config",
+      "status": "pass",
+      "score": 0.9736
+     },
+     {
+      "name": "pymergetic-os-builder",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "pass",
+      "score": 0.9559
+     },
+     {
+      "name": "appdirs",
+      "ecosystem": "pypi",
+      "repo": "github.com/activestate/appdirs",
+      "status": "HOLD",
+      "score": 1.2783
+     },
+     {
+      "name": "gin-config",
+      "ecosystem": "pypi",
+      "repo": "github.com/google/gin-config",
+      "status": "HOLD",
+      "score": 1.1338
+     },
+     {
+      "name": "delta-kronecker/protonvpn-wireguard-configuration",
+      "ecosystem": "",
+      "repo": "github.com/delta-kronecker/protonvpn-wireguard-configuration",
+      "status": "HOLD",
+      "score": 1.0648
+     },
+     {
+      "name": "python-ls",
+      "ecosystem": "pypi",
+      "repo": "github.com/gabrielcnr/python-ls",
+      "status": "HOLD",
+      "score": 0.9719
+     }
+    ],
+    "notes": [],
+    "need_words": 7
+   }
+  },
+  {
+   "id": "opensteuerauszug:get_xdg_config_home",
+   "gold": "platformdirs",
+   "gold_repo": "tox-dev/platformdirs",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "returns",
+      "ecosystem": "pypi",
+      "repo": "github.com/dry-python/returns",
+      "status": "pass",
+      "score": 1.4352
+     },
+     {
+      "name": "hass-configurator",
+      "ecosystem": "pypi",
+      "repo": "github.com/danielperna84/hass-configurator",
+      "status": "pass",
+      "score": 1.2285
+     },
+     {
+      "name": "cheap-settings",
+      "ecosystem": "pypi",
+      "repo": "github.com/evanjpw/cheap-settings",
+      "status": "pass",
+      "score": 1.2037
+     },
+     {
+      "name": "to4ko/myconfig",
+      "ecosystem": "",
+      "repo": "github.com/to4ko/myconfig",
+      "status": "pass",
+      "score": 1.0562
+     },
+     {
+      "name": "klaasnicolaas/student-homeassistant-config",
+      "ecosystem": "",
+      "repo": "github.com/klaasnicolaas/student-homeassistant-config",
+      "status": "pass",
+      "score": 0.9972
+     },
+     {
+      "name": "shotgunsoftware/tk-config-default2",
+      "ecosystem": "",
+      "repo": "github.com/shotgunsoftware/tk-config-default2",
+      "status": "HOLD",
+      "score": 1.1692
+     },
+     {
+      "name": "openstack/oslo.config",
+      "ecosystem": "",
+      "repo": "github.com/openstack/oslo.config",
+      "status": "HOLD",
+      "score": 1.1131
+     },
+     {
+      "name": "django-registration-defaults",
+      "ecosystem": "pypi",
+      "repo": "github.com/yourcelf/django-registration-defaults",
+      "status": "HOLD",
+      "score": 1.0692
+     },
+     {
+      "name": "kristovatlas/osx-config-check",
+      "ecosystem": "",
+      "repo": "github.com/kristovatlas/osx-config-check",
+      "status": "HOLD",
+      "score": 1.0219
+     },
+     {
+      "name": "xdgspec",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "HOLD",
+      "score": 0.9593
+     }
+    ],
+    "notes": [],
+    "need_words": 8
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 1,
+    "top": [
+     {
+      "name": "platformdirs",
+      "ecosystem": "pypi",
+      "repo": "github.com/tox-dev/platformdirs",
+      "status": "pass",
+      "score": 1.4756
+     },
+     {
+      "name": "xdggs",
+      "ecosystem": "pypi",
+      "repo": "github.com/xarray-contrib/xdggs",
+      "status": "pass",
+      "score": 1.2624
+     },
+     {
+      "name": "cheap-settings",
+      "ecosystem": "pypi",
+      "repo": "github.com/evanjpw/cheap-settings",
+      "status": "pass",
+      "score": 1.1909
+     },
+     {
+      "name": "to4ko/myconfig",
+      "ecosystem": "",
+      "repo": "github.com/to4ko/myconfig",
+      "status": "pass",
+      "score": 1.0829
+     },
+     {
+      "name": "tronikos/default_config_disabler",
+      "ecosystem": "",
+      "repo": "github.com/tronikos/default_config_disabler",
+      "status": "pass",
+      "score": 0.9834
+     },
+     {
+      "name": "shotgunsoftware/tk-config-default2",
+      "ecosystem": "",
+      "repo": "github.com/shotgunsoftware/tk-config-default2",
+      "status": "HOLD",
+      "score": 1.201
+     },
+     {
+      "name": "arsaboo/homeassistant-config",
+      "ecosystem": "",
+      "repo": "github.com/arsaboo/homeassistant-config",
+      "status": "HOLD",
+      "score": 1.1433
+     },
+     {
+      "name": "xdgspec",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "HOLD",
+      "score": 1.0544
+     },
+     {
+      "name": "bieniu/home-assistant-config",
+      "ecosystem": "",
+      "repo": "github.com/bieniu/home-assistant-config",
+      "status": "HOLD",
+      "score": 1.0531
+     },
+     {
+      "name": "consul-config",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "HOLD",
+      "score": 0.9995
+     }
+    ],
+    "notes": [],
+    "need_words": 5
+   }
+  },
+  {
+   "id": "fleche:file_write_lock",
+   "gold": "filelock",
+   "gold_repo": "tox-dev/filelock",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 5,
+    "top": [
+     {
+      "name": "python-redis-lock",
+      "ecosystem": "pypi",
+      "repo": "github.com/ionelmc/python-redis-lock",
+      "status": "pass",
+      "score": 1.2458
+     },
+     {
+      "name": "windows-tools-registry",
+      "ecosystem": "pypi",
+      "repo": "github.com/netinvent/windows_tools",
+      "status": "pass",
+      "score": 1.1045
+     },
+     {
+      "name": "engram-contextdb",
+      "ecosystem": "pypi",
+      "repo": "github.com/softmaxdata/engram",
+      "status": "pass",
+      "score": 1.0694
+     },
+     {
+      "name": "othmanadi/planning-with-files",
+      "ecosystem": "",
+      "repo": "github.com/othmanadi/planning-with-files",
+      "status": "pass",
+      "score": 1.05
+     },
+     {
+      "name": "tox-dev/filelock",
+      "ecosystem": "",
+      "repo": "github.com/tox-dev/filelock",
+      "status": "pass",
+      "score": 1.0453
+     },
+     {
+      "name": "context-generator",
+      "ecosystem": "pypi",
+      "repo": "github.com/aldo-g/context-gen",
+      "status": "pass",
+      "score": 1.0414
+     },
+     {
+      "name": "condconfigparser",
+      "ecosystem": "pypi",
+      "repo": "github.com/frougon/condconfigparser",
+      "status": "pass",
+      "score": 0.9588
+     },
+     {
+      "name": "guardprint",
+      "ecosystem": "pypi",
+      "repo": "github.com/yourusername/guardprint",
+      "status": "pass",
+      "score": 0.9538
+     },
+     {
+      "name": "llm-context-engineering",
+      "ecosystem": "pypi",
+      "repo": "github.com/adiptamartulandi/llm-context-manager",
+      "status": "pass",
+      "score": 0.9377
+     },
+     {
+      "name": "passpie",
+      "ecosystem": "pypi",
+      "repo": "github.com/marcwebbie/passpie",
+      "status": "HOLD",
+      "score": 1.0413
+     }
+    ],
+    "notes": [
+     "dropped filelock-git: G4 FAIL (archived)"
+    ],
+    "need_words": 17
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 3,
+    "top": [
+     {
+      "name": "python-redis-lock",
+      "ecosystem": "pypi",
+      "repo": "github.com/ionelmc/python-redis-lock",
+      "status": "pass",
+      "score": 1.2124
+     },
+     {
+      "name": "django-pglocks",
+      "ecosystem": "pypi",
+      "repo": "github.com/xof/django-pglocks",
+      "status": "pass",
+      "score": 1.147
+     },
+     {
+      "name": "tox-dev/filelock",
+      "ecosystem": "",
+      "repo": "github.com/tox-dev/filelock",
+      "status": "pass",
+      "score": 1.0228
+     },
+     {
+      "name": "othmanadi/planning-with-files",
+      "ecosystem": "",
+      "repo": "github.com/othmanadi/planning-with-files",
+      "status": "pass",
+      "score": 0.9699
+     },
+     {
+      "name": "context-generator",
+      "ecosystem": "pypi",
+      "repo": "github.com/aldo-g/context-gen",
+      "status": "pass",
+      "score": 0.969
+     },
+     {
+      "name": "llm-context-engineering",
+      "ecosystem": "pypi",
+      "repo": "github.com/adiptamartulandi/llm-context-manager",
+      "status": "pass",
+      "score": 0.9629
+     },
+     {
+      "name": "pid",
+      "ecosystem": "pypi",
+      "repo": "github.com/trbs/pid",
+      "status": "HOLD",
+      "score": 1.0549
+     },
+     {
+      "name": "passpie",
+      "ecosystem": "pypi",
+      "repo": "github.com/marcwebbie/passpie",
+      "status": "HOLD",
+      "score": 1.0479
+     },
+     {
+      "name": "lockfolder",
+      "ecosystem": "pypi",
+      "repo": "github.com/lionkimbro/lockfolder",
+      "status": "HOLD",
+      "score": 0.9557
+     },
+     {
+      "name": "fileharvestor",
+      "ecosystem": "pypi",
+      "repo": "github.com/hardvan/fileharvestor",
+      "status": "HOLD",
+      "score": 0.9162
+     }
+    ],
+    "notes": [
+     "dropped filelock-git: G4 FAIL (archived)"
+    ],
+    "need_words": 6
+   }
+  },
+  {
+   "id": "panoseti:_acquire_transfer_lock",
+   "gold": "filelock",
+   "gold_repo": "tox-dev/filelock",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "tavern",
+      "ecosystem": "pypi",
+      "repo": "github.com/taverntesting/tavern",
+      "status": "pass",
+      "score": 1.4401
+     },
+     {
+      "name": "aiomqtt",
+      "ecosystem": "pypi",
+      "repo": "github.com/empicano/aiomqtt",
+      "status": "pass",
+      "score": 1.4286
+     },
+     {
+      "name": "supervision",
+      "ecosystem": "pypi",
+      "repo": "github.com/roboflow/supervision",
+      "status": "pass",
+      "score": 1.4061
+     },
+     {
+      "name": "faststream",
+      "ecosystem": "pypi",
+      "repo": "github.com/ag2ai/faststream",
+      "status": "pass",
+      "score": 1.3954
+     },
+     {
+      "name": "thingsboard-gateway",
+      "ecosystem": "pypi",
+      "repo": "github.com/thingsboard/thingsboard-gateway",
+      "status": "pass",
+      "score": 1.3579
+     },
+     {
+      "name": "pyfury",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "pass",
+      "score": 1.2559
+     },
+     {
+      "name": "home-assistant/core",
+      "ecosystem": "",
+      "repo": "github.com/home-assistant/core",
+      "status": "pass",
+      "score": 1.1748
+     },
+     {
+      "name": "tryceratops",
+      "ecosystem": "pypi",
+      "repo": "github.com/guilatrova/tryceratops",
+      "status": "pass",
+      "score": 1.0965
+     },
+     {
+      "name": "microsoft/vscode-remote-try-python",
+      "ecosystem": "",
+      "repo": "github.com/microsoft/vscode-remote-try-python",
+      "status": "pass",
+      "score": 1.0784
+     },
+     {
+      "name": "blinker-iot/blinker-py",
+      "ecosystem": "",
+      "repo": "github.com/blinker-iot/blinker-py",
+      "status": "pass",
+      "score": 0.8589
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)",
+     "dropped ovirt-imageio: G5 FAIL (GPL-2.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped motioneye: G5 FAIL (GPL-3.0-or-later: strong copyleft (--allow-copyleft overrides))"
+    ],
+    "need_words": 23
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "tavern",
+      "ecosystem": "pypi",
+      "repo": "github.com/taverntesting/tavern",
+      "status": "pass",
+      "score": 1.311
+     },
+     {
+      "name": "faststream",
+      "ecosystem": "pypi",
+      "repo": "github.com/ag2ai/faststream",
+      "status": "pass",
+      "score": 1.2657
+     },
+     {
+      "name": "aiomqtt",
+      "ecosystem": "pypi",
+      "repo": "github.com/empicano/aiomqtt",
+      "status": "pass",
+      "score": 1.2349
+     },
+     {
+      "name": "home-assistant/core",
+      "ecosystem": "",
+      "repo": "github.com/home-assistant/core",
+      "status": "pass",
+      "score": 1.0241
+     },
+     {
+      "name": "namedatomiclock",
+      "ecosystem": "pypi",
+      "repo": "github.com/kata198/namedatomiclock",
+      "status": "HOLD",
+      "score": 1.0633
+     },
+     {
+      "name": "daemonize",
+      "ecosystem": "pypi",
+      "repo": "github.com/thesharp/daemonize",
+      "status": "HOLD",
+      "score": 1.0444
+     },
+     {
+      "name": "python-etcd-lock",
+      "ecosystem": "pypi",
+      "repo": "github.com/appuri/python-etcd-lock",
+      "status": "HOLD",
+      "score": 0.9334
+     },
+     {
+      "name": "orangeshare",
+      "ecosystem": "pypi",
+      "repo": "github.com/yannis4444/orange-share",
+      "status": "HOLD",
+      "score": 0.8546
+     },
+     {
+      "name": "lockfolder",
+      "ecosystem": "pypi",
+      "repo": "github.com/lionkimbro/lockfolder",
+      "status": "HOLD",
+      "score": 0.8454
+     },
+     {
+      "name": "python-coinzo",
+      "ecosystem": "pypi",
+      "repo": "github.com/tolgamorf/python-coinzo",
+      "status": "HOLD",
+      "score": 0.7699
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)",
+     "dropped ironsheep/rpi-reporter-mqtt2ha-daemon: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped ovirt-imageio: G5 FAIL (GPL-2.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped motioneye: G5 FAIL (GPL-3.0-or-later: strong copyleft (--allow-copyleft overrides))"
+    ],
+    "need_words": 10
+   }
+  },
+  {
+   "id": "bpod-core:LRUCache",
+   "gold": "cachetools",
+   "gold_repo": "tkem/cachetools",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 2,
+    "top": [
+     {
+      "name": "requests-cache",
+      "ecosystem": "pypi",
+      "repo": "github.com/requests-cache/requests-cache",
+      "status": "pass",
+      "score": 1.3482
+     },
+     {
+      "name": "cachetools",
+      "ecosystem": "pypi",
+      "repo": "github.com/tkem/cachetools",
+      "status": "pass",
+      "score": 1.3326
+     },
+     {
+      "name": "sjtu-storage-lab/cacheslide",
+      "ecosystem": "",
+      "repo": "github.com/sjtu-storage-lab/cacheslide",
+      "status": "pass",
+      "score": 1.0719
+     },
+     {
+      "name": "jlhutch/pylru",
+      "ecosystem": "",
+      "repo": "github.com/jlhutch/pylru",
+      "status": "pass",
+      "score": 1.0143
+     },
+     {
+      "name": "cachefn",
+      "ecosystem": "pypi",
+      "repo": "github.com/21nco/super-functions",
+      "status": "pass",
+      "score": 1.0007
+     },
+     {
+      "name": "bancoz",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "pass",
+      "score": 0.9994
+     },
+     {
+      "name": "django-cacheops",
+      "ecosystem": "pypi",
+      "repo": "github.com/suor/django-cacheops",
+      "status": "HOLD",
+      "score": 1.1623
+     },
+     {
+      "name": "functools32",
+      "ecosystem": "pypi",
+      "repo": "github.com/michilu/python-functools32",
+      "status": "HOLD",
+      "score": 1.1436
+     },
+     {
+      "name": "fastapi-cache2",
+      "ecosystem": "pypi",
+      "repo": "github.com/long2ice/fastapi-cache",
+      "status": "HOLD",
+      "score": 1.1129
+     },
+     {
+      "name": "lru2cache",
+      "ecosystem": "pypi",
+      "repo": "github.com/3top/lru2cache",
+      "status": "HOLD",
+      "score": 0.9411
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)"
+    ],
+    "need_words": 37
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "requests-cache",
+      "ecosystem": "pypi",
+      "repo": "github.com/requests-cache/requests-cache",
+      "status": "pass",
+      "score": 1.3182
+     },
+     {
+      "name": "sjtu-storage-lab/cacheslide",
+      "ecosystem": "",
+      "repo": "github.com/sjtu-storage-lab/cacheslide",
+      "status": "pass",
+      "score": 0.9923
+     },
+     {
+      "name": "cachefn",
+      "ecosystem": "pypi",
+      "repo": "github.com/21nco/super-functions",
+      "status": "pass",
+      "score": 0.9849
+     },
+     {
+      "name": "jlhutch/pylru",
+      "ecosystem": "",
+      "repo": "github.com/jlhutch/pylru",
+      "status": "pass",
+      "score": 0.9554
+     },
+     {
+      "name": "fastapi-cache2",
+      "ecosystem": "pypi",
+      "repo": "github.com/long2ice/fastapi-cache",
+      "status": "HOLD",
+      "score": 1.1358
+     },
+     {
+      "name": "functools32",
+      "ecosystem": "pypi",
+      "repo": "github.com/michilu/python-functools32",
+      "status": "HOLD",
+      "score": 1.0619
+     },
+     {
+      "name": "lru2cache",
+      "ecosystem": "pypi",
+      "repo": "github.com/3top/lru2cache",
+      "status": "HOLD",
+      "score": 1.0187
+     },
+     {
+      "name": "lru_cacher",
+      "ecosystem": "pypi",
+      "repo": "github.com/awnystrom/lru_cache",
+      "status": "HOLD",
+      "score": 0.9569
+     },
+     {
+      "name": "django-lrucache-backend",
+      "ecosystem": "pypi",
+      "repo": "github.com/kogan/django-lrucache-backend",
+      "status": "HOLD",
+      "score": 0.9274
+     },
+     {
+      "name": "cleverdeng/lrucache.py",
+      "ecosystem": "",
+      "repo": "github.com/cleverdeng/lrucache.py",
+      "status": "HOLD",
+      "score": 0.8768
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)"
+    ],
+    "need_words": 12
+   }
+  },
+  {
+   "id": "powercord:EvaluationCache",
+   "gold": "cachetools",
+   "gold_repo": "tkem/cachetools",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 2,
+    "top": [
+     {
+      "name": "kiln-ai",
+      "ecosystem": "pypi",
+      "repo": "github.com/kiln-ai/kiln",
+      "status": "pass",
+      "score": 1.3472
+     },
+     {
+      "name": "cachetools",
+      "ecosystem": "pypi",
+      "repo": "github.com/tkem/cachetools",
+      "status": "pass",
+      "score": 1.3319
+     },
+     {
+      "name": "attmap",
+      "ecosystem": "pypi",
+      "repo": "github.com/pepkit/attmap",
+      "status": "pass",
+      "score": 1.3148
+     },
+     {
+      "name": "lmms_eval",
+      "ecosystem": "pypi",
+      "repo": "github.com/evolvinglmms-lab/lmms-eval",
+      "status": "pass",
+      "score": 1.305
+     },
+     {
+      "name": "ouroboros-ai",
+      "ecosystem": "pypi",
+      "repo": "github.com/q00/ouroboros",
+      "status": "pass",
+      "score": 1.2647
+     },
+     {
+      "name": "continuous-eval",
+      "ecosystem": "pypi",
+      "repo": "github.com/relari-ai/continuous-eval",
+      "status": "pass",
+      "score": 1.1245
+     },
+     {
+      "name": "comet-ml/opik",
+      "ecosystem": "",
+      "repo": "github.com/comet-ml/opik",
+      "status": "pass",
+      "score": 1.1055
+     },
+     {
+      "name": "packtpublishing/llm-engineers-handbook",
+      "ecosystem": "",
+      "repo": "github.com/packtpublishing/llm-engineers-handbook",
+      "status": "pass",
+      "score": 1.0554
+     },
+     {
+      "name": "evermind-ai/skillcorpus",
+      "ecosystem": "",
+      "repo": "github.com/evermind-ai/skillcorpus",
+      "status": "pass",
+      "score": 1.0478
+     },
+     {
+      "name": "tonicai/tonic_validate",
+      "ecosystem": "",
+      "repo": "github.com/tonicai/tonic_validate",
+      "status": "pass",
+      "score": 0.9604
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)"
+    ],
+    "need_words": 15
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "sqlmodel",
+      "ecosystem": "pypi",
+      "repo": "github.com/fastapi/sqlmodel",
+      "status": "pass",
+      "score": 1.4622
+     },
+     {
+      "name": "faststrap",
+      "ecosystem": "pypi",
+      "repo": "github.com/faststrap-org/faststrap",
+      "status": "pass",
+      "score": 1.2661
+     },
+     {
+      "name": "sqlmodel-cache",
+      "ecosystem": "pypi",
+      "repo": "github.com/emzelim/sqlmodel-cache",
+      "status": "pass",
+      "score": 1.2569
+     },
+     {
+      "name": "dbml-to-sqlmodel",
+      "ecosystem": "pypi",
+      "repo": "github.com/azhig/dbml-to-sqlmodel",
+      "status": "pass",
+      "score": 1.2456
+     },
+     {
+      "name": "fasthtml-cms",
+      "ecosystem": "pypi",
+      "repo": "github.com/predictivelabs/fastcms",
+      "status": "pass",
+      "score": 1.2345
+     },
+     {
+      "name": "querymate",
+      "ecosystem": "pypi",
+      "repo": "github.com/banduk/querymate",
+      "status": "pass",
+      "score": 1.2318
+     },
+     {
+      "name": "dbconform",
+      "ecosystem": "pypi",
+      "repo": "github.com/brian-pond/dbconform",
+      "status": "pass",
+      "score": 1.2306
+     },
+     {
+      "name": "sqlmodel-ext",
+      "ecosystem": "pypi",
+      "repo": "github.com/foxerine/sqlmodel-ext",
+      "status": "pass",
+      "score": 1.2198
+     },
+     {
+      "name": "fasthtml-auth",
+      "ecosystem": "pypi",
+      "repo": "github.com/fromlittleacorns/fasthtml-toolkit",
+      "status": "pass",
+      "score": 1.1803
+     },
+     {
+      "name": "cjm-fasthtml-byok",
+      "ecosystem": "pypi",
+      "repo": "github.com/cj-mills/cjm-fasthtml-byok",
+      "status": "pass",
+      "score": 1.135
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)",
+     "dropped pypi:crudly: G1 FAIL, not verified on its registry (pypi: not found)",
+     "dropped html2ft: G5 FAIL (GPL-3.0-or-later: strong copyleft (--allow-copyleft overrides))"
+    ],
+    "need_words": 4
+   }
+  },
+  {
+   "id": "teamster:fmt_md_table",
+   "gold": "tabulate",
+   "gold_repo": "astanin/python-tabulate",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "ibis-framework",
+      "ecosystem": "pypi",
+      "repo": "github.com/ibis-project/ibis",
+      "status": "pass",
+      "score": 1.4218
+     },
+     {
+      "name": "asyncpg",
+      "ecosystem": "pypi",
+      "repo": "github.com/magicstack/asyncpg",
+      "status": "pass",
+      "score": 1.4031
+     },
+     {
+      "name": "tortoise-orm",
+      "ecosystem": "pypi",
+      "repo": "github.com/tortoise/tortoise-orm",
+      "status": "pass",
+      "score": 1.3746
+     },
+     {
+      "name": "more-itertools",
+      "ecosystem": "pypi",
+      "repo": "github.com/more-itertools/more-itertools",
+      "status": "pass",
+      "score": 1.3439
+     },
+     {
+      "name": "pgcli",
+      "ecosystem": "pypi",
+      "repo": "github.com/dbcli/pgcli",
+      "status": "pass",
+      "score": 1.3332
+     },
+     {
+      "name": "aioitertools",
+      "ecosystem": "pypi",
+      "repo": "github.com/omnilib/aioitertools",
+      "status": "pass",
+      "score": 1.3087
+     },
+     {
+      "name": "pony",
+      "ecosystem": "pypi",
+      "repo": "github.com/ponyorm/pony",
+      "status": "pass",
+      "score": 1.2832
+     },
+     {
+      "name": "pytablewriter",
+      "ecosystem": "pypi",
+      "repo": "github.com/thombashi/pytablewriter",
+      "status": "pass",
+      "score": 1.2111
+     },
+     {
+      "name": "imdclient",
+      "ecosystem": "pypi",
+      "repo": "github.com/becksteinlab/imdclient",
+      "status": "pass",
+      "score": 1.2003
+     },
+     {
+      "name": "madhav1ag/cdecnet",
+      "ecosystem": "",
+      "repo": "github.com/madhav1ag/cdecnet",
+      "status": "pass",
+      "score": 1.0167
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)",
+     "dropped tkintertable: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped termtables: G5 FAIL (GPL-3.0-or-later: strong copyleft (--allow-copyleft overrides))"
+    ],
+    "need_words": 14
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "workspace-mcp",
+      "ecosystem": "pypi",
+      "repo": "github.com/taylorwilsdon/google_workspace_mcp",
+      "status": "pass",
+      "score": 1.3332
+     },
+     {
+      "name": "gam7",
+      "ecosystem": "pypi",
+      "repo": "github.com/gam-team/gam",
+      "status": "pass",
+      "score": 1.2933
+     },
+     {
+      "name": "django-tables2",
+      "ecosystem": "pypi",
+      "repo": "github.com/jieter/django-tables2",
+      "status": "pass",
+      "score": 1.2703
+     },
+     {
+      "name": "shell-gpt",
+      "ecosystem": "pypi",
+      "repo": "github.com/ther1d/shell_gpt",
+      "status": "pass",
+      "score": 1.196
+     },
+     {
+      "name": "mdanalysis",
+      "ecosystem": "pypi",
+      "repo": "github.com/mdanalysis/mdanalysis",
+      "status": "pass",
+      "score": 1.1924
+     },
+     {
+      "name": "imdclient",
+      "ecosystem": "pypi",
+      "repo": "github.com/becksteinlab/imdclient",
+      "status": "pass",
+      "score": 1.071
+     },
+     {
+      "name": "google/google-ctf",
+      "ecosystem": "",
+      "repo": "github.com/google/google-ctf",
+      "status": "pass",
+      "score": 0.945
+     },
+     {
+      "name": "google/skills",
+      "ecosystem": "",
+      "repo": "github.com/google/skills",
+      "status": "pass",
+      "score": 0.9419
+     },
+     {
+      "name": "googlemaps",
+      "ecosystem": "pypi",
+      "repo": "github.com/googlemaps/google-maps-services-python",
+      "status": "HOLD",
+      "score": 1.0362
+     },
+     {
+      "name": "pyfmt",
+      "ecosystem": "pypi",
+      "repo": "github.com/psycojoker/pyfmt",
+      "status": "HOLD",
+      "score": 0.9599
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)",
+     "dropped pypi:schmeud: G1 FAIL, not verified on its registry (pypi: not found)",
+     "dropped jarun/googler: G4 FAIL (archived); G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped ghunt: G5 FAIL (AGPL-3.0: network copyleft (--allow-copyleft overrides))"
+    ],
+    "need_words": 4
+   }
+  },
+  {
+   "id": "GyanKosh:_best_word_overlap_match",
+   "gold": "rapidfuzz",
+   "gold_repo": "rapidfuzz/rapidfuzz",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "srbhr/resume-matcher",
+      "ecosystem": "",
+      "repo": "github.com/srbhr/resume-matcher",
+      "status": "pass",
+      "score": 0.9682
+     },
+     {
+      "name": "dryscope",
+      "ecosystem": "pypi",
+      "repo": "github.com/kvsankar/dryscope",
+      "status": "pass",
+      "score": 0.9266
+     },
+     {
+      "name": "polyforge",
+      "ecosystem": "pypi",
+      "repo": "github.com/dwastberg/polyforge",
+      "status": "pass",
+      "score": 0.8829
+     },
+     {
+      "name": "products.daterangeinrangeindex",
+      "ecosystem": "pypi",
+      "repo": "github.com/collective/products.daterangeinrangeindex",
+      "status": "pass",
+      "score": 0.8692
+     },
+     {
+      "name": "dwyl/english-words",
+      "ecosystem": "",
+      "repo": "github.com/dwyl/english-words",
+      "status": "pass",
+      "score": 0.727
+     },
+     {
+      "name": "matchzoo",
+      "ecosystem": "pypi",
+      "repo": "github.com/ntmc-community/matchzoo",
+      "status": "HOLD",
+      "score": 0.9428
+     },
+     {
+      "name": "compare-date-range",
+      "ecosystem": "pypi",
+      "repo": "github.com/mattwalshdev/compare_date_range",
+      "status": "HOLD",
+      "score": 0.8671
+     },
+     {
+      "name": "blocksets",
+      "ecosystem": "pypi",
+      "repo": "github.com/daveisagit/blocksets",
+      "status": "HOLD",
+      "score": 0.776
+     },
+     {
+      "name": "poverlap",
+      "ecosystem": "pypi",
+      "repo": "github.com/irtj/poverlap",
+      "status": "HOLD",
+      "score": 0.7693
+     },
+     {
+      "name": "binoydutt/resume-job-description-matching",
+      "ecosystem": "",
+      "repo": "github.com/binoydutt/resume-job-description-matching",
+      "status": "HOLD",
+      "score": 0.5646
+     }
+    ],
+    "notes": [
+     "dropped google/diff-match-patch: G4 FAIL (archived)"
+    ],
+    "need_words": 6
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "srbhr/resume-matcher",
+      "ecosystem": "",
+      "repo": "github.com/srbhr/resume-matcher",
+      "status": "pass",
+      "score": 0.9444
+     },
+     {
+      "name": "dryscope",
+      "ecosystem": "pypi",
+      "repo": "github.com/kvsankar/dryscope",
+      "status": "pass",
+      "score": 0.9141
+     },
+     {
+      "name": "polyforge",
+      "ecosystem": "pypi",
+      "repo": "github.com/dwastberg/polyforge",
+      "status": "pass",
+      "score": 0.8689
+     },
+     {
+      "name": "products.daterangeinrangeindex",
+      "ecosystem": "pypi",
+      "repo": "github.com/collective/products.daterangeinrangeindex",
+      "status": "pass",
+      "score": 0.8547
+     },
+     {
+      "name": "dwyl/english-words",
+      "ecosystem": "",
+      "repo": "github.com/dwyl/english-words",
+      "status": "pass",
+      "score": 0.7378
+     },
+     {
+      "name": "matchzoo",
+      "ecosystem": "pypi",
+      "repo": "github.com/ntmc-community/matchzoo",
+      "status": "HOLD",
+      "score": 0.9417
+     },
+     {
+      "name": "compare-date-range",
+      "ecosystem": "pypi",
+      "repo": "github.com/mattwalshdev/compare_date_range",
+      "status": "HOLD",
+      "score": 0.8461
+     },
+     {
+      "name": "poverlap",
+      "ecosystem": "pypi",
+      "repo": "github.com/irtj/poverlap",
+      "status": "HOLD",
+      "score": 0.7878
+     },
+     {
+      "name": "blocksets",
+      "ecosystem": "pypi",
+      "repo": "github.com/daveisagit/blocksets",
+      "status": "HOLD",
+      "score": 0.7757
+     }
+    ],
+    "notes": [
+     "dropped google/diff-match-patch: G4 FAIL (archived)"
+    ],
+    "need_words": 5
+   }
+  },
+  {
+   "id": "memem:_find_best_match",
+   "gold": "rapidfuzz",
+   "gold_repo": "rapidfuzz/rapidfuzz",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "memray",
+      "ecosystem": "pypi",
+      "repo": "github.com/bloomberg/memray",
+      "status": "pass",
+      "score": 1.3774
+     },
+     {
+      "name": "psutil",
+      "ecosystem": "pypi",
+      "repo": "github.com/giampaolo/psutil",
+      "status": "pass",
+      "score": 1.337
+     },
+     {
+      "name": "everos",
+      "ecosystem": "pypi",
+      "repo": "github.com/evermind-ai/everos",
+      "status": "pass",
+      "score": 1.3097
+     },
+     {
+      "name": "headroom-ai",
+      "ecosystem": "pypi",
+      "repo": "github.com/headroomlabs-ai/headroom",
+      "status": "pass",
+      "score": 1.307
+     },
+     {
+      "name": "memori",
+      "ecosystem": "pypi",
+      "repo": "github.com/memorilabs/memori",
+      "status": "pass",
+      "score": 1.3014
+     },
+     {
+      "name": "mem0ai",
+      "ecosystem": "pypi",
+      "repo": "github.com/mem0ai/mem0",
+      "status": "pass",
+      "score": 1.2974
+     },
+     {
+      "name": "mempalace",
+      "ecosystem": "pypi",
+      "repo": "github.com/mempalace/mempalace",
+      "status": "pass",
+      "score": 1.2954
+     },
+     {
+      "name": "simplemem",
+      "ecosystem": "pypi",
+      "repo": "github.com/aiming-lab/simplemem",
+      "status": "pass",
+      "score": 1.2868
+     },
+     {
+      "name": "reme-ai",
+      "ecosystem": "pypi",
+      "repo": "github.com/agentscope-ai/reme",
+      "status": "pass",
+      "score": 1.2052
+     },
+     {
+      "name": "volcengine/minecontext",
+      "ecosystem": "",
+      "repo": "github.com/volcengine/minecontext",
+      "status": "pass",
+      "score": 1.1158
+     }
+    ],
+    "notes": [],
+    "need_words": 23
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "mem0ai",
+      "ecosystem": "pypi",
+      "repo": "github.com/mem0ai/mem0",
+      "status": "pass",
+      "score": 1.2442
+     },
+     {
+      "name": "memray",
+      "ecosystem": "pypi",
+      "repo": "github.com/bloomberg/memray",
+      "status": "pass",
+      "score": 1.2349
+     },
+     {
+      "name": "honcho-ai",
+      "ecosystem": "pypi",
+      "repo": "github.com/plastic-labs/honcho",
+      "status": "pass",
+      "score": 1.2157
+     },
+     {
+      "name": "memori",
+      "ecosystem": "pypi",
+      "repo": "github.com/memorilabs/memori",
+      "status": "pass",
+      "score": 1.2054
+     },
+     {
+      "name": "mempalace",
+      "ecosystem": "pypi",
+      "repo": "github.com/mempalace/mempalace",
+      "status": "pass",
+      "score": 1.1656
+     },
+     {
+      "name": "simplemem",
+      "ecosystem": "pypi",
+      "repo": "github.com/aiming-lab/simplemem",
+      "status": "pass",
+      "score": 1.1272
+     },
+     {
+      "name": "everos",
+      "ecosystem": "pypi",
+      "repo": "github.com/evermind-ai/everos",
+      "status": "pass",
+      "score": 1.127
+     },
+     {
+      "name": "memmachine-client",
+      "ecosystem": "pypi",
+      "repo": "github.com/memmachine/memmachine",
+      "status": "pass",
+      "score": 1.1116
+     },
+     {
+      "name": "srbhr/resume-matcher",
+      "ecosystem": "",
+      "repo": "github.com/srbhr/resume-matcher",
+      "status": "pass",
+      "score": 0.9739
+     },
+     {
+      "name": "matchzoo",
+      "ecosystem": "pypi",
+      "repo": "github.com/ntmc-community/matchzoo",
+      "status": "HOLD",
+      "score": 1.0394
+     }
+    ],
+    "notes": [
+     "dropped ermongroup/sliced_score_matching: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))"
+    ],
+    "need_words": 9
+   }
+  },
+  {
+   "id": "deer-agent-framework:load_env_file",
+   "gold": "python-dotenv",
+   "gold_repo": "theskumar/python-dotenv",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 1,
+    "top": [
+     {
+      "name": "python-dotenv",
+      "ecosystem": "pypi",
+      "repo": "github.com/theskumar/python-dotenv",
+      "status": "pass",
+      "score": 1.4889
+     },
+     {
+      "name": "dlt",
+      "ecosystem": "pypi",
+      "repo": "github.com/dlt-hub/dlt",
+      "status": "pass",
+      "score": 1.4476
+     },
+     {
+      "name": "environs",
+      "ecosystem": "pypi",
+      "repo": "github.com/sloria/environs",
+      "status": "pass",
+      "score": 1.4405
+     },
+     {
+      "name": "environ-config",
+      "ecosystem": "pypi",
+      "repo": "github.com/hynek/environ-config",
+      "status": "pass",
+      "score": 1.3977
+     },
+     {
+      "name": "justpath",
+      "ecosystem": "pypi",
+      "repo": "github.com/epogrebnyak/justpath",
+      "status": "pass",
+      "score": 1.369
+     },
+     {
+      "name": "locust",
+      "ecosystem": "pypi",
+      "repo": "github.com/locustio/locust",
+      "status": "pass",
+      "score": 1.3585
+     },
+     {
+      "name": "goodconf",
+      "ecosystem": "pypi",
+      "repo": "github.com/lincolnloop/goodconf",
+      "status": "pass",
+      "score": 1.3425
+     },
+     {
+      "name": "hbnetwork/python-decouple",
+      "ecosystem": "",
+      "repo": "github.com/hbnetwork/python-decouple",
+      "status": "pass",
+      "score": 0.9721
+     },
+     {
+      "name": "thiagoanegreiros/envy",
+      "ecosystem": "",
+      "repo": "github.com/thiagoanegreiros/envy",
+      "status": "pass",
+      "score": 0.8603
+     },
+     {
+      "name": "donfig",
+      "ecosystem": "pypi",
+      "repo": "github.com/pytroll/donfig",
+      "status": "HOLD",
+      "score": 1.2612
+     }
+    ],
+    "notes": [],
+    "need_words": 31
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 1,
+    "top": [
+     {
+      "name": "python-dotenv",
+      "ecosystem": "pypi",
+      "repo": "github.com/theskumar/python-dotenv",
+      "status": "pass",
+      "score": 1.5268
+     },
+     {
+      "name": "environ-config",
+      "ecosystem": "pypi",
+      "repo": "github.com/hynek/environ-config",
+      "status": "pass",
+      "score": 1.4615
+     },
+     {
+      "name": "dlt",
+      "ecosystem": "pypi",
+      "repo": "github.com/dlt-hub/dlt",
+      "status": "pass",
+      "score": 1.425
+     },
+     {
+      "name": "environs",
+      "ecosystem": "pypi",
+      "repo": "github.com/sloria/environs",
+      "status": "pass",
+      "score": 1.4141
+     },
+     {
+      "name": "goodconf",
+      "ecosystem": "pypi",
+      "repo": "github.com/lincolnloop/goodconf",
+      "status": "pass",
+      "score": 1.392
+     },
+     {
+      "name": "locust",
+      "ecosystem": "pypi",
+      "repo": "github.com/locustio/locust",
+      "status": "pass",
+      "score": 1.391
+     },
+     {
+      "name": "django-environ",
+      "ecosystem": "pypi",
+      "repo": "github.com/joke2k/django-environ",
+      "status": "pass",
+      "score": 1.3754
+     },
+     {
+      "name": "jsonargparse",
+      "ecosystem": "pypi",
+      "repo": "github.com/mauvilsa/jsonargparse",
+      "status": "pass",
+      "score": 1.3281
+     },
+     {
+      "name": "justpath",
+      "ecosystem": "pypi",
+      "repo": "github.com/epogrebnyak/justpath",
+      "status": "pass",
+      "score": 1.2977
+     },
+     {
+      "name": "python-dotenv-vault",
+      "ecosystem": "pypi",
+      "repo": "github.com/dotenv-org/python-dotenv-vault",
+      "status": "pass",
+      "score": 1.2551
+     }
+    ],
+    "notes": [],
+    "need_words": 9
+   }
+  },
+  {
+   "id": "openbot:singularize",
+   "gold": "inflect",
+   "gold_repo": "jaraco/inflect",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 3,
+    "top": [
+     {
+      "name": "pluralizer",
+      "ecosystem": "pypi",
+      "repo": "github.com/weixu365/pluralizer-py",
+      "status": "pass",
+      "score": 1.3007
+     },
+     {
+      "name": "pluralio",
+      "ecosystem": "pypi",
+      "repo": "github.com/mathiaspaulenko/pluralio",
+      "status": "pass",
+      "score": 1.2366
+     },
+     {
+      "name": "inflect",
+      "ecosystem": "pypi",
+      "repo": "github.com/jaraco/inflect",
+      "status": "pass",
+      "score": 1.2349
+     },
+     {
+      "name": "pluralizefr",
+      "ecosystem": "pypi",
+      "repo": "github.com/sblondon/pluralizefr",
+      "status": "pass",
+      "score": 1.0505
+     },
+     {
+      "name": "spython",
+      "ecosystem": "pypi",
+      "repo": "github.com/singularityhub/singularity-cli",
+      "status": "HOLD",
+      "score": 1.0549
+     },
+     {
+      "name": "singularity-compose",
+      "ecosystem": "pypi",
+      "repo": "github.com/singularityhub/singularity-compose",
+      "status": "HOLD",
+      "score": 0.9954
+     },
+     {
+      "name": "singularity",
+      "ecosystem": "pypi",
+      "repo": "github.com/singularityhub/singularity-python",
+      "status": "HOLD",
+      "score": 0.9338
+     },
+     {
+      "name": "carpentries-incubator/singularity-introduction",
+      "ecosystem": "",
+      "repo": "github.com/carpentries-incubator/singularity-introduction",
+      "status": "HOLD",
+      "score": 0.6694
+     },
+     {
+      "name": "pangzecheung/singdiffusion",
+      "ecosystem": "",
+      "repo": "github.com/pangzecheung/singdiffusion",
+      "status": "HOLD",
+      "score": 0.599
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)",
+     "dropped prehensilecode/alphafold_singularity: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))"
+    ],
+    "need_words": 40
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 2,
+    "top": [
+     {
+      "name": "pluralizer",
+      "ecosystem": "pypi",
+      "repo": "github.com/weixu365/pluralizer-py",
+      "status": "pass",
+      "score": 1.5012
+     },
+     {
+      "name": "inflect",
+      "ecosystem": "pypi",
+      "repo": "github.com/jaraco/inflect",
+      "status": "pass",
+      "score": 1.2979
+     },
+     {
+      "name": "pluralio",
+      "ecosystem": "pypi",
+      "repo": "github.com/mathiaspaulenko/pluralio",
+      "status": "pass",
+      "score": 1.2934
+     },
+     {
+      "name": "pluralsingular",
+      "ecosystem": "pypi",
+      "repo": "github.com/salva/py-pluralsingular",
+      "status": "pass",
+      "score": 1.2298
+     },
+     {
+      "name": "pluralizefr",
+      "ecosystem": "pypi",
+      "repo": "github.com/sblondon/pluralizefr",
+      "status": "pass",
+      "score": 1.2145
+     },
+     {
+      "name": "spython",
+      "ecosystem": "pypi",
+      "repo": "github.com/singularityhub/singularity-cli",
+      "status": "HOLD",
+      "score": 1.2973
+     },
+     {
+      "name": "singularity-compose",
+      "ecosystem": "pypi",
+      "repo": "github.com/singularityhub/singularity-compose",
+      "status": "HOLD",
+      "score": 1.2694
+     },
+     {
+      "name": "singularity",
+      "ecosystem": "pypi",
+      "repo": "github.com/singularityhub/singularity-python",
+      "status": "HOLD",
+      "score": 1.139
+     },
+     {
+      "name": "fizgi/singulartoplural",
+      "ecosystem": "",
+      "repo": "github.com/fizgi/singulartoplural",
+      "status": "HOLD",
+      "score": 0.8679
+     },
+     {
+      "name": "carpentries-incubator/singularity-introduction",
+      "ecosystem": "",
+      "repo": "github.com/carpentries-incubator/singularity-introduction",
+      "status": "HOLD",
+      "score": 0.8253
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)"
+    ],
+    "need_words": 5
+   }
+  },
+  {
+   "id": "telegram-bot:retry_on_failure",
+   "gold": "tenacity",
+   "gold_repo": "jd/tenacity",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 1,
+    "top": [
+     {
+      "name": "tenacity",
+      "ecosystem": "pypi",
+      "repo": "github.com/jd/tenacity",
+      "status": "pass",
+      "score": 1.4874
+     },
+     {
+      "name": "deal",
+      "ecosystem": "pypi",
+      "repo": "github.com/life4/deal",
+      "status": "pass",
+      "score": 1.4322
+     },
+     {
+      "name": "interlock-cb",
+      "ecosystem": "pypi",
+      "repo": "github.com/bagowix/interlock",
+      "status": "pass",
+      "score": 1.2867
+     },
+     {
+      "name": "pyresilience",
+      "ecosystem": "pypi",
+      "repo": "github.com/ahsansheraz/pyresilience",
+      "status": "pass",
+      "score": 1.2449
+     },
+     {
+      "name": "philiprehberger-func-timeout",
+      "ecosystem": "pypi",
+      "repo": "github.com/philiprehberger/py-func-timeout",
+      "status": "pass",
+      "score": 1.2284
+     },
+     {
+      "name": "aioretry",
+      "ecosystem": "pypi",
+      "repo": "github.com/kaelzhang/python-aioretry",
+      "status": "pass",
+      "score": 1.1579
+     },
+     {
+      "name": "retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/invl/retry",
+      "status": "HOLD",
+      "score": 1.2093
+     },
+     {
+      "name": "retry-decorator",
+      "ecosystem": "pypi",
+      "repo": "github.com/pnpnpn/retry-decorator",
+      "status": "HOLD",
+      "score": 1.1713
+     },
+     {
+      "name": "riprova",
+      "ecosystem": "pypi",
+      "repo": "github.com/h2non/riprova",
+      "status": "HOLD",
+      "score": 1.1482
+     },
+     {
+      "name": "enforce",
+      "ecosystem": "pypi",
+      "repo": "github.com/russbaz/enforce",
+      "status": "HOLD",
+      "score": 1.0938
+     }
+    ],
+    "notes": [
+     "dropped backoff: G4 FAIL (archived)"
+    ],
+    "need_words": 23
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 1,
+    "top": [
+     {
+      "name": "tenacity",
+      "ecosystem": "pypi",
+      "repo": "github.com/jd/tenacity",
+      "status": "pass",
+      "score": 1.4803
+     },
+     {
+      "name": "decorator",
+      "ecosystem": "pypi",
+      "repo": "github.com/micheles/decorator",
+      "status": "pass",
+      "score": 1.3627
+     },
+     {
+      "name": "retrying",
+      "ecosystem": "pypi",
+      "repo": "github.com/groodt/retrying",
+      "status": "pass",
+      "score": 1.2674
+     },
+     {
+      "name": "pyresilience",
+      "ecosystem": "pypi",
+      "repo": "github.com/ahsansheraz/pyresilience",
+      "status": "pass",
+      "score": 1.239
+     },
+     {
+      "name": "interlock-cb",
+      "ecosystem": "pypi",
+      "repo": "github.com/bagowix/interlock",
+      "status": "pass",
+      "score": 1.2353
+     },
+     {
+      "name": "httpx-retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/mharrisb1/httpx-retry",
+      "status": "pass",
+      "score": 1.1633
+     },
+     {
+      "name": "aiohttp-retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/inyutin/aiohttp_retry",
+      "status": "pass",
+      "score": 1.1523
+     },
+     {
+      "name": "aioretry",
+      "ecosystem": "pypi",
+      "repo": "github.com/kaelzhang/python-aioretry",
+      "status": "pass",
+      "score": 1.0823
+     },
+     {
+      "name": "retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/invl/retry",
+      "status": "HOLD",
+      "score": 1.235
+     },
+     {
+      "name": "retry-decorator",
+      "ecosystem": "pypi",
+      "repo": "github.com/pnpnpn/retry-decorator",
+      "status": "HOLD",
+      "score": 1.2056
+     }
+    ],
+    "notes": [
+     "dropped backoff: G4 FAIL (archived)"
+    ],
+    "need_words": 9
+   }
+  },
+  {
+   "id": "verifiers:with_retry",
+   "gold": "tenacity",
+   "gold_repo": "jd/tenacity",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "mypy",
+      "ecosystem": "pypi",
+      "repo": "github.com/python/mypy",
+      "status": "pass",
+      "score": 1.4522
+     },
+     {
+      "name": "pytest-asyncio",
+      "ecosystem": "pypi",
+      "repo": "github.com/pytest-dev/pytest-asyncio",
+      "status": "pass",
+      "score": 1.4361
+     },
+     {
+      "name": "asyncpg",
+      "ecosystem": "pypi",
+      "repo": "github.com/magicstack/asyncpg",
+      "status": "pass",
+      "score": 1.4339
+     },
+     {
+      "name": "tortoise-orm",
+      "ecosystem": "pypi",
+      "repo": "github.com/tortoise/tortoise-orm",
+      "status": "pass",
+      "score": 1.412
+     },
+     {
+      "name": "aiofiles",
+      "ecosystem": "pypi",
+      "repo": "github.com/tinche/aiofiles",
+      "status": "pass",
+      "score": 1.4035
+     },
+     {
+      "name": "typing",
+      "ecosystem": "pypi",
+      "repo": "github.com/python/typing",
+      "status": "HOLD",
+      "score": 1.4202
+     },
+     {
+      "name": "pfun",
+      "ecosystem": "pypi",
+      "repo": "github.com/suned/pfun",
+      "status": "HOLD",
+      "score": 1.1575
+     },
+     {
+      "name": "aiopylimit",
+      "ecosystem": "pypi",
+      "repo": "github.com/dmarkey/aiopylimit",
+      "status": "HOLD",
+      "score": 1.0426
+     },
+     {
+      "name": "typeit",
+      "ecosystem": "pypi",
+      "repo": "github.com/avanov/typeit",
+      "status": "HOLD",
+      "score": 1.0393
+     },
+     {
+      "name": "async-worker/aiologger",
+      "ecosystem": "",
+      "repo": "github.com/async-worker/aiologger",
+      "status": "HOLD",
+      "score": 1.0104
+     }
+    ],
+    "notes": [
+     "dropped backoff: G4 FAIL (archived)",
+     "dropped async-timeout: G4 FAIL (archived)",
+     "dropped nest-asyncio: G4 FAIL (archived)"
+    ],
+    "need_words": 5
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 1,
+    "top": [
+     {
+      "name": "tenacity",
+      "ecosystem": "pypi",
+      "repo": "github.com/jd/tenacity",
+      "status": "pass",
+      "score": 1.6052
+     },
+     {
+      "name": "retrying",
+      "ecosystem": "pypi",
+      "repo": "github.com/groodt/retrying",
+      "status": "pass",
+      "score": 1.4735
+     },
+     {
+      "name": "stamina",
+      "ecosystem": "pypi",
+      "repo": "github.com/hynek/stamina",
+      "status": "pass",
+      "score": 1.4063
+     },
+     {
+      "name": "httpx-retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/mharrisb1/httpx-retry",
+      "status": "pass",
+      "score": 1.2627
+     },
+     {
+      "name": "retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/invl/retry",
+      "status": "HOLD",
+      "score": 1.3334
+     },
+     {
+      "name": "retry-decorator",
+      "ecosystem": "pypi",
+      "repo": "github.com/pnpnpn/retry-decorator",
+      "status": "HOLD",
+      "score": 1.3146
+     },
+     {
+      "name": "py-retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/abeautifulsnow/pyretry",
+      "status": "HOLD",
+      "score": 1.2447
+     },
+     {
+      "name": "seemethere/retry.it",
+      "ecosystem": "",
+      "repo": "github.com/seemethere/retry.it",
+      "status": "HOLD",
+      "score": 1.1626
+     },
+     {
+      "name": "rholder/retrying",
+      "ecosystem": "",
+      "repo": "github.com/rholder/retrying",
+      "status": "HOLD",
+      "score": 1.132
+     },
+     {
+      "name": "saltycrane/retry-decorator",
+      "ecosystem": "",
+      "repo": "github.com/saltycrane/retry-decorator",
+      "status": "HOLD",
+      "score": 0.9646
+     }
+    ],
+    "notes": [],
+    "need_words": 1
+   }
+  },
+  {
+   "id": "messy-weather-sports-bot:request_with_retry",
+   "gold": "tenacity",
+   "gold_repo": "jd/tenacity",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 1,
+    "top": [
+     {
+      "name": "tenacity",
+      "ecosystem": "pypi",
+      "repo": "github.com/jd/tenacity",
+      "status": "pass",
+      "score": 1.4157
+     },
+     {
+      "name": "retryhttp",
+      "ecosystem": "pypi",
+      "repo": "github.com/austind/retryhttp",
+      "status": "pass",
+      "score": 1.3223
+     },
+     {
+      "name": "stamina",
+      "ecosystem": "pypi",
+      "repo": "github.com/hynek/stamina",
+      "status": "pass",
+      "score": 1.2223
+     },
+     {
+      "name": "retrying-hk",
+      "ecosystem": "pypi",
+      "repo": "github.com/groodt/retrying",
+      "status": "pass",
+      "score": 1.1539
+     },
+     {
+      "name": "httpx-retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/mharrisb1/httpx-retry",
+      "status": "pass",
+      "score": 1.1524
+     },
+     {
+      "name": "django-dbconn-retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/jdelic/django-dbconn-retry",
+      "status": "pass",
+      "score": 1.1496
+     },
+     {
+      "name": "waiter",
+      "ecosystem": "pypi",
+      "repo": "github.com/coady/waiter",
+      "status": "pass",
+      "score": 1.104
+     },
+     {
+      "name": "retry-decorator",
+      "ecosystem": "pypi",
+      "repo": "github.com/pnpnpn/retry-decorator",
+      "status": "HOLD",
+      "score": 1.0926
+     },
+     {
+      "name": "retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/invl/retry",
+      "status": "HOLD",
+      "score": 1.0487
+     },
+     {
+      "name": "retryp",
+      "ecosystem": "pypi",
+      "repo": "github.com/clearclaw/retryp",
+      "status": "HOLD",
+      "score": 1.0057
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)",
+     "dropped backoff: G4 FAIL (archived)",
+     "dropped retrace: G4 FAIL (archived)"
+    ],
+    "need_words": 18
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 1,
+    "top": [
+     {
+      "name": "tenacity",
+      "ecosystem": "pypi",
+      "repo": "github.com/jd/tenacity",
+      "status": "pass",
+      "score": 1.4215
+     },
+     {
+      "name": "retryhttp",
+      "ecosystem": "pypi",
+      "repo": "github.com/austind/retryhttp",
+      "status": "pass",
+      "score": 1.3709
+     },
+     {
+      "name": "httpx-retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/mharrisb1/httpx-retry",
+      "status": "pass",
+      "score": 1.2122
+     },
+     {
+      "name": "retrying-hk",
+      "ecosystem": "pypi",
+      "repo": "github.com/groodt/retrying",
+      "status": "pass",
+      "score": 1.1619
+     },
+     {
+      "name": "lxl0928/retrying-async",
+      "ecosystem": "",
+      "repo": "github.com/lxl0928/retrying-async",
+      "status": "pass",
+      "score": 1.0237
+     },
+     {
+      "name": "retry-decorator",
+      "ecosystem": "pypi",
+      "repo": "github.com/pnpnpn/retry-decorator",
+      "status": "HOLD",
+      "score": 1.0708
+     },
+     {
+      "name": "retry",
+      "ecosystem": "pypi",
+      "repo": "github.com/invl/retry",
+      "status": "HOLD",
+      "score": 1.0603
+     },
+     {
+      "name": "retryp",
+      "ecosystem": "pypi",
+      "repo": "github.com/clearclaw/retryp",
+      "status": "HOLD",
+      "score": 1.0084
+     },
+     {
+      "name": "retry-function",
+      "ecosystem": "pypi",
+      "repo": "github.com/duoduo369/retry",
+      "status": "HOLD",
+      "score": 0.9955
+     },
+     {
+      "name": "retrying-async",
+      "ecosystem": "pypi",
+      "repo": "github.com/lxl0928/retrying_async",
+      "status": "HOLD",
+      "score": 0.9944
+     }
+    ],
+    "notes": [
+     "dropped retrace: G4 FAIL (archived)",
+     "dropped backoff: G4 FAIL (archived)"
+    ],
+    "need_words": 11
+   }
+  },
+  {
+   "id": "causaganha:TokenBucket",
+   "gold": "aiolimiter",
+   "gold_repo": "mjpieters/aiolimiter",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 2,
+    "top": [
+     {
+      "name": "throttled-py",
+      "ecosystem": "pypi",
+      "repo": "github.com/zhuozhuocrayon/throttled-py",
+      "status": "pass",
+      "score": 1.498
+     },
+     {
+      "name": "aiolimiter",
+      "ecosystem": "pypi",
+      "repo": "github.com/mjpieters/aiolimiter",
+      "status": "pass",
+      "score": 1.4634
+     },
+     {
+      "name": "pyrate-limiter",
+      "ecosystem": "pypi",
+      "repo": "github.com/vutran1710/pyratelimiter",
+      "status": "pass",
+      "score": 1.4266
+     },
+     {
+      "name": "asyncpg",
+      "ecosystem": "pypi",
+      "repo": "github.com/magicstack/asyncpg",
+      "status": "pass",
+      "score": 1.396
+     },
+     {
+      "name": "token-bucket",
+      "ecosystem": "pypi",
+      "repo": "github.com/falconry/token-bucket",
+      "status": "pass",
+      "score": 1.3093
+     },
+     {
+      "name": "token-throttle",
+      "ecosystem": "pypi",
+      "repo": "github.com/elijas/token-throttle",
+      "status": "pass",
+      "score": 1.2932
+     },
+     {
+      "name": "fastapi-limiter",
+      "ecosystem": "pypi",
+      "repo": "github.com/long2ice/fastapi-limiter",
+      "status": "pass",
+      "score": 1.2763
+     },
+     {
+      "name": "throttler",
+      "ecosystem": "pypi",
+      "repo": "github.com/uburuntu/throttler",
+      "status": "pass",
+      "score": 1.2319
+     },
+     {
+      "name": "asynciolimiter",
+      "ecosystem": "pypi",
+      "repo": "github.com/bharel/asynciolimiter",
+      "status": "pass",
+      "score": 1.2001
+     },
+     {
+      "name": "asyncio-redis-rate-limit",
+      "ecosystem": "pypi",
+      "repo": "github.com/wemake-services/asyncio-redis-rate-limit",
+      "status": "pass",
+      "score": 1.1881
+     }
+    ],
+    "notes": [
+     "dropped pypi:limiters: G1 FAIL, not verified on its registry (pypi: not found)",
+     "dropped bucketratelimiter: G5 FAIL (GPL-2.0: strong copyleft (--allow-copyleft overrides))"
+    ],
+    "need_words": 13
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "throttled-py",
+      "ecosystem": "pypi",
+      "repo": "github.com/zhuozhuocrayon/throttled-py",
+      "status": "pass",
+      "score": 1.6215
+     },
+     {
+      "name": "ratelink",
+      "ecosystem": "pypi",
+      "repo": "github.com/vladlen-codes/ratelink",
+      "status": "pass",
+      "score": 1.2794
+     },
+     {
+      "name": "sarmkadan/rate-limiter-py",
+      "ecosystem": "",
+      "repo": "github.com/sarmkadan/rate-limiter-py",
+      "status": "pass",
+      "score": 1.2109
+     },
+     {
+      "name": "flash-ware/ratelimit-kit",
+      "ecosystem": "",
+      "repo": "github.com/flash-ware/ratelimit-kit",
+      "status": "pass",
+      "score": 1.16
+     },
+     {
+      "name": "gagandeep/bucketflow",
+      "ecosystem": "",
+      "repo": "github.com/gagandeep/bucketflow",
+      "status": "pass",
+      "score": 1.0864
+     },
+     {
+      "name": "limiter",
+      "ecosystem": "pypi",
+      "repo": "github.com/alexdelorenzo/limiter",
+      "status": "HOLD",
+      "score": 1.256
+     },
+     {
+      "name": "alphaparkinc/genpark-leaky-bucket-token-bucket-rate-limiter-skill",
+      "ecosystem": "",
+      "repo": "github.com/alphaparkinc/genpark-leaky-bucket-token-bucket-rate-limiter-skill",
+      "status": "HOLD",
+      "score": 1.1937
+     },
+     {
+      "name": "alpha-park/genpark-leaky-bucket-token-bucket-rate-limiter-skill",
+      "ecosystem": "",
+      "repo": "github.com/alpha-park/genpark-leaky-bucket-token-bucket-rate-limiter-skill",
+      "status": "HOLD",
+      "score": 1.1789
+     },
+     {
+      "name": "alphaparkinc/genpark-token-bucket-rate-limiter-burst-controller-skill",
+      "ecosystem": "",
+      "repo": "github.com/alphaparkinc/genpark-token-bucket-rate-limiter-burst-controller-skill",
+      "status": "HOLD",
+      "score": 1.1725
+     },
+     {
+      "name": "alpha-park/genpark-token-bucket-rate-limiter-burst-controller-skill",
+      "ecosystem": "",
+      "repo": "github.com/alpha-park/genpark-token-bucket-rate-limiter-burst-controller-skill",
+      "status": "HOLD",
+      "score": 1.1615
+     }
+    ],
+    "notes": [
+     "dropped pypi:limiters: G1 FAIL, not verified on its registry (pypi: not found)"
+    ],
+    "need_words": 5
+   }
+  },
+  {
+   "id": "PolyglotSubs-Kodi:DictAsObject",
+   "gold": "python-box",
+   "gold_repo": "cdgriffith/box",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "python-benedict",
+      "ecosystem": "pypi",
+      "repo": "github.com/fabiocaccamo/python-benedict",
+      "status": "pass",
+      "score": 1.4256
+     },
+     {
+      "name": "gjohansson-st/attribute_as_sensor",
+      "ecosystem": "",
+      "repo": "github.com/gjohansson-st/attribute_as_sensor",
+      "status": "pass",
+      "score": 1.0677
+     },
+     {
+      "name": "mkrd/dictdatabase",
+      "ecosystem": "",
+      "repo": "github.com/mkrd/dictdatabase",
+      "status": "pass",
+      "score": 0.989
+     },
+     {
+      "name": "bunch",
+      "ecosystem": "pypi",
+      "repo": "github.com/dsc/bunch",
+      "status": "HOLD",
+      "score": 1.1382
+     },
+     {
+      "name": "dictfier",
+      "ecosystem": "pypi",
+      "repo": "github.com/yezyilomo/dictfier",
+      "status": "HOLD",
+      "score": 1.1285
+     },
+     {
+      "name": "ipy-dict-hierarchy",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "HOLD",
+      "score": 1.1183
+     },
+     {
+      "name": "smashed",
+      "ecosystem": "pypi",
+      "repo": "github.com/allenai/smashed",
+      "status": "HOLD",
+      "score": 1.1182
+     },
+     {
+      "name": "pyonize",
+      "ecosystem": "pypi",
+      "repo": "github.com/bilalalpaslan/pyonize",
+      "status": "HOLD",
+      "score": 1.0776
+     },
+     {
+      "name": "qmk-dotty-dict",
+      "ecosystem": "pypi",
+      "repo": "github.com/pawelzny/dotty_dict",
+      "status": "HOLD",
+      "score": 1.0753
+     },
+     {
+      "name": "attrify",
+      "ecosystem": "pypi",
+      "repo": "github.com/dragsama/attrify",
+      "status": "HOLD",
+      "score": 1.0752
+     }
+    ],
+    "notes": [
+     "dropped pypi:xmlpydict-parser: G1 FAIL, not verified on its registry (pypi: not found)",
+     "dropped attrdict: G4 FAIL (archived)",
+     "dropped zdict: G4 FAIL (archived)"
+    ],
+    "need_words": 19
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "dicter",
+      "ecosystem": "pypi",
+      "repo": "github.com/erdogant/dicter",
+      "status": "pass",
+      "score": 1.1069
+     },
+     {
+      "name": "mkrd/dictdatabase",
+      "ecosystem": "",
+      "repo": "github.com/mkrd/dictdatabase",
+      "status": "pass",
+      "score": 1.0003
+     },
+     {
+      "name": "bunch",
+      "ecosystem": "pypi",
+      "repo": "github.com/dsc/bunch",
+      "status": "HOLD",
+      "score": 1.1233
+     },
+     {
+      "name": "attrify",
+      "ecosystem": "pypi",
+      "repo": "github.com/dragsama/attrify",
+      "status": "HOLD",
+      "score": 1.112
+     },
+     {
+      "name": "range-key-dict",
+      "ecosystem": "pypi",
+      "repo": "github.com/albertmenglongli/range-key-dict",
+      "status": "HOLD",
+      "score": 1.0973
+     },
+     {
+      "name": "dictable",
+      "ecosystem": "pypi",
+      "repo": "github.com/otrabalhador/dictable",
+      "status": "HOLD",
+      "score": 1.0804
+     },
+     {
+      "name": "qmk-dotty-dict",
+      "ecosystem": "pypi",
+      "repo": "github.com/pawelzny/dotty_dict",
+      "status": "HOLD",
+      "score": 1.0673
+     },
+     {
+      "name": "iterdict",
+      "ecosystem": "pypi",
+      "repo": "github.com/kstrauser/iterdict",
+      "status": "HOLD",
+      "score": 1.0654
+     },
+     {
+      "name": "pyonize",
+      "ecosystem": "pypi",
+      "repo": "github.com/bilalalpaslan/pyonize",
+      "status": "HOLD",
+      "score": 1.0606
+     },
+     {
+      "name": "dictfier",
+      "ecosystem": "pypi",
+      "repo": "github.com/yezyilomo/dictfier",
+      "status": "HOLD",
+      "score": 1.0584
+     }
+    ],
+    "notes": [
+     "dropped attrdict: G4 FAIL (archived)",
+     "dropped pyglossary: G5 FAIL (GPL-3.0-or-later: strong copyleft (--allow-copyleft overrides))",
+     "dropped zdict: G4 FAIL (archived)"
+    ],
+    "need_words": 7
+   }
+  },
+  {
+   "id": "PolyglotSubs-Kodi:strip_non_ascii_and_unprintable",
+   "gold": "ftfy",
+   "gold_repo": "rspeer/python-ftfy",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "xonsh",
+      "ecosystem": "pypi",
+      "repo": "github.com/xonsh/xonsh",
+      "status": "pass",
+      "score": 1.2351
+     },
+     {
+      "name": "art",
+      "ecosystem": "pypi",
+      "repo": "github.com/sepandhaghighi/art",
+      "status": "pass",
+      "score": 1.206
+     },
+     {
+      "name": "uniplot",
+      "ecosystem": "pypi",
+      "repo": "github.com/olavolav/uniplot",
+      "status": "pass",
+      "score": 1.2023
+     },
+     {
+      "name": "pyfiglet",
+      "ecosystem": "pypi",
+      "repo": "github.com/pwaller/pyfiglet",
+      "status": "pass",
+      "score": 1.1628
+     },
+     {
+      "name": "dosage",
+      "ecosystem": "pypi",
+      "repo": "github.com/webcomics/dosage",
+      "status": "pass",
+      "score": 1.1552
+     },
+     {
+      "name": "asciify-them",
+      "ecosystem": "pypi",
+      "repo": "github.com/ndrscalia/asciify-them",
+      "status": "pass",
+      "score": 1.1269
+     },
+     {
+      "name": "video-to-ascii",
+      "ecosystem": "pypi",
+      "repo": "github.com/joelibaceta/video-to-ascii",
+      "status": "pass",
+      "score": 1.0946
+     },
+     {
+      "name": "scottlawsonbc/audio-reactive-led-strip",
+      "ecosystem": "",
+      "repo": "github.com/scottlawsonbc/audio-reactive-led-strip",
+      "status": "pass",
+      "score": 0.9379
+     },
+     {
+      "name": "vietnh1009/ascii-generator",
+      "ecosystem": "",
+      "repo": "github.com/vietnh1009/ascii-generator",
+      "status": "pass",
+      "score": 0.8621
+     },
+     {
+      "name": "durdraw",
+      "ecosystem": "pypi",
+      "repo": "github.com/durdraw/durdraw",
+      "status": "HOLD",
+      "score": 1.1761
+     }
+    ],
+    "notes": [
+     "dropped fatihak/inkypi: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped nokse22/ascii-draw: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped hermantenuki/ascii-generator.site: G4 FAIL (archived)",
+     "dropped bleach: G4 FAIL (archived)"
+    ],
+    "need_words": 12
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "art",
+      "ecosystem": "pypi",
+      "repo": "github.com/sepandhaghighi/art",
+      "status": "pass",
+      "score": 1.152
+     },
+     {
+      "name": "asciify-them",
+      "ecosystem": "pypi",
+      "repo": "github.com/ndrscalia/asciify-them",
+      "status": "pass",
+      "score": 1.126
+     },
+     {
+      "name": "strip-tags",
+      "ecosystem": "pypi",
+      "repo": "github.com/simonw/strip-tags",
+      "status": "pass",
+      "score": 1.0549
+     },
+     {
+      "name": "chromatic-python",
+      "ecosystem": "pypi",
+      "repo": "github.com/crypt0lith/chromatic",
+      "status": "pass",
+      "score": 1.0168
+     },
+     {
+      "name": "vietnh1009/ascii-generator",
+      "ecosystem": "",
+      "repo": "github.com/vietnh1009/ascii-generator",
+      "status": "pass",
+      "score": 0.8652
+     },
+     {
+      "name": "darrenburns/rich-pixels",
+      "ecosystem": "",
+      "repo": "github.com/darrenburns/rich-pixels",
+      "status": "pass",
+      "score": 0.739
+     },
+     {
+      "name": "durdraw",
+      "ecosystem": "pypi",
+      "repo": "github.com/durdraw/durdraw",
+      "status": "HOLD",
+      "score": 1.1319
+     },
+     {
+      "name": "asciimatics",
+      "ecosystem": "pypi",
+      "repo": "github.com/peterbrittain/asciimatics",
+      "status": "HOLD",
+      "score": 1.0379
+     },
+     {
+      "name": "text-box-wrapper",
+      "ecosystem": "pypi",
+      "repo": "github.com/hootrix/text-box-wrapper",
+      "status": "HOLD",
+      "score": 0.9988
+     },
+     {
+      "name": "tansey/strips",
+      "ecosystem": "",
+      "repo": "github.com/tansey/strips",
+      "status": "HOLD",
+      "score": 0.8595
+     }
+    ],
+    "notes": [
+     "dropped nokse22/ascii-draw: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped bleach: G4 FAIL (archived)"
+    ],
+    "need_words": 7
+   }
+  },
+  {
+   "id": "qteasy:progress_bar",
+   "gold": "tqdm",
+   "gold_repo": "tqdm/tqdm",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 1,
+    "top": [
+     {
+      "name": "tqdm",
+      "ecosystem": "pypi",
+      "repo": "github.com/tqdm/tqdm",
+      "status": "pass",
+      "score": 1.4984
+     },
+     {
+      "name": "progressbar2",
+      "ecosystem": "pypi",
+      "repo": "github.com/wolph/python-progressbar",
+      "status": "pass",
+      "score": 1.4369
+     },
+     {
+      "name": "shell-gpt",
+      "ecosystem": "pypi",
+      "repo": "github.com/ther1d/shell_gpt",
+      "status": "pass",
+      "score": 1.41
+     },
+     {
+      "name": "typer",
+      "ecosystem": "pypi",
+      "repo": "github.com/fastapi/typer",
+      "status": "pass",
+      "score": 1.408
+     },
+     {
+      "name": "rich",
+      "ecosystem": "pypi",
+      "repo": "github.com/textualize/rich",
+      "status": "pass",
+      "score": 1.4068
+     },
+     {
+      "name": "alive-progress",
+      "ecosystem": "pypi",
+      "repo": "github.com/rsalmei/alive-progress",
+      "status": "pass",
+      "score": 1.3551
+     },
+     {
+      "name": "recline",
+      "ecosystem": "pypi",
+      "repo": "github.com/netapp/recline",
+      "status": "pass",
+      "score": 1.3174
+     },
+     {
+      "name": "proglog",
+      "ecosystem": "pypi",
+      "repo": "github.com/edinburgh-genome-foundry/proglog",
+      "status": "pass",
+      "score": 1.2222
+     },
+     {
+      "name": "progress",
+      "ecosystem": "pypi",
+      "repo": "github.com/verigak/progress",
+      "status": "pass",
+      "score": 1.2159
+     },
+     {
+      "name": "xkits",
+      "ecosystem": "pypi",
+      "repo": "github.com/bondbox/xkits",
+      "status": "pass",
+      "score": 1.1281
+     }
+    ],
+    "notes": [],
+    "need_words": 14
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 4,
+    "top": [
+     {
+      "name": "numpy",
+      "ecosystem": "pypi",
+      "repo": "github.com/numpy/numpy",
+      "status": "pass",
+      "score": 1.5498
+     },
+     {
+      "name": "numexpr",
+      "ecosystem": "pypi",
+      "repo": "github.com/pydata/numexpr",
+      "status": "pass",
+      "score": 1.4896
+     },
+     {
+      "name": "autograd",
+      "ecosystem": "pypi",
+      "repo": "github.com/hips/autograd",
+      "status": "pass",
+      "score": 1.4114
+     },
+     {
+      "name": "tqdm",
+      "ecosystem": "pypi",
+      "repo": "github.com/tqdm/tqdm",
+      "status": "pass",
+      "score": 1.4088
+     },
+     {
+      "name": "numba/numba",
+      "ecosystem": "",
+      "repo": "github.com/numba/numba",
+      "status": "pass",
+      "score": 1.2469
+     },
+     {
+      "name": "rougier/numpy-100",
+      "ecosystem": "",
+      "repo": "github.com/rougier/numpy-100",
+      "status": "pass",
+      "score": 1.15
+     },
+     {
+      "name": "scikit-hep/awkward",
+      "ecosystem": "",
+      "repo": "github.com/scikit-hep/awkward",
+      "status": "pass",
+      "score": 1.1344
+     },
+     {
+      "name": "tqdm-pandas",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "pass",
+      "score": 1.0492
+     },
+     {
+      "name": "numba-scipy",
+      "ecosystem": "pypi",
+      "repo": "github.com/numba/numba-scipy",
+      "status": "HOLD",
+      "score": 1.1094
+     },
+     {
+      "name": "blaze/blaze",
+      "ecosystem": "",
+      "repo": "github.com/blaze/blaze",
+      "status": "HOLD",
+      "score": 0.9918
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)"
+    ],
+    "need_words": 5
+   }
+  },
+  {
+   "id": "half-orm-dev:Version",
+   "gold": "packaging",
+   "gold_repo": "pypa/packaging",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "apache/ossie",
+      "ecosystem": "",
+      "repo": "github.com/apache/ossie",
+      "status": "pass",
+      "score": 1.0197
+     },
+     {
+      "name": "syinfo",
+      "ecosystem": "pypi",
+      "repo": "github.com/mr901/syinfo",
+      "status": "pass",
+      "score": 1.0183
+     },
+     {
+      "name": "pyportal",
+      "ecosystem": "pypi",
+      "repo": "github.com/alanyue/pyportal",
+      "status": "pass",
+      "score": 0.9418
+     },
+     {
+      "name": "versioneer",
+      "ecosystem": "pypi",
+      "repo": "github.com/python-versioneer/python-versioneer",
+      "status": "HOLD",
+      "score": 1.1547
+     },
+     {
+      "name": "semantic-version",
+      "ecosystem": "pypi",
+      "repo": "github.com/rbarrois/python-semanticversion",
+      "status": "HOLD",
+      "score": 1.1334
+     },
+     {
+      "name": "strsimpy",
+      "ecosystem": "pypi",
+      "repo": "github.com/luozhouyang/python-string-similarity",
+      "status": "HOLD",
+      "score": 1.0759
+     },
+     {
+      "name": "stringsifter",
+      "ecosystem": "pypi",
+      "repo": "github.com/mandiant/stringsifter",
+      "status": "HOLD",
+      "score": 1.0431
+     },
+     {
+      "name": "pytgcalls",
+      "ecosystem": "pypi",
+      "repo": "github.com/marshalx/tgcalls",
+      "status": "HOLD",
+      "score": 1.0207
+     },
+     {
+      "name": "setuptools-setup-versions",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "HOLD",
+      "score": 0.9363
+     },
+     {
+      "name": "cgvdiit-string-grouper",
+      "ecosystem": "pypi",
+      "repo": "github.com/bergvca/string_grouper",
+      "status": "HOLD",
+      "score": 0.9087
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)"
+    ],
+    "need_words": 40
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "tgit",
+      "ecosystem": "pypi",
+      "repo": "github.com/jannchie/tgit",
+      "status": "pass",
+      "score": 1.3214
+     },
+     {
+      "name": "semantica",
+      "ecosystem": "pypi",
+      "repo": "github.com/semantica-agi/semantica",
+      "status": "pass",
+      "score": 1.2825
+     },
+     {
+      "name": "pyportal",
+      "ecosystem": "pypi",
+      "repo": "github.com/alanyue/pyportal",
+      "status": "pass",
+      "score": 1.0834
+     },
+     {
+      "name": "presslabs/gitfs",
+      "ecosystem": "",
+      "repo": "github.com/presslabs/gitfs",
+      "status": "pass",
+      "score": 1.0731
+     },
+     {
+      "name": "apache/ossie",
+      "ecosystem": "",
+      "repo": "github.com/apache/ossie",
+      "status": "pass",
+      "score": 1.0481
+     },
+     {
+      "name": "semantic-version",
+      "ecosystem": "pypi",
+      "repo": "github.com/rbarrois/python-semanticversion",
+      "status": "HOLD",
+      "score": 1.1206
+     },
+     {
+      "name": "mrooding/gitlab-semantic-versioning",
+      "ecosystem": "",
+      "repo": "github.com/mrooding/gitlab-semantic-versioning",
+      "status": "HOLD",
+      "score": 1.0368
+     },
+     {
+      "name": "keleshev/version",
+      "ecosystem": "",
+      "repo": "github.com/keleshev/version",
+      "status": "HOLD",
+      "score": 0.7838
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)",
+     "dropped ebay/sequence-semantic-embedding: G4 FAIL (archived)",
+     "dropped georgeseif/semantic-segmentation-suite: G4 FAIL (archived)"
+    ],
+    "need_words": 8
+   }
+  },
+  {
+   "id": "Sigima:is_version_at_least",
+   "gold": "packaging",
+   "gold_repo": "pypa/packaging",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "bump-my-version",
+      "ecosystem": "pypi",
+      "repo": "github.com/callowayproject/bump-my-version",
+      "status": "pass",
+      "score": 1.3394
+     },
+     {
+      "name": "tgit",
+      "ecosystem": "pypi",
+      "repo": "github.com/jannchie/tgit",
+      "status": "pass",
+      "score": 1.0971
+     },
+     {
+      "name": "pyportal",
+      "ecosystem": "pypi",
+      "repo": "github.com/alanyue/pyportal",
+      "status": "pass",
+      "score": 1.065
+     },
+     {
+      "name": "compare50",
+      "ecosystem": "pypi",
+      "repo": "github.com/cs50/compare50",
+      "status": "HOLD",
+      "score": 1.2168
+     },
+     {
+      "name": "jsoncomparison",
+      "ecosystem": "pypi",
+      "repo": "github.com/rugleb/jsoncompare",
+      "status": "HOLD",
+      "score": 1.0316
+     },
+     {
+      "name": "transitleastsquares",
+      "ecosystem": "pypi",
+      "repo": "github.com/hippke/tls",
+      "status": "HOLD",
+      "score": 0.9857
+     },
+     {
+      "name": "stringsifter",
+      "ecosystem": "pypi",
+      "repo": "github.com/mandiant/stringsifter",
+      "status": "HOLD",
+      "score": 0.9484
+     },
+     {
+      "name": "setuptools-setup-versions",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "HOLD",
+      "score": 0.9458
+     },
+     {
+      "name": "profanity-check",
+      "ecosystem": "pypi",
+      "repo": "github.com/vzhou842/profanity-check",
+      "status": "HOLD",
+      "score": 0.9033
+     },
+     {
+      "name": "jarvis73/moving-least-squares",
+      "ecosystem": "",
+      "repo": "github.com/jarvis73/moving-least-squares",
+      "status": "HOLD",
+      "score": 0.8815
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)",
+     "dropped python-standardize-it: G5 FAIL (GPL-2.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped shivangkakkar/stringsessionbot: G5 FAIL (AGPL-3.0: network copyleft (--allow-copyleft overrides))"
+    ],
+    "need_words": 21
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "bump-my-version",
+      "ecosystem": "pypi",
+      "repo": "github.com/callowayproject/bump-my-version",
+      "status": "pass",
+      "score": 1.2855
+     },
+     {
+      "name": "tgit",
+      "ecosystem": "pypi",
+      "repo": "github.com/jannchie/tgit",
+      "status": "pass",
+      "score": 0.94
+     },
+     {
+      "name": "pyportal",
+      "ecosystem": "pypi",
+      "repo": "github.com/alanyue/pyportal",
+      "status": "pass",
+      "score": 0.9212
+     },
+     {
+      "name": "dicter",
+      "ecosystem": "pypi",
+      "repo": "github.com/erdogant/dicter",
+      "status": "pass",
+      "score": 0.9208
+     },
+     {
+      "name": "anemoi-dns",
+      "ecosystem": "pypi",
+      "repo": "github.com/dayt0n/anemoi",
+      "status": "pass",
+      "score": 0.7995
+     },
+     {
+      "name": "compare50",
+      "ecosystem": "pypi",
+      "repo": "github.com/cs50/compare50",
+      "status": "HOLD",
+      "score": 1.2135
+     },
+     {
+      "name": "spade-sec/first",
+      "ecosystem": "",
+      "repo": "github.com/spade-sec/first",
+      "status": "HOLD",
+      "score": 0.9395
+     },
+     {
+      "name": "jiuzx/zodgame_checkin",
+      "ecosystem": "",
+      "repo": "github.com/jiuzx/zodgame_checkin",
+      "status": "HOLD",
+      "score": 0.9176
+     },
+     {
+      "name": "jsoncomparison",
+      "ecosystem": "pypi",
+      "repo": "github.com/rugleb/jsoncompare",
+      "status": "HOLD",
+      "score": 0.9071
+     },
+     {
+      "name": "transitleastsquares",
+      "ecosystem": "pypi",
+      "repo": "github.com/hippke/tls",
+      "status": "HOLD",
+      "score": 0.8877
+     }
+    ],
+    "notes": [
+     "dropped google/compare_gan: G4 FAIL (archived)",
+     "dropped python-standardize-it: G5 FAIL (GPL-2.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped fragile-gym: G4 FAIL (archived)"
+    ],
+    "need_words": 10
+   }
+  },
+  {
+   "id": "decree-python:_parse_version",
+   "gold": "packaging",
+   "gold_repo": "pypa/packaging",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "parse",
+      "ecosystem": "pypi",
+      "repo": "github.com/r1chardj0n3s/parse",
+      "status": "pass",
+      "score": 1.5302
+     },
+     {
+      "name": "semver",
+      "ecosystem": "pypi",
+      "repo": "github.com/python-semver/python-semver",
+      "status": "pass",
+      "score": 1.5107
+     },
+     {
+      "name": "semversioner",
+      "ecosystem": "pypi",
+      "repo": "github.com/raulgomis/semversioner",
+      "status": "pass",
+      "score": 1.2995
+     },
+     {
+      "name": "bumpver",
+      "ecosystem": "pypi",
+      "repo": "github.com/mbarkhau/bumpver",
+      "status": "pass",
+      "score": 1.2733
+     },
+     {
+      "name": "openparse",
+      "ecosystem": "pypi",
+      "repo": "github.com/filimoa/open-parse",
+      "status": "pass",
+      "score": 1.1903
+     },
+     {
+      "name": "hdltree",
+      "ecosystem": "pypi",
+      "repo": "github.com/rpatel3001/hdltree",
+      "status": "pass",
+      "score": 1.0308
+     },
+     {
+      "name": "node-semver",
+      "ecosystem": "pypi",
+      "repo": "github.com/podhmo/python-node-semver",
+      "status": "HOLD",
+      "score": 1.2826
+     },
+     {
+      "name": "semantic-version",
+      "ecosystem": "pypi",
+      "repo": "github.com/rbarrois/python-semanticversion",
+      "status": "HOLD",
+      "score": 1.1249
+     },
+     {
+      "name": "keleshev/version",
+      "ecosystem": "",
+      "repo": "github.com/keleshev/version",
+      "status": "HOLD",
+      "score": 0.9207
+     },
+     {
+      "name": "allenai/spv2",
+      "ecosystem": "",
+      "repo": "github.com/allenai/spv2",
+      "status": "HOLD",
+      "score": 0.9054
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)",
+     "dropped poetry-semver: G4 FAIL (archived)"
+    ],
+    "need_words": 11
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "semver",
+      "ecosystem": "pypi",
+      "repo": "github.com/python-semver/python-semver",
+      "status": "pass",
+      "score": 1.5075
+     },
+     {
+      "name": "parse",
+      "ecosystem": "pypi",
+      "repo": "github.com/r1chardj0n3s/parse",
+      "status": "pass",
+      "score": 1.503
+     },
+     {
+      "name": "semversioner",
+      "ecosystem": "pypi",
+      "repo": "github.com/raulgomis/semversioner",
+      "status": "pass",
+      "score": 1.2858
+     },
+     {
+      "name": "openparse",
+      "ecosystem": "pypi",
+      "repo": "github.com/filimoa/open-parse",
+      "status": "pass",
+      "score": 1.1907
+     },
+     {
+      "name": "hdltree",
+      "ecosystem": "pypi",
+      "repo": "github.com/rpatel3001/hdltree",
+      "status": "pass",
+      "score": 1.0248
+     },
+     {
+      "name": "node-semver",
+      "ecosystem": "pypi",
+      "repo": "github.com/podhmo/python-node-semver",
+      "status": "HOLD",
+      "score": 1.2885
+     },
+     {
+      "name": "semantic-version",
+      "ecosystem": "pypi",
+      "repo": "github.com/rbarrois/python-semanticversion",
+      "status": "HOLD",
+      "score": 1.1114
+     },
+     {
+      "name": "allenai/spv2",
+      "ecosystem": "",
+      "repo": "github.com/allenai/spv2",
+      "status": "HOLD",
+      "score": 0.9226
+     },
+     {
+      "name": "keleshev/version",
+      "ecosystem": "",
+      "repo": "github.com/keleshev/version",
+      "status": "HOLD",
+      "score": 0.91
+     },
+     {
+      "name": "contextualist/glare",
+      "ecosystem": "",
+      "repo": "github.com/contextualist/glare",
+      "status": "HOLD",
+      "score": 0.811
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)",
+     "dropped poetry-semver: G4 FAIL (archived)"
+    ],
+    "need_words": 8
+   }
+  },
+  {
+   "id": "tokenbudget:parse_when",
+   "gold": "dateparser",
+   "gold_repo": "scrapinghub/dateparser",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "pytest-subprocess",
+      "ecosystem": "pypi",
+      "repo": "github.com/aklajnert/pytest-subprocess",
+      "status": "pass",
+      "score": 1.3815
+     },
+     {
+      "name": "sh",
+      "ecosystem": "pypi",
+      "repo": "github.com/amoffat/sh",
+      "status": "pass",
+      "score": 1.3687
+     },
+     {
+      "name": "arrow",
+      "ecosystem": "pypi",
+      "repo": "github.com/arrow-py/arrow",
+      "status": "pass",
+      "score": 1.3459
+     },
+     {
+      "name": "croniter",
+      "ecosystem": "pypi",
+      "repo": "github.com/pallets-eco/croniter",
+      "status": "pass",
+      "score": 1.3448
+     },
+     {
+      "name": "pytimeparse",
+      "ecosystem": "pypi",
+      "repo": "github.com/wroberts/pytimeparse",
+      "status": "pass",
+      "score": 1.3335
+     },
+     {
+      "name": "deadpool-executor",
+      "ecosystem": "pypi",
+      "repo": "github.com/cjrh/deadpool",
+      "status": "pass",
+      "score": 1.3215
+     },
+     {
+      "name": "pytest-insubprocess",
+      "ecosystem": "pypi",
+      "repo": "github.com/pchanial/pytest-insubprocess",
+      "status": "pass",
+      "score": 1.1619
+     },
+     {
+      "name": "python-dateutil",
+      "ecosystem": "pypi",
+      "repo": "github.com/dateutil/dateutil",
+      "status": "HOLD",
+      "score": 1.2855
+     },
+     {
+      "name": "command-runner",
+      "ecosystem": "pypi",
+      "repo": "github.com/netinvent/command_runner",
+      "status": "HOLD",
+      "score": 1.2673
+     },
+     {
+      "name": "ptyprocess",
+      "ecosystem": "pypi",
+      "repo": "github.com/pexpect/ptyprocess",
+      "status": "HOLD",
+      "score": 1.2056
+     }
+    ],
+    "notes": [
+     "dropped pypi:linux-commands: G1 FAIL, not verified on its registry (pypi: not found)",
+     "dropped subprocess32: G4 FAIL (archived)"
+    ],
+    "need_words": 6
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "parse",
+      "ecosystem": "pypi",
+      "repo": "github.com/r1chardj0n3s/parse",
+      "status": "pass",
+      "score": 1.5472
+     },
+     {
+      "name": "feedparser",
+      "ecosystem": "pypi",
+      "repo": "github.com/kurtmckee/feedparser",
+      "status": "pass",
+      "score": 1.3806
+     },
+     {
+      "name": "openparse",
+      "ecosystem": "pypi",
+      "repo": "github.com/filimoa/open-parse",
+      "status": "pass",
+      "score": 1.3393
+     },
+     {
+      "name": "vision-parse",
+      "ecosystem": "pypi",
+      "repo": "github.com/iamarunbrahma/vision-parse",
+      "status": "pass",
+      "score": 1.3069
+     },
+     {
+      "name": "probablepeople",
+      "ecosystem": "pypi",
+      "repo": "github.com/datamade/probablepeople",
+      "status": "pass",
+      "score": 1.1793
+     },
+     {
+      "name": "run-llama/parsebench",
+      "ecosystem": "",
+      "repo": "github.com/run-llama/parsebench",
+      "status": "pass",
+      "score": 1.1506
+     },
+     {
+      "name": "supar",
+      "ecosystem": "pypi",
+      "repo": "github.com/yzhangcs/parser",
+      "status": "HOLD",
+      "score": 1.1403
+     },
+     {
+      "name": "dlwangsan/douyin_parse",
+      "ecosystem": "",
+      "repo": "github.com/dlwangsan/douyin_parse",
+      "status": "HOLD",
+      "score": 1.1134
+     }
+    ],
+    "notes": [
+     "dropped qs-parse-rest: G5 FAIL (GPL-2.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped adithya-s-k/omniparse: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))"
+    ],
+    "need_words": 1
+   }
+  },
+  {
+   "id": "terratunnel:_is_binary_content",
+   "gold": "python-magic",
+   "gold_repo": "ahupp/python-magic",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "mypy",
+      "ecosystem": "pypi",
+      "repo": "github.com/python/mypy",
+      "status": "pass",
+      "score": 1.3888
+     },
+     {
+      "name": "blint",
+      "ecosystem": "pypi",
+      "repo": "github.com/owasp-dep-scan/blint",
+      "status": "pass",
+      "score": 1.3406
+     },
+     {
+      "name": "vastsa/filecodebox",
+      "ecosystem": "",
+      "repo": "github.com/vastsa/filecodebox",
+      "status": "pass",
+      "score": 1.0972
+     },
+     {
+      "name": "yj94/binaryspy",
+      "ecosystem": "",
+      "repo": "github.com/yj94/binaryspy",
+      "status": "pass",
+      "score": 1.0848
+     },
+     {
+      "name": "staticdatapy",
+      "ecosystem": "pypi",
+      "repo": "",
+      "status": "pass",
+      "score": 1.0068
+     },
+     {
+      "name": "filetype",
+      "ecosystem": "pypi",
+      "repo": "github.com/h2non/filetype.py",
+      "status": "HOLD",
+      "score": 1.2938
+     },
+     {
+      "name": "libretro/libretro-database",
+      "ecosystem": "",
+      "repo": "github.com/libretro/libretro-database",
+      "status": "HOLD",
+      "score": 1.12
+     },
+     {
+      "name": "opsdisk/metagoofil",
+      "ecosystem": "",
+      "repo": "github.com/opsdisk/metagoofil",
+      "status": "HOLD",
+      "score": 1.0527
+     },
+     {
+      "name": "zelos",
+      "ecosystem": "pypi",
+      "repo": "github.com/zeropointdynamics/zelos",
+      "status": "HOLD",
+      "score": 0.9804
+     },
+     {
+      "name": "ntyp",
+      "ecosystem": "pypi",
+      "repo": "github.com/dsm-72/ntyp",
+      "status": "HOLD",
+      "score": 0.8403
+     }
+    ],
+    "notes": [
+     "ecosystems: unreadable answer (JSONDecodeError)"
+    ],
+    "need_words": 15
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": null,
+    "top": [
+     {
+      "name": "binaryfilereader",
+      "ecosystem": "pypi",
+      "repo": "github.com/mauricelambert/binaryfilereader",
+      "status": "pass",
+      "score": 1.2242
+     },
+     {
+      "name": "binaryflux-xyz/binaryflux-content-ootb-repository",
+      "ecosystem": "",
+      "repo": "github.com/binaryflux-xyz/binaryflux-content-ootb-repository",
+      "status": "HOLD",
+      "score": 1.0591
+     },
+     {
+      "name": "geniusum/binary-content",
+      "ecosystem": "",
+      "repo": "github.com/geniusum/binary-content",
+      "status": "HOLD",
+      "score": 0.8144
+     },
+     {
+      "name": "xealits/binary-packaging",
+      "ecosystem": "",
+      "repo": "github.com/xealits/binary-packaging",
+      "status": "HOLD",
+      "score": 0.7472
+     }
+    ],
+    "notes": [
+     "dropped motanelson/binary.file.system.zip: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped motanelson/binary.file.create: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped motanelson/binary.file.table: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped motanelson/binary.array.file.create: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped motanelson/binary.file.system.mount: G5 FAIL (GPL-3.0: strong copyleft (--allow-copyleft overrides))",
+     "dropped csplitb: G5 FAIL (GPL-1.0: strong copyleft (--allow-copyleft overrides))"
+    ],
+    "need_words": 2
+   }
+  },
+  {
+   "id": "better:parse_time",
+   "gold": "python-dateutil",
+   "gold_repo": "dateutil/dateutil",
+   "old": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 10,
+    "top": [
+     {
+      "name": "arrow",
+      "ecosystem": "pypi",
+      "repo": "github.com/arrow-py/arrow",
+      "status": "pass",
+      "score": 1.41
+     },
+     {
+      "name": "timefhuman",
+      "ecosystem": "pypi",
+      "repo": "github.com/alvinwan/timefhuman",
+      "status": "pass",
+      "score": 1.3561
+     },
+     {
+      "name": "delorean",
+      "ecosystem": "pypi",
+      "repo": "github.com/myusuf3/delorean",
+      "status": "pass",
+      "score": 1.3554
+     },
+     {
+      "name": "datetimerange",
+      "ecosystem": "pypi",
+      "repo": "github.com/thombashi/datetimerange",
+      "status": "pass",
+      "score": 1.3493
+     },
+     {
+      "name": "datefinder",
+      "ecosystem": "pypi",
+      "repo": "github.com/akoumjian/datefinder",
+      "status": "pass",
+      "score": 1.3259
+     },
+     {
+      "name": "hun-date-parser",
+      "ecosystem": "pypi",
+      "repo": "github.com/szegedai/hun-date-parser",
+      "status": "pass",
+      "score": 1.3231
+     },
+     {
+      "name": "doubledate",
+      "ecosystem": "pypi",
+      "repo": "github.com/dschenck/doubledate",
+      "status": "pass",
+      "score": 1.2639
+     },
+     {
+      "name": "timeago",
+      "ecosystem": "pypi",
+      "repo": "github.com/hustcc/timeago",
+      "status": "HOLD",
+      "score": 1.3797
+     },
+     {
+      "name": "datetype",
+      "ecosystem": "pypi",
+      "repo": "github.com/glyph/datetype",
+      "status": "HOLD",
+      "score": 1.3146
+     },
+     {
+      "name": "python-dateutil",
+      "ecosystem": "pypi",
+      "repo": "github.com/dateutil/dateutil",
+      "status": "HOLD",
+      "score": 1.277
+     }
+    ],
+    "notes": [],
+    "need_words": 20
+   },
+   "new": {
+    "rerank": "semantic (model2vec minishlab/potion-base-8M)",
+    "rank": 8,
+    "top": [
+     {
+      "name": "parse",
+      "ecosystem": "pypi",
+      "repo": "github.com/r1chardj0n3s/parse",
+      "status": "pass",
+      "score": 1.5212
+     },
+     {
+      "name": "datefinder",
+      "ecosystem": "pypi",
+      "repo": "github.com/akoumjian/datefinder",
+      "status": "pass",
+      "score": 1.484
+     },
+     {
+      "name": "hun-date-parser",
+      "ecosystem": "pypi",
+      "repo": "github.com/szegedai/hun-date-parser",
+      "status": "pass",
+      "score": 1.4526
+     },
+     {
+      "name": "delorean",
+      "ecosystem": "pypi",
+      "repo": "github.com/myusuf3/delorean",
+      "status": "pass",
+      "score": 1.4439
+     },
+     {
+      "name": "timefhuman",
+      "ecosystem": "pypi",
+      "repo": "github.com/alvinwan/timefhuman",
+      "status": "pass",
+      "score": 1.441
+     },
+     {
+      "name": "python-pendulum/pendulum",
+      "ecosystem": "",
+      "repo": "github.com/python-pendulum/pendulum",
+      "status": "pass",
+      "score": 1.2131
+     },
+     {
+      "name": "parsedatetime",
+      "ecosystem": "pypi",
+      "repo": "github.com/bear/parsedatetime",
+      "status": "HOLD",
+      "score": 1.4461
+     },
+     {
+      "name": "python-dateutil",
+      "ecosystem": "pypi",
+      "repo": "github.com/dateutil/dateutil",
+      "status": "HOLD",
+      "score": 1.3674
+     },
+     {
+      "name": "timeago",
+      "ecosystem": "pypi",
+      "repo": "github.com/hustcc/timeago",
+      "status": "HOLD",
+      "score": 1.3287
+     },
+     {
+      "name": "maya",
+      "ecosystem": "pypi",
+      "repo": "github.com/kennethreitz/maya",
+      "status": "HOLD",
+      "score": 1.2939
+     }
+    ],
+    "notes": [],
+    "need_words": 5
+   }
+  }
+ ]
+}

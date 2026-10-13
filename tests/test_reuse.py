@@ -212,19 +212,73 @@ def test_relax_drops_stopwords_and_caps_terms():
     assert reuse.words("parseHTTPResponse snake_case") == ["parse", "httpresponse", "snake", "case"]
 
 
-def test_need_from_reads_name_docstring_comments_and_imports():
-    text = 'import yaml\nfrom lxml import etree\n\ndef load_config(p):\n    """Parse a YAML file."""\n    # merge env\n'
-    need = reuse.need_from(text, "load_config").split()
-    for w in ("load", "config", "parse", "yaml", "file", "merge", "env", "lxml"):
-        assert w in need
-    assert reuse.need_from("def broken(:\n  # still a comment\n").split()[:2] == ["still", "comment"]
+HELPER = '''"""Module docstring: never part of a symbol's need."""
+import os, sys, json
+import yaml
+from lxml import etree
+from . import sibling
+from devkit import code
+from mypkg.sub import thing
 
 
-def test_from_spec_on_the_backoff_fixture_names_retry_and_the_files_imports():
+def load_config(p):
+    """Parse a YAML file into a dict. Environment variables override keys."""
+    # merge env: comments are left out
+    import requests
+    return {}
+'''
+
+
+def test_need_from_is_the_name_the_docstrings_first_sentence_and_third_party_imports():  # #175
+    assert (
+        reuse.need_from(HELPER, "load_config", own={"devkit", "mypkg"})
+        == "load config parse yaml file dict lxml requests"
+    )
+
+
+def test_need_from_drops_stdlib_relative_and_own_imports_and_comments():  # #175
+    need = reuse.need_from(HELPER, "load_config", own={"devkit", "mypkg"}).split()
+    for w in ("os", "sys", "json", "sibling", "devkit", "mypkg", "merge", "env", "environment", "module"):
+        assert w not in need
+    assert "mypkg" in reuse.need_from(HELPER, "load_config").split()  # dropped only when named own
+
+
+def test_need_from_without_a_symbol_reads_the_module_docstring():
+    assert reuse.need_from(HELPER, own={"devkit", "mypkg"}).split()[:2] == ["module", "docstring"]
+    assert reuse.need_from("def broken(:\n  # a comment\n", "broken") == "broken"  # unparsable: the name only
+
+
+@pytest.mark.parametrize(
+    ("doc", "first"),
+    [
+        ("Retry a call. Then wait.", "retry call"),
+        ("Retry a call\nacross lines!\n\nMore.", "retry call across lines"),
+        ("Format a size, e.g. 3 megabytes, for people.", "format size megabytes people"),
+    ],
+)
+def test_need_from_keeps_the_docstrings_first_sentence_only(doc, first):
+    assert reuse.need_from(f'def go():\n    """{doc}"""\n', "go") == "go " + first
+
+
+@given(st.text(max_size=200), st.text(max_size=20))
+def test_need_from_never_raises_and_is_bounded(text, name):
+    need = reuse.need_from(text, name)
+    assert len(need.split()) <= reuse.NEED_WORDS and need == need.strip()
+
+
+def test_own_modules_are_top_level_src_and_sibling_modules():  # #175
+    files = ["devkit/__init__.py", "devkit/sub/x.py", "setup.py", "src/pkg/a.py", "tools/scripts/run.py",
+             "tools/scripts/helper.py", "README.md", "docs/conf.py"]  # fmt: skip
+    own = reuse.own_modules(files, "tools/scripts/run.py")
+    assert own == {"devkit", "setup", "src", "pkg", "tools", "run", "helper", "docs"}
+
+
+def test_from_spec_on_the_backoff_fixture_names_retry_and_drops_stdlib():  # #175
     need = reuse.from_spec("tests/fixtures/reuse/backoff_helper.py:retry_with_backoff").split()
-    assert {"retry", "backoff", "exponential", "jitter", "random", "time"} <= set(need)
-    assert "unrelated" not in need  # only the symbol, not its neighbours
-    assert "unrelated" in reuse.from_spec("tests/fixtures/reuse/backoff_helper.py").split()
+    assert {"retry", "backoff", "exponential", "jitter"} <= set(need)
+    assert not {"random", "time", "unrelated", "transient"} & set(need)  # stdlib, a neighbour, a comment
+    whole = reuse.from_spec("tests/fixtures/reuse/backoff_helper.py").split()
+    assert whole[:2] == ["backoff", "helper"] and "hand" in whole  # the file's stem and module docstring
     with pytest.raises(LookupError):
         reuse.from_spec("tests/fixtures/reuse/backoff_helper.py:nope")
 
@@ -518,6 +572,14 @@ def test_osi_flag():
     assert "not checked" in reuse.osi_flag("MIT", None)
 
 
+@pytest.mark.parametrize("lic", ["mit", "apache-2.0", "Mit OR gpl-3.0", "bsd-3-clause"])
+def test_spdx_ids_match_whatever_their_case(lic):  # #215: SPDX ids are case-insensitive
+    tiers = {"MIT": "Silver", "Apache-2.0": "Silver", "BSD-3-Clause": "Silver", "GPL-3.0-only": "strong"}
+    assert reuse.licence_gate(lic, tiers, False)[0] == "pass"
+    assert reuse.osi_flag(lic, {"MIT": True, "Apache-2.0": True, "BSD-3-Clause": True}) == ""
+    assert reuse.licence_gate("gpl-3.0+", {"GPL-3.0-or-later": "strong"}, False)[0] == "FAIL"
+
+
 def test_copyleft_candidate_is_dropped_unless_allowed_and_non_osi_is_flagged(tmp_path):
     gpl = record("tenacity", "jd/tenacity", "retry", lic=("GPL-3.0-only",))
     rep = reuse.search(make(tmp_path, Net(world(lookups={"github.com/jd/tenacity": [gpl]}))), ["retry"], "pypi")
@@ -651,7 +713,7 @@ def test_render_without_candidates_says_so():
 
 
 def dev(argv: list[str]) -> int:
-    return cli.run(cli.build().parse_args(argv))
+    return cli.run(cli.parse(argv))
 
 
 @pytest.fixture
@@ -672,6 +734,29 @@ def test_cli_from_a_hand_written_backoff_helper_surfaces_a_retry_library(fake_cl
     out = capsys.readouterr().out
     assert rc == 0 and "tenacity [pypi] github.com/jd/tenacity" in out
     assert out.startswith("re-rank: bm25 (model2vec not installed)")
+    # the need it built is printed, so the agent sees what was searched (#175)
+    assert "\nquery: retry backoff call succeeds retrying exponential jitter attempts\n" in out
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["reuse", "check", "--json", "tenacity", "nope-not-a-package"],
+        ["reuse", "check", "tenacity", "nope-not-a-package", "--json"],
+        ["reuse", "check", "tenacity", "--json", "nope-not-a-package"],
+        ["reuse", "--json", "check", "tenacity", "nope-not-a-package"],
+    ],
+)
+def test_cli_check_json_parses_in_any_order(fake_cli, capsys, argv):  # #175 (found by #172's builder)
+    assert dev(argv) == 1
+    assert [c["name"] for c in json.loads(capsys.readouterr().out)["candidates"]] == ["tenacity", "nope-not-a-package"]
+
+
+def test_cli_still_refuses_unknown_options_and_other_commands_extras(capsys):
+    for argv in (["reuse", "check", "x", "--nope"], ["board", "next", "stray"]):
+        with pytest.raises(SystemExit):
+            cli.parse(argv)
+    assert "unrecognized arguments" in capsys.readouterr().err
 
 
 def test_cli_json_also_and_errors(fake_cli, capsys):

@@ -81,3 +81,46 @@ Owner asked whether the index is the best option or something easier is as good.
    harm share without licence outcomes is also reported.
 22. Validity fix applied to every arm alike: on M needs the migration source package is excluded from the candidate
    list before scoring (it is the thing being replaced, not an answer).
+
+## Amendment 6 (#175 builder, 2026-10-13, before any run on set D): held-out code set D for `--from`
+Owner: a new held-out set of at least 20 code cases (not set C), pre-registered, gold not written by us, TEST once.
+23. **Cases.** Commits found with GitHub's commit search for messages like "replace custom ... with <library>"
+   (queries named retry/tenacity, slugify, natsort, platformdirs, humanize, python-dateutil, filelock, cachetools,
+   tabulate, pathspec, rapidfuzz, charset-normalizer, more-itertools, python-dotenv, xmltodict, unidecode, inflect,
+   tqdm, packaging, semver, croniter, dateparser, bleach, jsonschema, deepdiff, deepmerge, psutil,
+   sortedcontainers, email-validator, python-magic, wcwidth, diskcache, ftfy, pyparsing). A case is a commit whose
+   message names the PyPI library that replaced a hand-written Python helper; the helper (the function or class
+   the commit deletes or rewrites to call it) is read at the commit's first parent. Gold is that library only:
+   the commit's author named it, the case author (the #175 builder) picked the helper. The rule, the exclusions
+   (the helper's text names the gold, i.e. leakage; symbol missing; not on PyPI) and the caps (3 per library, 2
+   per repository) are in [build_code_cases_175.py](scripts/build_code_cases_175.py), whose docstring held them
+   before it first ran; this amendment was written after the build and before any run. 31 picks, 6 dropped for
+   leakage, 25 kept.
+24. **Arms.** old = `need_from` of main @ f1cfce7; new = #175's `need_from` (committed in dffdbf7 before set D
+   was built). Both go through the same current `reuse.search` (R4, n = 10, pypi, model2vec), run live once, in
+   one session, interleaved per case ([run_code_175.py](scripts/run_code_175.py)).
+25. **Metrics.** Primary hit@3; also hit@1, hit@10, MRR@10. Paired hit@3 difference new - old with a 95%
+   percentile bootstrap (10,000 resamples of cases, seed 175). Every miss is listed. Set D is TEST only:
+   nothing in `need_from` changes after its run without a new set.
+26. **Frozen.** `scripts/data/code_cases_175.json` SHA-256
+   `0851961f48070c76e26166fc7a298e5f5c7e4659058e5704aab690f82b428d1a`, committed before the run (item 29).
+27. **Scrub fix after the run (disclosed).** That file kept each commit's full message, which carries third-party
+   e-mail addresses and links, so `tests/test_scrub.py` failed. The `message` field was removed after the run and
+   nothing else changed (load, pop `message`, dump with the same indent); `gold_by` keeps each message's first
+   line, and no arm reads `message`. That gave SHA-256
+   `e4a562498555c7147c059901722711e0c3c6ad14ab1c069862f39b49f705cee0`; the run's input is the first hash.
+28. **No third-party code stored (disclosed, after the run).** The helpers' code has no licence on record here, so
+   the lead asked that this repository keep references only. Each case's `text` was replaced by `text_sha256`, the
+   SHA-256 of exactly the text the run used; [run_code_175.py](scripts/run_code_175.py) now fetches the file from
+   raw.githubusercontent.com at the pinned parent commit, cuts it as the builder does, and exits on a hash
+   mismatch (`--verify-only` checks all 25 without searching: 25 ok on 2026-10-13). The run's outputs dropped
+   their need strings (docstring and comment words), keeping each need's word count. New SHA-256:
+   `code_cases_175.json` `08fa836d2e74199f0ac1fba53372c4e91182038c4706da667a1de8ff67b1475f`,
+   `test-code-175-2026-10-13.json` `e26197f708177736b069736434a0bf57290938f3afccd02fc58a8d181807022d` (was
+   `bf2a22f4…cd36`), `test-code-175-2026-10-13.md` `0f76521706d7f17095e2230f061a1cde3c86eeb121e127289b4afc92bfdf5d33`
+   (was `3ab99b90…c36f`). Scores and ranks are unchanged.
+29. **Squashed history (disclosed).** At the lead's request the branch was squashed into one commit, so neither
+   the third-party messages nor the code reach `main`. The pre-squash commits are not published, so git cannot
+   show the order any more; as recorded before the squash: need_from committed 10:55:06 (dffdbf7), set D with the
+   first hash committed 11:15:38 (cb49053), the run logged 11:15:42 in `data/TEST_RUNS.log`, results committed
+   11:59:57 (e8e0e6d), all 2026-10-13 -0400.
