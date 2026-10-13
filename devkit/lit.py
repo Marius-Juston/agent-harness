@@ -84,7 +84,8 @@ class SourceError(Exception):
     pass
 
 
-KEY_HEADERS = {"x-api-key"}  # request headers that carry a key
+# request headers that carry a key (authorization: dev reuse's GitHub token)
+KEY_HEADERS = {"x-api-key", "authorization"}
 
 
 class KeepKeysOnHost(netsafe.HttpOnlyRedirects):
@@ -133,8 +134,9 @@ def take(state: dict, now: float, rate: float, burst: float, keyed: bool = False
     cooldown = state.get(hold_field(keyed), 0.0) - now
     if cooldown > 0:
         return new, cooldown
-    if tokens >= 1:
-        new["tokens"] = tokens - 1
+    # A sleep of exactly the wait can leave 0.999... tokens; a wait below the clock's resolution would never pass.
+    if tokens >= 1 or now + (1 - tokens) / rate == now:
+        new["tokens"] = max(0.0, tokens - 1)
         return new, 0.0
     return new, (1 - tokens) / rate
 
@@ -147,6 +149,7 @@ class Bucket:
     clock: Callable[[], float] = time.time
     sleep: Callable[[float], None] = time.sleep
     rng: random.Random = field(default_factory=random.Random)
+    rates: dict[str, tuple[float, float]] = field(default_factory=lambda: RATES)  # dev reuse passes its own sources
 
     @contextlib.contextmanager
     def _state(self):
@@ -164,7 +167,7 @@ class Bucket:
                 fcntl.flock(lock, fcntl.LOCK_UN)
 
     def acquire(self, source: str, keyed: bool = False) -> None:
-        rate, burst = RATES[source]
+        rate, burst = self.rates[source]
         while True:
             with self._state() as data:
                 now = self.clock()
@@ -523,6 +526,13 @@ def with_key(source: str, url: str, env: dict[str, str]) -> tuple[str, dict[str,
     return url, {}
 
 
+def limit_403(status: int, headers: dict[str, str]) -> bool:
+    """GitHub answers a spent rate limit with 403 and x-ratelimit-remaining 0, and a secondary limit with 403 and
+    Retry-After: both are throttles, not refusals."""
+    h = {k.lower(): v.strip() for k, v in headers.items()}
+    return status == 403 and (h.get("x-ratelimit-remaining") == "0" or "retry-after" in h)
+
+
 @dataclass
 class Client:
     dir: Path
@@ -531,23 +541,29 @@ class Client:
     sleep: Callable[[float], None] = time.sleep
     env: dict[str, str] = field(default_factory=lambda: dict(os.environ))
     rng: random.Random = field(default_factory=random.Random)
+    # Another tool's sources (dev reuse) share this cache, buckets and backoff with their own rates, keys and auth.
+    rates: dict[str, tuple[float, float]] = field(default_factory=lambda: RATES)
+    keys: dict[str, str] = field(default_factory=lambda: KEYS)
+    auth: Callable[[str, str, dict[str, str]], tuple[str, dict[str, str]]] = with_key
 
     def __post_init__(self) -> None:
         (self.dir / "cache").mkdir(parents=True, exist_ok=True)
-        self.bucket = Bucket(self.dir, self.clock, self.sleep, self.rng)
+        self.bucket = Bucket(self.dir, self.clock, self.sleep, self.rng, self.rates)
 
     def _cache_path(self, url: str) -> Path:
         return self.dir / "cache" / (hashlib.sha256(url.encode()).hexdigest()[:32] + ".json")
 
-    def fetch(self, source: str, url: str, *, live: bool = False, tries: int = TRIES) -> str:
-        """Body of a 200 answer for `url`, from the shared cache when fresh (never when `live`). Raises SourceError
-        otherwise."""
+    def fetch(
+        self, source: str, url: str, *, live: bool = False, tries: int = TRIES, max_age: float = CACHE_DAYS * 86400
+    ) -> str:
+        """Body of a 200 answer for `url`, from the shared cache when younger than `max_age` seconds (never when
+        `live`). Raises SourceError otherwise."""
         path = self._cache_path(url)
         with contextlib.suppress(FileNotFoundError, json.JSONDecodeError, KeyError):
             rec = json.loads(path.read_text())
-            if not live and self.clock() - rec["t"] < CACHE_DAYS * 86400:
+            if not live and self.clock() - rec["t"] < max_age:
                 return rec["body"]
-        send, headers = with_key(source, url, self.env)
+        send, headers = self.auth(source, url, self.env)
         keyed = self.keyed(source)
         status, body = 0, ""
         for attempt in range(tries):
@@ -562,10 +578,10 @@ class Client:
                 return body
             if status == 404:
                 raise SourceError(f"{source}: not found")
-            if status not in (0, 429) and status < 500:
+            throttled = status == 429 or (status == 503 and source in THROTTLE_503) or limit_403(status, resp_headers)
+            if not throttled and status != 0 and status < 500:
                 raise SourceError(f"{source}: HTTP {status}")
             hint = backoff.hinted(resp_headers, self.clock())
-            throttled = status == 429 or (status == 503 and source in THROTTLE_503)
             held = self.bucket.throttled(source, hint, keyed) if throttled else hint
             if held > MAX_WAIT:
                 raise SourceError(f"{source}: rate limited for {held:.0f}s (daily budget spent?); skipped")
@@ -574,7 +590,7 @@ class Client:
         raise SourceError(f"{source}: {'HTTP ' + str(status) if status else 'unreachable'} after {tries} tries")
 
     def keyed(self, source: str) -> bool:
-        return bool(self.env.get(KEYS.get(source, "")))
+        return bool(self.env.get(self.keys.get(source, "")))
 
     def status(self, sources: tuple[str, ...] = SOURCES) -> list["Health"]:
         """Each source's health now: a shared cooldown, else one live, uncached probe search (one try, through the

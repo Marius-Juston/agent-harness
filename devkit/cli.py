@@ -7,7 +7,22 @@ import sys
 import time
 from pathlib import Path
 
-from devkit import board, checks, citecheck, code, config, consolidation, docs, evals, gate, lit, setup, stats, workflow
+from devkit import (
+    board,
+    checks,
+    citecheck,
+    code,
+    config,
+    consolidation,
+    docs,
+    evals,
+    gate,
+    lit,
+    reuse,
+    setup,
+    stats,
+    workflow,
+)
 from devkit.paths import root
 from devkit.suite_audit import due, file_report, last_snapshot, render, report
 
@@ -195,6 +210,28 @@ def build() -> argparse.ArgumentParser:
     x = ls.add_parser("get", help="one paper by DOI, arXiv id, OpenAlex W-id or S2 id, with a longer abstract")
     x.add_argument("id")
     x.add_argument("--snippet", type=int, default=1200)
+    x = sub.add_parser(
+        "reuse",
+        help="reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); "
+        '`"<need>"` searches for more (GitHub, ecosyste.ms, deps.dev; shares dev lit\'s cache and rate limits)',
+    )
+    x.add_argument(
+        "need",
+        nargs="*",
+        default=[],
+        help="what the code must do, in a few words (one quoted argument); or `check` and package names",
+    )
+    x.add_argument("--also", action="append", default=[], help="a paraphrase of the need (repeatable): better recall")
+    x.add_argument(
+        "--from",
+        dest="from_",
+        metavar="FILE[:SYMBOL]",
+        help="build the need from code: name, docstring, comments, imports",
+    )
+    x.add_argument("--ecosystem", default="pypi", choices=[*reuse.ECOS, "any"])
+    x.add_argument("-n", type=int, default=reuse.DEFAULT_N, help=f"candidates (max {reuse.MAX_N})")
+    x.add_argument("--json", action="store_true", help="JSON to paste into a research note")
+    x.add_argument("--allow-copyleft", action="store_true", help="the owner allows strong copyleft (gate G5)")
     r = sub.add_parser("research", help="research notes: new")
     rs = r.add_subparsers(dest="sub", required=True)
     x = rs.add_parser("new", help="create <research_dir>/<slug>.md from the house template")
@@ -317,6 +354,8 @@ def run(a: argparse.Namespace) -> int:
             return 1 if problems or n == 0 else 0
         case "lit":
             return run_lit(a)
+        case "reuse":
+            return run_reuse(a)
         case "research":
             path = root() / config.get().research_dir / f"{a.slug}.md"
             if path.exists():
@@ -374,6 +413,33 @@ def run_lit(a: argparse.Namespace) -> int:
         return 2
     print(lit.render(papers, notes, a.snippet))
     return 0 if papers or not notes else 1
+
+
+def run_reuse(a: argparse.Namespace) -> int:
+    if a.need[:1] == ["check"]:
+        if not a.need[1:] or a.ecosystem == "any":
+            print("error: dev reuse check takes package names and --ecosystem pypi, npm or cargo", file=sys.stderr)
+            return 2
+        report = reuse.check(reuse.client(), a.need[1:], a.ecosystem, a.allow_copyleft)
+        print(reuse.to_json(report) if a.json else reuse.render(report))
+        return 0 if all(c.status in (reuse.PASS, reuse.HOLD) for c in report["candidates"]) else 1
+    if len(a.need) > 1:
+        print('error: quote the need as one argument: dev reuse "<need>"', file=sys.stderr)
+        return 2
+    queries = [q for q in (*a.need, *a.also) if q.strip()]
+    if a.from_:
+        try:
+            queries.append(reuse.from_spec(a.from_))
+        except LookupError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    if not queries:
+        print("error: give a need, --also or --from", file=sys.stderr)
+        return 2
+    encoder, why = reuse.load_encoder()
+    report = reuse.search(reuse.client(), queries, a.ecosystem, a.n, encoder, why, a.allow_copyleft)
+    print(reuse.to_json(report) if a.json else reuse.render(report))
+    return 0 if report["candidates"] or not report["notes"] else 1
 
 
 def run_board(a: argparse.Namespace) -> int:
