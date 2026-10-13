@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Move this project's Claude Code memory between machines.
+#   scripts/claude-memory.sh export [file]   # default ~/{{ project_name }}-claude-memory.tgz
+#   scripts/claude-memory.sh import [file]
+# Memory lives under ~/.claude/projects/<the checkout's path with / turned into ->/memory, so a checkout at a
+# different path on the new machine gets the files under its own key. It is personal: keep it out of git.
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd -P)
+dir="$HOME/.claude/projects/$(printf '%s' "$root" | sed 's#[^A-Za-z0-9]#-#g')/memory"
+file="${2:-$HOME/{{ project_name }}-claude-memory.tgz}"
+case "${1:-}" in
+  export)
+    [ -d "$dir" ] || { echo "No memory at $dir" >&2; exit 1; }
+    tar -czf "$file" -C "$dir" . && echo "Exported $(ls "$dir" | wc -l) files to $file" ;;
+  import)
+    [ -f "$file" ] || { echo "No archive at $file" >&2; exit 1; }
+    mkdir -p "$dir" && tar -xzf "$file" -C "$dir" && echo "Imported into $dir" ;;
+  *) echo "usage: $0 export|import [file]" >&2; exit 2 ;;
+esac

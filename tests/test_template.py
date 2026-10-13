@@ -258,3 +258,71 @@ def test_a_fresh_clone_reaches_a_green_gate_following_readme_and_contributing(tm
         check=False,
     )
     assert out.returncode == 0 and "RESULT: passed" in out.stdout, (out.stdout + out.stderr)[-3000:]
+
+
+def test_the_project_carries_the_routine_prompts(rendered):
+    """docs/PROMPTS.md picks the routine in one line; the /goal prompt itself lives only in docs/SESSION.md."""
+    prompts = (rendered / "docs/PROMPTS.md").read_text()
+    for must in ("harness-ops:lead", "harness-ops:research", "harness-ops:harness", "uv run dev board brief N"):
+        assert must in prompts, must
+    assert "(SESSION.md)" in prompts and "/goal You are" not in prompts
+    assert "docs/PROMPTS.md" in (rendered / "README.md").read_text()
+
+
+def test_the_multi_agent_spec_is_rendered_from_the_one_in_this_repository(rendered):
+    """The spec is written once (docs/specs/multi-agent.md here); a project gets it with links that resolve there."""
+    ours = (ROOT / "docs/specs/multi-agent.md").read_text()
+    theirs = (rendered / "docs/specs/multi-agent.md").read_text()
+    url = f"https://github.com/Marius-Juston/agent-harness/blob/v{version()}/docs/research/agent-harness.md"
+    # template/docs/specs/multi-agent.md.jinja is this transformation of ours: change both together
+    assert theirs == ours.replace(
+        "[../research/agent-harness.md](../research/agent-harness.md)", f"[agent-harness research]({url})"
+    )
+    assert "](../" not in theirs  # a relative link out of docs/specs would dangle in a project
+    assert "(../docs/specs/multi-agent.md)" in (rendered / ".devkit/HARNESS.md").read_text()
+
+
+def test_the_memory_script_is_named_for_the_project_and_round_trips(rendered, tmp_path):
+    script = rendered / "scripts/claude-memory.sh"
+    assert script.stat().st_mode & 0o111, "not executable"
+    text = script.read_text()
+    assert text.count("-claude-memory.tgz") == text.count("demo-project-claude-memory.tgz") == 2  # no other name
+    home = tmp_path / "home"
+    key = re.sub(r"[^A-Za-z0-9]", "-", str(rendered.resolve()))
+    memory = home / ".claude/projects" / key / "memory"
+    memory.mkdir(parents=True)
+    (memory / "MEMORY.md").write_text("- a preference\n")
+    env = {"HOME": str(home), "PATH": "/usr/bin:/bin"}
+    out = subprocess.run([str(script), "export"], env=env, capture_output=True, text=True, check=True)
+    assert (home / "demo-project-claude-memory.tgz").is_file() and "Exported 1 files" in out.stdout
+    (memory / "MEMORY.md").unlink()
+    subprocess.run([str(script), "import"], env=env, capture_output=True, text=True, check=True)
+    assert (memory / "MEMORY.md").read_text() == "- a preference\n"
+    usage = subprocess.run([str(script)], env=env, capture_output=True, text=True, check=False)
+    assert usage.returncode == 2 and "usage" in usage.stderr
+
+
+def test_the_project_carries_the_agent_surface_evals(rendered):
+    """`uv run dev eval` finds scenarios in a new project: the generic ones, each from a real failure class."""
+    scenarios = sorted((rendered / "evals/scenarios").glob("*.yaml"))
+    assert [p.stem for p in scenarios] == ["gate-before-pr", "uv-not-pip"]
+    for p in scenarios:
+        sc = yaml.safe_load(p.read_text())
+        assert sc["prompt"] and {"expect_command", "forbid_command", "order"} & set(sc), p
+        for regex in [*sc.get("expect_command", []), *sc.get("forbid_command", []), *sc.get("order", [])]:
+            re.compile(regex)
+    gate_before_pr = yaml.safe_load((rendered / "evals/scenarios/gate-before-pr.yaml").read_text())
+    assert "docs/PROMPTS.md" in gate_before_pr["prompt"]  # the file it edits exists in every project
+    assert "uv run dev eval" in (rendered / "evals/README.md").read_text()
+
+
+def test_the_settings_allow_the_read_only_board_commands(rendered):
+    allow = json.loads((rendered / ".claude/settings.json").read_text())["permissions"]["allow"]
+    for rule in (
+        "Bash(uv run dev --help)",
+        "Bash(uv run dev board lint)",
+        "Bash(uv run dev board wave *)",
+        "Bash(uv run dev board feedback *)",
+    ):
+        assert rule in allow, rule
+    assert not [r for r in allow if r.startswith("Bash(uv run dev board lint") and r != "Bash(uv run dev board lint)"]
