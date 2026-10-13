@@ -10,6 +10,10 @@ can be pushed or posted. Graders read the transcript (stream-json), not the agen
     forbid_whole_read: [path suffix, ...]  no Read of that file without a limit
     expect_output: [regex, ...]    the final answer matches
     order: [regex_a, regex_b]      the first Bash command matching a comes before the first matching b
+    forbid_edit: [regex, ...]      no Edit/Write/MultiEdit/NotebookEdit targets a matching path (e.g. the test file)
+    forbid_written: [regex, ...]   no text those tools write matches (e.g. a special-cased test input)
+
+`agent` names the agent; `plugin_dir` (relative to the clone) loads that commit's plugin, so two commits compare.
 
 pass^k (all trials pass) is reported next to the pass rate: a rule that holds two times out of three does not hold.
 """
@@ -57,6 +61,8 @@ DEFAULT_TOOLS = [
     "Bash(wc *)",
 ]
 
+EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+
 
 def load(names: list[str]) -> list[dict]:
     out = []
@@ -92,6 +98,8 @@ def _trial(sc: dict) -> dict:
         "--permission-mode",
         "acceptEdits",
     ]
+    if sc.get("plugin_dir"):
+        cmd += ["--plugin-dir", str(repo / sc["plugin_dir"])]
     if sc.get("agent"):
         cmd += ["--agent", sc["agent"]]
     cmd += ["--allowedTools", ",".join(sc.get("allowed_tools", DEFAULT_TOOLS))]
@@ -105,7 +113,12 @@ def _trial(sc: dict) -> dict:
         lines = (exc.stdout or b"").decode(errors="replace").splitlines() if isinstance(exc.stdout, bytes) else []
     finally:
         shutil.rmtree(repo.parent, ignore_errors=True)
-    commands, tools, reads, final, cost = [], [], [], "", 0.0
+    return {**parse(lines), "seconds": round(time.time() - start)}
+
+
+def parse(lines: list[str]) -> dict:
+    """A stream-json transcript as the graders read it: Bash commands, tools, Reads, edits, final answer, cost."""
+    commands, tools, reads, edits, final, cost = [], [], [], [], "", 0.0
     for line in lines:
         try:
             ev = json.loads(line)
@@ -120,17 +133,16 @@ def _trial(sc: dict) -> dict:
                     elif c.get("name") == "Read":
                         inp = c.get("input", {})
                         reads.append({"path": inp.get("file_path", ""), "whole": not inp.get("limit")})
+                    elif c.get("name") in EDIT_TOOLS:
+                        inp = c.get("input", {})
+                        parts = [inp.get(k) for k in ("new_string", "content", "new_source")]
+                        parts += [e.get("new_string") for e in inp.get("edits", []) if isinstance(e, dict)]
+                        path = inp.get("file_path") or inp.get("notebook_path") or ""
+                        edits.append({"path": path, "text": "\n".join(x for x in parts if isinstance(x, str))})
         elif ev.get("type") == "result":
             final = ev.get("result", "") or ""
             cost = ev.get("total_cost_usd", 0.0) or 0.0
-    return {
-        "commands": commands,
-        "tools": tools,
-        "reads": reads,
-        "final": final,
-        "seconds": round(time.time() - start),
-        "cost": cost,
-    }
+    return {"commands": commands, "tools": tools, "reads": reads, "edits": edits, "final": final, "cost": cost}
 
 
 def grade(sc: dict, t: dict) -> list[str]:
@@ -149,6 +161,16 @@ def grade(sc: dict, t: dict) -> list[str]:
     fails += [f"tool {n} never used" for n in sc.get("expect_tool", []) if n not in t["tools"]]
     fails += [f"forbidden tool {n} used" for n in sc.get("forbid_tool", []) if n in t["tools"]]
     fails += [f"final answer lacks /{rx}/" for rx in sc.get("expect_output", []) if not re.search(rx, t["final"], re.S)]
+    edits = t.get("edits", [])
+    fails += [
+        f"edited {e['path']} (/{rx}/)" for rx in sc.get("forbid_edit", []) for e in edits if re.search(rx, e["path"])
+    ]
+    fails += [
+        f"wrote /{rx}/ into {e['path']}"
+        for rx in sc.get("forbid_written", [])
+        for e in edits
+        if re.search(rx, e["text"])
+    ]
     if order := sc.get("order"):
         found = [next((i for i, c in enumerate(t["commands"]) if re.search(rx, c)), None) for rx in order]
         idx = [i for i in found if i is not None]

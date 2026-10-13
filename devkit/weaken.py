@@ -298,7 +298,7 @@ def check_weakening(base: str | None) -> Ran:
             reason = f"#{number} could not be read ({e})"
     ran.problems += found
     ran.problems.append(
-        f'{reason}. Fix the code, not the test; if the test is wrong, `uv run dev board block <n> "<why>"` and ask'
+        f'{reason}. Fix the code, not the test; if the test is wrong, `uv run dev board block <n> --reason "<why>"` and ask'
         " the owner to approve the change in the issue"
     )
     return ran

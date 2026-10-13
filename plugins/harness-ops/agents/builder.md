@@ -18,7 +18,8 @@ You implement ONE issue for this project. Other agents work in parallel, so stay
 - Write a failing test per DONE WHEN item first, then implement until it passes. Use Hypothesis for pure logic with large input spaces. A bug you find gets a regression test.
 - Iterate with `uv run dev test --affected`. Do not run the full suite repeatedly.
 - No hidden state: seed randomness, inject clocks, and keep I/O at the edges, so tests are deterministic.
-- Never weaken a test, check or budget; the gate flags removed asserts and new skips. A test that looks wrong: `uv run dev board block <n> "<why>"` and stop. Never edit generated files. Never read `.env`.
+- Never weaken a test, check or budget (the gate flags removed asserts and new skips), and never special-case or hard-code test inputs. A test you cannot satisfy legitimately: `uv run dev board block <n> --reason "<why>"` and stop.
+- Never edit generated files. Never read `.env`.
 - Edits outside Owns: make one only when the issue needs it end to end, and list it in the hand-back. If `board brief` shows another worker on that file, ask the lead for it instead (a hotspot request).
 - Scratch files go in `.scratch/` in your worktree.
 
