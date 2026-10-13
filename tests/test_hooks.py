@@ -893,6 +893,16 @@ def test_completion_gate_fails_open_on_an_unreadable_reuse_probe(hook, tmp_path)
     assert code not in (0, 2) and out == "" and "reuse probe" in err
 
 
+def test_completion_gate_probes_fit_in_the_hook_timeout_with_room_for_git_and_gh():
+    """Review on #186: the reuse probe is bounded at 60 s so both probes plus a 60 s gh call stay within 240 s."""
+    spec = importlib.util.spec_from_file_location("completion_gate", HOOKS / "completion_gate.py")
+    gate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gate)
+    [entry] = _hook_entries("SubagentStop", "completion_gate.py")
+    assert gate.REUSE_TIMEOUT == 60
+    assert entry["hooks"][0]["timeout"] >= gate.GATE_TIMEOUT + gate.REUSE_TIMEOUT + 60
+
+
 def test_completion_gate_allows_a_finished_builder_and_forgets_its_refusals(hook, tmp_path):
     repo, env = _builder_repo(tmp_path)
     (repo / "wip.py").write_text("x = 1\n")

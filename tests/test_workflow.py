@@ -115,12 +115,19 @@ def test_a_new_dependency_needs_a_reuse_line(branch):
     branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', '"rich>=13", "HTTPX[http2]>=0.27"'))
     assert workflow.reuse_needs("main") == ["dependency httpx"]
     assert "has no `Reuse:` line" in workflow.reuse_problem("Closes #9\n\nadded httpx")
-    assert workflow.reuse_problem("Closes #9\n\nReuse: httpx pass (chosen), requests HOLD dormant") is None
+    assert workflow.reuse_problem("Closes #9\n\nReuse: httpx PASS (chosen), requests HOLD dormant") is None
 
 
 def test_a_new_dependency_group_entry_counts_too(branch):
     branch("pyproject.toml", PYPROJECT.replace('["pytest"]', '["pytest", "hypothesis"]'))
     assert workflow.reuse_needs("main") == ["dependency hypothesis"]
+
+
+def test_a_uv_dev_dependency_counts_and_the_project_itself_does_not(branch):
+    """Review on #186: [tool.uv] dev-dependencies is uv's legacy group, and `p[extra]` is a self-reference."""
+    extra = '[project.optional-dependencies]\nall = ["P[dev]"]\n[tool.uv]\ndev-dependencies = ["ruff"]\n'
+    branch("pyproject.toml", PYPROJECT.replace("[dependency-groups]", extra + "[dependency-groups]"))
+    assert workflow.reuse_needs("main") == ["dependency ruff"]
 
 
 def test_an_unparsable_pyproject_adds_no_dependency(branch):
@@ -136,9 +143,12 @@ def test_a_new_non_test_module_needs_a_reuse_line(branch):
 
 
 def test_neither_needs_no_line(branch):
-    """Tests, edits to existing modules, renames, version bumps and non-Python files do not count."""
+    """Tests, edits to existing modules, renames, version bumps, non-Python files and empty or whitespace-only
+    modules (package markers) do not count."""
     branch("tests/test_new.py", "def test(): pass\n")
     branch("pkg/conftest.py", "")
+    branch("pkg/sub/__init__.py", "")
+    branch("pkg/blank.py", " \n\n\t\n")
     branch("pkg/old.py", "".join(f"X{i} = {i}\n" for i in range(9)))
     branch("pyproject.toml", PYPROJECT.replace("rich>=13", "rich>=14"))
     branch("docs/new.md", "text\n")
@@ -151,11 +161,15 @@ def test_neither_needs_no_line(branch):
 @pytest.mark.parametrize(
     "line",
     [
-        "Reuse: httpx pass (chosen), requests HOLD dormant",
+        "Reuse: httpx PASS (chosen), requests HOLD dormant",
         "- **Reuse:** aiohttp FAIL (archived); none of the rest fit",
+        "Reuse: requestz NOT FOUND, httpx: UNVERIFIED, pyside6 FLAG",
         "Reuse: docs/research/http.md weighed them",
         "Reuse: none: a 20-line parser over our own TOML keys",
+        "Reuse: none: harness adoption",
         "reuse: None - glue code over devkit.board",
+        "Reuse: none – en dash",
+        "Reuse: none — em dash",
     ],
 )
 def test_each_documented_form_is_accepted(branch, line):
@@ -165,7 +179,15 @@ def test_each_documented_form_is_accepted(branch, line):
 
 @pytest.mark.parametrize(
     "line",
-    ["Reuse: looked around", "Reuse: docs/research/missing.md", "Reuse: none:", "Reuse:", "We did not Reuse: anything"],
+    [
+        "Reuse: looked around",
+        "Reuse: docs/research/missing.md",
+        "Reuse: none:",
+        "Reuse:",
+        "We did not Reuse: anything",
+        "Reuse: tests pass",
+        "Reuse: httpx pass",
+    ],
 )
 def test_a_line_in_none_of_the_forms_is_refused(branch, line):
     branch("pkg/new.py", "Y = 2\n")
@@ -173,5 +195,10 @@ def test_a_line_in_none_of_the_forms_is_refused(branch, line):
 
 
 def test_the_forms_are_documented_in_one_place():
-    for form in ("Reuse: httpx pass", "Reuse: docs/research/", "Reuse: none: <reason>"):
+    for form in (
+        "Reuse: httpx PASS",
+        "Reuse: docs/research/",
+        "Reuse: none: <reason>",
+        "Reuse: none: harness adoption",
+    ):
         assert form in workflow.REUSE_FORMS

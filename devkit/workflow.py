@@ -237,27 +237,36 @@ def pr_areas() -> list[str]:
 REUSE_FORMS = """\
 A branch that adds a dependency to pyproject.toml or a new non-test .py module needs one `Reuse:` line in its PR
 summary, in one of three forms (#173; why: docs/research/software-discovery.md §9):
-  Reuse: httpx pass (chosen), requests HOLD dormant   <- candidates named from memory, with their gate results
-                                                         from `uv run dev reuse check <name>...` (pass, HOLD or FAIL)
+  Reuse: httpx PASS (chosen), requests HOLD dormant   <- candidates named from memory, each with its result as
+                                                         `uv run dev reuse check <name>...` prints it (PASS, HOLD,
+                                                         FAIL, FLAG, NOT FOUND or UNVERIFIED)
   Reuse: docs/research/<note>.md                      <- the research note that already weighed them (must exist)
-  Reuse: none: <reason>                               <- why no library applies"""
+  Reuse: none: <reason>                               <- why no library applies (`none` then :, -, – or —),
+                                                         e.g. `Reuse: none: harness adoption` on a copier update
+Empty or whitespace-only new .py files (package markers) do not count."""
 REUSE_LINE = re.compile(r"^[\s>*_-]*Reuse[*_]*:[*_]*[ \t]*(.*)$", re.M | re.I)
-GATE_RESULT = re.compile(r"\b[A-Za-z0-9][\w.\[\]-]*\W{0,3}(pass|hold|fail)\b", re.I)
+GATE_RESULT = re.compile(r"\b[A-Za-z0-9][\w.\[\]-]*[\s:(=]{1,3}(PASS|HOLD|FAIL|FLAG|NOT FOUND|UNVERIFIED)\b")
+NONE_REASON = re.compile(r"none\s*[:\-–—]\s*\S", re.I)
 NOTE_PATH = re.compile(r"docs/research/[\w./-]+\.md")
 
 
+def _normalized(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def _dependency_names(pyproject: str) -> set[str]:
-    """Normalized names in [project] dependencies, optional-dependencies and [dependency-groups] (PEP 735)."""
+    """Normalized names in [project] dependencies and optional-dependencies, [dependency-groups] (PEP 735) and
+    [tool.uv] dev-dependencies, less the project's own name (a self-reference such as `p[extra]`)."""
     try:
         data = tomllib.loads(pyproject)
     except tomllib.TOMLDecodeError:
         return set()
     project = data.get("project", {})
-    specs = [*project.get("dependencies", [])]
+    specs = [*project.get("dependencies", []), *data.get("tool", {}).get("uv", {}).get("dev-dependencies", [])]
     for group in (*project.get("optional-dependencies", {}).values(), *data.get("dependency-groups", {}).values()):
         specs += group
     names = (re.match(r"\s*([A-Za-z0-9][\w.-]*)", s) for s in specs if isinstance(s, str))
-    return {re.sub(r"[-_.]+", "-", m.group(1)).lower() for m in names if m}
+    return {_normalized(m.group(1)) for m in names if m} - {_normalized(str(project.get("name", "")))}
 
 
 def _is_test(path: str) -> bool:
@@ -272,7 +281,11 @@ def reuse_needs(base: str) -> list[str]:
     head_deps = _dependency_names(git("show", "HEAD:pyproject.toml", check=False))
     deps = head_deps - _dependency_names(git("show", f"{base}:pyproject.toml", check=False))
     added = git("diff", "--name-only", "-M", "--diff-filter=A", base, "HEAD").splitlines()
-    modules = [p for p in added if p.endswith(".py") and not _is_test(p)]
+    modules = [
+        p
+        for p in added
+        if p.endswith(".py") and not _is_test(p) and git("show", f"HEAD:{p}", check=False).strip()  # not a marker
+    ]
     return [*(f"dependency {d}" for d in sorted(deps)), *(f"module {m}" for m in modules)]
 
 
@@ -280,7 +293,7 @@ def reuse_line_problem(body: str) -> str | None:
     """Why `body` has no `Reuse:` line in one of REUSE_FORMS, or None."""
     lines = [m.group(1).strip() for m in REUSE_LINE.finditer(body)]
     for line in lines:
-        if GATE_RESULT.search(line) or re.match(r"none\s*[:-]\s*\S", line, re.I):
+        if GATE_RESULT.search(line) or NONE_REASON.match(line):
             return None
         if (note := NOTE_PATH.search(line)) and (root() / note.group(0)).is_file():
             return None

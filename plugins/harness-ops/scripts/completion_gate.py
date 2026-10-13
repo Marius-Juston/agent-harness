@@ -21,6 +21,8 @@ from pathlib import Path
 
 CAP = 2
 TOTAL_CAP = 6
+# Seconds for the two devkit probes; with the git and gh calls the whole stop stays under hooks.json's 240 s.
+GATE_TIMEOUT, REUSE_TIMEOUT = 120, 60
 
 
 def run(cmd: list[str], cwd: str, timeout: int = 60) -> subprocess.CompletedProcess:
@@ -36,7 +38,7 @@ def git(cwd: str, *args: str) -> str:
 
 def gate_passed(top: str) -> bool:
     code = "from devkit.workflow import _gate_passed; print('GATE', 'yes' if _gate_passed() else 'no')"
-    out = run(["uv", "run", "--quiet", "python", "-c", code], top, timeout=120)
+    out = run(["uv", "run", "--quiet", "python", "-c", code], top, timeout=GATE_TIMEOUT)
     found = re.findall(r"^GATE (yes|no)$", out.stdout, re.M)
     if not found:
         raise RuntimeError(f"gate probe gave no answer: {(out.stderr or out.stdout).strip()[-300:]}")
@@ -50,7 +52,7 @@ def reuse_missing(top: str, body: str) -> str | None:
         "p = reuse_problem(sys.stdin.read()); print('REUSE', json.dumps(p and f'{p}.\\n{REUSE_FORMS}'))"
     )
     cmd = ["uv", "run", "--quiet", "python", "-c", code]
-    out = subprocess.run(cmd, cwd=top, input=body, capture_output=True, text=True, timeout=120, check=False)
+    out = subprocess.run(cmd, cwd=top, input=body, capture_output=True, text=True, timeout=REUSE_TIMEOUT, check=False)
     found = re.findall(r"^REUSE (.*)$", out.stdout, re.M)
     if not found:
         raise RuntimeError(f"reuse probe gave no answer: {(out.stderr or out.stdout).strip()[-300:]}")
