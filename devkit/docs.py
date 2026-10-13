@@ -9,6 +9,7 @@
 import json
 import re
 import tomllib
+from collections.abc import Sequence
 
 from devkit import config, frontmatter
 from devkit.checks import _agents, _hook_files, _kind, _skills, measured_words
@@ -41,9 +42,8 @@ def _scoped(p, name: object) -> str:
     return str(name)
 
 
-def surface() -> str:
-    from devkit.cli import command_help  # lazy: the CLI imports this module
-
+def surface(commands: Sequence[tuple[str, str]]) -> str:
+    """`commands` is the CLI's (name, help) rows, passed in because the CLI imports this module."""
     cfg = config.get()
     words = measured_words()
     budgets = tomllib.loads((root() / cfg.ratchets).read_text())
@@ -95,7 +95,7 @@ def surface() -> str:
             f"| {name} | `{_cell(' '.join([spec.get('command', spec.get('url', '')), *spec.get('args', [])]))}` |"
         )
     out.append("\n## Dev commands (`uv run dev <command>`)\n\n| command | what |\n|---|---|")
-    out += [f"| `{name}` | {_cell(text)} |" for name, text in command_help()]
+    out += [f"| `{name}` | {_cell(text)} |" for name, text in commands]
     out.append(f"\n## Word budgets (`{cfg.ratchets}`, only tighten)\n\n| file | words | budget |\n|---|---|---|")
     for rel, n in sorted(words.items()):
         default = budgets.get("defaults", {}).get(_kind(rel), "-")
@@ -125,14 +125,17 @@ def research_index() -> str:
     return "\n".join(out) + "\n"
 
 
-def render() -> dict[str, str]:
+def render(commands: Sequence[tuple[str, str]]) -> dict[str, str]:
     cfg = config.get()
-    return {f"{cfg.generated_dir}/agent-surface.md": surface(), f"{cfg.research_dir}/INDEX.md": research_index()}
+    return {
+        f"{cfg.generated_dir}/agent-surface.md": surface(commands),
+        f"{cfg.research_dir}/INDEX.md": research_index(),
+    }
 
 
-def write() -> list[str]:
+def write(commands: Sequence[tuple[str, str]]) -> list[str]:
     changed = []
-    for rel, content in render().items():
+    for rel, content in render(commands).items():
         path = root() / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         if not path.exists() or path.read_text() != content:
