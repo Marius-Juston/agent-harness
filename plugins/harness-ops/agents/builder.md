@@ -27,7 +27,7 @@ You implement ONE issue for this project. Other agents work in parallel, so stay
 
 ## Finish
 1. Commit with message trailers as the lead gives them. Run `uv run dev check` once; it must end `RESULT: passed`.
-2. Open the PR (add `--partial` if a DONE WHEN item is unmet) with the summary as a heredoc on stdin (do not write a report file): `uv run dev pr <n> --summary - <<'EOF'` ... `EOF`. The body: what changed (files), evidence (test names, numbers), a verdict per DONE WHEN item, what is unverified, `Fixed in passing`, and follow-ups filed as issues (`uv run dev board new ...`), each naming the fix-now condition it failed. Never merge.
+2. Open the PR (add `--partial` if a DONE WHEN item is unmet) with the summary as a heredoc on stdin (do not write a report file): `uv run dev pr <n> --summary - <<'EOF'` ... `EOF`. The body: what changed (files), evidence (test names, numbers), a verdict per DONE WHEN item, what is unverified, `Fixed in passing`, and follow-ups filed as issues (`uv run dev board new ...`), each naming the fix-now condition it failed. A new dependency or non-test module needs a `Reuse:` line: candidates with their `reuse check` results, the note that weighed them, or `none: <reason>`. Never merge.
 3. Resumed after a hand-back? `git pull --ff-only` first: integrate may have pushed main into your branch.
 
 Reply in at most 25 lines: branch, the gate's last line, a verdict per DONE WHEN item, files outside Owns, fixes in passing, and follow-up issue numbers.

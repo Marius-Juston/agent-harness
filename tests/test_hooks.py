@@ -789,6 +789,7 @@ def test_worktree_create_refuses_bad_names_and_places_beside_repo(hook, tmp_path
 FAKE_UV = """#!/usr/bin/env bash
 case "$*" in
   *"board block"*) echo "$*" >> "$FAKE_LOG" ;;
+  *reuse_problem*) cat > "$FAKE_LOG.body"; echo "REUSE ${FAKE_REUSE:-null}" ;;
   *python*) echo "GATE $FAKE_GATE" ;;
 esac
 """
@@ -868,6 +869,38 @@ def test_completion_gate_refuses_a_pr_behind_head(hook, tmp_path):
     repo, env = _builder_repo(tmp_path, prs=[{"url": "u", "headRefOid": "0" * 40}])
     _, out, _ = hook("completion_gate.py", _stop(repo), env)
     assert "git push" in _refusal(out)
+
+
+def test_completion_gate_refuses_a_pr_whose_summary_lacks_a_reuse_line(hook, tmp_path):
+    """#173: devkit decides (devkit.workflow.reuse_problem, tests in test_workflow.py); the gate passes it the body of
+    the PR that shows HEAD and refuses with devkit's answer."""
+    repo, env = _builder_repo(tmp_path)
+    head = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    prs = [{"url": "old", "headRefOid": "0" * 40, "body": "stale"}, {"url": "u", "headRefOid": head, "body": "Closes"}]
+    env = {**env, "FAKE_PRS": json.dumps(prs), "FAKE_REUSE": json.dumps("the branch adds module m.py.\nReuse: none")}
+    _, out, _ = hook("completion_gate.py", _stop(repo), env)
+    assert "adds module m.py" in _refusal(out) and "gh pr edit --body-file -" in _refusal(out)
+    assert (tmp_path / "calls.log.body").read_text() == "Closes"
+    assert "url,headRefOid,body" in (tmp_path / "calls.log").read_text()
+
+
+def test_completion_gate_fails_open_on_an_unreadable_reuse_probe(hook, tmp_path):
+    repo, env = _builder_repo(tmp_path)
+    (tmp_path / "bin/uv").write_text(
+        '#!/usr/bin/env bash\ncase "$*" in *reuse_problem*) exit 1 ;; esac\necho GATE yes\n'
+    )
+    code, out, err = hook("completion_gate.py", _stop(repo), env)
+    assert code not in (0, 2) and out == "" and "reuse probe" in err
+
+
+def test_completion_gate_probes_fit_in_the_hook_timeout_with_room_for_git_and_gh():
+    """Review on #186: the reuse probe is bounded at 60 s so both probes plus a 60 s gh call stay within 240 s."""
+    spec = importlib.util.spec_from_file_location("completion_gate", HOOKS / "completion_gate.py")
+    gate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gate)
+    [entry] = _hook_entries("SubagentStop", "completion_gate.py")
+    assert gate.REUSE_TIMEOUT == 60
+    assert entry["hooks"][0]["timeout"] >= gate.GATE_TIMEOUT + gate.REUSE_TIMEOUT + 60
 
 
 def test_completion_gate_allows_a_finished_builder_and_forgets_its_refusals(hook, tmp_path):

@@ -194,6 +194,9 @@ def build() -> argparse.ArgumentParser:
     x = ls.add_parser("search", help="papers for a query: title, year, venue, cites, ids, abstract snippet")
     x.add_argument("query")
     x.add_argument(
+        "--also", action="append", default=[], help="a paraphrase of the query (repeatable): results merged, deduped"
+    )
+    x.add_argument(
         "--source",
         default="auto",
         help=f"comma list of {', '.join(lit.SOURCES)}, or all; auto (default) asks {', '.join(lit.DEFAULT_SOURCES)}, "
@@ -207,13 +210,31 @@ def build() -> argparse.ArgumentParser:
         help="each source's health now (live probe); exits 1 only when every default source is down: "
         "run before a research round",
     )
-    x = ls.add_parser("get", help="one paper by DOI, arXiv id, OpenAlex W-id or S2 id, with a longer abstract")
-    x.add_argument("id")
-    x.add_argument("--snippet", type=int, default=1200)
+    x = ls.add_parser(
+        "get",
+        help="papers by DOI, arXiv id, OpenAlex W-id or S2 id: authors, open-access link, full abstract; "
+        "several ids batch into one OpenAlex call",
+    )
+    x.add_argument("id", nargs="+")
+    x.add_argument("--snippet", type=int, default=None, help="abstract characters (default: all; 0 = none)")
+    for name, what in (("refs", "the works it cites (backward)"), ("cited-by", "the works citing it (forward)")):
+        x = ls.add_parser(
+            name, help=f"citation chasing through OpenAlex: {what}, most cited first, compact lines like search"
+        )
+        x.add_argument("id", help="a DOI, arXiv id or OpenAlex W-id")
+        x.add_argument("-n", type=int, default=lit.DEFAULT_N, help=f"results (max {lit.MAX_N})")
+        x.add_argument("--years", default="", help="2019, 2015-, -2020 or 2015-2020")
+        x.add_argument("--snippet", type=int, default=lit.SNIPPET, help="abstract characters per paper (0 = none)")
     x = sub.add_parser(
         "reuse",
         help="reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); "
         '`"<need>"` searches for more (GitHub, ecosyste.ms, deps.dev; shares dev lit\'s cache and rate limits)',
+        # one parser, two forms: `check` is read from the first word, so the usage names both (#179)
+        usage=f"%(prog)s check NAME... [--ecosystem {{{','.join(reuse.ECOS)}}}] [--json] [--allow-copyleft]\n"
+        f'       %(prog)s "<need>" [--also NEED] [--from FILE[:SYMBOL]] [--ecosystem {{{",".join([*reuse.ECOS, "any"])}}}]'
+        " [-n N] [--json] [--allow-copyleft]",
+        description="check NAME...: verify the packages you name first; exits 1 unless every name passes or holds. "
+        '"<need>": search for more options only when you know no good candidate.',
     )
     x.add_argument(
         "need",
@@ -404,10 +425,13 @@ def run_lit(a: argparse.Namespace) -> int:
     try:
         if a.sub == "search":
             sources, fallback = lit.plan(a.source)
-            papers, notes = lit.client().search(a.query, sources, a.n, a.years, fallback=fallback)
+            papers, notes = lit.client().search(a.query, sources, a.n, a.years, fallback=fallback, also=tuple(a.also))
+        elif a.sub in lit.CHASE:
+            papers, notes = lit.client().chase(a.id, a.sub, a.n, a.years)
         else:
-            paper, notes = lit.client().lookup(a.id)
-            papers = [paper] if paper else []
+            found, notes = lit.client().lookup_many(a.id)
+            print(lit.render_full([p for p in found if p], notes, a.snippet))
+            return 0 if all(found) else 1
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
