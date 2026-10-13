@@ -13,7 +13,8 @@ removed from every candidate list and every agent answer before ranking or scori
 
 Arms: R0-R7 on the A1 pool (PR #171 recall) and on the A2 pool (A1 + the B0 names, always shortlisted); B0 and B1
 (r3-tuning.md "Declared"); A3 (agent re-rank of A2's top 20); each --arm (an index's names added to the A2 pool,
-not forced). TUNE only: a TEST need in any snapshot stops the run. Metrics: hit@3 (95% bootstrap, 10,000 resamples,
+not forced). TUNE by default: a need from another split in any snapshot stops the run; TEST runs only with
+--split test|code_test --confirm-test-run, logged in data/TEST_RUNS.log. Metrics: hit@3 (95% bootstrap, 10,000 resamples,
 seed 169), hit@1, hit@10, MRR@10, harm = share of the top 3 that is HOLD, FAIL, unverified or unknown; paired hit@3
 differences; strata A/P and head/tail (head_flags.json).
 """
