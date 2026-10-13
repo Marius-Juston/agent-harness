@@ -21,7 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 
@@ -332,7 +332,9 @@ def gate_lock(path: Path, on_wait: Callable[[], None] = lambda: None) -> Iterato
         yield
 
 
-def stages(full: bool, commands: dict[str, set[str]], base: str | None) -> list[Callable[[], Ran]]:
+def stages(
+    full: bool, commands: dict[str, set[str]], base: str | None, help_rows: Sequence[tuple[str, str]] = ()
+) -> list[Callable[[], Ran]]:
     return [
         checks.check_surface,
         checks.check_settings,
@@ -342,7 +344,7 @@ def stages(full: bool, commands: dict[str, set[str]], base: str | None) -> list[
         board.check_board,
         lambda: checks.check_ratchets(base),
         lambda: weaken.check_weakening(base),
-        lambda: checks.check_generated(docs.render()),
+        lambda: checks.check_generated(docs.render(help_rows)),
         lambda: _run("ruff lint", ["ruff", "check", "--quiet", "--output-format", "concise", "."]),
         lambda: _run("ruff format", ["ruff", "format", "--check", "--quiet", "--output-format", "concise", "."]),
         lock_check,
@@ -368,7 +370,9 @@ def clean_bytecode() -> bool:
     return bool(sys.pycache_prefix) and os.environ.get(CLEAN_FLAG) == sys.pycache_prefix
 
 
-def check(commands: dict[str, set[str]], full: bool = False, use_cache: bool = True) -> int:
+def check(
+    commands: dict[str, set[str]], help_rows: Sequence[tuple[str, str]] = (), full: bool = False, use_cache: bool = True
+) -> int:
     if not clean_bytecode():
         # This process has already imported devkit, possibly from a planted __pycache__. Re-run the gate in a fresh
         # interpreter whose bytecode (and every test subprocess's) lives in a new empty dir, never in the tree.
@@ -389,7 +393,7 @@ def check(commands: dict[str, set[str]], full: bool = False, use_cache: bool = T
     with gate_lock(state_dir() / "gate.lock", on_wait=waiting):
         start = time.time()
         failed = 0
-        for stage in stages(full, commands, base):
+        for stage in stages(full, commands, base, help_rows):
             ran = stage()
             print(ran.line(), flush=True)
             for p in ran.problems[:FAIL_LINES]:

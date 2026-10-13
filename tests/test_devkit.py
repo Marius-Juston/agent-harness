@@ -1,13 +1,15 @@
 """Contracts of the dev harness: empty checks fail, parsing is robust, commands named in docs exist."""
 
+import ast
 import contextlib
+import inspect
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, checks, citecheck, code, frontmatter
-from devkit.cli import command_map
+from devkit import board, checks, citecheck, code, docs, frontmatter
+from devkit.cli import command_help, command_map
 from devkit.ran import Ran
 
 
@@ -97,6 +99,18 @@ def test_documented_core_commands_exist():
     for c in ("orient", "check", "test", "docs", "code", "board", "pr", "integrate", "cite-check", "setup", "doctor"):
         assert c in cmds
     assert {"claim", "brief", "next", "new"} <= cmds["board"]
+
+
+def test_docs_takes_command_rows_and_never_imports_the_cli():
+    # The CLI imports docs; docs reading the CLI back closed a 5-module import cycle (#140).
+    tree = ast.parse(inspect.getsource(docs))
+    imported = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
+    imported |= {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    assert "devkit.cli" not in imported
+    assert not any(isinstance(a, ast.alias) and a.name == "cli" for a in ast.walk(tree))
+    rows = [*command_help(), ("made-up sub", "a | b")]
+    surface = next(v for k, v in docs.render(rows).items() if k.endswith("agent-surface.md"))
+    assert "| `made-up sub` | a / b |" in surface and "| `board next` |" in surface
 
 
 @pytest.mark.parametrize(
