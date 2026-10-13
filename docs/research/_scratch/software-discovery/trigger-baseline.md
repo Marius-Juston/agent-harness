@@ -26,7 +26,7 @@ The pre-registration is #183's Context. The scenarios are `evals/scenarios/reuse
 | reuse-yamlrt | 3/3 | 1.00 | yes |
 | **all** | 30/30 | 1.00 | 10 of 10 |
 
-The baseline already meets the 80% target. In every trial the builder ran `dev reuse check` (or `dev reuse "<need>"`), usually on two or three candidates it named itself, and then added one of them with `uv add`.
+The baseline already meets the 80% target. In every trial the builder ran `dev reuse check` (or `dev reuse "<need>"`), usually on one to three candidates it named itself, and in most trials it then added one of them with `uv add`.
 
 ## Ceiling (read this before the after-run)
 
