@@ -1029,6 +1029,41 @@ def test_maintenance_keeps_one_broken_links_issue_open_or_closes_it():
     assert "${{" not in script  # expressions only via env (no template injection)
 
 
+def test_maintenance_link_check_skips_research_scratch():
+    wf = yaml.safe_load((gate.root() / "template/.github/workflows/maintenance.yml").read_text())
+    lychee = next(s for s in wf["jobs"]["external-links"]["steps"] if s.get("id") == "lychee")
+    assert "--exclude-path 'docs/research/_scratch/'" in lychee["with"]["args"]  # #120: most of 1,245 errors
+
+
+@pytest.mark.parametrize("lines", [3, 20_000])
+def test_maintenance_issue_body_stays_under_githubs_limit(tmp_path, lines):
+    """#120: an oversized report made `gh issue create` fail ("Body is too long (maximum is 65536 characters)")."""
+    wf = yaml.safe_load((gate.root() / "template/.github/workflows/maintenance.yml").read_text())
+    report = wf["jobs"]["external-links"]["steps"][-1]
+    (tmp_path / "lychee").mkdir()
+    errors = "".join(f"* [404] <https://example.com/é/{n}> | Failed: Network error\n" for n in range(lines))
+    (tmp_path / "lychee/out.md").write_text(f"# Summary\n\n| Errors | {lines} |\n\n## Errors\n{errors}")
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "gh").write_text('#!/bin/sh\nfor last; do :; done\n[ "$2" = create ] && cp "$last" "$CAPTURE"\nexit 0\n')
+    (fake / "gh").chmod(0o755)
+    env = {
+        **os.environ,
+        "PATH": f"{fake}:{os.environ['PATH']}",
+        "EXIT_CODE": "2",
+        "CAPTURE": str(tmp_path / "sent.md"),
+        "RUN_URL": "https://github.com/o/r/actions/runs/1",
+    }
+    run = subprocess.run(
+        ["bash", "-eo", "pipefail", "-c", report["run"]], cwd=tmp_path, env=env, capture_output=True, text=True
+    )
+    assert run.returncode == 0, run.stderr
+    body = (tmp_path / "sent.md").read_text()
+    assert len(body) < 65_536 and body.startswith("# Summary") and "https://github.com/o/r/actions/runs/1" in body
+    assert ("truncated" in body.lower()) == (lines > 3)
+    assert f"example.com/é/{lines - 1}>" in run.stdout  # the full report is in the run log
+
+
 # --- #76: merging with no Actions minutes (`dev integrate --local-ci`) ----------------------------------------------
 
 
