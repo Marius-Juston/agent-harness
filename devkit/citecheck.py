@@ -23,7 +23,6 @@ import json
 import os
 import random
 import re
-import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -51,16 +50,7 @@ MATCH_FLOOR = 0.55
 
 
 def _get(url: str, timeout: int = 20) -> tuple[int, dict[str, str], str]:
-    if why := netsafe.bad_scheme(url):
-        return 0, {}, why
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "*/*"})  # noqa: S310 - http(s) only
-    try:
-        with netsafe.OPENER.open(req, timeout=timeout) as r:
-            return r.status, dict(r.headers), r.read(400_000).decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as e:
-        return e.code, dict(e.headers or {}), ""
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
-        return 0, {}, str(e)
+    return netsafe.http_get(url, ua=UA, timeout=timeout, cap=400_000, opener=netsafe.OPENER)
 
 
 TRIES = 2  # one retry of a transient answer; the next run retries again
@@ -207,16 +197,7 @@ def save_cache(path: Path, new: dict) -> None:
     """Merge `new` into the cache file under a lock and replace the file atomically: a parallel reader sees the old
     file or the new one, never half of one, and parallel writers keep each other's entries."""
     with _locked(path):
-        cache = _read_cache(path) | new
-        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(cache, f)
-            os.replace(tmp, path)
-        except BaseException:
-            with contextlib.suppress(FileNotFoundError):
-                os.unlink(tmp)
-            raise
+        netsafe.atomic_write(path, json.dumps(_read_cache(path) | new))
 
 
 def check_notes(paths: list[Path], offline_ok: bool = False) -> tuple[int, list[str], list[str]]:
