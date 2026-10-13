@@ -3,6 +3,7 @@ thresholds: docs/research/test-suite-design.md §9-§10."""
 
 import json
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -239,6 +240,22 @@ def test_never_run_lists_ids_no_job_runs_stray_files_and_lax_xfail():
     assert suite_audit.check_never_run({"a"}, {"a"}, [], 2, True, [], 0).problems == []
     rose = suite_audit.check_never_run({"a"}, {"a"}, [], 0, False, ["x", "y"], 1)
     assert rose.problems == ["tests skipped in CI rose from 1 to 2"] and "x" in rose.info
+    first = suite_audit.check_never_run({"a"}, {"a"}, [], 0, False, ["x", "y"], None)  # no audit to compare with
+    assert first.problems == [] and "x" in first.info
+
+
+def test_test_files_outside_testpaths_except_in_nested_projects(repo):
+    repo.commit(
+        {
+            "tests/test_a.py": "",
+            "pkg/test_stray.py": "",
+            "pkg/util_test.py": "",
+            "template/pyproject.toml.jinja": "",
+            "template/tests/test_project.py": "",
+            "docs/research/test_x.py": "",
+        }
+    )
+    assert suite_audit.outside_testpaths(repo.path, ["tests"]) == ["pkg/test_stray.py", "pkg/util_test.py"]
 
 
 def test_ci_pytest_commands_are_read_from_workflows():
@@ -325,9 +342,12 @@ def test_orient_lines_are_empty_outside_a_repository_and_never_raise(tmp_path, m
     def boom(*a, **k):
         raise board.BoardError("rate limited")
 
+    # board.repo() reads the origin remote, which a fresh clone points at a path: pin it (found by this audit's own
+    # fresh-clone parity check, the test passed in the worktree only)
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "gh", boom)
     assert suite_audit.orient_lines(repo.path) == ["suite audit trigger failed: rate limited"]
-    monkeypatch.setattr(suite_audit, "_orient", lambda r: __import__("time").sleep(5) or [])
+    monkeypatch.setattr(suite_audit, "_orient", lambda r: time.sleep(5) or [])
     assert "skipped: over 0.2 s" in suite_audit.orient_lines(repo.path, budget_s=0.2)[0]
 
 

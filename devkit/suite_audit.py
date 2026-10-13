@@ -370,8 +370,15 @@ def check_ci(runs: list[dict] | None, newest_commit: float | None, now: float, h
 
 
 def check_never_run(
-    collected: set[str], ran: set[str], outside: list[str], xfail: int, strict: bool, ci_skipped: list[str], was: int
+    collected: set[str],
+    ran: set[str],
+    outside: list[str],
+    xfail: int,
+    strict: bool,
+    ci_skipped: list[str],
+    was: int | None,
 ) -> Check:
+    """`was`: tests skipped in CI at the last audit (None: no audit recorded, so no rise can be seen yet)."""
     c = Check(
         "never_run", "never-run tests", "every collected test runs in the gate or a CI job; none outside testpaths"
     )
@@ -382,7 +389,7 @@ def check_never_run(
     if ci_skipped:
         c.info.append(f"{len(ci_skipped)} test(s) skipped in the latest CI history but passing here")
         c.info += ci_skipped[:SHOWN]
-        if len(ci_skipped) > was:
+        if was is not None and len(ci_skipped) > was:
             c.problems.append(f"tests skipped in CI rose from {was} to {len(ci_skipped)}")
     return c
 
@@ -525,12 +532,17 @@ def ci_pytest_selections(workflows: dict[str, str]) -> tuple[bool, list[tuple[st
 
 
 def outside_testpaths(repo: Path, testpaths: list[str]) -> list[str]:
-    files = _git(repo, "ls-files", "-z").split("\0")
+    """Tracked test files pytest never collects: outside testpaths, and not inside a nested project (a directory with
+    its own pyproject.toml, or a Copier template's pyproject.toml.jinja), whose suite is its own."""
+    files = [f for f in _git(repo, "ls-files", "-z").split("\0") if f]
+    nested = {str(Path(f).parent) for f in files if Path(f).name in ("pyproject.toml", "pyproject.toml.jinja")} - {"."}
     roots = tuple(p.rstrip("/") + "/" for p in testpaths)
     return sorted(
         f
         for f in files
-        if re.search(r"(^|/)test_[^/]*\.py$|_test\.py$", f) and not f.startswith(roots) and not f.startswith(NOT_CODE)
+        if re.search(r"(^|/)test_[^/]*\.py$|_test\.py$", f)
+        and not f.startswith((*roots, *NOT_CODE))
+        and not any(f.startswith(n + "/") for n in nested)
     )
 
 
@@ -794,7 +806,7 @@ def report(repo: Path, reruns: int | None = None, quick: bool = False, now: floa
             head.xfail,
             bool(ini.get("xfail_strict")),
             ci_skipped,
-            int((snap or {}).get("ci_skipped", 0)),
+            (snap or {}).get("ci_skipped"),
         ),
         check_slow([*ledger, *clone_runs], head.slow, tier, gate_s),
         check_drift(then, head, tier),
