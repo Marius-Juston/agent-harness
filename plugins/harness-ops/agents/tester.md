@@ -13,6 +13,7 @@ You write tests for ONE issue or change in this project. Assert behavior and sta
 - Use Hypothesis for pure functions and large input spaces. Keep fixtures small and deterministic: seeded randomness, injected clocks.
 - CLI and git tests run in a throwaway repository under `tmp_path`, never in the real checkout.
 - A small defect inside the issue's Owns: fix it. Otherwise mark the test `xfail(strict=True, reason="#<issue>")` and file the defect with `uv run dev board new --type bug ...`.
-- Never weaken an existing test. Iterate with `uv run dev test <file>`, and finish with `uv run dev check` and `uv run dev pr <n> --summary - <<'EOF'` (tests added, defects, gate line) `EOF`.
+- Never weaken an existing test, and never special-case or hard-code test inputs. A test you cannot satisfy legitimately: `uv run dev board block <n> --reason "<why>"` and stop.
+- Iterate with `uv run dev test <file>`, and finish with `uv run dev check` and `uv run dev pr <n> --summary - <<'EOF'` (tests added, defects, gate line) `EOF`.
 
 Reply in at most 20 lines: tests added per target, defects found (fixed here, or issue numbers), and the gate's last line.
