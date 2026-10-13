@@ -139,7 +139,7 @@ Inline links above, fetched 2026-10-12 by the round researchers or at synthesis;
 
 ## Follow-ups
 - [ ] Build §8 items 1-4 (#113). DONE WHEN #113's own DONE WHEN holds.
-- [ ] Prevention: push a scoped signature map with each issue brief. DONE WHEN a command prints the map of named packages within a token budget, briefs include it, and tests cover it.
-- [ ] Prevention: warn on new copies of existing code (type-1/2 clone pairs, new fragment not a class body). DONE WHEN the gate prints the warning, and a seeded test of 20 re-implemented helpers reports its recall.
-- [ ] Measure whether a pushed map changes reuse for Claude. DONE WHEN an eval reports redundancy with and without the map on the same scenarios.
-- [ ] Recalibrate the trigger thresholds. DONE WHEN H has at least 300 first-parent commits and a replay reports fires and what each review found.
+- [ ] #122 Prevention: push a scoped signature map with each issue brief. DONE WHEN a command prints the map of named packages within a token budget, briefs include it, and tests cover it.
+- [ ] #123 Prevention: warn on new copies of existing code (type-1/2 clone pairs, new fragment not a class body). DONE WHEN the gate prints the warning, and a seeded test of 20 re-implemented helpers reports its recall.
+- [ ] #124 Measure whether a pushed map changes reuse for Claude. DONE WHEN an eval reports redundancy with and without the map on the same scenarios.
+- [ ] #125 Recalibrate the trigger thresholds. DONE WHEN H has at least 300 first-parent commits and a replay reports fires and what each review found.
