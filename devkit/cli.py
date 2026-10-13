@@ -207,9 +207,13 @@ def build() -> argparse.ArgumentParser:
         help="each source's health now (live probe); exits 1 only when every default source is down: "
         "run before a research round",
     )
-    x = ls.add_parser("get", help="one paper by DOI, arXiv id, OpenAlex W-id or S2 id, with a longer abstract")
-    x.add_argument("id")
-    x.add_argument("--snippet", type=int, default=1200)
+    x = ls.add_parser(
+        "get",
+        help="papers by DOI, arXiv id, OpenAlex W-id or S2 id: authors, open-access link, full abstract; "
+        "several ids batch into one OpenAlex call",
+    )
+    x.add_argument("id", nargs="+")
+    x.add_argument("--snippet", type=int, default=None, help="abstract characters (default: all; 0 = none)")
     x = sub.add_parser(
         "reuse",
         help="reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); "
@@ -412,8 +416,9 @@ def run_lit(a: argparse.Namespace) -> int:
             sources, fallback = lit.plan(a.source)
             papers, notes = lit.client().search(a.query, sources, a.n, a.years, fallback=fallback)
         else:
-            paper, notes = lit.client().lookup(a.id)
-            papers = [paper] if paper else []
+            found, notes = lit.client().lookup_many(a.id)
+            print(lit.render_full([p for p in found if p], notes, a.snippet))
+            return 0 if all(found) else 1
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
