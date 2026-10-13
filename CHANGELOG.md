@@ -4,6 +4,43 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.7 (2026-10-13)
+
+Reuse before build becomes a checked step: agents verify candidate libraries before they write code, `uv add` runs
+the same gates, and the PR names what was weighed. The literature commands gain fields and citation chasing.
+
+### Upgrading a project
+Run `uvx copier update --data harness_ref=v0.1.7`, then `uv sync && uv run dev docs && uv run dev check`. These can
+need attention:
+- **New `uv add` guard (PreToolUse hook).** Each package named in `uv add` goes through `uv run dev reuse check`
+  first. A name PyPI does not know, a malicious-package advisory or strong or network copyleft is refused; other
+  findings are warnings, and an unreachable registry fails open with a warning. To allow a copyleft package, the
+  owner lists it in `DEVKIT_ALLOW_COPYLEFT` (comma-separated) in the environment Claude Code runs in; an assignment
+  inside the command does not count. (#172)
+- **New `Reuse:` completion check.** A branch that adds a dependency to pyproject.toml or a new non-test module
+  needs one `Reuse:` line in its PR summary: candidates with their `reuse check` results, the research note that
+  weighed them, or `none: <reason>` (`Reuse: none: harness adoption` for this update). (#173)
+- **Optional extra `semantic`.** `uv add 'agent-harness[semantic]'` installs model2vec, which `dev reuse` search
+  uses to re-rank by meaning; without it the re-rank is BM25, and the output says which ran. (#29)
+
+### Added
+- `uv run dev reuse "<need>"` searches, gates and ranks maintained libraries and repositories, and
+  `uv run dev reuse check <name>...` verifies named candidates (existence, malicious advisories, age, maintenance,
+  licence, open advisories). The builder and researcher prompts name candidates first, then check them. Design and
+  evidence in the research note `software-discovery.md`. (#29, #169, #179)
+- `uv run dev lit get` returns authors, the open-access link and the full abstract, takes several ids, and batches
+  OpenAlex lookups. (#174, #30)
+- `uv run dev lit refs` and `uv run dev lit cited-by` chase citations backward and forward through OpenAlex. (#193)
+- `uv run dev lit search --also` searches paraphrases too and merges the results by rank. (#194)
+- `uv run dev cite-check` flags DOIs that Crossref marks retracted, withdrawn or removed; an expression of concern
+  is a note. (#195)
+- Ten pre-registered reuse-before-build trigger scenarios with their grader under evals/. (#183)
+- The lead skill documents dispatching a builder onto another repository's issue. (#170)
+
+### Fixed
+- The licence gate reads a dual-licensed package as either licence (OR) and prefers the registry's SPDX
+  expression, and it flags an undeclared licence list that mixes in strong copyleft. (#180, #182)
+
 ## v0.1.6 (2026-10-13)
 
 A fix found adopting v0.1.5.
