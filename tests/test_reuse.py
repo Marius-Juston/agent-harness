@@ -803,3 +803,17 @@ def test_cli_check_json_exit_codes_and_errors(fake_cli, capsys):
     assert dev(["reuse", "retry", "with", "backoff"]) == 2  # an unquoted need is refused, not half-searched
     with pytest.raises(ValueError, match="for check"):
         reuse.check(reuse.client(), ["x"], "any")
+
+
+@pytest.mark.parametrize(
+    ("eco", "body"),
+    [
+        ("npm", {"repository": {"url": "git+https://github.com/O/Pkg.git"}, "description": "d"}),
+        ("cargo", {"crate": {"repository": "https://github.com/o/pkg", "description": "d"}}),
+        ("pypi", {"info": {"home_page": "https://example.org", "summary": "d"}}),
+    ],
+)
+def test_from_registry_reads_each_registrys_repository_field(eco, body):
+    c = reuse.from_registry("pkg", eco, body)
+    assert (c.name, c.ecosystem, c.description) == ("pkg", eco, "d")
+    assert c.repo == ("" if eco == "pypi" else "github.com/o/pkg") and c.record is body
