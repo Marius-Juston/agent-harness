@@ -1,0 +1,215 @@
+{
+ "L-002": [
+  "drawille"
+ ],
+ "L-003": [
+  "manim",
+  "manimgl"
+ ],
+ "L-006": [
+  "browser-use",
+  "stagehand",
+  "playwright"
+ ],
+ "L-007": [],
+ "L-008": [
+  "semgrep",
+  "bandit",
+  "pip-audit"
+ ],
+ "L-009": [
+  "smolagents"
+ ],
+ "L-011": [
+  "vanna"
+ ],
+ "L-014": [
+  "ortools",
+  "pyomo",
+  "pulp"
+ ],
+ "L-016": [
+  "open-interpreter"
+ ],
+ "L-019": [
+  "bibtexparser",
+  "habanero",
+  "pyalex"
+ ],
+ "L-023": [],
+ "L-025": [
+  "mlflow",
+  "dvc",
+  "wandb"
+ ],
+ "L-026": [
+  "wxauto"
+ ],
+ "L-027": [
+  "rembg",
+  "transparent-background",
+  "backgroundremover"
+ ],
+ "L-029": [
+  "llama-cpp-python",
+  "vllm"
+ ],
+ "L-030": [],
+ "L-032": [
+  "zat"
+ ],
+ "L-034": [],
+ "L-036": [],
+ "L-037": [
+  "mujoco",
+  "mujoco-mjx"
+ ],
+ "L-039": [],
+ "L-040": [],
+ "L-041": [],
+ "L-043": [],
+ "L-046": [
+  "mem0ai",
+  "chromadb"
+ ],
+ "L-048": [
+  "azure-mgmt-costmanagement",
+  "plotly"
+ ],
+ "L-049": [
+  "coremltools"
+ ],
+ "L-050": [
+  "mlx-lm",
+  "mlx"
+ ],
+ "L-051": [
+  "py-spy",
+  "scalene",
+  "viztracer"
+ ],
+ "L-052": [
+  "pyserial",
+  "pyserial-asyncio"
+ ],
+ "L-054": [
+  "mapie",
+  "crepes"
+ ],
+ "L-055": [
+  "pyapacheatlas",
+  "azure-purview-catalog"
+ ],
+ "L-060": [
+  "tabpfn",
+  "tabicl",
+  "autogluon.tabular"
+ ],
+ "L-061": [
+  "deepeval",
+  "guardrails-ai",
+  "inspect-ai"
+ ],
+ "L-063": [
+  "faster-whisper",
+  "yt-dlp"
+ ],
+ "L-066": [
+  "lancedb",
+  "pylance"
+ ],
+ "L-067": [
+  "smolagents"
+ ],
+ "L-071": [
+  "graphrag",
+  "lightrag-hku"
+ ],
+ "L-072": [
+  "peft"
+ ],
+ "L-073": [
+  "fastplotlib",
+  "vispy"
+ ],
+ "L-076": [
+  "lerobot"
+ ],
+ "L-078": [],
+ "L-079": [
+  "inspect-ai",
+  "verifiers"
+ ],
+ "L-080": [
+  "robosuite",
+  "mani-skill"
+ ],
+ "L-081": [
+  "uiautomator2",
+  "adbutils",
+  "facebook-wda"
+ ],
+ "L-083": [],
+ "L-084": [
+  "build123d",
+  "cadquery"
+ ],
+ "L-087": [
+  "graphiti-core",
+  "mem0ai",
+  "letta"
+ ],
+ "L-088": [],
+ "L-090": [
+  "kalshi-python",
+  "py-clob-client"
+ ],
+ "L-091": [
+  "matplotlib"
+ ],
+ "L-092": [
+  "pyslang",
+  "pyvcd"
+ ],
+ "L-093": [
+  "shell-gpt"
+ ],
+ "L-095": [
+  "tilelang",
+  "triton"
+ ],
+ "L-096": [
+  "outlines",
+  "xgrammar",
+  "guidance"
+ ],
+ "L-097": [
+  "instructor"
+ ],
+ "L-098": [],
+ "L-099": [
+  "inspect-ai"
+ ],
+ "L-100": [],
+ "L-101": [],
+ "L-102": [],
+ "L-103": [
+  "patchright",
+  "camoufox",
+  "undetected-chromedriver"
+ ],
+ "L-104": [
+  "moviepy"
+ ],
+ "_model": "claude-opus-5-5",
+ "_calls": {
+  "L-002": {
+   "turns": 1,
+   "web_search_requests": 0,
+   "cost_usd": 0.13831100000000002,
+   "error": false
+  }
+ },
+ "_date": "2026-10-13",
+ "_how": "claude -p --model claude-opus-5-5 --tools '' --strict-mcp-config --setting-sources '' --output-format json from an empty directory; prompt = b0_latest_prompt.md body with test_latest.json, batches of 64"
+}

@@ -1,0 +1,1434 @@
+[
+ {
+  "repo": "2akouwu/reverify",
+  "packages": [
+   "reverify"
+  ],
+  "first_upload": "2026-09-02T15:37:29.740901Z",
+  "repo_created": "2026-08-31T01:02:18Z",
+  "stars_at_fetch": 1284,
+  "summary": "Anti-hallucination for AI agents that read binaries: the model proposes, deterministic tools decide. Claims verified or refuted against the real bytes, with evidence; grounded facts survive context resets. MCP server + CLI.",
+  "need": "Anti-hallucination for AI agents that read binaries: the model proposes, deterministic tools decide. Claims verified or refuted against the real bytes, with evidence; grounded facts survive context resets. MCP server + CLI.",
+  "also_described_as": [
+   "anti-hallucination hallucination grounding verification llm ai-agents context-engineering mcp reverse-engineering binary-analysis disassembler frida protobuf malware-analysis ctf"
+  ]
+ },
+ {
+  "repo": "a-shygun/terrascope",
+  "packages": [
+   "terrascope"
+  ],
+  "first_upload": "2026-10-06T22:40:50.068090Z",
+  "repo_created": "2026-09-28T21:19:26Z",
+  "stars_at_fetch": 143,
+  "summary": "A Braille terminal map with live weather, aircraft, and earthquake layers.",
+  "need": "A Braille terminal map with live weather, aircraft, and earthquake layers.",
+  "also_described_as": [
+   "braille curses flight-tracking map opensky terminal tui weather"
+  ]
+ },
+ {
+  "repo": "academa-labs/manimgx",
+  "packages": [
+   "manimgx",
+   "manimgx-fonts",
+   "manimgx-fonts-cjk"
+  ],
+  "first_upload": "2026-10-07T09:10:39.825089Z",
+  "repo_created": "2026-10-05T20:57:05Z",
+  "stars_at_fetch": 1078,
+  "summary": "The animation engine for agents: blazingly fast math and 3D videos with Manim's Python API, on a Rust GPU core.",
+  "need": "The animation engine for agents: blazingly fast math and 3D videos with Manim's Python API, on a Rust GPU core.",
+  "also_described_as": []
+ },
+ {
+  "repo": "acoci86/terrahour",
+  "packages": [
+   "terrahour"
+  ],
+  "first_upload": "2026-10-01T12:35:12.155812Z",
+  "repo_created": "2026-10-01T11:05:15Z",
+  "stars_at_fetch": 174,
+  "summary": "World clock for the terminal with a day and night map and a 24-hour timeline",
+  "need": "World clock for the terminal with a day and night map and a 24-hour timeline",
+  "also_described_as": [
+   "world clock time zones tui terminal timezone world map tmux"
+  ]
+ },
+ {
+  "repo": "activeing123/mcptoon",
+  "packages": [
+   "mcptoon"
+  ],
+  "first_upload": "2026-08-11T11:50:47.261513Z",
+  "repo_created": "2026-07-27T08:24:21Z",
+  "stars_at_fetch": 219,
+  "summary": "One zero-dependency CLI to manage every MCP server and agent skill: token optimization for tool discovery (71,929 -> 581 tokens, -99.2% measured, schemas stay out of context), one config for every agent.",
+  "need": "One zero-dependency CLI to manage every MCP server and agent skill: token optimization for tool discovery (71,929 -> 581 tokens, -99.2% measured, schemas stay out of context), one config for every agent.",
+  "also_described_as": [
+   "mcp mcp-cli mcp-tools mcp-client cli token-efficient token-optimization context-compression model-context-protocol agent llm zero-dependencies"
+  ]
+ },
+ {
+  "repo": "agent-labs-dev/fastbrowse",
+  "packages": [
+   "fastbrowse"
+  ],
+  "first_upload": "2026-09-18T10:45:16.679601Z",
+  "repo_created": "2026-09-17T15:11:57Z",
+  "stars_at_fetch": 117,
+  "summary": "Browser automation with cited answers, structured output and code-controlled credentials and authorization.",
+  "need": "Browser automation with cited answers, structured output and code-controlled credentials and authorization.",
+  "also_described_as": []
+ },
+ {
+  "repo": "agentpit-io/hunter-community",
+  "packages": [
+   "agentpit-akshare-mcp",
+   "kronos-mcp",
+   "truesource-mcp"
+  ],
+  "first_upload": "2026-09-10T10:29:07.651300Z",
+  "repo_created": "2026-08-10T10:37:07Z",
+  "stars_at_fetch": 584,
+  "summary": "MCP server for Kronos stock price forecasting — China A-shares",
+  "need": "MCP server for Kronos stock price forecasting — China A-shares",
+  "also_described_as": [
+   "a-share finance forecast model-context-protocol quant stock timeseries"
+  ]
+ },
+ {
+  "repo": "aletheore/aletheore",
+  "packages": [
+   "aletheore"
+  ],
+  "first_upload": "2026-07-16T14:43:22.658947Z",
+  "repo_created": "2026-07-13T12:07:57Z",
+  "stars_at_fetch": 239,
+  "summary": "Evidence-grounded repository audit CLI: deterministic scanner, MCP server, live dashboard, and a GitHub Action that posts PR diffs.",
+  "need": "Evidence-grounded repository audit CLI: deterministic scanner, MCP server, live dashboard, and a GitHub Action that posts PR diffs.",
+  "also_described_as": [
+   "code-review static-analysis secrets-detection dependency-vulnerabilities mcp-server"
+  ]
+ },
+ {
+  "repo": "alexzhang13/spec-ptc",
+  "packages": [
+   "spec-ptc"
+  ],
+  "first_upload": "2026-08-24T05:51:07.732643Z",
+  "repo_created": "2026-08-21T15:27:12Z",
+  "stars_at_fetch": 223,
+  "summary": "Speculative programmatic tool calling for CodeAct/RLM-style harnesses",
+  "need": "Speculative programmatic tool calling for CodeAct/RLM-style harnesses",
+  "also_described_as": []
+ },
+ {
+  "repo": "anthropics/commerce-agents",
+  "packages": [
+   "kifly-storefront-backend"
+  ],
+  "first_upload": "2026-09-03T15:09:35.801613Z",
+  "repo_created": "2026-09-01T12:30:12Z",
+  "stars_at_fetch": 3228,
+  "summary": "Kifly as the StorefrontBackend for Anthropic's commerce-agents blueprint",
+  "need": "Kifly as the StorefrontBackend for blueprint",
+  "also_described_as": []
+ },
+ {
+  "repo": "ashishsinha1602/schemagate",
+  "packages": [
+   "schemagate"
+  ],
+  "first_upload": "2026-09-07T15:37:47.911719Z",
+  "repo_created": "2026-09-06T15:28:25Z",
+  "stars_at_fetch": 102,
+  "summary": "Identity-scoped schema selection for text-to-SQL: give the model only the tables this caller may read, and 75% fewer prompt tokens",
+  "need": "Identity-scoped schema selection for text-to-SQL: give the model only the tables this caller may read, and 75% fewer prompt tokens",
+  "also_described_as": [
+   "ai-agent anthropic bm25 data-catalog database gemini hybrid-search langchain llm mcp model-context-protocol nl2sql openai oracle oracle-23ai postgresql prompt-engineering rag rls row-level-security schema-linking schema-retrieval schema-selection sql-generation sql-server sqlalchemy text-to-sql text2sql vector-search vpd"
+  ]
+ },
+ {
+  "repo": "ashutoshsinghpr7/wikiskill",
+  "packages": [
+   "wikiskill"
+  ],
+  "first_upload": "2026-08-30T08:16:29.666880Z",
+  "repo_created": "2026-08-29T20:44:02Z",
+  "stars_at_fetch": 272,
+  "summary": "WikiSkill (arXiv:2608.27454) for Hermes Agent — self-evolving agent skills via a persistent knowledge wiki",
+  "need": "(arXiv:2608.27454) for Hermes Agent — self-evolving agent skills via a persistent knowledge wiki",
+  "also_described_as": [
+   "agents skills skill-evolution wiki llm hermes self-improving agent-experience persistent-knowledge arxiv-2608.27454"
+  ]
+ },
+ {
+  "repo": "birfy/agentdescent",
+  "packages": [
+   "agentdescent"
+  ],
+  "first_upload": "2026-07-26T16:14:06.193579Z",
+  "repo_created": "2026-07-24T13:48:05Z",
+  "stars_at_fetch": 190,
+  "summary": "Gradient descent, but the parameters are agents — a parallel, asynchronous framework for self-evolving agents (skills, prompts, harnesses)",
+  "need": "Gradient descent, but the parameters are agents — a parallel, asynchronous framework for self-evolving agents (skills, prompts, harnesses)",
+  "also_described_as": [
+   "rsi self-evolving-agents parallel aggregation staleness"
+  ]
+ },
+ {
+  "repo": "brayonpi/hexstellar",
+  "packages": [
+   "hexstellar"
+  ],
+  "first_upload": "2026-08-23T04:33:15.415828Z",
+  "repo_created": "2026-08-27T20:53:42Z",
+  "stars_at_fetch": 1398,
+  "summary": "Run hard optimization, scientific, and decision workloads with explicit assurance — JSON in, verified result out. Agent-first CLI + Python API, zero setup.",
+  "need": "Run hard optimization, scientific, and decision workloads with explicit assurance — JSON in, verified result out. Agent-first CLI + Python API, zero setup.",
+  "also_described_as": [
+   "optimization combinatorial-optimization operations-research constraint-solver solver qubo ising maxcut tsp qap milp scheduling routing assignment-problem decision-engine ai-agent agent-first llm-tools mcp cli sdk"
+  ]
+ },
+ {
+  "repo": "brekkylab/backlot",
+  "packages": [
+   "backlot"
+  ],
+  "first_upload": "2026-08-11T04:56:56.547042Z",
+  "repo_created": "2026-07-02T11:04:23Z",
+  "stars_at_fetch": 292,
+  "summary": "A local emulator for enterprise SaaS APIs, served over your own corpus with per-document ACLs",
+  "need": "A local emulator for enterprise SaaS APIs, served over your own corpus with per-document ACLs",
+  "also_described_as": [
+   "mock rag slack gmail google-drive jira confluence github notion s3 amazon-s3 hubspot linear graphql benchmark"
+  ]
+ },
+ {
+  "repo": "browser-use/macos-harness",
+  "packages": [
+   "macos-harness"
+  ],
+  "first_upload": "2026-08-17T16:10:05.116654Z",
+  "repo_created": "2026-08-17T00:22:20Z",
+  "stars_at_fetch": 909,
+  "summary": "The simplest, thinnest harness that gives an LLM complete freedom to control a Mac.",
+  "need": "The simplest, thinnest harness that gives an LLM complete freedom to control a Mac.",
+  "also_described_as": [
+   "accessibility agent automation cdp computer-use macos"
+  ]
+ },
+ {
+  "repo": "canberk7/ema-lightning",
+  "packages": [
+   "ema-lightning"
+  ],
+  "first_upload": "2026-10-05T21:44:42.492709Z",
+  "repo_created": "2026-10-05T20:19:47Z",
+  "stars_at_fetch": 181,
+  "summary": "Tiny, fast and accurate Turkish text to speech.",
+  "need": "Tiny, fast and accurate Turkish text to speech.",
+  "also_described_as": [
+   "speech-synthesis text-to-speech tts turkish türkçe"
+  ]
+ },
+ {
+  "repo": "cayu-dev/cayu",
+  "packages": [
+   "cayu"
+  ],
+  "first_upload": "2026-07-17T00:35:16.186422Z",
+  "repo_created": "2026-07-16T07:19:58Z",
+  "stars_at_fetch": 833,
+  "summary": "Cayu is an open-source Python framework for building and running domain-specific long-horizon agents, with a durable runtime built in.",
+  "need": "is an open-source Python framework for building and running domain-specific long-horizon agents, with a durable runtime built in.",
+  "also_described_as": []
+ },
+ {
+  "repo": "chrisyangsong/citegate",
+  "packages": [
+   "citegate"
+  ],
+  "first_upload": "2026-08-11T21:20:22.253687Z",
+  "repo_created": "2026-08-11T18:14:37Z",
+  "stars_at_fetch": 104,
+  "summary": "Citation integrity as a CI gate: verify BibTeX references against Crossref, OpenAlex, and DBLP, catch fabricated citations, and get alerted when a paper you cite is retracted.",
+  "need": "Citation integrity as a CI gate: verify BibTeX references against Crossref, OpenAlex, and DBLP, catch fabricated citations, and get alerted when a paper you cite is retracted.",
+  "also_described_as": [
+   "bibtex citations references hallucination retraction crossref openalex dblp ci research-integrity"
+  ]
+ },
+ {
+  "repo": "danieldeer/seriousdb",
+  "packages": [
+   "seriousdb"
+  ],
+  "first_upload": "2026-09-18T06:28:23.979869Z",
+  "repo_created": "2026-09-12T09:42:41Z",
+  "stars_at_fetch": 311,
+  "summary": "A seriously simple key-value database",
+  "need": "A seriously simple key-value database",
+  "also_described_as": [
+   "database key-value storage"
+  ]
+ },
+ {
+  "repo": "daoyuanli2816/mini-verl",
+  "packages": [
+   "miniverl"
+  ],
+  "first_upload": "2026-07-29T04:07:10.953178Z",
+  "repo_created": "2026-07-27T16:53:22Z",
+  "stars_at_fetch": 306,
+  "summary": "Verl experiment semantics compiled for one NVIDIA GPU.",
+  "need": "Verl experiment semantics compiled for one NVIDIA GPU.",
+  "also_described_as": [
+   "agentic-rl consumer-gpu gkd grpo knowledge-distillation llm llm-agents on-policy-distillation parquet peft post-training qlora qwen rloo single-gpu tool-use verl"
+  ]
+ },
+ {
+  "repo": "dengyier/openworkproof",
+  "packages": [
+   "openworkproof"
+  ],
+  "first_upload": "2026-08-07T11:49:12.967742Z",
+  "repo_created": "2026-07-27T07:07:17Z",
+  "stars_at_fetch": 287,
+  "summary": "Agent work contracts and verifiable execution protocol — Ed25519-signed, offline-verifiable proof-carrying work for AI agents.",
+  "need": "Agent work contracts and verifiable execution protocol — Ed25519-signed, offline-verifiable proof-carrying work for AI agents.",
+  "also_described_as": [
+   "agent verifiable ai work-contract mcp audit sign ed25519 proof-carrying mcp-server"
+  ]
+ },
+ {
+  "repo": "doofzoff/simurg",
+  "packages": [
+   "simurg"
+  ],
+  "first_upload": "2026-08-24T18:15:25.109993Z",
+  "repo_created": "2026-07-20T19:15:47Z",
+  "stars_at_fetch": 102,
+  "summary": "Zero-leak online detection of LLM decoding corruption in production streams",
+  "need": "Zero-leak online detection of LLM decoding corruption in production streams",
+  "also_described_as": [
+   "llm llm-safety guardrails streaming hallucination anomaly-detection inference vllm openai-api online-learning"
+  ]
+ },
+ {
+  "repo": "edvardgrishin27/nativeprompt",
+  "packages": [
+   "nativeprompt"
+  ],
+  "first_upload": "2026-07-30T13:27:40.133914Z",
+  "repo_created": "2026-07-30T09:06:24Z",
+  "stars_at_fetch": 128,
+  "summary": "Rewrite your prompt into the native dialect of the model you're actually using (Claude Opus 5.5, Fable 5.1, GPT-6 Astra/Sol/Luna, Codex) by each vendor's OFFICIAL rules, tell you why, and recommend the effort level to run it at.",
+  "need": "Rewrite your prompt into the native dialect of the model you're actually using (Claude Opus 5.5, Fable 5.1, GPT-6 Astra/Sol/Luna, Codex) by each vendor's OFFICIAL rules, tell you why, and recommend the effort level to run it at.",
+  "also_described_as": [
+   "prompt prompt-engineering llm claude openai codex prompt-optimizer"
+  ]
+ },
+ {
+  "repo": "enumaelish123/reprollm",
+  "packages": [
+   "reprollm"
+  ],
+  "first_upload": "2026-09-17T11:34:11.542357Z",
+  "repo_created": "2026-09-03T07:40:21Z",
+  "stars_at_fetch": 156,
+  "summary": "A reproducibility linter, experiment recorder, lockfile system, and drift detector for LLM research.",
+  "need": "A reproducibility linter, experiment recorder, lockfile system, and drift detector for LLM research.",
+  "also_described_as": [
+   "audit llm lockfile machine-learning reproducibility research"
+  ]
+ },
+ {
+  "repo": "fanyuantaier/wechatauto-replica",
+  "packages": [
+   "wechatauto-replica"
+  ],
+  "first_upload": "2026-08-07T09:09:30.464854Z",
+  "repo_created": "2026-08-07T09:42:11Z",
+  "stars_at_fetch": 433,
+  "summary": "微信 4.x Windows 客户端自动化库（wxauto 复刻版）：SQLCipher 数据库解密读取 + UIA/坐标-OCR 混合发送，支持消息监听、媒体下载、朋友圈读取",
+  "need": "微信 4.x Windows 客户端自动化库（wxauto 复刻版）：SQLCipher 数据库解密读取 + UIA/坐标-OCR 混合发送，支持消息监听、媒体下载、朋友圈读取",
+  "also_described_as": [
+   "wechat weixin wechat4 wxauto wechatauto uiautomation sqlcipher ocr rpa automation wechat-automation"
+  ]
+ },
+ {
+  "repo": "feyninc/nobg",
+  "packages": [
+   "nobg"
+  ],
+  "first_upload": "2026-07-09T18:11:32.413117Z",
+  "repo_created": "2026-07-07T10:45:14Z",
+  "stars_at_fetch": 167,
+  "summary": "Open source background removal models for image matting",
+  "need": "Open source background removal models for image matting",
+  "also_described_as": [
+   "background-removal deep-learning huggingface matting pytorch"
+  ]
+ },
+ {
+  "repo": "fidetolabs/qanat",
+  "packages": [
+   "qanat-fdtl"
+  ],
+  "first_upload": "2026-09-05T14:10:31.123615Z",
+  "repo_created": "2026-09-05T14:43:40Z",
+  "stars_at_fetch": 306,
+  "summary": "An MCP server that turns filings and prices into valuation indicators, and tests each one inside its own industry. Point it at any source with a timestamp; connect it to your agent and ask.",
+  "need": "An MCP server that turns filings and prices into valuation indicators, and tests each one inside its own industry. Point it at any source with a timestamp; connect it to your agent and ask.",
+  "also_described_as": [
+   "backtesting duckdb feature-engineering indicators mcp mcp-server model-context-protocol quantitative-finance"
+  ]
+ },
+ {
+  "repo": "flashml-org/freetoken",
+  "packages": [
+   "freetoken"
+  ],
+  "first_upload": "2026-08-15T00:25:23.876654Z",
+  "repo_created": "2026-07-20T20:44:11Z",
+  "stars_at_fetch": 14463,
+  "summary": "Local MoE-offload LLM inference runtime with OpenAI- and Anthropic-compatible APIs",
+  "need": "Local MoE-offload LLM inference runtime with OpenAI- and Anthropic-compatible APIs",
+  "also_described_as": []
+ },
+ {
+  "repo": "gheat1/tuistore",
+  "packages": [
+   "tuistore"
+  ],
+  "first_upload": "2026-07-19T20:28:18.091512Z",
+  "repo_created": "2026-07-18T16:43:58Z",
+  "stars_at_fetch": 429,
+  "summary": "🛍️  The TUI app store — browse, search, and one-key install hundreds of terminal apps, right from your terminal",
+  "need": "🛍️ The TUI app store — browse, search, and one-key install hundreds of terminal apps, right from your terminal",
+  "also_described_as": [
+   "tui terminal textual app-store package-manager awesome-tuis"
+  ]
+ },
+ {
+  "repo": "guardana/guardana",
+  "packages": [
+   "guardana-cli",
+   "guardana-core",
+   "guardana-report",
+   "guardana-rules",
+   "guardana-server"
+  ],
+  "first_upload": "2026-07-20T06:05:32.552140Z",
+  "repo_created": "2026-07-18T14:14:22Z",
+  "stars_at_fetch": 274,
+  "summary": "Guardana command-line interface: scan, probe, monitor, init, rules, new-rule.",
+  "need": "command-line interface: scan, probe, monitor, init, rules, new-rule.",
+  "also_described_as": [
+   "agent-security ai-security llm-security mcp mitre-atlas mlsecops model-context-protocol owasp prompt-injection red-teaming sarif security-scanner supply-chain-security"
+  ]
+ },
+ {
+  "repo": "helixmap/sigwood",
+  "packages": [
+   "sigwood",
+   "sigwood-cli"
+  ],
+  "first_upload": "2026-07-10T04:47:41.729089Z",
+  "repo_created": "2026-07-10T04:20:56Z",
+  "stars_at_fetch": 109,
+  "summary": "Hunt for C2 beacons, DNS anomalies, and cloud-account weirdness in your own logs - between grep and a SIEM.",
+  "need": "Hunt for C2 beacons, DNS anomalies, and cloud-account weirdness in your own logs - between grep and a SIEM.",
+  "also_described_as": [
+   "security threat-hunting log-analysis network-security zeek syslog pihole dnsmasq cloudtrail beacon-detection dns anomaly-detection blue-team"
+  ]
+ },
+ {
+  "repo": "humanfia/humanize",
+  "packages": [
+   "hmz"
+  ],
+  "first_upload": "2026-10-07T03:20:12.354935Z",
+  "repo_created": "2026-07-24T00:15:19Z",
+  "stars_at_fetch": 294,
+  "summary": "The agent flow system for token maxxing.",
+  "need": "The agent flow system for token maxxing.",
+  "also_described_as": [
+   "agents ai claude-code codex coding-agents llm tui workflow"
+  ]
+ },
+ {
+  "repo": "intuition-lab/personal-model",
+  "packages": [
+   "personal-model"
+  ],
+  "first_upload": "2026-07-12T15:17:51.457704Z",
+  "repo_created": "2026-07-10T16:10:25Z",
+  "stars_at_fetch": 1336,
+  "summary": "Local-first macOS Runtime for screen-context memory, personal modeling, and MCP.",
+  "need": "Local-first macOS Runtime for screen-context memory, personal modeling, and MCP.",
+  "also_described_as": [
+   "accessibility agent macos mcp memory"
+  ]
+ },
+ {
+  "repo": "jasonzhang06-source/sharelint",
+  "packages": [
+   "sharelint"
+  ],
+  "first_upload": "2026-08-24T03:14:47.163824Z",
+  "repo_created": "2026-08-24T01:59:47Z",
+  "stars_at_fetch": 400,
+  "summary": "Local, fail-closed privacy preflight for files, folders, and nested archives.",
+  "need": "Local, fail-closed privacy preflight for files, folders, and nested archives.",
+  "also_described_as": [
+   "privacy security metadata office pdf pii secrets data-loss-prevention document-security local-first pii-detection secret-scanning cli"
+  ]
+ },
+ {
+  "repo": "jianruntech/geo-score",
+  "packages": [
+   "geo-score"
+  ],
+  "first_upload": "2026-10-02T16:44:10.745187Z",
+  "repo_created": "2026-09-08T05:03:27Z",
+  "stars_at_fetch": 405,
+  "summary": "Can AI engines cite your site, and do they? A free 0-100 readiness score against an open GEO rubric, plus citation checks through the AI engines' APIs with your own keys.",
+  "need": "Can AI engines cite your site, and do they? A free 0-100 readiness score against an open GEO rubric, plus citation checks through the AI engines' APIs with your own keys.",
+  "also_described_as": [
+   "geo aeo generative-engine-optimization ai-visibility llm-citations seo rubric mcp"
+  ]
+ },
+ {
+  "repo": "kevinzakka/mjbatch",
+  "packages": [
+   "mjbatch"
+  ],
+  "first_upload": "2026-09-10T23:13:26.169467Z",
+  "repo_created": "2026-09-10T02:19:02Z",
+  "stars_at_fetch": 596,
+  "summary": "A Python library for running thousands of MuJoCo simulations in parallel on CPU.",
+  "need": "A Python library for running thousands of MuJoCo simulations in parallel on CPU.",
+  "also_described_as": [
+   "mujoco physics simulation batched reinforcement-learning"
+  ]
+ },
+ {
+  "repo": "kina-cmd/agent-skill-sync",
+  "packages": [
+   "agent-skill-sync"
+  ],
+  "first_upload": "2026-09-12T03:41:21.436034Z",
+  "repo_created": "2026-09-12T01:50:30Z",
+  "stars_at_fetch": 101,
+  "summary": "Scan, classify and sync AI-agent skills (SKILL.md) across toolchains like OpenAI Codex, Claude Code and WorkBuddy.",
+  "need": "Scan, classify and sync AI-agent skills (SKILL.md) across toolchains like OpenAI Codex, Claude Code and WorkBuddy.",
+  "also_described_as": [
+   "ai agent skills codex claude workbuddy migration inventory"
+  ]
+ },
+ {
+  "repo": "ldbumble/taskuary",
+  "packages": [
+   "taskuary"
+  ],
+  "first_upload": "2026-08-24T21:18:10.094216Z",
+  "repo_created": "2026-08-17T12:53:50Z",
+  "stars_at_fetch": 138,
+  "summary": "Your work, already underway - a personal AI assistant for your job: your agents do the work, you approve. Runs on your machine.",
+  "need": "Your work, already underway - a personal AI assistant for your job: your agents do the work, you approve. Runs on your machine.",
+  "also_described_as": [
+   "ai agents automation claude coding-agent email local-first task-management"
+  ]
+ },
+ {
+  "repo": "litaolemo/xtquant_big_convert",
+  "packages": [
+   "xtquant-big-convert"
+  ],
+  "first_upload": "2026-08-15T02:27:32.825305Z",
+  "repo_created": "2026-07-01T07:31:58Z",
+  "stars_at_fetch": 752,
+  "summary": "Big QMT RPC bridge and MiniQMT-compatible adapter layer (redis/zmq/mysql transports)",
+  "need": "Big QMT RPC bridge and MiniQMT-compatible adapter layer (redis/zmq/mysql transports)",
+  "also_described_as": [
+   "qmt quant trading rpc redis zmq bigqmt miniqmt"
+  ]
+ },
+ {
+  "repo": "liyuqin606-del/packrehearsal",
+  "packages": [
+   "packrehearsal"
+  ],
+  "first_upload": "2026-08-21T06:51:19.323519Z",
+  "repo_created": "2026-08-11T14:25:39Z",
+  "stars_at_fetch": 107,
+  "summary": "Audit release artifacts and generate evidence-bounded Codex maintenance tasks.",
+  "need": "Audit release artifacts and generate evidence-bounded Codex maintenance tasks.",
+  "also_described_as": [
+   "ai-agents codex npm packaging python release rust supply-chain"
+  ]
+ },
+ {
+  "repo": "lmresiliency/lm-resiliency",
+  "packages": [
+   "lm-resiliency"
+  ],
+  "first_upload": "2026-08-12T07:36:37.520481Z",
+  "repo_created": "2026-08-10T03:10:07Z",
+  "stars_at_fetch": 189,
+  "summary": "GEMINI in-memory checkpointing and SCOUT fault localization for LLM training",
+  "need": "GEMINI in-memory checkpointing and SCOUT fault localization for LLM training",
+  "also_described_as": [
+   "checkpointing distributed-training fault-tolerance large-language-models pytorch resiliency silent-data-corruption"
+  ]
+ },
+ {
+  "repo": "lsaint/aikito",
+  "packages": [
+   "aikito"
+  ],
+  "first_upload": "2026-09-09T06:42:09.974533Z",
+  "repo_created": "2026-08-03T07:00:40Z",
+  "stars_at_fetch": 134,
+  "summary": "Durable workspace for governing context across AI agents",
+  "need": "Durable workspace for governing context across AI agents",
+  "also_described_as": []
+ },
+ {
+  "repo": "manavmishra/zeroslop",
+  "packages": [
+   "zero-slop"
+  ],
+  "first_upload": "2026-09-08T16:19:20.735017Z",
+  "repo_created": "2026-08-03T18:55:48Z",
+  "stars_at_fetch": 133,
+  "summary": "Score AI-sounding prose 0-100 and check what a rewrite changed. Offline, standard library only.",
+  "need": "Score AI-sounding prose 0-100 and check what a rewrite changed. Offline, standard library only.",
+  "also_described_as": [
+   "prose linter writing editing ai-slop de-slop humanize style ci static-analysis"
+  ]
+ },
+ {
+  "repo": "masihsultani/whiteboard-animator",
+  "packages": [
+   "whiteboard-animator"
+  ],
+  "first_upload": "2026-09-08T00:37:43.356233Z",
+  "repo_created": "2026-09-08T00:25:02Z",
+  "stars_at_fetch": 236,
+  "summary": "Turn a whiteboard-style image into a hand-drawn reveal video.",
+  "need": "Turn a whiteboard-style image into a hand-drawn reveal video.",
+  "also_described_as": [
+   "whiteboard animation explainer video ffmpeg craft"
+  ]
+ },
+ {
+  "repo": "maxfreedompollard/compartment",
+  "packages": [
+   "compartment"
+  ],
+  "first_upload": "2026-07-26T15:24:24.527680Z",
+  "repo_created": "2026-07-20T13:43:56Z",
+  "stars_at_fetch": 581,
+  "summary": "Compartment - high-security, fully offline, encrypted vector memory for AI agents (MCP)",
+  "need": "high-security, fully offline, encrypted vector memory for AI agents (MCP)",
+  "also_described_as": [
+   "mcp model-context-protocol memory agent-memory vector-database semantic-search encryption offline local-first claude claude-code privacy rag"
+  ]
+ },
+ {
+  "repo": "mikehasa/agentacct",
+  "packages": [
+   "agentacct"
+  ],
+  "first_upload": "2026-07-24T17:11:41.918543Z",
+  "repo_created": "2026-07-24T16:28:06Z",
+  "stars_at_fetch": 766,
+  "summary": "Local-first Agent Work Intelligence for coding agents: usage truth, recorded work, and honest joins",
+  "need": "Local-first Agent Work Intelligence for coding agents: usage truth, recorded work, and honest joins",
+  "also_described_as": [
+   "agent ai-agents finops llm cost-tracking claude-code codex mcp developer-tools"
+  ]
+ },
+ {
+  "repo": "milanm/aztree",
+  "packages": [
+   "aztree"
+  ],
+  "first_upload": "2026-09-28T07:57:50.761796Z",
+  "repo_created": "2026-09-28T05:36:15Z",
+  "stars_at_fetch": 106,
+  "summary": "See where your Azure money goes, as a treemap in one offline HTML page.",
+  "need": "See where your Azure money goes, as a treemap in one offline HTML page.",
+  "also_described_as": [
+   "azure cost cost-management finops treemap"
+  ]
+ },
+ {
+  "repo": "mizorewww/laya-coreml",
+  "packages": [
+   "laya-coreml"
+  ],
+  "first_upload": "2026-09-20T03:49:36.297071Z",
+  "repo_created": "2026-09-19T23:14:13Z",
+  "stars_at_fetch": 1578,
+  "summary": "Local Laya typed decisions on Apple Core ML and Neural Engine, with a live Snake demo",
+  "need": "Local Laya typed decisions on Apple Core ML and Neural Engine, with a live Snake demo",
+  "also_described_as": [
+   "apple-silicon coreml decision-model laya local-ai neural-engine"
+  ]
+ },
+ {
+  "repo": "mizorewww/laya-mlx",
+  "packages": [
+   "laya-mlx"
+  ],
+  "first_upload": "2026-09-19T16:36:24.653994Z",
+  "repo_created": "2026-09-19T13:50:26Z",
+  "stars_at_fetch": 6909,
+  "summary": "Native MLX inference for Laya typed decision models on Apple silicon",
+  "need": "Native MLX inference for Laya typed decision models on Apple silicon",
+  "also_described_as": [
+   "apple-silicon decision-model laya local-ai mlx typed-decisions"
+  ]
+ },
+ {
+  "repo": "morluto/flameox",
+  "packages": [
+   "flameox"
+  ],
+  "first_upload": "2026-07-26T09:48:49.812709Z",
+  "repo_created": "2026-07-25T12:13:33Z",
+  "stars_at_fetch": 195,
+  "summary": "Runtime evidence that helps agents trace, profile, and burn down hotspots in application and native code, GPU kernels, and inference stacks.",
+  "need": "Runtime evidence that helps agents trace, profile, and burn down hotspots in application and native code, GPU kernels, and inference stacks.",
+  "also_described_as": []
+ },
+ {
+  "repo": "morpheuslord/picotty",
+  "packages": [
+   "picotty"
+  ],
+  "first_upload": "2026-08-05T10:48:00.006520Z",
+  "repo_created": "2026-07-30T17:27:31Z",
+  "stars_at_fetch": 108,
+  "summary": "Networked serial console + USB HID keyboard injection for a fleet of headless machines — hub server, client SDK, and wire protocol.",
+  "need": "Networked serial console + USB HID keyboard injection for a fleet of headless machines — hub server, client SDK, and wire protocol.",
+  "also_described_as": [
+   "serial console kvm homelab raspberry-pi pico circuitpython hid keyboard out-of-band fastapi"
+  ]
+ },
+ {
+  "repo": "muscriptor/muscriptor",
+  "packages": [
+   "muscriptor"
+  ],
+  "first_upload": "2026-07-10T11:16:35.436732Z",
+  "repo_created": "2026-07-02T09:47:11Z",
+  "stars_at_fetch": 1671,
+  "summary": "Audio-to-MIDI transcription using a transformer language model",
+  "need": "Audio-to-MIDI transcription using a transformer language model",
+  "also_described_as": [
+   "audio midi music transcription transformer"
+  ]
+ },
+ {
+  "repo": "nandhakishorm/vegaml",
+  "packages": [
+   "vegaml"
+  ],
+  "first_upload": "2026-10-09T18:16:19.916619Z",
+  "repo_created": "2026-10-09T17:45:54Z",
+  "stars_at_fetch": 198,
+  "summary": "Typed decisions from a frozen language model and a small physics engine: calibrated probabilities, conformal sets, 73k context, images.",
+  "need": "Typed decisions from a frozen language model and a small physics engine: calibrated probabilities, conformal sets, 73k context, images.",
+  "also_described_as": [
+   "typed-decisions calibration conformal-prediction decision-model long-context"
+  ]
+ },
+ {
+  "repo": "niki9001/purview-unified-sdk",
+  "packages": [
+   "purview-unified-sdk"
+  ],
+  "first_upload": "2026-07-27T18:44:54.497294Z",
+  "repo_created": "2026-07-27T18:05:38Z",
+  "stars_at_fetch": 156,
+  "summary": "Community Python SDK for Microsoft Purview Unified Catalog APIs and data governance automation",
+  "need": "Community Python SDK for Microsoft Purview Unified Catalog APIs and data governance automation",
+  "also_described_as": [
+   "microsoft-purview purview unified-catalog python-sdk data-governance data-catalog data-quality metadata-management automation azure"
+  ]
+ },
+ {
+  "repo": "ningyusun/bioai-evidence-validator",
+  "packages": [
+   "bioai-evidence-validator"
+  ],
+  "first_upload": "2026-09-25T05:45:31.586716Z",
+  "repo_created": "2026-09-17T08:18:24Z",
+  "stars_at_fetch": 101,
+  "summary": "Standards-aligned evidence policy validation for AI-assisted biological curation",
+  "need": "Standards-aligned evidence policy validation for AI-assisted biological curation",
+  "also_described_as": [
+   "ai-safety biocuration bioinformatics evidence knowledge-graph linkml llm ontology provenance validation"
+  ]
+ },
+ {
+  "repo": "no-human-ai/no_human",
+  "packages": [
+   "no-human"
+  ],
+  "first_upload": "2026-08-20T09:24:56.781802Z",
+  "repo_created": "2026-08-05T14:51:58Z",
+  "stars_at_fetch": 328,
+  "summary": "Autonomous AI software-delivery orchestrator driving the Claude Agent SDK on your own Claude credentials",
+  "need": "Autonomous AI software-delivery orchestrator driving the Claude Agent SDK on your own Claude credentials",
+  "also_described_as": []
+ },
+ {
+  "repo": "nokia-applied-research/anyjev",
+  "packages": [
+   "anyjev"
+  ],
+  "first_upload": "2026-09-21T19:28:32.787546Z",
+  "repo_created": "2026-09-21T05:55:40Z",
+  "stars_at_fetch": 1251,
+  "summary": "AnyJev: Jev-style typed decisions with probabilities from open LLMs: a training-free readout of any model, and the self-distilled Tacit models. Not affiliated with TypeSafe AI.",
+  "need": "Jev-style typed decisions with probabilities from open LLMs: a training-free readout of any model, and the self-distilled Tacit models. Not affiliated with TypeSafe AI.",
+  "also_described_as": [
+   "llm decision calibration jev system-one self-distillation vllm"
+  ]
+ },
+ {
+  "repo": "nossa-y/activity-frames",
+  "packages": [
+   "activity-frames"
+  ],
+  "first_upload": "2026-07-05T20:09:41.029728Z",
+  "repo_created": "2026-07-04T23:24:02Z",
+  "stars_at_fetch": 533,
+  "summary": "Episodic memory for AI agents: compile raw screen capture into structured, deterministic activity frames.",
+  "need": "Episodic memory for AI agents: compile raw screen capture into structured, deterministic",
+  "also_described_as": [
+   "agent-memory ai-agents context episodic-memory llm mcp nocta-recorder screen-activity"
+  ]
+ },
+ {
+  "repo": "nums-ai/causilo",
+  "packages": [
+   "causilo"
+  ],
+  "first_upload": "2026-09-13T09:34:14.717261Z",
+  "repo_created": "2026-09-13T08:39:32Z",
+  "stars_at_fetch": 107,
+  "summary": "Pretrained tabular classification and regression",
+  "need": "Pretrained tabular classification and regression",
+  "also_described_as": []
+ },
+ {
+  "repo": "openlayer-ai/jevals",
+  "packages": [
+   "jevals"
+  ],
+  "first_upload": "2026-09-20T19:45:42.893986Z",
+  "repo_created": "2026-09-20T19:56:13Z",
+  "stars_at_fetch": 104,
+  "summary": "Agent evals and guardrails that run in one request, built on System One models (Jev, Kev, Laya).",
+  "need": "Agent evals and guardrails that run in one request, built on System One models (Jev, Kev, Laya).",
+  "also_described_as": [
+   "agents evals guardrails jev llm system-one typesafe"
+  ]
+ },
+ {
+  "repo": "optim-agent/optim-agent",
+  "packages": [
+   "optim-agent"
+  ],
+  "first_upload": "2026-07-08T10:12:40.181291Z",
+  "repo_created": "2026-07-07T17:05:54Z",
+  "stars_at_fetch": 801,
+  "summary": "Agentic system optimization: coding agents reason over parameter meaning and trial history.",
+  "need": "Agentic system optimization: coding agents reason over parameter meaning and trial history.",
+  "also_described_as": [
+   "black-box-optimization agent llm hyperparameter-optimization machine-learning scientific-computing"
+  ]
+ },
+ {
+  "repo": "oxbshw/watch-skill",
+  "packages": [
+   "watch-skill"
+  ],
+  "first_upload": "2026-08-08T17:27:19.041785Z",
+  "repo_created": "2026-07-05T23:25:30Z",
+  "stars_at_fetch": 481,
+  "summary": "Give any agent a video input: watch, index, ask, and iterate on video via MCP, CLI, REST, and Python.",
+  "need": "Give any agent a video input: watch, index, ask, and iterate on video via MCP, CLI, REST, and Python.",
+  "also_described_as": [
+   "agent-observability agent-tools agents ai-agent computer-vision evidence ffmpeg local-first mcp model-context-protocol multimodal ocr receipts screen-recording speech-to-text timestamps transcription verification video video-analysis video-understanding vision whisper yt-dlp"
+  ]
+ },
+ {
+  "repo": "pachterlab/paperpush",
+  "packages": [
+   "paperpush"
+  ],
+  "first_upload": "2026-07-29T21:43:06.685371Z",
+  "repo_created": "2026-07-01T09:06:15Z",
+  "stars_at_fetch": 206,
+  "summary": "A Python library for automating the submission of manuscripts to academic venues.",
+  "need": "A Python library for automating the submission of manuscripts to academic venues.",
+  "also_described_as": []
+ },
+ {
+  "repo": "paper-instruments/paper-docx",
+  "packages": [
+   "paper-docx"
+  ],
+  "first_upload": "2026-07-07T21:23:35.627842Z",
+  "repo_created": "2026-07-07T20:12:03Z",
+  "stars_at_fetch": 111,
+  "summary": "Create, read, and update Microsoft Word .docx files.",
+  "need": "Create, read, and update Microsoft Word .docx files.",
+  "also_described_as": [
+   "docx office openxml word"
+  ]
+ },
+ {
+  "repo": "parqdb-io/parqdb",
+  "packages": [
+   "parqdb"
+  ],
+  "first_upload": "2026-08-18T04:28:43.538143Z",
+  "repo_created": "2026-08-03T15:49:56Z",
+  "stars_at_fetch": 100,
+  "summary": "Lightweight vector index extension for the open lakehouse stack",
+  "need": "Lightweight vector index extension for the open lakehouse stack",
+  "also_described_as": [
+   "vector-search lakehouse parquet arrow"
+  ]
+ },
+ {
+  "repo": "pku-yuangroup/openai4s",
+  "packages": [
+   "openai4s"
+  ],
+  "first_upload": "2026-07-15T16:56:33.586110Z",
+  "repo_created": "2026-07-06T00:34:35Z",
+  "stars_at_fetch": 625,
+  "summary": "A pure-stdlib hybrid Code-as-Action scientific research agent.",
+  "need": "A pure-stdlib hybrid Code-as-Action scientific research agent.",
+  "also_described_as": [
+   "agent scientific-computing code-as-action llm"
+  ]
+ },
+ {
+  "repo": "plasma-ai/fractal",
+  "packages": [
+   "fractal",
+   "plasma-fractal"
+  ],
+  "first_upload": "2026-07-21T16:17:57.634386Z",
+  "repo_created": "2026-07-01T02:34:56Z",
+  "stars_at_fetch": 781,
+  "summary": "Hierarchical agent loops with recursive self-organization.",
+  "need": "Hierarchical agent loops with recursive self-organization.",
+  "also_described_as": []
+ },
+ {
+  "repo": "plasma-ai/wiki",
+  "packages": [
+   "plasma-wiki"
+  ],
+  "first_upload": "2026-07-01T08:13:26.743364Z",
+  "repo_created": "2026-07-01T02:34:28Z",
+  "stars_at_fetch": 105,
+  "summary": "Indexed knowledge bases with command-line tools for agents.",
+  "need": "Indexed knowledge bases with command-line tools for agents.",
+  "also_described_as": []
+ },
+ {
+  "repo": "preferencemodel/karotte",
+  "packages": [
+   "karotte"
+  ],
+  "first_upload": "2026-09-27T02:13:00.138300Z",
+  "repo_created": "2026-09-15T17:42:22Z",
+  "stars_at_fetch": 136,
+  "summary": "Build robust RL environments to train aligned AI.",
+  "need": "Build robust RL environments to train aligned AI.",
+  "also_described_as": []
+ },
+ {
+  "repo": "qa10devteam/behive",
+  "packages": [
+   "behive"
+  ],
+  "first_upload": "2026-07-28T12:28:53.298487Z",
+  "repo_created": "2026-07-28T09:25:03Z",
+  "stars_at_fetch": 146,
+  "summary": "Research engine that builds structured knowledge graphs from any topic",
+  "need": "Research engine that builds structured knowledge graphs from any topic",
+  "also_described_as": [
+   "research knowledge-graph ai mcp deep-research"
+  ]
+ },
+ {
+  "repo": "ramp-public/portallib",
+  "packages": [
+   "portallib"
+  ],
+  "first_upload": "2026-07-15T20:52:57.342123Z",
+  "repo_created": "2026-07-13T16:35:53Z",
+  "stars_at_fetch": 125,
+  "summary": "Generate portable task-specific LoRA adapters across language models",
+  "need": "Generate portable task-specific LoRA adapters across language models",
+  "also_described_as": [
+   "adapters llm lora machine-learning peft"
+  ]
+ },
+ {
+  "repo": "reflex-dev/xy",
+  "packages": [
+   "xy"
+  ],
+  "first_upload": "2026-07-17T03:56:31.438348Z",
+  "repo_created": "2026-07-09T01:51:00Z",
+  "stars_at_fetch": 1873,
+  "summary": "Experimental Python charting engine with a native Rust core, binary columnar transport, and a GPU render client",
+  "need": "Experimental Python charting engine with a native Rust core, binary columnar transport, and a GPU render client",
+  "also_described_as": []
+ },
+ {
+  "repo": "rekursiv-ai/trackinizer",
+  "packages": [
+   "trackinizer"
+  ],
+  "first_upload": "2026-07-22T23:08:11.880417Z",
+  "repo_created": "2026-07-22T01:26:21Z",
+  "stars_at_fetch": 121,
+  "summary": "Centralized agent database for Inquiries (Issues + Artifacts).",
+  "need": "Centralized agent database for Inquiries (Issues + Artifacts).",
+  "also_described_as": [
+   "agent database fastapi postgres tracking"
+  ]
+ },
+ {
+  "repo": "ringlochid/oh-my-subagents",
+  "packages": [
+   "oh-my-subagents"
+  ],
+  "first_upload": "2026-08-21T13:37:41.626862Z",
+  "repo_created": "2026-07-20T06:38:51Z",
+  "stars_at_fetch": 190,
+  "summary": "Turn ad-hoc subagents into durable, accountable AI teams.",
+  "need": "Turn ad-hoc subagents into durable, accountable AI teams.",
+  "also_described_as": []
+ },
+ {
+  "repo": "rokbenko/quackd",
+  "packages": [
+   "quackd"
+  ],
+  "first_upload": "2026-08-28T15:02:29.681697Z",
+  "repo_created": "2026-08-28T09:09:16Z",
+  "stars_at_fetch": 259,
+  "summary": "One CLI for all your robots. Connect them, command them, and let them work together, each with an LLM for a brain. Microduck, Open Duck Mini, LeRobot arms, XLeRobot carts, AlohaMini, ToddlerBot and ROS bases.",
+  "need": "One CLI for all your robots. Connect them, command them, and let them work together, each with an LLM for a brain. Microduck, Open Duck Mini, LeRobot arms, XLeRobot carts, AlohaMini, ToddlerBot and ROS bases.",
+  "also_described_as": [
+   "alohamini claude cohere deepseek embodied-ai gemini glm grok humanoid jetson jev kev kimi laya lerobot llama-cpp llm-agents local-llm mcp meta microduck mistral model-context-protocol mujoco multi-robot ollama open-duck-mini openai opendecision openjev openrouter physical-ai qwen robot-fleet robotics ros ros2 rosbridge so-101 toddlerbot vllm von xlerobot"
+  ]
+ },
+ {
+  "repo": "rollroyces/py-idp",
+  "packages": [
+   "py-idp"
+  ],
+  "first_upload": "2026-09-13T03:12:13.000611Z",
+  "repo_created": "2026-08-31T13:51:31Z",
+  "stars_at_fetch": 218,
+  "summary": "General-purpose, AI-enabled Intelligent Document Processing framework for Python. OCR + multimodal extraction with Pydantic schemas, confidence assessment, HITL review, and a built-in eval harness. Supports OpenAI, Anthropic, Ollama, and 8 China LLMs.",
+  "need": "General-purpose, AI-enabled Intelligent Document Processing framework for Python. OCR + multimodal extraction with Pydantic schemas, confidence assessment, HITL review, and a built-in eval harness. Supports OpenAI, Anthropic, Ollama, and 8 China LLMs.",
+  "also_described_as": [
+   "intelligent-document-processing document-ai ocr llm extraction pydantic multimodal rag information-extraction invoice pdf schema-discovery"
+  ]
+ },
+ {
+  "repo": "ruashots/open-h3-ir",
+  "packages": [
+   "open-h3-ir"
+  ],
+  "first_upload": "2026-08-16T20:16:47.851241Z",
+  "repo_created": "2026-08-12T22:44:47Z",
+  "stars_at_fetch": 101,
+  "summary": "Open-source local implementation of MiniMax H3 Context-IR. Turn simple prompts into structured, validated H3 video briefs.",
+  "need": "Open-source local implementation of MiniMax H3 Context-IR. Turn simple prompts into structured, validated H3 video briefs.",
+  "also_described_as": [
+   "minimax-h3 minimax h3 context-ir video-generation prompt-compiler comfyui local-llm"
+  ]
+ },
+ {
+  "repo": "scaleapi/agentenv-framework",
+  "packages": [
+   "agentenv-framework"
+  ],
+  "first_upload": "2026-09-30T18:51:11.031371Z",
+  "repo_created": "2026-09-24T18:52:20Z",
+  "stars_at_fetch": 258,
+  "summary": "SDK and CLI for building, deploying and running agent environments and the tasks that grade agents in them.",
+  "need": "SDK and CLI for building, deploying and running agent environments and the tasks that grade agents in them.",
+  "also_described_as": [
+   "a2a agent-evaluation ai-agents llm-agents mcp model-context-protocol reinforcement-learning rl-environments sandbox"
+  ]
+ },
+ {
+  "repo": "seohongpark/ocbench",
+  "packages": [
+   "ocbench"
+  ],
+  "first_upload": "2026-10-05T04:13:08.738003Z",
+  "repo_created": "2026-10-05T03:52:22Z",
+  "stars_at_fetch": 106,
+  "summary": "OCBench: A Controllable Robotic Manipulation Benchmark",
+  "need": "A Controllable Robotic Manipulation Benchmark",
+  "also_described_as": []
+ },
+ {
+  "repo": "shawnpana/phone-harness",
+  "packages": [
+   "phone-harness"
+  ],
+  "first_upload": "2026-08-17T23:05:47.913455Z",
+  "repo_created": "2026-08-07T22:28:53Z",
+  "stars_at_fetch": 3254,
+  "summary": "Let an agent drive a real phone: an iPhone through macOS iPhone Mirroring, an Android over adb, a rented cloud Android, or a cloud iPhone over HTTPS",
+  "need": "Let an agent drive a real phone: an iPhone through macOS iPhone Mirroring, an Android over adb, a rented cloud Android, or a cloud iPhone over HTTPS",
+  "also_described_as": [
+   "adb agent android automation cloud-phone iphone iphone-mirroring"
+  ]
+ },
+ {
+  "repo": "shenseanchen/waku-agent",
+  "packages": [
+   "waku-agent"
+  ],
+  "first_upload": "2026-07-31T12:20:06.883435Z",
+  "repo_created": "2026-07-10T12:20:50Z",
+  "stars_at_fetch": 2000,
+  "summary": "A minimal, transparent, local-first Waku: harness + loop + memory + eval, in code you can read in an afternoon.",
+  "need": "A minimal, transparent, local-first Waku: harness + loop + memory + eval, in code you can read in an afternoon.",
+  "also_described_as": [
+   "agent-framework ai-agent eval llm llmops local-first memory"
+  ]
+ },
+ {
+  "repo": "shhivv/arc-cua",
+  "packages": [
+   "arc-cua"
+  ],
+  "first_upload": "2026-10-03T14:32:08.775013Z",
+  "repo_created": "2026-09-20T08:27:09Z",
+  "stars_at_fetch": 317,
+  "summary": "Superfast action layer for computer-use agents, powered by decision models, with a standalone macOS driver",
+  "need": "Superfast action layer for computer-use agents, powered by decision models, with a standalone macOS driver",
+  "also_described_as": [
+   "accessibility agents automation computer-use decision-models macos mcp"
+  ]
+ },
+ {
+  "repo": "shpigford/nurb",
+  "packages": [
+   "nurb"
+  ],
+  "first_upload": "2026-07-27T16:01:05.964574Z",
+  "repo_created": "2026-07-25T19:12:10Z",
+  "stars_at_fetch": 594,
+  "summary": "Agentic CAD for 3D printing",
+  "need": "Agentic CAD for 3D printing",
+  "also_described_as": [
+   "cad 3d-printing parametric build123d occt"
+  ]
+ },
+ {
+  "repo": "simonw/mcp-explorer",
+  "packages": [
+   "mcp-explorer"
+  ],
+  "first_upload": "2026-07-28T17:58:06.009822Z",
+  "repo_created": "2026-07-28T17:30:09Z",
+  "stars_at_fetch": 133,
+  "summary": "CLI tool for exploring MCP servers",
+  "need": "CLI tool for exploring MCP servers",
+  "also_described_as": []
+ },
+ {
+  "repo": "skyvern-ai/rustwright",
+  "packages": [
+   "rustwright"
+  ],
+  "first_upload": "2026-07-12T15:16:36.617164Z",
+  "repo_created": "2026-07-07T16:00:40Z",
+  "stars_at_fetch": 917,
+  "summary": "A Rust-backed, CDP-first Python automation library with a Playwright-compatible sync API",
+  "need": "A Rust-backed, CDP-first Python automation library with a Playwright-compatible sync API",
+  "also_described_as": []
+ },
+ {
+  "repo": "sodamem/sodamem",
+  "packages": [
+   "sodamem"
+  ],
+  "first_upload": "2026-08-08T09:15:54.615916Z",
+  "repo_created": "2026-08-07T09:46:20Z",
+  "stars_at_fetch": 225,
+  "summary": "Evidence-grounded temporal memory for AI agents",
+  "need": "Evidence-grounded temporal memory for AI agents",
+  "also_described_as": []
+ },
+ {
+  "repo": "superdesigndev/treg",
+  "packages": [
+   "tools-registry"
+  ],
+  "first_upload": "2026-07-16T10:39:06.170484Z",
+  "repo_created": "2026-07-15T13:38:07Z",
+  "stars_at_fetch": 5227,
+  "summary": "A remote registry that turns team skills into shareable, callable tools via a credential-injecting proxy.",
+  "need": "A remote registry that turns team skills into shareable, callable tools via a credential-injecting proxy.",
+  "also_described_as": [
+   "agents api cli credentials proxy registry secrets tools"
+  ]
+ },
+ {
+  "repo": "sutro-sh/jev-align",
+  "packages": [
+   "jev-align"
+  ],
+  "first_upload": "2026-09-19T05:36:27.098699Z",
+  "repo_created": "2026-09-19T02:12:23Z",
+  "stars_at_fetch": 308,
+  "summary": "Build and optimize AI Functions with pluggable evaluators and GEPA",
+  "need": "Build and optimize AI Functions with pluggable evaluators and GEPA",
+  "also_described_as": [
+   "active-learning classification evals gepa llm"
+  ]
+ },
+ {
+  "repo": "synpath-ai/synpath",
+  "packages": [
+   "synpath"
+  ],
+  "first_upload": "2026-09-28T14:36:57.814424Z",
+  "repo_created": "2026-09-28T13:25:04Z",
+  "stars_at_fetch": 150,
+  "summary": "One API for prediction markets. Kalshi and Polymarket, normalized, with every price labelled by source and time.",
+  "need": "One API for prediction markets. Kalshi and Polymarket, normalized, with every price labelled by source and time.",
+  "also_described_as": [
+   "prediction-markets kalshi polymarket unified-api trading market-data"
+  ]
+ },
+ {
+  "repo": "tavotto/tavotto",
+  "packages": [
+   "tavotto"
+  ],
+  "first_upload": "2026-08-20T06:31:22.151830Z",
+  "repo_created": "2026-08-16T07:45:29Z",
+  "stars_at_fetch": 491,
+  "summary": "Make AI-generated scientific figures editable without losing the code behind them.",
+  "need": "Make AI-generated scientific figures editable without losing the code behind them.",
+  "also_described_as": [
+   "figure layout matplotlib pdf publication 科研绘图"
+  ]
+ },
+ {
+  "repo": "tencent/wave-mcp",
+  "packages": [
+   "wave-mcp"
+  ],
+  "first_upload": "2026-07-20T03:23:22.520103Z",
+  "repo_created": "2026-07-27T11:35:28Z",
+  "stars_at_fetch": 231,
+  "summary": "Open-source, license-free MCP server for RTL waveform debug (FST + SystemVerilog static analysis), an Indago/Verisium Debug MCP alternative.",
+  "need": "Open-source, license-free MCP server for RTL waveform debug (FST + SystemVerilog static analysis), an Indago/Verisium Debug MCP alternative.",
+  "also_described_as": [
+   "mcp waveform fst vcd verilog systemverilog rtl uvm debug eda"
+  ]
+ },
+ {
+  "repo": "thorodinson246/whatisit-nl2sh",
+  "packages": [
+   "whatisit"
+  ],
+  "first_upload": "2026-08-09T21:30:34.316000Z",
+  "repo_created": "2026-07-29T19:06:04Z",
+  "stars_at_fetch": 638,
+  "summary": "Natural language to shell command. Runs on your own machine on CPU, no GPU and no network; optionally any OpenAI-compatible endpoint.",
+  "need": "Natural language to shell command. Runs on your own machine on CPU, no GPU and no network; optionally any OpenAI-compatible endpoint.",
+  "also_described_as": [
+   "shell cli llm local local-first privacy bash command-generation llama-cpp offline openai"
+  ]
+ },
+ {
+  "repo": "tigerless-labs/phi-boundary-gate",
+  "packages": [
+   "phi-boundary-gate"
+  ],
+  "first_upload": "2026-08-03T16:36:03.847224Z",
+  "repo_created": "2026-07-17T15:46:46Z",
+  "stars_at_fetch": 204,
+  "summary": "Synthetic PHI boundary gating, redaction, and audit reporting toolkit.",
+  "need": "Synthetic PHI boundary gating, redaction, and audit reporting toolkit.",
+  "also_described_as": [
+   "phi hipaa redaction privacy ai-safety audit healthcare"
+  ]
+ },
+ {
+  "repo": "tile-ai/tilefoundry",
+  "packages": [
+   "tilefoundry"
+  ],
+  "first_upload": "2026-07-29T11:25:44.517026Z",
+  "repo_created": "2026-07-01T05:01:04Z",
+  "stars_at_fetch": 125,
+  "summary": "A tile-based, agentic platform for automatic high-performance program generation across hardware.",
+  "need": "A tile-based, agentic platform for automatic high-performance program generation across hardware.",
+  "also_described_as": []
+ },
+ {
+  "repo": "typellm/typellm",
+  "packages": [
+   "typellm"
+  ],
+  "first_upload": "2026-09-21T04:12:29.942745Z",
+  "repo_created": "2026-09-17T12:41:27Z",
+  "stars_at_fetch": 946,
+  "summary": "Type-Safe Decoding for Autoregressive LLMs",
+  "need": "Type-Safe Decoding for Autoregressive LLMs",
+  "also_described_as": []
+ },
+ {
+  "repo": "typesafe-ai/system-one-adapter-python",
+  "packages": [
+   "system-one-adapter"
+  ],
+  "first_upload": "2026-09-15T17:41:58.626030Z",
+  "repo_created": "2026-08-08T22:59:50Z",
+  "stars_at_fetch": 392,
+  "summary": "Drop-in TypeSafeClient replacement backed by LLM APIs",
+  "need": "Drop-in TypeSafeClient replacement backed by LLM APIs",
+  "also_described_as": [
+   "typesafe llm openai anthropic gemini ai"
+  ]
+ },
+ {
+  "repo": "typesafe-ai/typesafe-sdk-python",
+  "packages": [
+   "typesafe-sdk"
+  ],
+  "first_upload": "2026-09-09T10:34:07.420077Z",
+  "repo_created": "2026-09-04T21:01:31Z",
+  "stars_at_fetch": 287,
+  "summary": "Python SDK for TypeSafe AI API.",
+  "need": "Python SDK for API.",
+  "also_described_as": [
+   "api ai"
+  ]
+ },
+ {
+  "repo": "uipath/coder_eval",
+  "packages": [
+   "coder-eval"
+  ],
+  "first_upload": "2026-07-09T10:50:52.792318Z",
+  "repo_created": "2026-07-09T06:46:59Z",
+  "stars_at_fetch": 151,
+  "summary": "Evaluate, benchmark, and A/B-test AI coding agents (Claude Code, Codex, Gemini/Antigravity, OpenCode, Pi, Delegate) with sandboxed, reproducible YAML task suites.",
+  "need": "Evaluate, benchmark, and A/B-test AI coding agents (Claude Code, Codex, Gemini/Antigravity, OpenCode, Pi, Delegate) with sandboxed, reproducible YAML task suites.",
+  "also_described_as": [
+   "agent agent-evaluation agent-skills agent-testing ai ai-evaluation anthropic antigravity benchmark claude claude-code claude-code-skills claude-skills code-generation codex coding-agent delegate eval evals evaluation gemini llm llm-eval llm-evaluation llmops opencode pi sandbox skills-evaluation skillsbench swe-bench"
+  ]
+ },
+ {
+  "repo": "wfzyx/von",
+  "packages": [
+   "von-sdk"
+  ],
+  "first_upload": "2026-09-19T20:34:13.998649Z",
+  "repo_created": "2026-09-18T05:03:47Z",
+  "stars_at_fetch": 895,
+  "summary": "Von - The open-source System One decision model. Sub-25ms, local, calibrated decision primitives in homage to John von Neumann and Ludwig von Mises.",
+  "need": "The open-source System One decision model. Sub-25ms, local, calibrated decision primitives in homage to John Neumann and Ludwig Mises.",
+  "also_described_as": []
+ },
+ {
+  "repo": "xhluca/session-migrate",
+  "packages": [
+   "session-migrate"
+  ],
+  "first_upload": "2026-08-20T04:20:28.663282Z",
+  "repo_created": "2026-08-17T20:15:43Z",
+  "stars_at_fetch": 133,
+  "summary": "Migrate native coding-agent sessions across eighteen terminal harnesses",
+  "need": "Migrate native coding-agent sessions across eighteen terminal harnesses",
+  "also_described_as": [
+   "antigravity claude codex copilot cursor devin-cli grok hermes-agent kilo-code kimi-code mastracode mistral muse-code opencode openhands pi qwen-code session-migration vibe"
+  ]
+ },
+ {
+  "repo": "xiantingwu/verirepro",
+  "packages": [
+   "verirepro"
+  ],
+  "first_upload": "2026-08-30T18:19:05.998406Z",
+  "repo_created": "2026-08-23T03:06:00Z",
+  "stars_at_fetch": 200,
+  "summary": "Evidence-grounded agent for verifiable computational paper reproduction",
+  "need": "Evidence-grounded agent for verifiable computational paper reproduction",
+  "also_described_as": [
+   "ai-agent arxiv paper-reproduction reproducibility research scientific-computing"
+  ]
+ },
+ {
+  "repo": "xiaozhou26/chromix",
+  "packages": [
+   "chromix"
+  ],
+  "first_upload": "2026-09-07T11:22:17.714521Z",
+  "repo_created": "2026-08-22T10:16:06Z",
+  "stars_at_fetch": 472,
+  "summary": "Drive the Chromix stealth Chromium engine with a CloakBrowser-compatible API.",
+  "need": "Drive the stealth Chromium engine with a CloakBrowser-compatible API.",
+  "also_described_as": [
+   "chromium stealth browser automation anti-bot cloakbrowser"
+  ]
+ },
+ {
+  "repo": "zcbacxc/movie-narrator",
+  "packages": [
+   "movie-narrator"
+  ],
+  "first_upload": "2026-07-11T17:27:33.219045Z",
+  "repo_created": "2026-07-11T17:05:54Z",
+  "stars_at_fetch": 907,
+  "summary": "Generate narrated movie recap videos from a single prompt.",
+  "need": "Generate narrated movie recap videos from a single prompt.",
+  "also_described_as": []
+ },
+ {
+  "repo": "zeroweight-ai/zerotts",
+  "packages": [
+   "zerotts"
+  ],
+  "first_upload": "2026-08-18T18:10:10.372468Z",
+  "repo_created": "2026-08-15T16:09:04Z",
+  "stars_at_fetch": 294,
+  "summary": "Lightweight Vietnamese Zero-Shot Text-to-Speech (TTS) with real-time streaming and voice cloning.",
+  "need": "Lightweight Vietnamese Zero-Shot Text-to-Speech (TTS) with real-time streaming and voice cloning.",
+  "also_described_as": [
+   "tts text-to-speech vietnamese onnx speech-synthesis lightweight voice clone"
+  ]
+ }
+]
