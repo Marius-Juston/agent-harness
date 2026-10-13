@@ -217,6 +217,63 @@ def test_guard_bash_blocks_the_file_dev_kit_secrets_names(monkeypatch):
     assert GUARD.Checker("/").text("cat notes.md") is None
 
 
+# Read-only agents (#145): an allowed read command must not run another program through config, an environment
+# variable or an option, nor write a file through an option.
+READ_ONLY_RUNS_CODE = [
+    "git -c core.fsmonitor=x status",
+    "git -c 'alias.x=!touch pwned' x",
+    "git -c core.pager=x log",
+    "git --config-env=core.pager=X log",
+    "git -ccore.fsmonitor=x status",
+    "git grep -Ox foo",
+    "git grep --open-files-in-pager=x foo",
+    "git grep --open foo",
+    "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=x git status",
+    "GIT_CONFIG_PARAMETERS=\"'core.fsmonitor'='x'\" git status",
+    "GIT_EXTERNAL_DIFF=x git diff",
+    "GIT_PAGER=x git log",
+    "env PAGER=x git log",
+    "PAGER=x; git log",
+    "LD_PRELOAD=/tmp/x.so ls",
+    "sort --compress-program=x a",
+    "sort -o out a",
+    "sort --output=out a",
+    "uniq a out",
+    "tree -o out",
+    "rg --pre x foo",
+    "rg --pre=x foo",
+    "file -C -m magic",
+    "date -s 2020-01-01",
+]
+READ_ONLY_STILL_OK = [
+    "git -C dir log",
+    "git --no-pager log -1",
+    "git grep -n foo",
+    "GIT_PAGER=cat git log",
+    "PAGER= git log",
+    "NO_COLOR=1 git diff",
+    "sort -u a | uniq -c",
+    "uniq a",
+    "rg -n foo src",
+    "tree -L 2",
+    "date +%F",
+]
+
+
+@pytest.mark.parametrize("agent", ["harness-ops:architect", "harness-ops:suite-auditor"])
+@pytest.mark.parametrize("cmd", READ_ONLY_RUNS_CODE)
+def test_read_only_agents_may_not_run_code_through_config_env_or_options(hook, cmd, agent):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "agent_type": agent})
+    assert code == 2 and "read-only" in err, (cmd, err)
+
+
+@pytest.mark.parametrize("agent", ["harness-ops:architect", "harness-ops:suite-auditor"])
+@pytest.mark.parametrize("cmd", READ_ONLY_STILL_OK)
+def test_read_only_agents_keep_plain_reads(hook, cmd, agent):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "agent_type": agent})
+    assert code == 0, (cmd, err)
+
+
 @pytest.mark.parametrize("cmd", ALLOWED)
 def test_guard_bash_allows(hook, cmd):
     code, _, _ = hook("guard_bash.py", {"tool_input": {"command": cmd}})
