@@ -6,6 +6,8 @@
 - A pytest run that passed nothing fails (nothing collected, everything skipped or deselected): it is not a pass.
 - The [tests] floors of ratchets.toml hold the run to a passed-test count and a line coverage; diff coverage is
   printed, never gated (docs/research/test-floors-and-coverage.md).
+- Each gate's test run appends per-test outcome and duration to a bounded history in the machine's state dir (CI
+  uploads it as the test-history artifact), so an audit can find flaky and slow tests across runs.
 """
 
 import contextlib
@@ -62,6 +64,36 @@ def passed_count(stdout: str, junit: Path) -> int:
     return min(int(by_line.group(1)) if by_line else 0, by_junit)
 
 
+HISTORY_FILE = "test-history.jsonl"  # in state_dir(): machine-local, shared by worktrees, never committed
+HISTORY_RUNS = 50  # runs kept: a test failing 1 run in 20 shows up within 50 runs with ~92% chance (1 - 0.95**50)
+HISTORY_CLOCK = time.time
+OUTCOMES = (("error", "error"), ("failure", "failed"), ("skipped", "skipped"))  # JUnit tag inside a testcase -> outcome
+
+
+def record_history(junit: Path, history: Path, at: int, keep: int = HISTORY_RUNS) -> None:
+    """Append one run (`at`, and per test id its outcome and seconds) from a JUnit report to a JSON-lines history,
+    keeping the last `keep` runs. An unreadable report records nothing: the history is evidence, never a gate."""
+    try:
+        cases = list(ElementTree.parse(junit).getroot().iter("testcase"))  # noqa: S314 - the gate's own pytest wrote it
+    except (OSError, ElementTree.ParseError):
+        return
+    tests = {}
+    for case in cases:
+        tags = {x.tag for x in case}
+        outcome = next((o for tag, o in OUTCOMES if tag in tags), "passed")
+        try:
+            seconds = round(float(case.get("time", 0)), 3)
+        except ValueError:
+            seconds = 0.0
+        tests[f"{case.get('classname', '')}::{case.get('name', '')}".lstrip(":")] = [outcome, seconds]
+    lines = history.read_text().splitlines() if history.exists() else []
+    lines = [*lines, json.dumps({"at": at, "tests": tests}, separators=(",", ":"))][-keep:]
+    history.parent.mkdir(parents=True, exist_ok=True)
+    tmp = history.with_suffix(".tmp")
+    tmp.write_text("\n".join(lines) + "\n")
+    tmp.replace(history)
+
+
 def _run(
     name: str,
     cmd: list[str],
@@ -69,6 +101,7 @@ def _run(
     cwd: Path | None = None,
     checked: int | None = None,
     env: dict[str, str] | None = None,
+    history: Path | None = None,
 ) -> Ran:
     ran = Ran(name, allow_empty=allow_empty)
     with tempfile.TemporaryDirectory(prefix="gate-junit-") as tmp:
@@ -78,6 +111,8 @@ def _run(
         # count what ran; an unreadable summary counts 0, which fails (never a silent pass)
         if "pytest" in cmd:
             ran.checked = passed_count(out.stdout, junit)
+            if history is not None:
+                record_history(junit, history, at=int(HISTORY_CLOCK()))
         else:
             ran.checked = len(checks.tracked("*.py")) if checked is None else checked
     text = (out.stdout + out.stderr).strip()
@@ -152,20 +187,23 @@ def diff_coverage(xml: Path, base: str, cwd: Path | None = None, shown: int = 10
     return [line + (f"; uncovered: {' '.join(uncovered[:shown])}{more}" if uncovered else "")]
 
 
-def tests_stage(cmd: list[str], floors: dict, base: str | None, cwd: Path | None = None) -> Ran:
+def tests_stage(
+    cmd: list[str], floors: dict, base: str | None, cwd: Path | None = None, history: Path | None = None
+) -> Ran:
     """The test run, held to the [tests] floors of ratchets.toml. A min_coverage floor turns on coverage (pytest-cov,
-    data and reports in a temporary directory) and the report-only diff coverage against `base`."""
+    data and reports in a temporary directory) and the report-only diff coverage against `base`. With `history`, the
+    run's per-test outcomes and durations are appended to it (record_history)."""
     with tempfile.TemporaryDirectory(prefix="gate-cov-") as tmp:
         report, xml = Path(tmp) / "coverage.json", Path(tmp) / "coverage.xml"
         percent = None
         if "min_coverage" in floors:
             cov = ["--cov", "--cov-report=", f"--cov-report=json:{report}", f"--cov-report=xml:{xml}"]
             env = os.environ | {"COVERAGE_FILE": str(Path(tmp) / ".coverage")}
-            ran = _run("tests", [*cmd, *cov], cwd=cwd, env=env)
+            ran = _run("tests", [*cmd, *cov], cwd=cwd, env=env, history=history)
             with contextlib.suppress(OSError, ValueError, KeyError):
                 percent = json.loads(report.read_text())["totals"]["percent_covered"]
         else:
-            ran = _run("tests", cmd, cwd=cwd)
+            ran = _run("tests", cmd, cwd=cwd, history=history)
         if ran.problems:  # the run itself failed: its output says why, a floor message would only add noise
             return ran
         problems, ran.notes = floor_problems(ran.checked, percent, floors)
@@ -310,7 +348,7 @@ def stages(full: bool, commands: dict[str, set[str]], base: str | None) -> list[
         lock_check,
         actionlint,
         zizmor,
-        lambda: tests_stage(pytest_cmd(["tests"], slow=full), _floors(), base),
+        lambda: tests_stage(pytest_cmd(["tests"], slow=full), _floors(), base, history=state_dir() / HISTORY_FILE),
     ]
 
 
