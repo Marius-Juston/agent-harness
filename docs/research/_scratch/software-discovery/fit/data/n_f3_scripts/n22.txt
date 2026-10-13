@@ -1,0 +1,35 @@
+import importlib, importlib.metadata as md, inspect, pkgutil
+dist = md.distribution("satusehat-integration")
+tops = {p.parts[0].removesuffix(".py") for p in dist.files or []
+        if p.parts[0].isidentifier() and not p.parts[0].endswith("-info")}
+assert tops, "no importable top-level package found"
+cands = []
+for t in sorted(tops):
+    mod = importlib.import_module(t)
+    mods = [mod] + [importlib.import_module(m.name) for m in pkgutil.walk_packages(
+        getattr(mod, "__path__", []), t + ".") if "test" not in m.name]
+    for m in mods:
+        for n, f in vars(m).items():
+            if callable(f) and "valid" in n.lower() and not n.startswith("_") \
+               and getattr(f, "__module__", "").startswith(t):
+                cands.append(f)
+assert cands, f"no public validation callable found in {tops}"
+good = {"resourceType": "Patient", "id": "p1", "active": True,
+        "name": [{"family": "Santoso", "given": ["Budi"]}],
+        "gender": "male", "birthDate": "1980-05-17"}
+bad = {"resourceType": "Patient", "id": "p1", "active": "notabool",
+       "gender": "robot", "birthDate": "17-05-1980", "bogusField": 1}
+validate = cands[0]
+if inspect.isclass(validate):
+    validate = getattr(validate(), "validate")
+r_good = validate(good)
+r_bad = validate(bad)
+print("good ->", r_good)
+print("bad  ->", r_bad)
+# valid resource: truthy/True or empty error list
+assert r_good is True or r_good in (None, [], {}) or getattr(r_good, "valid", None) is True
+# invalid resource: must report errors (non-empty list / False / object flag)
+assert r_bad is False or (isinstance(r_bad, (list, dict, tuple)) and len(r_bad) > 0) \
+    or getattr(r_bad, "valid", None) is False
+assert r_good != r_bad
+print("FIT_OK")

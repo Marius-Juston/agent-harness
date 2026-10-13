@@ -1,0 +1,36 @@
+from datetime import timedelta
+
+import isodate
+
+# Basic case from the stated need
+d = isodate.parse_duration("P3DT4H30M")
+assert isinstance(d, timedelta), type(d)
+assert d == timedelta(days=3, hours=4, minutes=30), d
+
+# Additional representative durations
+cases = {
+    "PT0S": timedelta(0),
+    "P1D": timedelta(days=1),
+    "PT45M": timedelta(minutes=45),
+    "PT1H": timedelta(hours=1),
+    "PT36H": timedelta(hours=36),
+    "P2W": timedelta(weeks=2),
+    "PT1.5S": timedelta(seconds=1.5),
+    "P1DT2H3M4S": timedelta(days=1, hours=2, minutes=3, seconds=4),
+    "-P1D": timedelta(days=-1),
+}
+for text, expected in cases.items():
+    got = isodate.parse_duration(text)
+    assert isinstance(got, timedelta), (text, type(got))
+    assert got == expected, (text, got, expected)
+
+# Invalid input must be rejected
+for bad in ("3DT4H", "P", "garbage"):
+    try:
+        isodate.parse_duration(bad)
+    except isodate.ISO8601Error:
+        pass
+    else:
+        raise AssertionError(f"accepted invalid duration {bad!r}")
+
+print("FIT_OK")

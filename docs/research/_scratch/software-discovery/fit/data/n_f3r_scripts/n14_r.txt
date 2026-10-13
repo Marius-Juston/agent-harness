@@ -1,0 +1,37 @@
+import importlib, importlib.metadata as md, inspect, pkgutil, sqlite3, os
+dist = md.distribution("dot-agora")
+tops = {f.parts[0].removesuffix(".py") for f in dist.files if f.suffix in (".py", "") and f.parts[0].isidentifier()}
+mods = []
+for t in tops:
+    m = importlib.import_module(t); mods.append(m)
+    for i in pkgutil.walk_packages(getattr(m, "__path__", []), t + "."):
+        try: mods.append(importlib.import_module(i.name))  # skip modules needing uninstalled extras (e.g. rich CLI)
+        except ModuleNotFoundError as e: print("skip", i.name, e)
+objs = {f"{m.__name__}.{n}": o for m in mods for n, o in vars(m).items() if not n.startswith("_")}
+cands = [o for k, o in objs.items() if inspect.isclass(o) and "sqlite" in (k + o.__name__).lower()
+         and any(hasattr(o, a) for a in ("save", "append", "write", "add", "save_journal"))]
+assert cands, "no SQLite journal store found: " + str([k for k in objs if "sqlite" in k.lower() or "journal" in k.lower()])
+store_cls = cands[0]
+print("store:", store_cls, inspect.signature(store_cls))
+db = "/tmp/journal_test.db"
+if os.path.exists(db): os.remove(db)
+store = store_cls(db)
+entries = [{"room": "r1", "author": "alice", "text": "hello"}, {"room": "r1", "author": "bob", "text": "hi alice"}]
+save = next(getattr(store, a) for a in ("save", "append", "write", "add", "save_journal") if hasattr(store, a))
+print("save:", save.__name__, inspect.signature(save))
+for e in entries:
+    save(**e) if "text" in inspect.signature(save).parameters else save(e)
+if hasattr(store, "close"): store.close()
+assert os.path.getsize(db) > 0
+con = sqlite3.connect(db)
+tables = [r[0] for r in con.execute("select name from sqlite_master where type='table'")]
+assert tables, "no tables written"
+assert sum(con.execute(f'select count(*) from "{t}"').fetchone()[0] for t in tables) >= 2
+con.close()
+store2 = store_cls(db)
+load = next(getattr(store2, a) for a in ("load", "read", "entries", "all", "replay", "load_journal") if hasattr(store2, a))
+loaded = list(load("r1") if callable(load) and inspect.signature(load).parameters else (load() if callable(load) else load))
+assert len(loaded) == 2, loaded
+texts = [getattr(x, "text", None) or (x.get("text") if isinstance(x, dict) else str(x)) for x in loaded]
+assert any("hello" in t for t in texts) and any("hi alice" in t for t in texts), texts
+print("FIT_OK")

@@ -1,0 +1,4 @@
+import simplejson
+names = [n for n in dir(simplejson) if not n.startswith("__") and "pack" in n.lower() or "msgpack" in n.lower()]; print(names)
+b = simplejson.dumps({"a": 1}); print(repr(b))
+print("GOLD_NOT" if not names else "GOLD_CHECK")

@@ -1,0 +1,34 @@
+import nh3
+
+html = (
+    '<p>Hello <b onclick="evil()">bold</b> and <i>italic</i>'
+    '<script>alert("xss")</script> end'
+    '<a href="javascript:alert(1)">link</a></p>'
+)
+
+out = nh3.clean(html, tags={"b"})
+print(repr(out))
+
+# Allowed tag kept, its disallowed attribute stripped
+assert "<b>bold</b>" in out, out
+assert "onclick" not in out and "evil" not in out, out
+
+# Script tag removed together with its content
+assert "<script" not in out.lower(), out
+assert "alert" not in out, out
+assert "xss" not in out, out
+
+# Non-allowlisted tags removed but their text content kept
+assert "<i>" not in out and "<p>" not in out and "<a" not in out, out
+assert "italic" in out and "Hello" in out and "end" in out and "link" in out, out
+assert "javascript" not in out, out
+
+# Default clean also drops script + content
+out2 = nh3.clean("<b>x</b><script>var s=1;</script>")
+assert "<b>x</b>" in out2 and "var s" not in out2 and "script" not in out2, out2
+
+# Style content removed too
+out3 = nh3.clean("<b>y</b><style>body{color:red}</style>", tags={"b"})
+assert out3 == "<b>y</b>", out3
+
+print("FIT_OK")

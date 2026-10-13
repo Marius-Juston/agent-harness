@@ -1,0 +1,37 @@
+import importlib
+import pkgutil
+import inspect
+import reminis
+
+# Collect every public name exposed by reminis and its submodules.
+public = {}
+for name in dir(reminis):
+    if not name.startswith("_"):
+        public[name] = getattr(reminis, name)
+for mod_info in pkgutil.iter_modules(reminis.__path__, "reminis."):
+    if mod_info.name.endswith(("__main__", "cli")):
+        continue
+    mod = importlib.import_module(mod_info.name)
+    for name, obj in vars(mod).items():
+        if not name.startswith("_"):
+            public[f"{mod_info.name}.{name}"] = obj
+            if inspect.isclass(obj):
+                for meth in dir(obj):
+                    if not meth.startswith("_"):
+                        public[f"{mod_info.name}.{name}.{meth}"] = getattr(obj, meth)
+
+keywords = ("lora", "adapter", "finetune", "fine_tune", "train")
+candidates = [n for n in public if any(k in n.lower() for k in keywords)]
+print("public API:", sorted(public)[:40])
+print("LoRA/training candidates:", candidates)
+
+# The need: train a LoRA adapter on a small text dataset.
+assert candidates, "reminis exposes no LoRA/adapter training API"
+train = public[candidates[0]]
+assert callable(train), f"{candidates[0]} is not callable"
+
+texts = ["hello world", "lora adapters are small", "tiny dataset"] * 4
+adapter = train(texts)
+assert adapter is not None, "training returned nothing"
+
+print("FIT_OK")

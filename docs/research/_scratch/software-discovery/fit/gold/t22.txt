@@ -1,0 +1,7 @@
+import pydantic
+print(pydantic.VERSION)
+names = [n for n in dir(pydantic) if "schema" in n.lower() or "valid" in n.lower()]; print(names)
+# pydantic generates JSON Schema from models; it has no public API that validates data against a given JSON Schema dict.
+s = {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"]}
+cands = [n for n in names if "from_json_schema" in n.lower() or "validate_json_schema" in n.lower()]
+print("GOLD_NOT" if not cands else "GOLD_CHECK")

@@ -1,0 +1,34 @@
+import os
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab import Version
+
+path = "/tmp/fit_test_output.pdf"
+if os.path.exists(path):
+    os.remove(path)
+
+text = "Hello FIT test line 12345"
+
+# Disable page compression so the text appears literally in the content stream
+c = canvas.Canvas(path, pagesize=letter, pageCompression=0)
+c.setFont("Helvetica", 12)
+c.drawString(72, 720, text)
+c.showPage()
+c.save()
+
+assert os.path.exists(path), "PDF file was not created"
+size = os.path.getsize(path)
+assert size > 0, "PDF file is empty"
+
+with open(path, "rb") as f:
+    data = f.read()
+
+assert data.startswith(b"%PDF-"), "Missing PDF header"
+assert b"%%EOF" in data[-1024:], "Missing PDF EOF marker"
+assert b"/Type /Page" in data, "No page object found"
+assert text.encode("latin-1") in data, "Text not found in PDF content"
+assert b"Tj" in data, "No text-showing operator found"
+assert b"Helvetica" in data, "Font not referenced in PDF"
+
+print("reportlab version:", Version, "size:", size)
+print("FIT_OK")

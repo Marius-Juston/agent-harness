@@ -1,0 +1,5 @@
+import tiktoken
+try:
+    e = tiktoken.get_encoding("cl100k_base"); print(len(e.encode("hello world"))); print("GOLD_FIT")
+except Exception as ex:
+    print(type(ex).__name__, str(ex)[:300]); print("GOLD_NOT")

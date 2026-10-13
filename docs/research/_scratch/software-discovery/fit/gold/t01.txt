@@ -1,0 +1,5 @@
+import tomlkit
+src = "# top comment\n[tool]\nx = 1  # inline\n"
+doc = tomlkit.parse(src); doc["tool"]["x"] = 2
+out = tomlkit.dumps(doc); print(out)
+print("GOLD_FIT" if "# top comment" in out and "# inline" in out and "x = 2" in out else "GOLD_NOT")

@@ -1,0 +1,36 @@
+import importlib, pkgutil
+m = importlib.import_module("cas_schedule_p")
+mods = [m] + [importlib.import_module(f"cas_schedule_p.{i.name}") for i in pkgutil.iter_modules(getattr(m, "__path__", []))]
+lines = ["wkcomp", "ppauto", "comauto", "medmal", "othliab", "prodliab", "wc", "pp_auto"]
+cands = [(n, f) for mod in mods for n, f in vars(mod).items() if not n.startswith("_") and callable(f)
+         and any(k in n.lower() for k in ("load", "read", "table", "get", "dataset"))]
+assert cands, f"no loader-like API found in {dir(m)}"
+def cols_rows(r):
+    if isinstance(r, (str, bytes, dict, list, tuple)) or isinstance(r, type):
+        return None
+    cols = getattr(r, "column_names", None) or getattr(getattr(r, "schema", None), "names", None) or getattr(r, "columns", None)
+    try:
+        cols = [str(c) for c in cols]
+        n = r.num_rows if hasattr(r, "num_rows") else (r.height if hasattr(r, "height") else len(r))
+    except Exception:
+        return None
+    return (cols, n) if cols and n > 0 else None
+table = None
+for name, fn in cands:
+    for args in [()] + [(l,) for l in lines]:
+        try:
+            r = fn(*args)
+        except Exception:
+            continue  # probing signatures only; success is asserted below
+        if cols_rows(r):
+            table, used = r, (name, args)
+            break
+    if table is not None:
+        break
+assert table is not None, f"no candidate returned a non-empty table object: {[n for n, _ in cands]}"
+cols, nrows = cols_rows(table)
+assert nrows > 0 and len(cols) > 0
+lc = [c.lower() for c in cols]
+assert any(k in c for c in lc for k in ("loss", "premium", "accident", "year", "lag", "grcode")), cols
+print(used, type(table), nrows, cols[:8])
+print("FIT_OK")

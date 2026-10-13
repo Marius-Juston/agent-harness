@@ -1,0 +1,42 @@
+import json
+import jsonschema
+from jsonschema import Draft202012Validator, ValidationError
+
+schema = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "age": {"type": "integer", "minimum": 0},
+        "tags": {"type": "array", "prefixItems": [{"type": "string"}], "items": {"type": "number"}},
+    },
+    "required": ["name", "age"],
+    "unevaluatedProperties": False,
+}
+
+Draft202012Validator.check_schema(schema)
+assert jsonschema.validators.validator_for(schema) is Draft202012Validator
+
+good = json.loads('{"name": "Ann", "age": 30, "tags": ["x", 1, 2.5]}')
+v = Draft202012Validator(schema)
+assert v.is_valid(good)
+jsonschema.validate(good, schema)  # raises if invalid
+
+bad_docs = [
+    {"name": "Ann"},                          # missing age
+    {"name": "", "age": 1},                   # minLength
+    {"name": "A", "age": -1},                 # minimum
+    {"name": "A", "age": 1, "extra": True},   # unevaluatedProperties
+    {"name": "A", "age": 1, "tags": ["x", "y"]},  # items after prefixItems
+]
+for doc in bad_docs:
+    assert not v.is_valid(doc), doc
+    assert list(v.iter_errors(doc)), doc
+    raised = False
+    try:
+        jsonschema.validate(doc, schema)
+    except ValidationError:
+        raised = True
+    assert raised, doc
+
+print("FIT_OK")

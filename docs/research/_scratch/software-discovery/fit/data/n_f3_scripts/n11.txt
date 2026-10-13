@@ -1,0 +1,33 @@
+import importlib, inspect, json, pkgutil
+import camt053_lsp
+
+# Reversing entry deliberately missing required fields (e.g. amount / original reference).
+record = {"Ntry": {"RvslInd": True, "CdtDbtInd": "DBIT", "Sts": "BOOK",
+                   "BookgDt": {"Dt": "2024-01-15"}}}
+text = json.dumps(record, indent=2)
+
+mods = [camt053_lsp] + [importlib.import_module(f"camt053_lsp.{m.name}")
+                        for m in pkgutil.iter_modules(camt053_lsp.__path__)]
+cands = [(n, f) for mod in mods for n, f in vars(mod).items()
+         if inspect.isfunction(f) and not n.startswith("_")
+         and any(k in n.lower() for k in ("validat", "diagnos", "check", "lint"))]
+assert cands, "no public validation/diagnostics function found"
+
+diags = None
+for name, fn in cands:
+    for arg in (text, record):
+        try:
+            res = fn(arg)
+        except TypeError:
+            continue
+        if isinstance(res, (list, tuple)) and res:
+            diags = list(res)
+            break
+    if diags:
+        break
+
+assert diags, "no diagnostics produced for incomplete reversing entry"
+msgs = " ".join(str(getattr(d, "message", d)) for d in diags).lower()
+assert "missing" in msgs or "required" in msgs, msgs
+print(f"{len(diags)} diagnostics via {name}: {msgs[:200]}")
+print("FIT_OK")

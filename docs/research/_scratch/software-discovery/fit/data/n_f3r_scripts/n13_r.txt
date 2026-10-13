@@ -1,0 +1,34 @@
+import inspect, asyncio
+import agora
+from agora import Room, Participant, Journal
+for c in (Room, Participant, Journal):
+    print(c.__name__, inspect.signature(c), [m for m in dir(c) if not m.startswith("_")])
+
+journal = Journal()
+room = Room(journal=journal)
+
+class Bob(Participant):
+    async def on_post(self, post):
+        if getattr(post, "speaker", None) == "alice":
+            await self.say(f"answer to {post.text}", to="alice")
+
+alice = Participant("alice")
+bob = Bob("bob")
+room.join(alice)
+room.join(bob)
+
+async def main():
+    await alice.say("what is 2+2?", to="bob")
+    await room.run_until_quiet()
+asyncio.run(main())
+
+entries = list(journal)
+print("JOURNAL:")
+for e in entries:
+    print(" ", e)
+text = " ".join(map(str, entries))
+assert len(entries) >= 2, entries
+assert "alice" in text and "bob" in text, text
+assert "what is 2+2?" in text, text
+assert "answer to" in text, text
+print("FIT_OK")

@@ -1,0 +1,11 @@
+from music21 import stream, note, musicxml
+def xml(pitches):
+    s = stream.Score(); p = stream.Part(); m = stream.Measure()
+    for q in pitches: m.append(note.Note(q, quarterLength=1))
+    p.append(m); s.append(p)
+    return musicxml.m21ToXml.GeneralObjectExporter(s).parse().decode()
+from comparer_mcp.engine import compare
+r = compare(xml(["C4", "D4", "E4", "F4"]), xml(["C4", "D4", "E4", "G4"]))
+same = compare(xml(["C4", "D4", "E4", "F4"]), xml(["C4", "D4", "E4", "F4"]))
+print(r.similarity_score, same.similarity_score)
+print("GOLD_FIT" if 0 <= r.similarity_score < same.similarity_score <= 1 else "GOLD_NOT")

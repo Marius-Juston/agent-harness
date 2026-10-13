@@ -1,0 +1,35 @@
+# NOTE: as of 2026-10-13, PyPI returns 404 for "camt053-lsp" (no such project),
+# so `uv add camt053-lsp` cannot succeed and this script is expected to fail.
+# It looks up the installed distribution's public API and requires an LSP
+# rename capability that yields edits over a camt.053 JSON document.
+import importlib, importlib.metadata as md, inspect, json
+
+dist = md.distribution("camt053-lsp")  # raises PackageNotFoundError if absent
+top = (dist.read_text("top_level.txt") or "camt053_lsp").split()[0]
+mod = importlib.import_module(top)
+
+doc = {"Document": {"BkToCstmrStmt": {"Stmt": [{"Id": "S1", "Ntry": [
+    {"Amt": "10.00", "CdtDbtInd": "CRDT"}, {"Amt": "5.00", "CdtDbtInd": "DBIT"}]}]}}}
+text = json.dumps(doc, indent=2)
+uri = "file:///tmp/stmt.json"
+with open("/tmp/stmt.json", "w") as f:
+    f.write(text)
+
+# Find a public rename entry point (e.g. rename / rename_symbol / handle_rename).
+cands = [getattr(mod, n) for n in dir(mod)
+         if "rename" in n.lower() and not n.startswith("_") and callable(getattr(mod, n))]
+assert cands, f"no public rename API in {top}: {sorted(dir(mod))}"
+fn = cands[0]
+
+line = next(i for i, l in enumerate(text.splitlines()) if '"Amt"' in l)
+char = text.splitlines()[line].index('"Amt"') + 1
+params = inspect.signature(fn).parameters
+kwargs = {k: v for k, v in dict(text=text, source=text, document=text, uri=uri,
+          line=line, character=char, position={"line": line, "character": char},
+          new_name="Amount").items() if k in params}
+edit = fn(**kwargs)
+assert edit is not None, "rename returned nothing"
+
+s = json.dumps(edit, default=lambda o: getattr(o, "__dict__", str(o)))
+assert s.count("Amount") >= 2, f"expected both Amt fields renamed: {s}"
+print("FIT_OK")

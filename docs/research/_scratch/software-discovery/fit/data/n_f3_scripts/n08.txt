@@ -1,0 +1,42 @@
+import os, importlib, pkgutil, inspect
+import fractal_core
+
+# Locate the public settings base class shipped by fractal-core
+base = None
+for m in pkgutil.walk_packages(fractal_core.__path__, "fractal_core."):
+    if "settings" not in m.name:
+        continue
+    mod = importlib.import_module(m.name)
+    for name in ("BaseSettings", "Settings"):
+        cls = getattr(mod, name, None)
+        if inspect.isclass(cls) and cls.__module__.startswith("fractal_core"):
+            base = cls
+            break
+    if base:
+        break
+assert base is not None, "no Settings class found in fractal_core"
+
+class AppSettings(base):
+    DEBUG: bool = False
+
+    def load(self):
+        # Declared-type loading is expected to come from the library itself
+        sup = getattr(super(), "load", None)
+        if sup:
+            sup()
+
+os.environ["DEBUG"] = "true"
+good = AppSettings()
+assert getattr(good, "DEBUG") is True, f"DEBUG not coerced to bool: {getattr(good, 'DEBUG', None)!r}"
+
+os.environ["DEBUG"] = "maybe"
+if hasattr(base, "instance"):
+    base.instance = None
+    AppSettings.instance = None
+rejected = False
+try:
+    AppSettings()
+except (ValueError, TypeError):
+    rejected = True
+assert rejected, "DEBUG='maybe' was accepted for a bool setting"
+print("FIT_OK")

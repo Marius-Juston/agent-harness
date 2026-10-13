@@ -1,0 +1,13 @@
+import toml
+src = "# top comment\n[tool]\nx = 1  # inline\n"
+d = toml.loads(src); d["tool"]["x"] = 2
+out = toml.dumps(d); print(repr(out))
+enc = None
+try:
+    enc = toml.TomlPreserveCommentEncoder
+    out2 = toml.dumps(toml.loads(src, decoder=toml.TomlPreserveCommentDecoder()), encoder=enc())
+    print("preserve encoder:", repr(out2))
+except Exception as e:
+    out2 = ""; print("preserve encoder error", type(e).__name__, e)
+ok = ("# top comment" in out2 and "# inline" in out2) or ("# top comment" in out)
+print("GOLD_FIT" if ok else "GOLD_NOT")

@@ -1,0 +1,6 @@
+import click, io
+out = io.StringIO()
+with click.progressbar(list(range(5)), label="work", file=out) as bar:
+    n = sum(1 for _ in bar)
+print(n, hasattr(click, "progressbar"))
+print("GOLD_FIT" if n == 5 else "GOLD_NOT")

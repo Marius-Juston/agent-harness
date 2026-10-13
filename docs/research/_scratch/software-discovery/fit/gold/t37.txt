@@ -1,0 +1,5 @@
+import nltk
+try:
+    s = nltk.sent_tokenize("Mr. Smith went home. It was late! Was it?"); print(s); print("GOLD_FIT")
+except LookupError as e:
+    print("LookupError", str(e)[:300]); print("GOLD_NOT")

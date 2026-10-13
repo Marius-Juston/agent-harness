@@ -1,0 +1,40 @@
+import importlib, pkgutil, inspect
+import numpy as np
+import poly_basis_ml as pkg
+mods = [pkg]
+for m in pkgutil.walk_packages(pkg.__path__, pkg.__name__ + "."):
+    if not any(p.startswith("_") for p in m.name.split(".")[1:]):
+        mods.append(importlib.import_module(m.name))
+cls = {n: o for mod in mods for n, o in vars(mod).items()
+       if inspect.isclass(o) and not n.startswith("_") and "classif" in n.lower()}
+print("classifier classes:", sorted(cls))
+assert cls, "no classifier class at all in poly_basis_ml"
+cheb = [o for n, o in sorted(cls.items()) if "cheb" in n.lower()]
+kw = {}
+if cheb:
+    Cls = cheb[0]
+else:  # generic polynomial classifier with a basis selector parameter
+    Cls = next(o for n, o in sorted(cls.items()) if any("basis" in p or p in ("kind", "family", "polynomial")
+               for p in inspect.signature(o.__init__).parameters))
+    pname = next(p for p in inspect.signature(Cls.__init__).parameters if "basis" in p or p in ("kind", "family", "polynomial"))
+    kw = {pname: "chebyshev"}
+print("using", Cls.__module__, Cls.__name__, kw, inspect.signature(Cls.__init__))
+rng = np.random.default_rng(0)
+X = rng.uniform(-1, 1, size=(400, 2))
+y = (X[:, 0] ** 2 + X[:, 1] ** 2 > 0.5).astype(int)
+est = Cls(**kw)
+assert isinstance(est.get_params(), dict) and hasattr(est, "set_params")
+assert getattr(est, "_estimator_type", None) == "classifier" or any(
+    "ClassifierMixin" in b.__name__ for b in Cls.__mro__), "not a sklearn classifier"
+assert "cheb" in str(est.get_params()).lower() or cheb, "Chebyshev basis not selected"
+assert est.fit(X, y) is est, "fit should return self"
+pred = np.asarray(est.predict(X))
+assert pred.shape == (400,) and set(np.unique(pred)) <= {0, 1}
+acc = float((pred == y).mean())
+print("train accuracy", acc)
+assert acc > 0.85, f"accuracy too low: {acc}"
+assert list(np.asarray(est.classes_)) == [0, 1]
+if hasattr(est, "predict_proba"):
+    P = np.asarray(est.predict_proba(X))
+    assert P.shape == (400, 2) and np.allclose(P.sum(axis=1), 1, atol=1e-6)
+print("FIT_OK")

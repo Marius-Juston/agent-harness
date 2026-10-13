@@ -1,0 +1,38 @@
+# Fit test: does `ezgb` expose a capability to import GitHub issues into git-bug?
+# The sandbox has no network, so a real GitHub fetch cannot run. This script
+# checks that ezgb's public API offers such an importer at all, and fails otherwise.
+import importlib
+import inspect
+import pkgutil
+
+import ezgb
+
+KEYWORDS = ("github", "gitbug", "git_bug", "bridge")
+ISSUE_WORDS = ("issue", "import", "bridge", "pull")
+
+modules = [ezgb]
+if hasattr(ezgb, "__path__"):
+    for info in pkgutil.walk_packages(ezgb.__path__, ezgb.__name__ + "."):
+        try:
+            modules.append(importlib.import_module(info.name))
+        except ImportError:
+            continue  # optional submodule needing an absent extra; not the capability
+
+candidates = []
+for mod in modules:
+    for name, obj in vars(mod).items():
+        if name.startswith("_") or not callable(obj):
+            continue
+        qual = f"{mod.__name__}.{name}".lower()
+        doc = (inspect.getdoc(obj) or "").lower()
+        text = qual + " " + doc
+        if any(k in text for k in KEYWORDS) and any(w in text for w in ISSUE_WORDS):
+            candidates.append(f"{mod.__name__}.{name}")
+
+print("modules scanned:", [m.__name__ for m in modules])
+print("candidate importers:", candidates)
+
+assert candidates, "ezgb exposes no public API for importing GitHub issues into git-bug"
+assert any("github" in c.lower() or "bridge" in c.lower() for c in candidates), candidates
+
+print("FIT_OK")

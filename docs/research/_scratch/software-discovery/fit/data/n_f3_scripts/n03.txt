@@ -1,0 +1,38 @@
+import inspect, json, os, sqlite3, struct
+import reminis
+
+# Build a tiny safetensors file by hand (8-byte LE header length + JSON header + raw data)
+data = struct.pack("<4f", 1.0, 2.0, 3.0, 4.0)
+hdr = json.dumps({"w": {"dtype": "F32", "shape": [2, 2], "data_offsets": [0, len(data)]}}).encode()
+st_path = "/tmp/model.safetensors"
+with open(st_path, "wb") as f:
+    f.write(struct.pack("<Q", len(hdr)) + hdr + data)
+
+def find(obj, *names):
+    for n in names:
+        if callable(getattr(obj, n, None)):
+            return getattr(obj, n)
+
+cands = [c for _, c in inspect.getmembers(reminis, inspect.isclass)
+         if find(c, "add", "store", "save", "put", "register", "add_model")
+         and find(c, "list", "list_models", "models", "ls")
+         and find(c, "export", "export_model")]
+assert cands, f"no registry class with store/list/export in reminis: {dir(reminis)}"
+reg = cands[0]("/tmp/registry.db")
+find(reg, "add_model", "add", "store", "save", "put", "register")("tiny", st_path)
+
+listing = find(reg, "list_models", "list", "models", "ls")()
+text = repr(listing)
+assert "tiny" in text, text
+assert any(str(s) in text for s in (os.path.getsize(st_path), len(data))), f"size missing: {text}"
+
+out = "/tmp/exported.db"
+find(reg, "export_model", "export")("tiny", out)
+assert os.path.getsize(out) > 0
+con = sqlite3.connect(out)
+tables = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+assert tables, "exported file is not a populated SQLite database"
+blob = b"".join(bytes(v) for t in tables for row in con.execute(f'SELECT * FROM "{t}"')
+                for v in row if isinstance(v, (bytes, memoryview)))
+assert data in blob, "weights not found in exported database"
+print("FIT_OK")

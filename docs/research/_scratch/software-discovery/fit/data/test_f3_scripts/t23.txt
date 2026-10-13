@@ -1,0 +1,41 @@
+import asyncio
+import json
+import httpx
+
+async def handle(reader, writer):
+    data = b""
+    while b"\r\n\r\n" not in data:
+        data += await reader.read(4096)
+    head, _, rest = data.partition(b"\r\n\r\n")
+    lines = head.decode().split("\r\n")
+    method, path, _ = lines[0].split(" ")
+    headers = {k.lower(): v.strip() for k, v in (l.split(":", 1) for l in lines[1:])}
+    n = int(headers.get("content-length", "0"))
+    while len(rest) < n:
+        rest += await reader.read(4096)
+    body = json.dumps({"method": method, "path": path, "body": rest.decode()}).encode()
+    writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                 b"Content-Length: " + str(len(body)).encode() + b"\r\nConnection: close\r\n\r\n" + body)
+    await writer.drain()
+    writer.close()
+
+async def main():
+    server = await asyncio.start_server(handle, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    base = f"http://127.0.0.1:{port}"
+    async with httpx.AsyncClient(base_url=base, timeout=10) as client:
+        r = await client.get("/hello", params={"x": "1"})
+        assert r.status_code == 200
+        assert r.json() == {"method": "GET", "path": "/hello?x=1", "body": ""}
+        r = await client.post("/echo", content=b"payload")
+        assert r.json()["method"] == "POST" and r.json()["body"] == "payload"
+        rs = await asyncio.gather(*(client.get(f"/c{i}") for i in range(5)))
+        assert [x.json()["path"] for x in rs] == [f"/c{i}" for i in range(5)]
+        async with client.stream("GET", "/stream") as sr:
+            chunks = [c async for c in sr.aiter_bytes()]
+        assert json.loads(b"".join(chunks))["path"] == "/stream"
+    server.close()
+    await server.wait_closed()
+
+asyncio.run(main())
+print("FIT_OK")

@@ -1,0 +1,31 @@
+import orjson
+
+text = """
+{
+    // a line comment
+    "name": "widget", // trailing comment
+    "tags": ["a", "b", "c",],
+    "nested": {
+        "x": 1,
+        "y": [1, 2, 3,], // another comment
+    },
+    "flag": true,
+}
+"""
+
+# orjson's public API: loads() is the only parser; there is no option flag
+# for comments or trailing commas, so test the plain call directly.
+result = orjson.loads(text)
+
+assert isinstance(result, dict)
+assert result["name"] == "widget"
+assert result["tags"] == ["a", "b", "c"]
+assert result["nested"] == {"x": 1, "y": [1, 2, 3]}
+assert result["flag"] is True
+assert set(result) == {"name", "tags", "nested", "flag"}
+
+# Also check a bytes input and a top-level array with trailing comma + comment.
+result2 = orjson.loads(b"[1, 2, // c\n 3,]")
+assert result2 == [1, 2, 3]
+
+print("FIT_OK")

@@ -1,0 +1,36 @@
+import importlib
+import pkgutil
+
+import html5lib
+
+html = """<html><body>
+<div id="main"><p class="a">one</p><p class="b">two</p><span class="a">three</span></div>
+</body></html>"""
+
+# Parsing works; the question is whether html5lib offers CSS selector matching.
+doc = html5lib.parse(html, treebuilder="etree", namespaceHTMLElements=False)
+assert doc is not None
+
+# Search html5lib's public API (all submodules) for a CSS-selector entry point.
+candidates = []
+modules = [html5lib]
+for info in pkgutil.walk_packages(html5lib.__path__, "html5lib."):
+    try:
+        modules.append(importlib.import_module(info.name))
+    except ImportError:
+        pass  # optional-backend modules (lxml, genshi) are not installed
+for mod in modules:
+    for name in dir(mod):
+        low = name.lower()
+        if not name.startswith("_") and ("css" in low or low in ("select", "select_one", "query_selector", "queryselectorall")):
+            candidates.append((mod.__name__, name))
+
+assert candidates, "html5lib exposes no CSS selector API (it only parses HTML)"
+
+mod_name, func_name = candidates[0]
+select = getattr(importlib.import_module(mod_name), func_name)
+result = select(doc, "div#main p.a")
+texts = [el.text for el in result]
+assert texts == ["one"], texts
+
+print("FIT_OK")

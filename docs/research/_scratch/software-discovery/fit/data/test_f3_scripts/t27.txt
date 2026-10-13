@@ -1,0 +1,34 @@
+from PIL import Image
+
+# Create a 100x80 RGB image with distinct quadrant colors
+src = Image.new("RGB", (100, 80), (255, 0, 0))
+for x in range(50, 100):
+    for y in range(0, 80):
+        src.putpixel((x, y), (0, 0, 255))
+assert src.size == (100, 80)
+
+# Downscale to arbitrary dimensions (aspect ratio not preserved)
+small = src.resize((37, 23))
+assert small.size == (37, 23)
+assert small.mode == "RGB"
+# Left side should remain red, right side blue
+assert small.getpixel((2, 10)) == (255, 0, 0)
+assert small.getpixel((34, 10)) == (0, 0, 255)
+
+# Upscale with explicit resampling filter
+big = src.resize((300, 200), resample=Image.Resampling.NEAREST)
+assert big.size == (300, 200)
+assert big.getpixel((10, 100)) == (255, 0, 0)
+assert big.getpixel((290, 100)) == (0, 0, 255)
+
+# Other filters also produce requested sizes
+for f in (Image.Resampling.BILINEAR, Image.Resampling.BICUBIC, Image.Resampling.LANCZOS):
+    r = src.resize((64, 64), resample=f)
+    assert r.size == (64, 64)
+
+# Round-trip via file in /tmp
+small.save("/tmp/resized.png")
+with Image.open("/tmp/resized.png") as reloaded:
+    assert reloaded.size == (37, 23)
+
+print("FIT_OK")

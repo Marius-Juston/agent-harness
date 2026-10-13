@@ -1,0 +1,25 @@
+from datetime import datetime, timedelta
+
+from dateutil import parser
+
+# Fixed reference "now" so results are deterministic.
+ref = datetime(2024, 5, 20, 12, 0, 0)
+
+cases = {
+    "3 days ago": ref - timedelta(days=3),
+    "2 weeks ago": ref - timedelta(weeks=2),
+    "5 hours ago": ref - timedelta(hours=5),
+}
+
+for phrase, expected in cases.items():
+    # Use dateutil's public parser; `default` provides the reference datetime.
+    result = parser.parse(phrase, default=ref)
+    print(f"{phrase!r} -> {result!r} (expected {expected!r})")
+    assert isinstance(result, datetime), f"not a datetime for {phrase!r}"
+    assert result.date() == expected.date(), (
+        f"{phrase!r}: got {result!r}, expected {expected!r}"
+    )
+    if "hour" in phrase:
+        assert result == expected, f"{phrase!r}: got {result!r}, expected {expected!r}"
+
+print("FIT_OK")

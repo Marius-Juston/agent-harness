@@ -1,0 +1,310 @@
+{
+ "t01": {
+  "exit": 0,
+  "seconds": 0.04,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t02": {
+  "exit": 0,
+  "seconds": 0.02,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t03": {
+  "exit": 0,
+  "seconds": 0.02,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t04": {
+  "exit": 0,
+  "seconds": 0.07,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t05": {
+  "exit": 0,
+  "seconds": 0.04,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t06": {
+  "exit": 0,
+  "seconds": 0.13,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t07": {
+  "exit": 0,
+  "seconds": 0.05,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t08": {
+  "exit": 0,
+  "seconds": 0.09,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t09": {
+  "exit": 0,
+  "seconds": 0.02,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t10": {
+  "exit": 0,
+  "seconds": 0.02,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t11": {
+  "exit": 0,
+  "seconds": 0.01,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t12": {
+  "exit": 0,
+  "seconds": 0.03,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t13": {
+  "exit": 0,
+  "seconds": 0.03,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t14": {
+  "exit": 0,
+  "seconds": 0.17,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t15": {
+  "exit": 0,
+  "seconds": 0.21,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t16": {
+  "exit": 0,
+  "seconds": 0.1,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t17": {
+  "exit": 0,
+  "seconds": 0.05,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t18": {
+  "exit": 0,
+  "seconds": 0.03,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t19": {
+  "exit": 0,
+  "seconds": 0.2,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t20": {
+  "exit": 0,
+  "seconds": 0.04,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t21": {
+  "exit": 0,
+  "seconds": 0.08,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t22": {
+  "exit": 0,
+  "seconds": 0.06,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t23": {
+  "exit": 0,
+  "seconds": 0.08,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t24": {
+  "exit": 0,
+  "seconds": 0.11,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t25": {
+  "exit": 0,
+  "seconds": 0.08,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t26": {
+  "exit": 0,
+  "seconds": 0.07,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t27": {
+  "exit": 0,
+  "seconds": 0.04,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t28": {
+  "exit": 0,
+  "seconds": 0.08,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t29": {
+  "exit": 0,
+  "seconds": 0.04,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t30": {
+  "exit": 0,
+  "seconds": 0.01,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t31": {
+  "exit": 0,
+  "seconds": 0.02,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t32": {
+  "exit": 0,
+  "seconds": 0.2,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t33": {
+  "exit": 0,
+  "seconds": 0.06,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t34": {
+  "exit": 0,
+  "seconds": 0.02,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t35": {
+  "exit": 0,
+  "seconds": 0.03,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t36": {
+  "exit": 0,
+  "seconds": 0.03,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t37": {
+  "exit": 0,
+  "seconds": 0.37,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t38": {
+  "exit": 0,
+  "seconds": 0.01,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t39": {
+  "exit": 0,
+  "seconds": 0.02,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t40": {
+  "exit": 0,
+  "seconds": 0.05,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t41": {
+  "exit": 0,
+  "seconds": 0.01,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t42": {
+  "exit": 0,
+  "seconds": 0.02,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t43": {
+  "exit": 0,
+  "seconds": 0.02,
+  "verdict": "GOLD_FIT",
+  "agrees": true,
+  "error_type": null
+ },
+ "t44": {
+  "exit": 0,
+  "seconds": 0.11,
+  "verdict": "GOLD_NOT",
+  "agrees": true,
+  "error_type": null
+ }
+}

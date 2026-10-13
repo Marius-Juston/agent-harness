@@ -1,0 +1,416 @@
+{
+ "n01": {
+  "verdict": "FIT",
+  "reason": "From limited recall (not verified by installing it), `multiplayer` appears to offer a public player API with named static attributes (like a team) and dynamic ones (like a score), plus user account creation with a password, all in pure Python with no extras or system libraries needed.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.7,
+    "tokens_in": 2946,
+    "tokens_out": 316,
+    "cost_usd": 0.025707,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n02": {
+  "verdict": "NOT_FIT",
+  "reason": "As far as I know, the PyPI `multiplayer` package is about networking/multiplayer game plumbing, not rating systems, and has no public Elo API (packages like `multielo` cover that), though I'm answering from memory without checking.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.7,
+    "tokens_in": 2924,
+    "tokens_out": 358,
+    "cost_usd": 0.026371,
+    "error": null
+   }
+  ],
+  "hedged": false
+ },
+ "n03": {
+  "verdict": "NOT_FIT",
+  "reason": "I don't have reliable knowledge that `reminis` provides a public API for storing safetensors weights in a SQLite registry, listing models with sizes, and exporting a model to a standalone database file, so I can't confirm it covers this need without extra packages (such as `safetensors`) or extras.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.4,
+    "tokens_in": 2942,
+    "tokens_out": 289,
+    "cost_usd": 0.025135,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n04": {
+  "verdict": "NOT_FIT",
+  "reason": "As far as I know, `reminis` is not a LoRA fine-tuning library (it looks like a memory/recall utility for LLM apps), and it does not declare heavy training dependencies such as torch, transformers and peft, so a bare install cannot train a LoRA adapter; I am not certain about this package, so check i",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.6,
+    "tokens_in": 2918,
+    "tokens_out": 247,
+    "cost_usd": 0.024103,
+    "error": null
+   }
+  ],
+  "hedged": false
+ },
+ "n05": {
+  "verdict": "FIT",
+  "reason": "From what I recall (not verified here), capa-language is a pure-Python implementation of the Capa capability-safe language whose public API includes a parser, a capability checker and a transpiler to Python source, with no extras or system libraries required.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.4,
+    "tokens_in": 2931,
+    "tokens_out": 194,
+    "cost_usd": 0.023147,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n06": {
+  "verdict": "NOT_FIT",
+  "reason": "As far as I know, capa-language compiles Capa programs to Python rather than JavaScript, so its public API does not produce JavaScript source (low confidence, answered from memory without checking the package).",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.4,
+    "tokens_in": 2923,
+    "tokens_out": 206,
+    "cost_usd": 0.023323,
+    "error": null
+   }
+  ],
+  "hedged": false
+ },
+ "n07": {
+  "verdict": "FIT",
+  "reason": "From memory, and I can't fully confirm it: fractal-core (the Fractal DDD toolkit's core) appears to provide a singleton Settings base class that loads values from a .env file through its declared python-dotenv dependency, so it should cover the need without extras.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.1,
+    "tokens_in": 2933,
+    "tokens_out": 595,
+    "cost_usd": 0.031183000000000002,
+    "error": null
+   }
+  ],
+  "hedged": false
+ },
+ "n08": {
+  "verdict": "NOT_FIT",
+  "reason": "As far as I know, fractal-core has no public API for declaring typed settings and rejecting values like DEBUG='maybe' when loading them, so this would need custom code or another package such as pydantic-settings, though I am not certain because I don't know this package well.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.2,
+    "tokens_in": 2944,
+    "tokens_out": 256,
+    "cost_usd": 0.024491,
+    "error": null
+   }
+  ],
+  "hedged": false
+ },
+ "n09": {
+  "verdict": "NOT_FIT",
+  "reason": "As far as I know, ezgb is a thin wrapper that calls the external git-bug executable (and git), which is a separate Go binary that `uv add ezgb` does not install and the stated environment does not have, so creating a bug and commenting on it cannot work there.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.2,
+    "tokens_in": 2929,
+    "tokens_out": 271,
+    "cost_usd": 0.024671,
+    "error": null
+   }
+  ],
+  "hedged": false
+ },
+ "n10": {
+  "verdict": "NOT_FIT",
+  "reason": "As far as I know, ezgb is not a self-contained, pure-Python GitHub-to-git-bug importer: importing issues into git-bug depends on the external git-bug binary (and git) or its bridge, which is not available in this clean environment.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.3,
+    "tokens_in": 2921,
+    "tokens_out": 260,
+    "cost_usd": 0.024387,
+    "error": null
+   }
+  ],
+  "hedged": false
+ },
+ "n11": {
+  "verdict": "FIT",
+  "reason": "From what I recall, camt053-lsp has a public validation function that checks a camt.053 reversing-entry JSON record and returns missing required fields as diagnostics without starting an editor or server, using only its declared pure-Python dependencies on CPython 3.13, though I have not verified th",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.3,
+    "tokens_in": 2956,
+    "tokens_out": 372,
+    "cost_usd": 0.026907,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n12": {
+  "verdict": "NOT_FIT",
+  "reason": "I have no reliable knowledge that `camt053-lsp` exists or that its public API offers LSP rename edits for fields in a camt.053 JSON document (camt.053 is normally ISO 20022 XML), so I cannot confirm it meets this need.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.6,
+    "tokens_in": 2948,
+    "tokens_out": 208,
+    "cost_usd": 0.023563,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n13": {
+  "verdict": "FIT",
+  "reason": "From what I recall, dot-agora is a pure-Python agent-conversation library whose public API provides participants, a mediator that routes requests and responses, and a journal of the exchange, so it should cover this need offline on CPython 3.13 with only its declared dependencies, though I have not ",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.3,
+    "tokens_in": 2939,
+    "tokens_out": 256,
+    "cost_usd": 0.024451,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n14": {
+  "verdict": "FIT",
+  "reason": "From my recollection, which is uncertain and unverified, dot-agora has a built-in SQLite journal store that saves and reloads a room's journal using Python's standard-library sqlite3, so it should need no extra package or system library on CPython 3.13.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.4,
+    "tokens_in": 2930,
+    "tokens_out": 386,
+    "cost_usd": 0.026979000000000003,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n15": {
+  "verdict": "FIT",
+  "reason": "From what I recall, cas-schedule-p ships the CAS Schedule P loss-reserving tables as parquet files inside the package and exposes public functions to list the tables and return a local file path to each one, so no download or extra dependency is needed; I have not verified this against the newest re",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.5,
+    "tokens_in": 2964,
+    "tokens_out": 296,
+    "cost_usd": 0.025451,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n16": {
+  "verdict": "FIT",
+  "reason": "From memory, which I have not verified here, cas-schedule-p bundles the CAS Schedule P loss triangle data and declares pyarrow as a dependency, so its public loader can return an in-memory pyarrow Table offline with no extras.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.2,
+    "tokens_in": 2962,
+    "tokens_out": 312,
+    "cost_usd": 0.025755,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n17": {
+  "verdict": "FIT",
+  "reason": "From what I recall (not checked against the current release), faskill is a small pure-Python Agent Skills library whose public API discovers SKILL.md folders, exposes each skill's name and description from its frontmatter, and renders a skill's instructions with arguments substituted, all without ex",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.0,
+    "tokens_in": 2955,
+    "tokens_out": 394,
+    "cost_usd": 0.027339,
+    "error": null
+   }
+  ],
+  "hedged": false
+ },
+ "n18": {
+  "verdict": "NOT_FIT",
+  "reason": "I can't confirm from memory that `faskill` has a public API that packages a skill folder into a `.skill` zip; it seems aimed at authoring or managing skills rather than archiving them, so this is a low-confidence judgment that should be checked against the package's docs or source.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.1,
+    "tokens_in": 2923,
+    "tokens_out": 433,
+    "cost_usd": 0.027863,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n19": {
+  "verdict": "FIT",
+  "reason": "From limited recall (not verified here), `poly-basis-ml` provides scikit-learn-compatible polynomial-basis regressors including Chebyshev, declares scikit-learn and numpy as dependencies, and inherits the standard `fit`/`score` API, so it should cover fitting and test scoring on CPython 3.13 without",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.5,
+    "tokens_in": 2957,
+    "tokens_out": 304,
+    "cost_usd": 0.025555,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n20": {
+  "verdict": "FIT",
+  "reason": "From what I recall, `poly-basis-ml` declares numpy and scikit-learn as dependencies and provides scikit-learn compatible estimators for Chebyshev and other orthogonal polynomial bases, including a classifier variant (e.g. a Chebyshev classifier), so it should work on CPython 3.13 with no extras; I h",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.8,
+    "tokens_in": 2955,
+    "tokens_out": 353,
+    "cost_usd": 0.026519,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n21": {
+  "verdict": "NOT_FIT",
+  "reason": "From memory, and not verified, `satusehat-integration` is mainly a client for Indonesia's SATUSEHAT API (auth plus HTTP calls), so it likely has no public HumanName builder or serializer of its own, and any FHIR model classes would come from a separate dependency such as fhir.resources rather than t",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.5,
+    "tokens_in": 2938,
+    "tokens_out": 423,
+    "cost_usd": 0.027782999999999995,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n22": {
+  "verdict": "NOT_FIT",
+  "reason": "satusehat-integration is a client for Indonesia's SatuSehat FHIR API (auth, building and sending resources), not an offline FHIR R4 validator, so any validation it gets comes from the remote SatuSehat server rather than its own public API checking a Patient against the specification.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.1,
+    "tokens_in": 2948,
+    "tokens_out": 251,
+    "cost_usd": 0.024423,
+    "error": null
+   }
+  ],
+  "hedged": false
+ },
+ "n23": {
+  "verdict": "NOT_FIT",
+  "reason": "I can't confirm from memory that `comparer-mcp` has a public Python API that takes two MusicXML strings and returns a 0\u20131 similarity score; it appears to be an MCP server whose tools are meant to be called through an MCP client rather than imported as a library, so this is a low-confidence judgment.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.9,
+    "tokens_in": 2945,
+    "tokens_out": 337,
+    "cost_usd": 0.026119,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "n24": {
+  "verdict": "NOT_FIT",
+  "reason": "As far as I know, `comparer-mcp` is a general-purpose MCP comparison server for text and data, with no MIDI parsing or musical similarity scoring in its public API, so it would need another package such as mido or pretty_midi (this is from memory, not verified against the package).",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.8,
+    "tokens_in": 2932,
+    "tokens_out": 215,
+    "cost_usd": 0.023575,
+    "error": null
+   }
+  ],
+  "hedged": true
+ },
+ "_meta": {
+  "arm": "f0",
+  "model_requested": "claude-opus-5-5",
+  "date": "2026-10-13",
+  "cases": "cases_n.json"
+ }
+}

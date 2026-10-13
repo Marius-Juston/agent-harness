@@ -1,0 +1,8 @@
+import qrcode, qrcode.image.svg
+img = qrcode.make("hello", image_factory=qrcode.image.svg.SvgImage); img.save("/tmp/q.svg")
+s = open("/tmp/q.svg").read(); print(s[:120])
+try:
+    qrcode.make("hello").save("/tmp/q.png"); print("png ok", open("/tmp/q.png","rb").read(8))
+except Exception as e:
+    print("png", type(e).__name__, e)
+print("GOLD_FIT" if "<svg" in s else "GOLD_NOT")

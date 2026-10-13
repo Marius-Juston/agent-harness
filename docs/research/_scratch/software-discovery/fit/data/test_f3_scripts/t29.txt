@@ -1,0 +1,33 @@
+# Note: `markdown` (Python-Markdown) converts Markdown -> HTML. Its public API
+# has no HTML -> Markdown converter, so this test is expected to fail.
+import markdown
+
+html = (
+    "<h1>Title</h1>\n"
+    "<p>Hello <strong>bold</strong> and <em>italic</em> "
+    '<a href="https://example.com">link</a>.</p>\n'
+    "<ul><li>one</li><li>two</li></ul>"
+)
+
+# Look for an HTML -> Markdown entry point in the public API.
+candidates = [
+    name for name in dir(markdown)
+    if not name.startswith("_")
+    and any(k in name.lower() for k in ("html2md", "html_to_markdown", "tomarkdown", "to_markdown", "unmarkdown"))
+]
+print("HTML->Markdown candidates in public API:", candidates)
+
+# The only conversion function is markdown.markdown(); feed it the HTML.
+result = markdown.markdown(html)
+print("Output:\n" + result)
+
+assert isinstance(result, str)
+# Markdown output should contain Markdown syntax, not HTML tags.
+assert "# Title" in result, "no Markdown heading produced"
+assert "**bold**" in result, "no Markdown bold produced"
+assert "*italic*" in result or "_italic_" in result, "no Markdown italic produced"
+assert "[link](https://example.com)" in result, "no Markdown link produced"
+assert "- one" in result or "* one" in result, "no Markdown list produced"
+assert "<h1>" not in result and "<strong>" not in result, "output still HTML"
+
+print("FIT_OK")

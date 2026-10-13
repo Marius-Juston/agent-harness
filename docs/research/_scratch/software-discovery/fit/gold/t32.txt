@@ -1,0 +1,3 @@
+import redis.asyncio as r
+c = r.Redis(host="localhost", port=6379); print(type(c))
+print("GOLD_FIT")

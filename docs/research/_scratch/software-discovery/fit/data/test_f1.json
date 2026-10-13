@@ -1,0 +1,696 @@
+{
+ "t01": {
+  "verdict": "FIT",
+  "reason": "tomlkit is pure Python with no required extras. Its public API (tomlkit.parse/load, dict-style item assignment, tomlkit.dumps/dump) reads a TOML file, changes a value, and writes it back with the original comments and formatting preserved, and it supports CPython 3.13.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.4,
+    "tokens_in": 4129,
+    "tokens_out": 116,
+    "cost_usd": 0.031171,
+    "error": null
+   }
+  ]
+ },
+ "t02": {
+  "verdict": "NOT_FIT",
+  "reason": "tomli is read-only and returns plain dicts. It has no dump/write function and explicitly does not support comment-preserving round-trips, so writing the file back with its comments needs another package such as tomlkit.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.0,
+    "tokens_in": 7151,
+    "tokens_out": 88,
+    "cost_usd": 0.054787,
+    "error": null
+   }
+  ]
+ },
+ "t04": {
+  "verdict": "FIT",
+  "reason": "ruamel.yaml 0.19.1 is pure Python with no required C extension dependency, and its default round-trip mode (YAML(typ='rt')) loads a document into CommentedMap/CommentedSeq objects so you can change a value and dump it back with the original comments preserved.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.5,
+    "tokens_in": 8227,
+    "tokens_out": 111,
+    "cost_usd": 0.063855,
+    "error": null
+   }
+  ]
+ },
+ "t05": {
+  "verdict": "NOT_FIT",
+  "reason": "PyYAML discards comments when parsing, so a load-modify-dump round trip loses the original comments (comment preservation requires a different package such as ruamel.yaml).",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.0,
+    "tokens_in": 3234,
+    "tokens_out": 78,
+    "cost_usd": 0.023251,
+    "error": null
+   }
+  ]
+ },
+ "t06": {
+  "verdict": "FIT",
+  "reason": "openpyxl 3.1.5 is pure Python (its only dependency, et_xmlfile, is installed automatically), supports CPython 3.13, and reads .xlsx cell values through its public `load_workbook` API with no extras or system libraries needed.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.5,
+    "tokens_in": 3683,
+    "tokens_out": 102,
+    "cost_usd": 0.027323,
+    "error": null
+   }
+  ]
+ },
+ "t07": {
+  "verdict": "NOT_FIT",
+  "reason": "xlrd 2.x removed .xlsx support and only reads legacy .xls files, raising XLRDError ('Excel xlsx file; not supported') when opening an .xlsx workbook.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.8,
+    "tokens_in": 4095,
+    "tokens_out": 86,
+    "cost_usd": 0.030299,
+    "error": null
+   }
+  ]
+ },
+ "t08": {
+  "verdict": "FIT",
+  "reason": "XlsxWriter is pure-Python with no dependencies, supports Python 3.8+ including 3.13, and its public API (Workbook, add_worksheet, write_formula/write) creates new .xlsx files containing formula cells.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.9,
+    "tokens_in": 3881,
+    "tokens_out": 95,
+    "cost_usd": 0.028767,
+    "error": null
+   }
+  ]
+ },
+ "t09": {
+  "verdict": "FIT",
+  "reason": "json5 is a pure-Python package with no runtime dependencies that supports Python 3.8+, and its json5.loads()/load() parse // comments and trailing commas as part of the JSON5 format, so it covers the whole need on CPython 3.13.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.9,
+    "tokens_in": 7600,
+    "tokens_out": 100,
+    "cost_usd": 0.058619,
+    "error": null
+   }
+  ]
+ },
+ "t10": {
+  "verdict": "NOT_FIT",
+  "reason": "orjson.loads() is strictly RFC 8259 compliant and rejects // comments and trailing commas, with no option to allow them.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.6,
+    "tokens_in": 8858,
+    "tokens_out": 66,
+    "cost_usd": 0.06800300000000001,
+    "error": null
+   }
+  ]
+ },
+ "t11": {
+  "verdict": "NOT_FIT",
+  "reason": "ujson's decoder only parses standard JSON and has no option to accept // comments (or trailing commas), so ujson.loads raises an error on such input.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.5,
+    "tokens_in": 6337,
+    "tokens_out": 177,
+    "cost_usd": 0.050054999999999995,
+    "error": null
+   }
+  ]
+ },
+ "t12": {
+  "verdict": "FIT",
+  "reason": "qrcode's SVG image factories (e.g. qrcode.image.svg.SvgPathImage) use only the standard library's xml.etree, so the base install can encode a string to an SVG even if pypng and Pillow are absent (in 8.x pypng may be an optional extra, but SVG output does not need it).",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.8,
+    "tokens_in": 8354,
+    "tokens_out": 524,
+    "cost_usd": 0.073131,
+    "error": null
+   }
+  ]
+ },
+ "t13": {
+  "verdict": "NOT_FIT",
+  "reason": "pyzbar only decodes barcodes and QR codes (and additionally needs the system libzbar library, which is absent); it has no API for generating QR code images.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.4,
+    "tokens_in": 7175,
+    "tokens_out": 73,
+    "cost_usd": 0.054679,
+    "error": null
+   }
+  ]
+ },
+ "t14": {
+  "verdict": "FIT",
+  "reason": "pypdf is pure Python and needs no extras for basic use; PdfReader(path).pages with page.extract_text() pulls the text from each page of an existing PDF on CPython 3.13, though AES-encrypted files would need the [crypto] extra.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.8,
+    "tokens_in": 5127,
+    "tokens_out": 101,
+    "cost_usd": 0.038855,
+    "error": null
+   }
+  ]
+ },
+ "t15": {
+  "verdict": "NOT_FIT",
+  "reason": "ReportLab generates PDFs and has no public API for parsing existing PDFs or extracting their page text, so a reader such as pypdf or pdfminer.six would be needed.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.7,
+    "tokens_in": 3063,
+    "tokens_out": 80,
+    "cost_usd": 0.021923,
+    "error": null
+   }
+  ]
+ },
+ "t16": {
+  "verdict": "FIT",
+  "reason": "ReportLab's canvas API (reportlab.pdfgen.canvas.Canvas with drawString and save) creates a PDF containing a line of text using its built-in standard fonts, with only pure-Python/bundled dependencies (pillow, charset-normalizer) that install automatically and need no extra system libraries.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.1,
+    "tokens_in": 3056,
+    "tokens_out": 122,
+    "cost_usd": 0.022706999999999998,
+    "error": null
+   }
+  ]
+ },
+ "t17": {
+  "verdict": "FIT",
+  "reason": "croniter's public API (`croniter('*/15 9-17 * * 1-5', base).get_next(datetime)`) directly computes the next run time for standard 5-field cron expressions with step, range, and weekday fields. Its only declared dependency (python-dateutil) is installed automatically, and it supports Python >=3.9, in",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.3,
+    "tokens_in": 8781,
+    "tokens_out": 131,
+    "cost_usd": 0.068687,
+    "error": null
+   }
+  ]
+ },
+ "t18": {
+  "verdict": "NOT_FIT",
+  "reason": "`schedule` has no cron-expression parser or a way to compute the next run time from an arbitrary given datetime. Its fluent API (every().minutes, .at(), weekday methods) can't parse '*/15 9-17 * * 1-5', and next_run is always computed relative to the current time, so a package like croniter would be",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.6,
+    "tokens_in": 4123,
+    "tokens_out": 129,
+    "cost_usd": 0.031383,
+    "error": null
+   }
+  ]
+ },
+ "t19": {
+  "verdict": "FIT",
+  "reason": "dateparser.parse('3 days ago') returns a datetime relative to now using only its core dependencies (python-dateutil, pytz, regex, tzlocal), which install with it and support CPython 3.13, so no extras or network access are needed.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.5,
+    "tokens_in": 8576,
+    "tokens_out": 97,
+    "cost_usd": 0.066367,
+    "error": null
+   }
+  ]
+ },
+ "t20": {
+  "verdict": "NOT_FIT",
+  "reason": "dateutil.parser parses absolute date strings and relativedelta computes offsets, but no public API turns natural-language relative phrases like '3 days ago' into a datetime; with fuzzy=True the parser just drops the words and returns today, so you need a package like dateparser or your own phrase pa",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.4,
+    "tokens_in": 6117,
+    "tokens_out": 120,
+    "cost_usd": 0.047155,
+    "error": null
+   }
+  ]
+ },
+ "t21": {
+  "verdict": "FIT",
+  "reason": "jsonschema 4.26.0 supports Python 3.13 and provides Draft202012Validator (and validate()), which validates instances against a draft 2020-12 schema dict using only its core dependencies, with no extras or network access needed.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.0,
+    "tokens_in": 5329,
+    "tokens_out": 95,
+    "cost_usd": 0.040351000000000005,
+    "error": null
+   }
+  ]
+ },
+ "t22": {
+  "verdict": "NOT_FIT",
+  "reason": "Pydantic generates JSON Schema from Python types and validates data against Python type annotations, but its public API cannot validate an arbitrary JSON document against a JSON Schema (draft 2020-12) given as a dict, which needs a package like `jsonschema`.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.4,
+    "tokens_in": 8474,
+    "tokens_out": 108,
+    "cost_usd": 0.065771,
+    "error": null
+   }
+  ]
+ },
+ "t23": {
+  "verdict": "FIT",
+  "reason": "httpx's public `AsyncClient` provides native async/await HTTP requests on asyncio, and its required dependencies (httpcore, anyio, certifi, idna, h11) are installed automatically, so no extra or system library is needed.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.5,
+    "tokens_in": 5502,
+    "tokens_out": 151,
+    "cost_usd": 0.042855,
+    "error": null
+   }
+  ]
+ },
+ "t24": {
+  "verdict": "NOT_FIT",
+  "reason": "Requests is a synchronous, blocking HTTP client with no async/await or asyncio-native API, so it would need a different package (e.g. httpx or aiohttp) or thread offloading to meet the need.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.5,
+    "tokens_in": 4335,
+    "tokens_out": 89,
+    "cost_usd": 0.032279,
+    "error": null
+   }
+  ]
+ },
+ "t25": {
+  "verdict": "FIT",
+  "reason": "beautifulsoup4 declares soupsieve as a required dependency, so `.select()`/`.select_one()` CSS selector support works out of the box with the built-in html.parser and needs no extras or system libraries.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.1,
+    "tokens_in": 4249,
+    "tokens_out": 155,
+    "cost_usd": 0.032911,
+    "error": null
+   }
+  ]
+ },
+ "t26": {
+  "verdict": "NOT_FIT",
+  "reason": "html5lib only parses HTML into trees (etree/minidom/lxml) and has no CSS selector support, so selecting elements by CSS selector would require another package such as soupsieve, cssselect or lxml.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.8,
+    "tokens_in": 8628,
+    "tokens_out": 91,
+    "cost_usd": 0.066663,
+    "error": null
+   }
+  ]
+ },
+ "t27": {
+  "verdict": "FIT",
+  "reason": "Pillow's manylinux wheels for CPython 3.13 on x86_64 bundle the image codec libraries, so `PIL.Image.open(...).resize((width, height))` works out of the box with no extras or system libraries.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.9,
+    "tokens_in": 5824,
+    "tokens_out": 93,
+    "cost_usd": 0.044271,
+    "error": null
+   }
+  ]
+ },
+ "t28": {
+  "verdict": "FIT",
+  "reason": "markdownify's `markdownify()` function converts an HTML string to Markdown. Its declared dependencies (beautifulsoup4, six) install with it, and it defaults to Python's built-in html.parser, so it works on CPython 3.13 without extras or system libraries.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.9,
+    "tokens_in": 6800,
+    "tokens_out": 149,
+    "cost_usd": 0.053199,
+    "error": null
+   }
+  ]
+ },
+ "t29": {
+  "verdict": "NOT_FIT",
+  "reason": "Python-Markdown only converts Markdown to HTML; it has no public API for the reverse direction (HTML to Markdown), which requires a different package such as markdownify or html2text.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.6,
+    "tokens_in": 4165,
+    "tokens_out": 81,
+    "cost_usd": 0.030759,
+    "error": null
+   }
+  ]
+ },
+ "t30": {
+  "verdict": "FIT",
+  "reason": "zstandard 0.25.0 ships prebuilt CPython 3.13 manylinux x86_64 wheels with a bundled libzstd C extension, and its public API (ZstdCompressor/ZstdDecompressor, compress/decompress) handles zstd compression and decompression with no extras or system libraries needed.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.5,
+    "tokens_in": 3917,
+    "tokens_out": 124,
+    "cost_usd": 0.029635,
+    "error": null
+   }
+  ]
+ },
+ "t31": {
+  "verdict": "NOT_FIT",
+  "reason": "The lz4 package only provides bindings for the LZ4 frame, block, and streaming formats and has no support for compressing or decompressing the Zstandard (zstd) format.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.7,
+    "tokens_in": 4111,
+    "tokens_out": 79,
+    "cost_usd": 0.030286999999999998,
+    "error": null
+   }
+  ]
+ },
+ "t32": {
+  "verdict": "FIT",
+  "reason": "redis-py ships redis.asyncio.Redis in the base package, which supports Python >=3.10 and can be constructed without a server or extras on CPython 3.13.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.0,
+    "tokens_in": 8117,
+    "tokens_out": 73,
+    "cost_usd": 0.062215,
+    "error": null
+   }
+  ]
+ },
+ "t33": {
+  "verdict": "NOT_FIT",
+  "reason": "aioredis 2.0.1 fails to import on Python 3.11+, including 3.13, with 'TypeError: duplicate base class TimeoutError', because its exceptions module subclasses both asyncio.TimeoutError and builtins.TimeoutError, which became the same class in 3.11.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.7,
+    "tokens_in": 8806,
+    "tokens_out": 244,
+    "cost_usd": 0.071147,
+    "error": null
+   }
+  ]
+ },
+ "t34": {
+  "verdict": "FIT",
+  "reason": "isodate 0.7.2 is pure Python with no required dependencies on Python 3.13, and its public `isodate.parse_duration('P3DT4H30M')` returns a `datetime.timedelta` (timedelta of 3 days, 4:30:00) for durations without years or months.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.5,
+    "tokens_in": 6696,
+    "tokens_out": 112,
+    "cost_usd": 0.051627000000000006,
+    "error": null
+   }
+  ]
+ },
+ "t35": {
+  "verdict": "NOT_FIT",
+  "reason": "python-dateutil has no ISO 8601 duration parser (its isoparser handles only dates/times, and dateutil.parser.parse cannot parse 'P3DT4H30M'), so a package like isodate or custom code is needed.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.0,
+    "tokens_in": 6122,
+    "tokens_out": 99,
+    "cost_usd": 0.046775,
+    "error": null
+   }
+  ]
+ },
+ "t36": {
+  "verdict": "FIT",
+  "reason": "pysbd is a pure-Python, rule-based segmenter with no runtime dependencies or model downloads; `pysbd.Segmenter(language=\"en\").segment(text)` splits English text into sentences offline and imports fine on CPython 3.13.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.1,
+    "tokens_in": 5382,
+    "tokens_out": 153,
+    "cost_usd": 0.041935,
+    "error": null
+   }
+  ]
+ },
+ "t37": {
+  "verdict": "NOT_FIT",
+  "reason": "NLTK's English sentence splitter (`sent_tokenize` / the pretrained Punkt model) needs the `punkt_tab` data from `nltk.download()`, which is not part of the PyPI install; without that data it raises a LookupError, and the only offline option is an untrained `PunktSentenceTokenizer()` that knows no En",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.4,
+    "tokens_in": 3093,
+    "tokens_out": 415,
+    "cost_usd": 0.028863,
+    "error": null
+   }
+  ]
+ },
+ "t38": {
+  "verdict": "FIT",
+  "reason": "msgpack's public `packb`/`unpackb` functions serialize a Python dict to MessagePack bytes and back with no extra dependencies, and it supports CPython 3.13 on Linux x86_64 (prebuilt wheels plus a pure-Python fallback).",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.8,
+    "tokens_in": 6380,
+    "tokens_out": 109,
+    "cost_usd": 0.049039,
+    "error": null
+   }
+  ]
+ },
+ "t39": {
+  "verdict": "NOT_FIT",
+  "reason": "simplejson only encodes and decodes JSON text and has no MessagePack support, so producing MessagePack bytes would require a different package such as msgpack.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 3.8,
+    "tokens_in": 4027,
+    "tokens_out": 72,
+    "cost_usd": 0.029475,
+    "error": null
+   }
+  ]
+ },
+ "t40": {
+  "verdict": "FIT",
+  "reason": "Click's public API includes `click.progressbar(iterable)`, a context manager that wraps an iterable and renders a terminal progress bar while you iterate, using only the standard library (colorama is needed only on Windows), so it works on Linux with CPython 3.13.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.7,
+    "tokens_in": 3755,
+    "tokens_out": 104,
+    "cost_usd": 0.027939,
+    "error": null
+   }
+  ]
+ },
+ "t41": {
+  "verdict": "FIT",
+  "reason": "nh3.clean() accepts a tags allowlist, removes disallowed tags, and by default strips <script> and <style> together with their content (clean_content_tags); it ships as a prebuilt abi3 wheel for Linux x86_64 with no runtime dependencies.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.1,
+    "tokens_in": 3794,
+    "tokens_out": 107,
+    "cost_usd": 0.028311,
+    "error": null
+   }
+  ]
+ },
+ "t42": {
+  "verdict": "NOT_FIT",
+  "reason": "MarkupSafe only escapes all special characters (or marks strings as safe) and has no HTML parsing or tag-allowlist sanitization, so it cannot keep <b> while removing <script> and its content (Markup.striptags removes all tags but keeps script text and has no allowlist).",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.3,
+    "tokens_in": 3821,
+    "tokens_out": 117,
+    "cost_usd": 0.028727,
+    "error": null
+   }
+  ]
+ },
+ "t43": {
+  "verdict": "FIT",
+  "reason": "filetype 1.2.0 is pure Python with no dependencies, imports fine on CPython 3.13, and its public `filetype.guess()` accepts raw bytes (only the first 261 bytes are needed) to detect types like PNG from magic numbers without using the file name.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 5.0,
+    "tokens_in": 5803,
+    "tokens_out": 161,
+    "cost_usd": 0.045462999999999996,
+    "error": null
+   }
+  ]
+ },
+ "t44": {
+  "verdict": "NOT_FIT",
+  "reason": "tiktoken does not bundle the cl100k_base BPE file; on first use `get_encoding(\"cl100k_base\")` downloads it from openaipublic.blob.core.windows.net (only then is it cached), so a plain install cannot count tokens offline at run time unless the file is pre-fetched or supplied separately.",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 4.0,
+    "tokens_in": 5211,
+    "tokens_out": 129,
+    "cost_usd": 0.040087000000000005,
+    "error": null
+   }
+  ]
+ },
+ "_meta": {
+  "arm": "f1",
+  "model_requested": "claude-opus-5-5",
+  "date": "2026-10-13",
+  "cases": "cases_test.json"
+ }
+}

@@ -1,0 +1,2 @@
+cases_test.json: hedged 0/43; F0 right when hedged 0/0, when not 43/43; cascade F0 -> F4r when hedged 43/43
+cases_n.json: hedged 15/24; F0 right when hedged 10/15, when not 9/9; cascade F0 -> F4r when hedged 22/24

@@ -1,0 +1,3 @@
+import pysbd
+s = pysbd.Segmenter(language="en", clean=False).segment("Mr. Smith went home. It was late! Was it?"); print(s)
+print("GOLD_FIT" if len(s) == 3 else "GOLD_NOT")

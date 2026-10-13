@@ -1,0 +1,9 @@
+import poly_basis_ml, pkgutil, importlib
+from sklearn.base import ClassifierMixin
+mods = [m.name for m in pkgutil.walk_packages(poly_basis_ml.__path__, "poly_basis_ml.")]
+cls = []
+for m in mods:
+    mod = importlib.import_module(m)
+    cls += [f"{m}.{n}" for n in dir(mod) if isinstance(getattr(mod, n), type) and issubclass(getattr(mod, n), ClassifierMixin) and getattr(mod, n).__module__.startswith("poly_basis_ml")]
+print(mods, cls)
+print("GOLD_NOT" if not cls else "GOLD_CHECK")

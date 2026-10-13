@@ -1,0 +1,31 @@
+# Tests whether python-dateutil can parse ISO 8601 durations into a timedelta.
+# python-dateutil's public API has no dedicated duration parser. The closest
+# candidates are dateutil.parser.isoparse and dateutil.parser.parse, so this
+# script tries those. Any exception or failed assertion means "not fit".
+from datetime import timedelta
+
+from dateutil import parser
+
+cases = {
+    "P3DT4H30M": timedelta(days=3, hours=4, minutes=30),
+    "PT45S": timedelta(seconds=45),
+    "P1DT12H": timedelta(days=1, hours=12),
+}
+
+for text, expected in cases.items():
+    # isoparse is dateutil's ISO 8601 entry point; let any error propagate.
+    result = parser.isoparse(text)
+    assert isinstance(result, timedelta), (
+        f"isoparse({text!r}) returned {type(result).__name__}, not timedelta"
+    )
+    assert result == expected, f"isoparse({text!r}) -> {result!r}, expected {expected!r}"
+
+for text, expected in cases.items():
+    # The generic parser is the only other public entry point.
+    result = parser.parse(text)
+    assert isinstance(result, timedelta), (
+        f"parse({text!r}) returned {type(result).__name__}, not timedelta"
+    )
+    assert result == expected, f"parse({text!r}) -> {result!r}, expected {expected!r}"
+
+print("FIT_OK")

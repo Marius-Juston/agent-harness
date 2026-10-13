@@ -1,0 +1,5 @@
+import yaml
+src = "# top comment\na: 1  # inline\nb: 2\n"
+d = yaml.safe_load(src); d["a"] = 5
+out = yaml.safe_dump(d); print(repr(out))
+print("GOLD_FIT" if "#" in out else "GOLD_NOT")

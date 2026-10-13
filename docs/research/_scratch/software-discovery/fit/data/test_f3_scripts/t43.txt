@@ -1,0 +1,40 @@
+import os
+import struct
+import zlib
+
+import filetype
+
+# Build a minimal valid 1x1 PNG in memory
+def chunk(tag, data):
+    c = tag + data
+    return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xFFFFFFFF)
+
+png = (b"\x89PNG\r\n\x1a\n"
+       + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
+       + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00"))
+       + chunk(b"IEND", b""))
+
+# Write with a misleading extension and no extension to ensure name is ignored
+path_txt = os.path.join("/tmp", "not_an_image.txt")
+path_noext = os.path.join("/tmp", "blob")
+for p in (path_txt, path_noext):
+    with open(p, "wb") as f:
+        f.write(png)
+
+for src in (png, bytearray(png), path_txt, path_noext):
+    kind = filetype.guess(src)
+    assert kind is not None, f"no type detected for {src!r:.40}"
+    assert kind.extension == "png", kind.extension
+    assert kind.mime == "image/png", kind.mime
+
+assert filetype.is_image(png)
+assert filetype.guess_extension(path_txt) == "png"
+assert filetype.guess_mime(path_noext) == "image/png"
+
+# A minimal GIF should be detected differently; random text should not be PNG
+gif = b"GIF89a" + b"\x01\x00\x01\x00\x00\x00\x00" + b"\x00" * 20
+assert filetype.guess(gif).extension == "gif"
+other = filetype.guess(b"hello world, plain text content here" * 2)
+assert other is None or other.extension != "png"
+
+print("FIT_OK")

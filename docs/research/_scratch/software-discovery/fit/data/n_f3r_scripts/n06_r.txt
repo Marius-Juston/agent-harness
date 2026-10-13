@@ -1,0 +1,21 @@
+from capa.lexer import tokenize
+from capa.parser import parse
+from capa.transpiler_js import transpile_js
+
+src = (
+    "fun add(a: Int, b: Int) -> Int\n"
+    "    return a + b\n"
+    "\n"
+    "fun main()\n"
+    "    print(add(2, 3))\n"
+)
+program = parse(tokenize(src))
+js = transpile_js(program)
+print(js)
+assert isinstance(js, str) and js.strip()
+assert "function add(a, b)" in js
+assert "return (a + b);" in js or "return a + b;" in js
+assert "function main(" in js
+assert "add(2, 3)" in js
+assert "def " not in js and "fun " not in js
+print("FIT_OK")

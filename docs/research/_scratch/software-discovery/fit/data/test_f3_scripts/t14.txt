@@ -1,0 +1,36 @@
+import pypdf
+
+texts = ["Hello Page One", "Second Page Text"]
+objs = [b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+for i, t in enumerate(texts):
+    content = f"BT /F1 24 Tf 72 700 Td ({t}) Tj ET".encode()
+    objs.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                f"/Resources << /Font << /F1 3 0 R >> >> /Contents {5 + 2 * i} 0 R >>".encode())
+    objs.append(b"<< /Length %d >>\nstream\n" % len(content) + content + b"\nendstream")
+
+out = bytearray(b"%PDF-1.4\n")
+offsets = []
+for n, body in enumerate(objs, 1):
+    offsets.append(len(out))
+    out += b"%d 0 obj\n" % n + body + b"\nendobj\n"
+xref = len(out)
+out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1)
+for off in offsets:
+    out += b"%010d 00000 n \n" % off
+out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, xref)
+
+path = "/tmp/test_extract.pdf"
+with open(path, "wb") as f:
+    f.write(out)
+
+reader = pypdf.PdfReader(path)
+assert len(reader.pages) == 2, len(reader.pages)
+extracted = [page.extract_text() for page in reader.pages]
+for expected, got in zip(texts, extracted):
+    assert isinstance(got, str)
+    assert expected in got, (expected, got)
+assert texts[1] not in extracted[0] and texts[0] not in extracted[1]
+print(extracted)
+print("FIT_OK")

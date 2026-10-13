@@ -1,0 +1,5 @@
+import jsonschema
+s = {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"]}
+v = jsonschema.Draft202012Validator(s)
+good = v.is_valid({"a": 1}); bad = v.is_valid({"a": "x"}); print(good, bad)
+print("GOLD_FIT" if good and not bad else "GOLD_NOT")

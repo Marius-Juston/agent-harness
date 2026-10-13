@@ -1,0 +1,29 @@
+# Note: simplejson is a JSON library; it has no MessagePack support, so this
+# script is expected to fail and show that simplejson does not fit this need.
+import simplejson
+
+data = {"name": "Alice", "age": 30, "tags": ["a", "b"], "nested": {"x": 1.5, "ok": True}}
+
+# Look for a MessagePack-style API in simplejson's public namespace.
+candidates = ["packb", "unpackb", "pack", "unpack", "dumpb", "loadb"]
+found = {name: getattr(simplejson, name) for name in candidates if hasattr(simplejson, name)}
+assert "packb" in found or "dumpb" in found, (
+    f"simplejson exposes no MessagePack serializer; public API: "
+    f"{[n for n in dir(simplejson) if not n.startswith('_')]}"
+)
+
+pack = found.get("packb") or found.get("dumpb")
+unpack = found.get("unpackb") or found.get("loadb")
+assert unpack is not None, "simplejson exposes no MessagePack deserializer"
+
+packed = pack(data)
+assert isinstance(packed, (bytes, bytearray)), f"expected bytes, got {type(packed)}"
+
+# A MessagePack fixmap with 4 entries starts with byte 0x84; JSON would start with '{'.
+assert packed[0] == 0x84, f"output is not MessagePack: first byte {packed[:1]!r}"
+assert not packed.startswith(b"{"), "output looks like JSON, not MessagePack"
+
+restored = unpack(packed)
+assert restored == data, f"round-trip mismatch: {restored!r}"
+
+print("FIT_OK")

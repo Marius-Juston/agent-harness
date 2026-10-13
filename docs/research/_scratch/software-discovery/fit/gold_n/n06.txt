@@ -1,0 +1,7 @@
+import pkgutil, capa, inspect
+mods = [m.name for m in pkgutil.walk_packages(capa.__path__, "capa.")]
+js = [m for m in mods if m.lower().split(".")[-1].strip("_") in ("js", "javascript", "ecmascript", "emit_js")]
+print(len(mods), js)
+import capa.cli as cli
+src = inspect.getsource(cli); print("javascript" in src.lower())
+print("GOLD_NOT" if not js and "javascript" not in src.lower() else "GOLD_CHECK")

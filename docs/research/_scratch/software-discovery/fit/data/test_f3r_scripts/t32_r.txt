@@ -1,0 +1,39 @@
+import asyncio
+import inspect
+import sys
+
+assert sys.version_info[:2] == (3, 13), sys.version
+
+import redis
+import redis.asyncio as aioredis
+from redis.asyncio import Redis, ConnectionPool
+
+
+async def main():
+    client = Redis(host="localhost", port=6379, db=0, decode_responses=True)
+    assert isinstance(client, aioredis.Redis)
+    assert isinstance(client.connection_pool, ConnectionPool)
+    kwargs = client.connection_pool.connection_kwargs
+    assert kwargs["host"] == "localhost" and kwargs["port"] == 6379
+    assert kwargs["decode_responses"] is True
+
+    client2 = aioredis.from_url("redis://example.invalid:6380/2")
+    assert isinstance(client2, aioredis.Redis)
+    kw2 = client2.connection_pool.connection_kwargs
+    assert kw2["host"] == "example.invalid" and kw2["port"] == 6380 and kw2["db"] == 2
+
+    # Commands return awaitables (coroutines); close them unawaited, so no server is contacted.
+    coro = client.ping()
+    assert inspect.isawaitable(coro)
+    coro.close()
+
+    pipe = client.pipeline()
+    assert pipe is not None
+
+    await client.aclose()
+    await client2.aclose()
+
+
+asyncio.run(main())
+assert redis.__version__
+print("FIT_OK")

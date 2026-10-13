@@ -1,0 +1,8 @@
+from multiplayer.game import Player, User
+from multiplayer import ParameterFamily
+player = Player("Alice", score=(ParameterFamily.DYNAMIC, 0), team=(ParameterFamily.STATIC, "Red"))
+user = User(username="alice_92", password="secret_password", email="alice@example.com")
+print(player, user)
+print([a for a in dir(player) if not a.startswith("_")][:40])
+print(getattr(player, "score", None), getattr(player, "team", None))
+print("GOLD_FIT")

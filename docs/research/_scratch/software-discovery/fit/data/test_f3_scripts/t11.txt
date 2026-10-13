@@ -1,0 +1,27 @@
+import ujson
+
+text = """
+{
+    // a line comment
+    "name": "widget", // trailing comment
+    "tags": ["a", "b", "c",],
+    "nested": {"x": 1, "y": 2,},
+    "count": 3,
+}
+"""
+
+result = ujson.loads(text)
+
+assert isinstance(result, dict), result
+assert result["name"] == "widget", result
+assert result["tags"] == ["a", "b", "c"], result
+assert result["nested"] == {"x": 1, "y": 2}, result
+assert result["count"] == 3, result
+assert set(result) == {"name", "tags", "nested", "count"}, result
+
+# Comment containing tricky characters, and a "//" inside a string must be preserved
+text2 = '[\n  "http://example.com", // url, with comma\n  42,\n]'
+result2 = ujson.loads(text2)
+assert result2 == ["http://example.com", 42], result2
+
+print("FIT_OK")

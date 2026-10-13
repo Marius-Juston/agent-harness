@@ -1,0 +1,9 @@
+from dateutil import parser
+try:
+    v = parser.isoparse("P3DT4H30M"); print(v); print("GOLD_CHECK")
+except Exception as e:
+    print("isoparse", type(e).__name__, e)
+try:
+    v = parser.parse("P3DT4H30M"); print("parse", v); print("GOLD_CHECK")
+except Exception as e:
+    print("parse", type(e).__name__, e); print("GOLD_NOT")

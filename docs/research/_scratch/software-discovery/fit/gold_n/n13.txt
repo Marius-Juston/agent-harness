@@ -1,0 +1,13 @@
+# Own code (dot-agora 2.2.0 API names): one participant answers a request; the journal must record the answer.
+import dot_agora as da
+async def answer(self, e, v):
+    return self.reply(e, v, "noon in " + str(e.payload))
+Clock = type("Clock", (da.Participant,), {"on_request": answer})
+r = da.Room()
+r.seat(Clock("clock"))
+step = da.Stepper(r)
+bob = da.Speaker("bob")
+for act in (bob.join(), bob.request("Oslo", ("clock",))):
+    step.submit(act)
+log = str(r.journal.trace()); print(log)
+print("GOLD_FIT" if "noon in Oslo" in log else "GOLD_NOT")

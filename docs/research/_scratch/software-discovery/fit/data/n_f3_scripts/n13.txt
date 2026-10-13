@@ -1,0 +1,42 @@
+import importlib, inspect
+
+mod = None
+for name in ("agora", "dot_agora", "dotagora"):
+    try:
+        mod = importlib.import_module(name)
+        break
+    except ImportError:
+        pass
+assert mod is not None, "dot-agora import name not found"
+
+public = {n: getattr(mod, n) for n in dir(mod) if not n.startswith("_")}
+print("public API:", sorted(public))
+
+def find(*keys):
+    for n, obj in public.items():
+        if inspect.isclass(obj) and any(k in n.lower() for k in keys):
+            return obj
+    raise AssertionError(f"no class matching {keys}")
+
+Mediator = find("mediator", "agora", "forum", "conversation")
+Participant = find("participant", "agent", "member")
+
+med = Mediator()
+alice = Participant("alice")
+bob = Participant("bob", handler=lambda req: f"answer to {req}")
+med.join(alice)
+med.join(bob)
+
+reply = med.request(alice, bob, "what is 2+2?")
+assert reply is not None and "answer to" in str(reply), reply
+
+journal = med.journal
+entries = list(journal)
+print("JOURNAL:")
+for e in entries:
+    print(" ", e)
+assert len(entries) >= 2, entries
+text = " ".join(map(str, entries))
+assert "alice" in text and "bob" in text, text
+assert "what is 2+2?" in text, text
+print("FIT_OK")

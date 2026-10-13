@@ -1,0 +1,33 @@
+import os
+import zipfile
+import xlsxwriter
+
+path = "/tmp/fit_formula_test.xlsx"
+if os.path.exists(path):
+    os.remove(path)
+
+wb = xlsxwriter.Workbook(path)
+ws = wb.add_worksheet("Sheet1")
+ws.write_number("A1", 2)
+ws.write_number("A2", 3)
+ws.write_formula("A3", "=SUM(A1:A2)", None, 5)
+ws.write("A4", "=A1*A2")  # write() should also detect formulas
+wb.close()
+
+assert os.path.isfile(path) and os.path.getsize(path) > 0
+assert zipfile.is_zipfile(path)
+
+with zipfile.ZipFile(path) as zf:
+    names = zf.namelist()
+    assert "[Content_Types].xml" in names
+    assert "xl/workbook.xml" in names
+    assert "xl/worksheets/sheet1.xml" in names
+    sheet = zf.read("xl/worksheets/sheet1.xml").decode("utf-8")
+
+assert '<c r="A3"' in sheet
+assert "<f>SUM(A1:A2)</f>" in sheet
+assert "<v>5</v>" in sheet
+assert '<c r="A4"' in sheet
+assert "<f>A1*A2</f>" in sheet
+
+print("FIT_OK")

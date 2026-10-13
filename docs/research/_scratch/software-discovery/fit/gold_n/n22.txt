@@ -1,0 +1,15 @@
+import importlib, pkgutil
+hits = []
+for r in ["builder", "datatype", "terminology"]:
+    try:
+        pkg = importlib.import_module(r)
+    except Exception as e:
+        print("import", r, type(e).__name__, e); continue
+    for m in [r] + [x.name for x in pkgutil.walk_packages(pkg.__path__, r + ".")]:
+        try:
+            mod = importlib.import_module(m)
+        except Exception as e:
+            print("skip", m, type(e).__name__); continue
+        hits += [f"{m}.{n}" for n in dir(mod) if "validat" in n.lower()]
+print(hits[:30])
+print("GOLD_NOT" if not hits else "GOLD_CHECK")

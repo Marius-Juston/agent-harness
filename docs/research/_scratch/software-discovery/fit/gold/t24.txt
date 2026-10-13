@@ -1,0 +1,5 @@
+import requests, inspect
+print(requests.__version__)
+co = [n for n in dir(requests) if inspect.iscoroutinefunction(getattr(requests, n, None)) or "async" in n.lower()]
+print(co)
+print("GOLD_NOT" if not co else "GOLD_CHECK")

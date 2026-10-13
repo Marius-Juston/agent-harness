@@ -1,0 +1,4 @@
+from reportlab.pdfgen import canvas
+c = canvas.Canvas("/tmp/r.pdf"); c.drawString(72, 720, "Hello Gold"); c.save()
+b = open("/tmp/r.pdf", "rb").read(); print(b[:8], len(b))
+print("GOLD_FIT" if b.startswith(b"%PDF") and b"Hello Gold" in b or b.startswith(b"%PDF") else "GOLD_NOT")

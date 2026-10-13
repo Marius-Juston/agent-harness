@@ -1,0 +1,3 @@
+from markdownify import markdownify
+m = markdownify("<h1>T</h1><p>a <b>b</b></p>"); print(repr(m))
+print("GOLD_FIT" if "**b**" in m and "T" in m else "GOLD_NOT")

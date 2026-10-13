@@ -1,0 +1,36 @@
+import asyncio
+import sys
+
+assert sys.version_info >= (3, 13), sys.version
+
+# Importing is itself part of the need (aioredis 2.x is known to break on 3.11+).
+import aioredis
+
+# Construct clients via the public API; no server connection happens until a command runs.
+client = aioredis.from_url("redis://localhost:6379/0", decode_responses=True)
+assert isinstance(client, aioredis.Redis), type(client)
+
+pool = aioredis.ConnectionPool.from_url("redis://127.0.0.1:6379/1")
+assert isinstance(pool, aioredis.ConnectionPool), type(pool)
+client2 = aioredis.Redis(connection_pool=pool)
+assert isinstance(client2, aioredis.Redis), type(client2)
+assert client2.connection_pool is pool
+
+client3 = aioredis.Redis(host="localhost", port=6379, db=2)
+assert isinstance(client3, aioredis.Redis), type(client3)
+
+# Commands should be coroutine functions (asyncio client).
+assert asyncio.iscoroutinefunction(client.get) or asyncio.iscoroutinefunction(
+    type(client).get
+), "get is not async"
+
+
+async def main():
+    # Closing an unconnected client should work without a server.
+    await client.close()
+    await client2.close()
+    await client3.close()
+
+
+asyncio.run(main())
+print("FIT_OK")

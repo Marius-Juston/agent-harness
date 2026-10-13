@@ -1,0 +1,45 @@
+import io
+import zstandard as zstd
+
+data = (b"The quick brown fox jumps over the lazy dog. " * 2000) + bytes(range(256)) * 50
+
+# One-shot compress/decompress
+cctx = zstd.ZstdCompressor(level=10, write_content_size=True)
+frame = cctx.compress(data)
+assert frame[:4] == b"\x28\xb5\x2f\xfd", "missing zstd magic number"
+assert len(frame) < len(data) // 5, "poor compression"
+dctx = zstd.ZstdDecompressor()
+assert dctx.decompress(frame) == data
+
+# Frame parameters report content size
+params = zstd.get_frame_parameters(frame)
+assert params.content_size == len(data)
+
+# Streaming compress/decompress (no content size in header)
+buf = io.BytesIO()
+with zstd.ZstdCompressor(level=3).stream_writer(buf, closefd=False) as w:
+    for i in range(0, len(data), 7000):
+        w.write(data[i:i + 7000])
+stream_frame = buf.getvalue()
+assert stream_frame[:4] == b"\x28\xb5\x2f\xfd"
+with zstd.ZstdDecompressor().stream_reader(io.BytesIO(stream_frame)) as r:
+    out = r.read()
+assert out == data
+
+# Incremental decompressobj API
+dobj = zstd.ZstdDecompressor().decompressobj()
+parts = [dobj.decompress(stream_frame[i:i + 100]) for i in range(0, len(stream_frame), 100)]
+assert b"".join(parts) == data
+
+# Empty input round trip
+assert dctx.decompress(cctx.compress(b"")) == b""
+
+# Corrupted data must be rejected
+bad = bytearray(frame); bad[len(bad) // 2] ^= 0xFF
+try:
+    dctx.decompress(bytes(bad)); corrupted_ok = True
+except zstd.ZstdError:
+    corrupted_ok = False
+assert not corrupted_ok, "corruption not detected"
+
+print("FIT_OK")

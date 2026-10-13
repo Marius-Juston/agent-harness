@@ -1,0 +1,4 @@
+import json5
+src = """{\n  // a comment\n  "a": 1,\n  "b": [1, 2,],\n}"""
+d = json5.loads(src); print(d)
+print("GOLD_FIT" if d == {"a": 1, "b": [1, 2]} else "GOLD_NOT")

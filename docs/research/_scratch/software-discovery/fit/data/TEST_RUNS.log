@@ -1,0 +1,14 @@
+2026-10-13T11:12:49 pilot: all 4 arms ran on the 6 pilot cases, 6/6 correct each; no prompt or script changed after it
+2026-10-13T11:12:49 run_arms.py f0 on cases_test.json -> test_f0.json
+2026-10-13T11:13:26 run_arms.py f1 on cases_test.json -> test_f1.json
+2026-10-13T11:14:00 run_arms.py f3 on cases_test.json -> test_f3.json
+2026-10-13T11:15:10 run_arms.py f3r on cases_test.json -> test_f3r.json
+2026-10-13T11:35:04 run_arms.py f0 on cases_n.json -> n_f0.json
+2026-10-13T11:35:29 run_arms.py f1 on cases_n.json -> n_f1.json
+2026-10-13T11:35:57 run_arms.py f3 on cases_n.json -> n_f3.json
+2026-10-13T11:52:53 run_arms.py f3r on cases_n.json -> n_f3r.json
+2026-10-13T12:09:42 note: the F3 run on N above crashed at its first 900 s claude -p timeout after 9 of 24 cases (run_arms.py did not catch TimeoutExpired); the F3r run on N stopped at n10 for want of F3 results. Fixed (amendment 3); the remaining 15 F3 cases run in the next invocation, then F3r resumes.
+2026-10-13T12:09:42 run_arms.py f3 on cases_n.json -> n_f3.json
+2026-10-13T12:32:40 run_arms.py f3r on cases_n.json -> n_f3r.json
+2026-10-13T12:55:42 run_arms.py f4 on cases_n.json -> n_f4.json
+2026-10-13T12:56:24 run_arms.py f4r on cases_n.json -> n_f4r.json

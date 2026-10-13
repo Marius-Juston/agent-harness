@@ -1,0 +1,35 @@
+import capa.lexer as L, capa.parser as P, capa.analyzer as A, capa.transpiler as T
+
+src = '''
+fun greet(c: Console) {
+    c.print("hi")
+}
+fun add(a: Int, b: Int) -> Int {
+    return a + b
+}
+'''
+
+print("lexer:", [n for n in dir(L) if not n.startswith("_")])
+print("parser:", [n for n in dir(P) if not n.startswith("_")])
+print("analyzer:", [n for n in dir(A) if not n.startswith("_")])
+print("transpiler:", [n for n in dir(T) if not n.startswith("_")])
+
+tokens = L.tokenize(src) if hasattr(L, "tokenize") else L.Lexer(src).tokenize()
+assert tokens, "no tokens produced"
+program = P.parse(tokens) if hasattr(P, "parse") else P.Parser(tokens).parse()
+decls = getattr(program, "decls", None) or getattr(program, "declarations", None)
+assert decls is not None and len(decls) == 2, program
+
+report = A.analyze(program)
+print("report:", report)
+assert report is not None, "analysis returned nothing"
+
+py_src = T.transpile(program)
+assert isinstance(py_src, str) and py_src.strip(), "empty transpile output"
+print(py_src)
+compile(py_src, "<capa>", "exec")
+ns = {}
+exec(py_src, ns)
+assert "add" in ns and ns["add"](2, 3) == 5, "transpiled add() wrong"
+
+print("FIT_OK")

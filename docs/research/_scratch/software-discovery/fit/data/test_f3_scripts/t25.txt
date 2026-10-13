@@ -1,0 +1,38 @@
+from bs4 import BeautifulSoup
+
+html = """
+<html><body>
+  <div id="main" class="container">
+    <ul class="items">
+      <li class="item active" data-id="1">One</li>
+      <li class="item" data-id="2">Two</li>
+      <li class="item" data-id="3"><a href="/x">Three</a></li>
+    </ul>
+    <p class="note">Hello</p>
+    <p>Plain</p>
+  </div>
+  <div class="other"><span>Out</span></div>
+</body></html>
+"""
+
+soup = BeautifulSoup(html, "html.parser")
+
+items = soup.select("#main ul.items > li.item")
+assert [li.get_text(strip=True) for li in items] == ["One", "Two", "Three"]
+
+active = soup.select_one("li.item.active")
+assert active is not None and active["data-id"] == "1"
+
+assert [e["data-id"] for e in soup.select('li[data-id="2"]')] == ["2"]
+assert [e.get_text() for e in soup.select("li:nth-of-type(2)")] == ["Two"]
+assert [a["href"] for a in soup.select("li > a[href^='/']")] == ["/x"]
+assert [p.get_text() for p in soup.select("p:not(.note)")] == ["Plain"]
+assert [s.get_text() for s in soup.select("div.other span, p.note")] == ["Hello", "Out"]
+assert soup.select("section.missing") == []
+assert soup.select_one("table") is None
+
+container = soup.select_one("div#main")
+assert len(container.select("li")) == 3
+assert container.select_one("span") is None
+
+print("FIT_OK")

@@ -1,0 +1,6 @@
+import io
+from ruamel.yaml import YAML
+y = YAML(); src = "# top comment\na: 1  # inline\nb: 2\n"
+d = y.load(src); d["a"] = 5
+buf = io.StringIO(); y.dump(d, buf); out = buf.getvalue(); print(out)
+print("GOLD_FIT" if "# top comment" in out and "# inline" in out and "a: 5" in out else "GOLD_NOT")

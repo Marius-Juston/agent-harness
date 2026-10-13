@@ -1,0 +1,4 @@
+import camt053_lsp.server as s, inspect
+src = inspect.getsource(s); print([n for n in dir(s) if not n.startswith("_")])
+print("rename" in src.lower())
+print("GOLD_NOT" if "rename" not in src.lower() else "GOLD_CHECK")

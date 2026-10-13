@@ -1,0 +1,911 @@
+{
+ "t01": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.1,
+    "tokens_in": 2996,
+    "tokens_out": 474,
+    "cost_usd": 0.029266999999999994,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.05,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t02": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.5,
+    "tokens_in": 2986,
+    "tokens_out": 522,
+    "cost_usd": 0.030146999999999997,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t04": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.5,
+    "tokens_in": 3013,
+    "tokens_out": 411,
+    "cost_usd": 0.028142999999999998,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.08,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t05": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.0,
+    "tokens_in": 2995,
+    "tokens_out": 363,
+    "cost_usd": 0.027039,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.04,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t06": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 12.7,
+    "tokens_in": 2999,
+    "tokens_out": 1451,
+    "cost_usd": 0.048831,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.14,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t07": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.3,
+    "tokens_in": 2989,
+    "tokens_out": 1187,
+    "cost_usd": 0.043470999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.06,
+   "fit_ok": false,
+   "error_type": "XLRDError"
+  }
+ },
+ "t08": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.2,
+    "tokens_in": 2999,
+    "tokens_out": 466,
+    "cost_usd": 0.029131,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.1,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t09": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.5,
+    "tokens_in": 2974,
+    "tokens_out": 469,
+    "cost_usd": 0.028990999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.03,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t10": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.8,
+    "tokens_in": 2972,
+    "tokens_out": 447,
+    "cost_usd": 0.028534999999999998,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "JSONDecodeError"
+  }
+ },
+ "t11": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.2,
+    "tokens_in": 2976,
+    "tokens_out": 383,
+    "cost_usd": 0.027287000000000002,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "JSONDecodeError"
+  }
+ },
+ "t12": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 13.9,
+    "tokens_in": 2987,
+    "tokens_out": 1220,
+    "cost_usd": 0.044115,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.05,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t13": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.3,
+    "tokens_in": 2997,
+    "tokens_out": 844,
+    "cost_usd": 0.036675,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "ImportError"
+  }
+ },
+ "t14": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.6,
+    "tokens_in": 2983,
+    "tokens_out": 894,
+    "cost_usd": 0.037563,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.19,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t15": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.0,
+    "tokens_in": 2983,
+    "tokens_out": 752,
+    "cost_usd": 0.034723,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.11,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t16": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.6,
+    "tokens_in": 2982,
+    "tokens_out": 698,
+    "cost_usd": 0.033635,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.11,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t17": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.1,
+    "tokens_in": 2990,
+    "tokens_out": 753,
+    "cost_usd": 0.034799,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.06,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t18": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 12.0,
+    "tokens_in": 2994,
+    "tokens_out": 1081,
+    "cost_usd": 0.041391,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.03,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t19": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.6,
+    "tokens_in": 2987,
+    "tokens_out": 877,
+    "cost_usd": 0.037254999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.2,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t20": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.9,
+    "tokens_in": 2999,
+    "tokens_out": 614,
+    "cost_usd": 0.032091,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.05,
+   "fit_ok": false,
+   "error_type": "ParserError"
+  }
+ },
+ "t21": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.6,
+    "tokens_in": 3003,
+    "tokens_out": 587,
+    "cost_usd": 0.031583,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.09,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t22": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.6,
+    "tokens_in": 2997,
+    "tokens_out": 905,
+    "cost_usd": 0.037895,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.1,
+   "fit_ok": false,
+   "error_type": "AttributeError"
+  }
+ },
+ "t23": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.8,
+    "tokens_in": 2982,
+    "tokens_out": 975,
+    "cost_usd": 0.039175,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.19,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t24": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.0,
+    "tokens_in": 2978,
+    "tokens_out": 802,
+    "cost_usd": 0.035683,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.12,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t25": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.0,
+    "tokens_in": 3004,
+    "tokens_out": 593,
+    "cost_usd": 0.031710999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.09,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t26": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.8,
+    "tokens_in": 2982,
+    "tokens_out": 778,
+    "cost_usd": 0.035235,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.1,
+   "fit_ok": false,
+   "error_type": "TypeError"
+  }
+ },
+ "t27": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.8,
+    "tokens_in": 2975,
+    "tokens_out": 542,
+    "cost_usd": 0.030459,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.06,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t28": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.2,
+    "tokens_in": 2977,
+    "tokens_out": 406,
+    "cost_usd": 0.027755,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.09,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t29": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.1,
+    "tokens_in": 2971,
+    "tokens_out": 779,
+    "cost_usd": 0.035167000000000004,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.05,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t30": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.1,
+    "tokens_in": 2986,
+    "tokens_out": 715,
+    "cost_usd": 0.034006999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t31": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.7,
+    "tokens_in": 2976,
+    "tokens_out": 838,
+    "cost_usd": 0.036387,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "RuntimeError"
+  }
+ },
+ "t32": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.8,
+    "tokens_in": 2987,
+    "tokens_out": 533,
+    "cost_usd": 0.030375,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.2,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t33": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.5,
+    "tokens_in": 3001,
+    "tokens_out": 594,
+    "cost_usd": 0.031707,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.06,
+   "fit_ok": false,
+   "error_type": "ModuleNotFoundError"
+  }
+ },
+ "t34": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.6,
+    "tokens_in": 2990,
+    "tokens_out": 481,
+    "cost_usd": 0.029358999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.02,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t35": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.9,
+    "tokens_in": 3006,
+    "tokens_out": 698,
+    "cost_usd": 0.033826999999999996,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.04,
+   "fit_ok": false,
+   "error_type": "ValueError"
+  }
+ },
+ "t36": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 12.1,
+    "tokens_in": 2983,
+    "tokens_out": 959,
+    "cost_usd": 0.038862999999999995,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.04,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t37": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 9.9,
+    "tokens_in": 2981,
+    "tokens_out": 809,
+    "cost_usd": 0.035847000000000004,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.4,
+   "fit_ok": false,
+   "error_type": "LookupError"
+  }
+ },
+ "t38": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 6.3,
+    "tokens_in": 2983,
+    "tokens_out": 479,
+    "cost_usd": 0.029262999999999997,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.02,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t39": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.7,
+    "tokens_in": 2987,
+    "tokens_out": 727,
+    "cost_usd": 0.034255,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.02,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t40": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.8,
+    "tokens_in": 2968,
+    "tokens_out": 850,
+    "cost_usd": 0.036563,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.05,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t41": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 7.9,
+    "tokens_in": 2997,
+    "tokens_out": 647,
+    "cost_usd": 0.032735,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.01,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t42": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.1,
+    "tokens_in": 3009,
+    "tokens_out": 729,
+    "cost_usd": 0.034471,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.04,
+   "fit_ok": false,
+   "error_type": "AssertionError"
+  }
+ },
+ "t43": {
+  "verdict": "FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 8.0,
+    "tokens_in": 2990,
+    "tokens_out": 653,
+    "cost_usd": 0.032798999999999995,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 0,
+   "seconds": 0.02,
+   "fit_ok": true,
+   "error_type": null
+  }
+ },
+ "t44": {
+  "verdict": "NOT_FIT",
+  "calls": [
+   {
+    "models": [
+     "claude-opus-5-5"
+    ],
+    "seconds": 10.8,
+    "tokens_in": 3002,
+    "tokens_out": 770,
+    "cost_usd": 0.035235,
+    "error": null
+   }
+  ],
+  "run": {
+   "exit": 1,
+   "seconds": 0.12,
+   "fit_ok": false,
+   "error_type": "ConnectionError"
+  }
+ },
+ "_meta": {
+  "arm": "f3",
+  "model_requested": "claude-opus-5-5",
+  "date": "2026-10-13",
+  "cases": "cases_test.json"
+ }
+}

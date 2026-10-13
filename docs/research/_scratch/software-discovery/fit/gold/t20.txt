@@ -1,0 +1,5 @@
+from dateutil import parser
+try:
+    print(parser.parse("3 days ago")); print("GOLD_CHECK")
+except Exception as e:
+    print(type(e).__name__, e); print("GOLD_NOT")

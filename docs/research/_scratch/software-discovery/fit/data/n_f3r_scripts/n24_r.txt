@@ -1,0 +1,34 @@
+import importlib, importlib.metadata as md, inspect, pkgutil, struct, sys
+dist = md.distribution("comparer-mcp")
+tops = {str(f).split("/")[0].removesuffix(".py") for f in dist.files if str(f).endswith(".py") and "/" not in str(f).strip("/") or str(f).count("/") >= 1}
+tops = {t for t in tops if t.isidentifier() and not t.endswith("dist-info")}
+print("top-level:", tops, "requires:", dist.requires)
+cands = []
+for t in tops:
+    m = importlib.import_module(t)
+    mods = [m] + [importlib.import_module(i.name) for i in pkgutil.walk_packages(getattr(m, "__path__", []), t + ".") if "test" not in i.name]
+    for mod in mods:
+        for n, o in vars(mod).items():
+            if callable(o) and "midi" in n.lower() and getattr(o, "__module__", "").startswith(t):
+                cands.append((mod.__name__, n, o))
+print("midi candidates:", [(a, b) for a, b, _ in cands])
+assert cands, "no MIDI-related public API in comparer-mcp"
+def midi(notes, path):
+    ev = b""
+    for n in notes:
+        ev += bytes([0x00, 0x90, n, 0x64, 0x60, 0x80, n, 0x40])
+    ev += b"\x00\xff\x2f\x00"
+    open(path, "wb").write(b"MThd" + struct.pack(">IHHH", 6, 0, 1, 96) + b"MTrk" + struct.pack(">I", len(ev)) + ev)
+midi([60, 62, 64, 65, 67], "/tmp/a.mid"); midi([60, 62, 64, 65, 67], "/tmp/b.mid"); midi([30, 85, 41, 99, 50], "/tmp/c.mid")
+fn = next(o for _, n, o in cands if "compare" in n.lower() or "similar" in n.lower())
+fn = getattr(fn, "fn", fn)
+print("using", fn, inspect.signature(fn))
+same, diff = fn("/tmp/a.mid", "/tmp/b.mid"), fn("/tmp/a.mid", "/tmp/c.mid")
+print("same:", same, "diff:", diff)
+def score(r):
+    if isinstance(r, dict):
+        r = next(v for k, v in r.items() if "sim" in k.lower() or "score" in k.lower())
+    return float(r)
+s1, s2 = score(same), score(diff)
+assert s1 > s2, (s1, s2)
+print("FIT_OK")

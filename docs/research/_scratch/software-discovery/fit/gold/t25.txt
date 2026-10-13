@@ -1,0 +1,4 @@
+from bs4 import BeautifulSoup
+s = BeautifulSoup("<div><p class='x'>a</p><p>b</p></div>", "html.parser")
+r = [e.text for e in s.select("div > p.x")]; print(r)
+print("GOLD_FIT" if r == ["a"] else "GOLD_NOT")

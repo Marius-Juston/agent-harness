@@ -1,0 +1,41 @@
+# Tests whether pyzbar can generate a QR code image (PNG/SVG) from a string.
+# Note: pyzbar wraps the zbar *reader* library; this checks for any public encode API.
+import os
+import pyzbar
+from pyzbar import pyzbar as pz  # needs the libzbar shared library at import time
+
+payload = "Hello, pyzbar FIT test 12345"
+
+# Find a public encoding / generation entry point in pyzbar's API.
+candidates = [
+    name for name in dir(pz)
+    if not name.startswith("_")
+    and any(k in name.lower() for k in ("encode", "generate", "make", "create", "qrcode"))
+    and callable(getattr(pz, name))
+]
+assert candidates, (
+    f"pyzbar {getattr(pyzbar, '__version__', '?')} exposes no QR encode/generate "
+    f"function; public API: {[n for n in dir(pz) if not n.startswith('_')]}"
+)
+
+encoder = getattr(pz, candidates[0])
+result = encoder(payload)
+
+out_path = "/tmp/pyzbar_qr_output"
+if isinstance(result, (bytes, bytearray)):
+    data = bytes(result)
+elif hasattr(result, "save"):
+    result.save(out_path + ".png")
+    with open(out_path + ".png", "rb") as f:
+        data = f.read()
+else:
+    data = str(result).encode()
+
+assert data, "encoder produced no output"
+assert data.startswith(b"\x89PNG") or b"<svg" in data[:500], "output is not PNG or SVG"
+
+# Round-trip: decode the generated image back with pyzbar itself.
+decoded = pz.decode(result)
+assert any(d.data.decode() == payload for d in decoded), "round-trip decode mismatch"
+
+print("FIT_OK")

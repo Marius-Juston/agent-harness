@@ -1,0 +1,13 @@
+import dot_agora, pkgutil, importlib, inspect
+mods = [m.name for m in pkgutil.walk_packages(dot_agora.__path__, "dot_agora.")]
+hits = []
+for m in mods:
+    try:
+        src = inspect.getsource(importlib.import_module(m)).lower()
+    except Exception as e:
+        print("skip", m, type(e).__name__); continue
+    if "sqlite" in src: hits.append(m)
+print(mods); print("sqlite in:", hits)
+from dot_agora import Room
+r = Room(); print([n for n in dir(r.journal) if not n.startswith("_")])
+print("GOLD_NOT" if not hits else "GOLD_CHECK")

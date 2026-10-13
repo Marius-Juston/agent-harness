@@ -1,0 +1,34 @@
+import os
+import tempfile
+
+# Point NLTK at an empty data dir so only what ships with the package is used.
+os.environ["NLTK_DATA"] = tempfile.mkdtemp(dir="/tmp")
+
+import nltk
+from nltk.tokenize import sent_tokenize
+
+text = (
+    "Dr. Smith arrived at 10 a.m. on Monday. She met Mr. Jones at the lab! "
+    "Did they discuss the results? Yes, they did. "
+    "The sample cost $3.50 in total."
+)
+
+sentences = sent_tokenize(text, language="english")
+print(sentences)
+
+expected = [
+    "Dr. Smith arrived at 10 a.m. on Monday.",
+    "She met Mr. Jones at the lab!",
+    "Did they discuss the results?",
+    "Yes, they did.",
+    "The sample cost $3.50 in total.",
+]
+
+assert isinstance(sentences, list)
+assert all(isinstance(s, str) for s in sentences)
+assert sentences == expected, sentences
+
+simple = sent_tokenize("Hello world. This is a test. It works.")
+assert simple == ["Hello world.", "This is a test.", "It works."], simple
+
+print("FIT_OK")

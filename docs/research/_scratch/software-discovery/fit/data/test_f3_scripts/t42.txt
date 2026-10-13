@@ -1,0 +1,36 @@
+# markupsafe's public API offers escape() and Markup.striptags(); there is no
+# allowlist sanitizer. This script tests the need with the closest tools available.
+import markupsafe
+from markupsafe import Markup, escape
+
+untrusted = 'Hello <b>bold</b> world<script>alert("xss")</script>!'
+expected_kept = "<b>bold</b>"
+
+print("markupsafe version:", getattr(markupsafe, "__version__", "unknown"))
+
+# Candidate 1: escape() neutralizes the markup but does not keep <b> as a tag.
+escaped = str(escape(untrusted))
+print("escape():", escaped)
+
+# Candidate 2: striptags() removes every tag, but may keep the script's text.
+stripped = Markup(untrusted).striptags()
+print("striptags():", stripped)
+
+# The need: keep allowlisted <b>, and drop <script> together with its content.
+candidates = {"escape": escaped, "striptags": str(stripped)}
+fit = {
+    name: (expected_kept in out and "<script" not in out and "alert" not in out)
+    for name, out in candidates.items()
+}
+print("per-candidate fit:", fit)
+
+# Look for any allowlist-style sanitizer in the public API.
+public = [n for n in dir(markupsafe) if not n.startswith("_")]
+print("public API:", public)
+sanitizers = [n for n in public if "sanit" in n.lower() or "clean" in n.lower()]
+
+assert sanitizers or any(fit.values()), (
+    "markupsafe provides no allowlist HTML sanitizer: escape() keeps no tags, "
+    "striptags() removes <b> too and keeps the <script> content as text"
+)
+print("FIT_OK")

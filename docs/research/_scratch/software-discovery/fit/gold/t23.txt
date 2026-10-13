@@ -1,0 +1,7 @@
+import asyncio, httpx
+async def main():
+    t = httpx.MockTransport(lambda req: httpx.Response(200, text="pong"))
+    async with httpx.AsyncClient(transport=t) as c:
+        r = await c.get("http://example.invalid/"); return r.text
+v = asyncio.run(main()); print(v)
+print("GOLD_FIT" if v == "pong" else "GOLD_NOT")

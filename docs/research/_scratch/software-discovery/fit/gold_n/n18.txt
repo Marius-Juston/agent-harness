@@ -1,0 +1,11 @@
+import faskill, pkgutil, importlib, inspect
+mods = [m.name for m in pkgutil.walk_packages(faskill.__path__, "faskill.")]
+hits = []
+for m in mods:
+    try:
+        src = inspect.getsource(importlib.import_module(m))
+    except Exception as e:
+        print("skip", m, type(e).__name__); continue
+    if "zipfile" in src or "make_archive" in src or "tarfile" in src: hits.append(m)
+print(mods, hits)
+print("GOLD_NOT" if not hits else "GOLD_CHECK")

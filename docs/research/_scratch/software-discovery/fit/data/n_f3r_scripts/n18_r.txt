@@ -1,0 +1,35 @@
+import importlib, pkgutil, zipfile
+from pathlib import Path
+import faskill
+
+fn = getattr(faskill, "package_skill", None)
+for m in pkgutil.walk_packages(faskill.__path__, "faskill."):
+    if fn is None:
+        fn = getattr(importlib.import_module(m.name), "package_skill", None)
+assert callable(fn), f"no package_skill in faskill: {[m.name for m in pkgutil.walk_packages(faskill.__path__, 'faskill.')]} {dir(faskill)}"
+
+base = Path("/tmp/fit_skill_test")
+skill = base / "my-skill"
+(skill / "scripts").mkdir(parents=True, exist_ok=True)
+(skill / "SKILL.md").write_text(
+    "---\nname: my-skill\ndescription: A tiny test skill for packaging.\n---\n\n# My Skill\nDo things.\n"
+)
+(skill / "scripts" / "run.py").write_text("print('hello')\n")
+out_dir = base / "dist"
+out_dir.mkdir(exist_ok=True)
+
+result = fn(skill, out_dir)
+assert result is not None, "package_skill returned None"
+archive = Path(result)
+assert archive.exists() and archive.suffix == ".skill", archive
+assert zipfile.is_zipfile(archive)
+
+with zipfile.ZipFile(archive) as zf:
+    names = set(zf.namelist())
+    md = [n for n in names if n.endswith("SKILL.md")]
+    rp = [n for n in names if n.endswith("scripts/run.py")]
+    assert md and rp, names
+    assert zf.read(rp[0]) == b"print('hello')\n"
+    assert b"name: my-skill" in zf.read(md[0])
+
+print("FIT_OK")
