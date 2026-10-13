@@ -24,8 +24,8 @@ NOT FOUND (the package-hallucination guard). search:
   2406.10279), else FAIL, asked again after REGISTRY_MAX_AGE; G2 no malicious-package advisory (an OSV MAL- id on
   deps.dev, or a GitHub MALWARE advisory on ecosyste.ms), else FAIL, and HOLD when neither answered; G3 first release
   at least NEW_DAYS ago, else HOLD; G4 not archived, deprecated or wholly yanked (else FAIL) and released within
-  DORMANT_DAYS (else HOLD); G5 licence by Blue Oak Council tier: permissive (Model to
-  Bronze) passes, weak copyleft passes with a flag, strong, network or maximal copyleft FAILs unless
+  DORMANT_DAYS (else HOLD); G5 licence (the registry's SPDX expression, else the listed licences joined with OR, the
+  best option of an OR counting) by Blue Oak Council tier: permissive (Model to Bronze) passes, weak copyleft passes with a flag, strong, network or maximal copyleft FAILs unless
   `--allow-copyleft`, unknown or Lead HOLDs; G6 advisories open on the default version are flagged, never failed.
   A licence that is not OSI-approved (spdx.org) or missing is flagged too;
 - quality Q (0-1, `quality()`): the sum of Q_WEIGHTS (developer survey shares, arXiv 2005.12574) over maturity
@@ -130,6 +130,7 @@ NEW_DAYS = 90  # G3: a first release more recent than this holds
 DORMANT_DAYS = 730  # G4: no release for longer than this holds
 PERMISSIVE = {"Model", "Gold", "Silver", "Bronze"}  # Blue Oak tiers that pass G5; Lead holds
 WEAK, COPYLEFT_FAIL = "weak", {"strong", "network", "maximal"}
+OPS = {"AND", "OR", "WITH"}  # SPDX licence expression operators
 
 STOP = set(
     """a an and are as at be by can do for from has have how i if in into is it its of on or that the this to was
@@ -301,6 +302,23 @@ def _checks(card: dict) -> dict[str, float]:
     return {c["name"]: c.get("score", -1) for c in card.get("checks") or [] if isinstance(c, dict) and "name" in c}
 
 
+def spdx_expression(text) -> str:
+    """`text` when it is an SPDX licence expression (ids joined by AND, OR or WITH, parentheses ignored), else ''."""
+    if not isinstance(text, str):
+        return ""
+    toks = text.replace("(", " ").replace(")", " ").split()
+    ids, ops = toks[::2], toks[1::2]
+    if not ids or len(toks) % 2 == 0 or any(o not in OPS for o in ops):
+        return ""
+    return " ".join(text.split()) if all(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.+-]*", i) for i in ids) else ""
+
+
+def licence_of(p: dict) -> str:
+    """An ecosyste.ms record's licence: the registry's own SPDX expression (`licenses`: PyPI's license_expression or
+    licence field), else the normalized licences joined with OR, as a package listing several lets you pick one (#180)."""
+    return spdx_expression(p.get("licenses")) or " OR ".join(p.get("normalized_licenses") or [])
+
+
 def from_record(p: dict) -> Candidate:
     """A candidate from an ecosyste.ms package record (keywords or lookup)."""
     rm = p.get("repo_metadata") or {}
@@ -323,7 +341,7 @@ def from_record(p: dict) -> Candidate:
         topics=list(rm.get("topics") or p.get("keywords_array") or []),
         stars=rm.get("stargazers_count"),
         forks=rm.get("forks_count"),
-        license=" AND ".join(p.get("normalized_licenses") or []),
+        license=licence_of(p),
         first_release=(p.get("first_release_published_at") or "")[:10],
         last_release=(p.get("latest_release_published_at") or "")[:10],
         last_push=(rm.get("pushed_at") or "")[:10],
@@ -830,22 +848,40 @@ def from_registry(name: str, ecosystem: str, body: dict) -> Candidate:
     else:
         crate = body.get("crate") or {}
         urls, desc = [crate.get("repository"), crate.get("homepage")], crate.get("description")
-    return Candidate(name=name, repo=_repo_in(urls), ecosystem=ecosystem, description=desc or "", record=body)
+    return Candidate(
+        name=name,
+        repo=_repo_in(urls),
+        ecosystem=ecosystem,
+        description=desc or "",
+        license=registry_licence(ecosystem, body),
+        record=body,
+    )
+
+
+def registry_licence(ecosystem: str, body: dict) -> str:
+    """The SPDX expression the registry itself declares: PyPI's license_expression (PEP 639), else its licence field
+    when that is one; npm's licence field. '' otherwise, or when the answer was cut at the read cap."""
+    if ecosystem == "pypi":
+        info = body.get("info") or {}
+        return spdx_expression(info.get("license_expression")) or spdx_expression(info.get("license"))
+    return spdx_expression(body.get("license")) if ecosystem == "npm" else ""
 
 
 def named(client: lit.Client, name: str, ecosystem: str, body: str, notes: list[str]) -> Candidate:
     """The package an agent named, which its registry answered for: its ecosyste.ms record, else that answer."""
     url = f"{ECOSYSTEMS}registries/{REGISTRY_HOST[ecosystem]}/packages/{urllib.parse.quote(name, safe='@')}"
     rec = _json(client, "ecosystems", url, notes, missing_ok=True)
-    if isinstance(rec, dict) and rec.get("name"):
-        c = from_record(rec)
-        c.ecosystem = ecosystem
-        return c
     try:
         data = json.loads(body)
     except ValueError:
         data = {}
-    return from_registry(name, ecosystem, data if isinstance(data, dict) else {})
+    data = data if isinstance(data, dict) else {}
+    if isinstance(rec, dict) and rec.get("name"):
+        c = from_record(rec)
+        c.ecosystem = ecosystem
+        c.license = registry_licence(ecosystem, data) or c.license  # the registry's own expression first (#180)
+        return c
+    return from_registry(name, ecosystem, data)
 
 
 def check(client: lit.Client, names: list[str], ecosystem: str = "pypi", allow_copyleft: bool = False) -> dict:
