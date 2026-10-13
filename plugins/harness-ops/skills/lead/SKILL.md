@@ -41,6 +41,7 @@ For each item in review, in priority order:
 - Plugin agent types are `harness-ops:<name>` (`docs/generated/agent-surface.md`); a project's own agents in
   `.claude/agents/` keep bare names. Agent files changed during a session register only at the next session start.
 - Claim for them first: `uv run dev board claim N --agent <type> --branch N-<slug>`.
+- Another repository's issue: claim it and add its worktree in that repository, then dispatch the typed agent with `Work on <repo> #N in <abs path>; prefix every command with cd <abs path> &&`. The guard keeps the same rules there, but refuses recursive `rm`. Never remove the agent's empty isolation worktree while it runs: every later call is then refused.
 - A broad research question takes the `harness-ops:research` skill, not one researcher.
 
 ## 5. Resume after a limit, crash or compaction

@@ -535,6 +535,26 @@ def test_guard_bash_bare_push_follows_current_branch(hook, tmp_path):
         assert code(cmd) == 0, cmd
 
 
+def test_guard_bash_cross_repo_builder_works_in_the_named_worktree_with_the_same_rules(hook, tmp_path):
+    """#170: a builder dispatched onto another repository's issue sits in its own isolation worktree and prefixes
+    every command with `cd <named worktree> &&` (lead skill, Dispatch). Routine work there is allowed; pushes to
+    main and lost work stay refused, and recursive rm stays anchored to the builder's own worktree."""
+    home = _repo(tmp_path)
+    target = tmp_path / "other"
+    subprocess.run(["git", "clone", "-q", str(home), str(target)], check=True)
+    subprocess.run(["git", "-C", str(target), "checkout", "-q", "-b", "170-x"], check=True)
+
+    def run(cmd):
+        code, _, err = hook("guard_bash.py", {"cwd": str(home), "tool_input": {"command": f"cd {target} && {cmd}"}})
+        return code, err
+
+    for cmd in ("uv run dev test --affected", "git add -A && git commit -m x", "git push -u origin 170-x", "git push"):
+        assert run(cmd)[0] == 0, cmd
+    for cmd, rule in [("git push origin main", "MAIN"), ("git reset --hard", "RESET"), ("rm -rf .scratch", "RM")]:
+        code, err = run(cmd)
+        assert code == 2 and getattr(GUARD, rule) in err, (cmd, err)
+
+
 @pytest.mark.parametrize(
     "payload", ["", "not json", "[]", json.dumps({"tool_input": None}), json.dumps({"tool_input": {"command": 5}})]
 )
