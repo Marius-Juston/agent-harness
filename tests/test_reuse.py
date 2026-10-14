@@ -689,11 +689,11 @@ def test_github_token_sources(monkeypatch):
 
 def test_client_shares_dev_lit_state_dir(monkeypatch, tmp_path):
     monkeypatch.setattr(reuse, "state_dir", lambda name: tmp_path / name)
-    monkeypatch.setattr(reuse, "user_state_dir", lambda name: tmp_path / "user" / name)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "user"))
     monkeypatch.setenv("GITHUB_TOKEN", "t")
     c = reuse.client()
     assert c.dir == tmp_path / "lit" and c.rates is reuse.RATES and c.env["GITHUB_TOKEN"] == "t"
-    assert c.bucket.dir == tmp_path / "user" / "lit"  # dev lit's buckets: one per user, not per repository
+    assert c.bucket.dir == tmp_path / "user" / "devkit" / "lit"  # dev lit's buckets: one per user, not per repository
 
 
 # ---- output and CLI ----

@@ -793,7 +793,7 @@ def test_a_key_from_the_file_is_sent_but_never_printed_logged_or_cached(tmp_path
     net, clock, real = FakeNet(healthy()), Clock(), lit.Client
     (tmp_path / "state").mkdir()
     monkeypatch.setattr(lit, "state_dir", lambda *_: tmp_path / "state")
-    monkeypatch.setattr(lit, "user_state_dir", lambda *_: tmp_path / "state")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "user-state"))
     monkeypatch.setattr(
         lit, "Client", lambda d, env, **kw: real(d, get=net, clock=clock, sleep=clock.sleep, env=env, **kw)
     )
@@ -814,7 +814,7 @@ def test_a_refused_secrets_file_is_reported_without_its_contents(tmp_path, monke
         monkeypatch.setenv(k, v)
     (tmp_path / "state").mkdir()
     monkeypatch.setattr(lit, "state_dir", lambda *_: tmp_path / "state")
-    monkeypatch.setattr(lit, "user_state_dir", lambda *_: tmp_path / "state")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "user-state"))
     c = lit.client()
     err = capsys.readouterr().err
     assert "OPENALEX_API_KEY" not in c.env and "chmod 600" in err and "fake-oa-789" not in err
@@ -968,7 +968,7 @@ def test_no_key_leaks_on_error_paths(tmp_path, monkeypatch, capsys, answers):
     clock, real = Clock(), lit.Client
     (tmp_path / "state").mkdir()
     monkeypatch.setattr(lit, "state_dir", lambda *_: tmp_path / "state")
-    monkeypatch.setattr(lit, "user_state_dir", lambda *_: tmp_path / "state")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "user-state"))
     monkeypatch.setattr(
         lit, "Client", lambda d, env, **kw: real(d, get=net, clock=clock, sleep=clock.sleep, env=env, **kw)
     )
