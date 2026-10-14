@@ -3,9 +3,10 @@
 Parallel researchers on one IP got 429s from OpenAlex and Semantic Scholar and spent OpenAlex's daily budget, then
 fell back to weaker sources. Every call here goes through one client:
 
-- a token bucket per source under flock in <git-common-dir>/devkit/lit/, so all worktrees and processes together
-  stay under each API's documented rate; a 429 sets a cooldown that every process honours;
-- a response cache in the same place, shared by all worktrees, for CACHE_DAYS (only 200 answers are cached);
+- a token bucket per source under flock in the per-user state dir (paths.user_state_dir), so all processes of every
+  repository on the machine together stay under each API's documented rate, which counts a key or an IP, not a
+  repository; a 429 sets a cooldown that every process honours;
+- a response cache in <git-common-dir>/devkit/lit/, shared by all worktrees, for CACHE_DAYS (only 200 answers);
 - free API keys (OPENALEX_API_KEY, S2_API_KEY) from the environment, else from a private secrets file
   (DEVKIT_SECRETS_FILE, default ~/.config/api-keys.env, mode 600), since subagents and Claude Code's Bash tool do not
   source the shell profile; a key never reaches the cache key, the output or a log (#23);
@@ -49,7 +50,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from devkit import backoff, netsafe
-from devkit.paths import state_dir
+from devkit.paths import state_dir, user_state_dir
 
 UA = "agent-harness-devkit-lit/0.1 (research tooling; mailto:noreply@example.invalid)"
 CACHE_DAYS = 7
@@ -62,14 +63,16 @@ TRIES = 4
 # Requests per second and burst, per source, for the whole machine. Below the documented limits on purpose: OpenAlex
 # allows 10/s, Crossref 1/s for searches in its public pool since 2026-07-21 (community.crossref.org/t/
 # refining-rest-api-limits-for-improved-stability-and-reliability/16137), arXiv asks for one request per 3 s, and
-# Semantic Scholar's shared unauthenticated pool throttles hard (1/s is its rate with a key). Europe PMC's REST page
+# Semantic Scholar's shared unauthenticated pool throttles hard, and a key gets 1/s cumulative across all endpoints,
+# counted per key, not per machine (its key e-mail asks clients to stay below that; semanticscholar.org/product/api/
+# tutorial), so 0.8/s, burst 1, leaves room for clock and network jitter. Europe PMC's REST page
 # (europepmc.org/RestfulWebService) states no number; its team confirmed the limit is per IP and a user quoted
 # 10/s or 500/min (groups.google.com/a/ebi.ac.uk/g/epmc-webservices/c/cZLnV1JhCj8, 2024-12), and it was seen
 # throttling after a few rapid requests with a 503 and no Retry-After (github.com/hherb/bmlibrarian_lite/issues/341),
 # so 1/s, burst 1, and its 503 counts as a 429.
 RATES: dict[str, tuple[float, float]] = {
     "openalex": (5.0, 5.0),
-    "s2": (1.0, 1.0),
+    "s2": (0.8, 1.0),
     "crossref": (0.5, 1.0),
     "europepmc": (1.0, 1.0),
     "arxiv": (1 / 3, 1.0),
@@ -634,10 +637,11 @@ class Client:
     rates: dict[str, tuple[float, float]] = field(default_factory=lambda: RATES)
     keys: dict[str, str] = field(default_factory=lambda: KEYS)
     auth: Callable[[str, str, dict[str, str]], tuple[str, dict[str, str]]] = with_key
+    rate_dir: Path | None = None  # the buckets' dir (default: dir); the CLIs pass one shared by every repository
 
     def __post_init__(self) -> None:
         (self.dir / "cache").mkdir(parents=True, exist_ok=True)
-        self.bucket = Bucket(self.dir, self.clock, self.sleep, self.rng, self.rates)
+        self.bucket = Bucket(self.rate_dir or self.dir, self.clock, self.sleep, self.rng, self.rates)
 
     def _cache_path(self, url: str) -> Path:
         return self.dir / "cache" / (hashlib.sha256(url.encode()).hexdigest()[:32] + ".json")
@@ -871,7 +875,7 @@ def client() -> Client:
     env, problem = with_secrets(dict(os.environ))
     if problem:
         print(f"dev lit: {problem}", file=sys.stderr)
-    return Client(state_dir("lit"), env=env)
+    return Client(state_dir("lit"), env=env, rate_dir=user_state_dir("lit"))
 
 
 def render(papers: list[Paper], notes: list[str], snippet: int = SNIPPET) -> str:

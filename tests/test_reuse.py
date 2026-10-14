@@ -689,9 +689,11 @@ def test_github_token_sources(monkeypatch):
 
 def test_client_shares_dev_lit_state_dir(monkeypatch, tmp_path):
     monkeypatch.setattr(reuse, "state_dir", lambda name: tmp_path / name)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "user"))
     monkeypatch.setenv("GITHUB_TOKEN", "t")
     c = reuse.client()
     assert c.dir == tmp_path / "lit" and c.rates is reuse.RATES and c.env["GITHUB_TOKEN"] == "t"
+    assert c.bucket.dir == tmp_path / "user" / "devkit" / "lit"  # dev lit's buckets: one per user, not per repository
 
 
 # ---- output and CLI ----
@@ -940,7 +942,7 @@ def test_check_falls_back_to_the_registry_and_holds_or_fails_by_gate(tmp_path):
     assert backoff.status == "FAIL" and backoff.gates["G4"].startswith("FAIL (deprecated")
 
 
-def test_check_trusts_the_registrys_404_over_a_stale_ecosystems_record(tmp_path):
+def test_check_trusts_the_registry_404_over_a_stale_ecosystems_record(tmp_path):
     w = world(named={"renpy": record("renpy", None)})  # ecosyste.ms knows it; PyPI answers 404
     rep = reuse.check(make(tmp_path, Net(w)), ["renpy"], "pypi")
     assert rep["candidates"][0].status == "NOT FOUND"
@@ -1002,7 +1004,7 @@ def test_cli_check_json_exit_codes_and_errors(fake_cli, capsys):
         ("pypi", {"info": {"home_page": "https://example.org", "summary": "d"}}),
     ],
 )
-def test_from_registry_reads_each_registrys_repository_field(eco, body):
+def test_from_registry_reads_each_registry_repository_field(eco, body):
     c = reuse.from_registry("pkg", eco, body)
     assert (c.name, c.ecosystem, c.description) == ("pkg", eco, "d")
     assert c.repo == ("" if eco == "pypi" else "github.com/o/pkg") and c.record is body
@@ -1037,7 +1039,7 @@ def test_g5_flags_an_undeclared_licence_list_mixing_strong_copyleft(rec, outcome
     assert ("licence combination undeclared" in g5) == (outcome == "flag")
 
 
-def test_undeclared_licence_survives_a_merge_and_yields_to_the_registrys_expression(tmp_path):  # #182
+def test_undeclared_licence_survives_a_merge_and_yields_to_the_registry_expression(tmp_path):  # #182
     into = {"github.com/o/duo": reuse.Candidate(name="o/duo", repo="github.com/o/duo", license="MIT")}
     reuse.merge(into, reuse.from_record(record("duo", "o/duo", lic=("MIT", "GPL-3.0-only"))))
     assert "licence combination undeclared" in reuse.gates(into["github.com/o/duo"], NOW, MIXED_TIERS, False)["G5"]
