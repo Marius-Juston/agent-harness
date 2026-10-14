@@ -35,9 +35,10 @@ def state_dir(*parts: str) -> Path:
 
 def user_state_dir(*parts: str) -> Path:
     """Per-user state shared by every repository on this machine: $XDG_STATE_HOME/devkit/<parts>, else
-    ~/.local/state/devkit/<parts>. For what an outside service counts per key or per IP, not per repository."""
-    base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
-    path = Path(base).joinpath("devkit", *parts)
+    ~/.local/state/devkit/<parts>. For what an outside service counts per key or per IP, not per repository. A
+    relative XDG_STATE_HOME is ignored, as the XDG spec says: it would split the state by working directory."""
+    xdg = Path(os.environ.get("XDG_STATE_HOME", ""))
+    path = (xdg if xdg.is_absolute() else Path.home() / ".local" / "state").joinpath("devkit", *parts)
     path.mkdir(parents=True, exist_ok=True)
     return path
 

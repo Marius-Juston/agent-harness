@@ -132,6 +132,12 @@ def test_clients_of_two_repositories_share_one_rate_dir(tmp_path, monkeypatch):
     assert not (tmp_path / "r1" / "buckets.json").exists()
 
 
+def test_a_relative_xdg_state_home_is_ignored(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_STATE_HOME", "relative/state")
+    assert lit.user_state_dir("lit") == tmp_path / ".local" / "state" / "devkit" / "lit"
+
+
 def _worker(args):
     d, n = args
     b = lit.Bucket(__import__("pathlib").Path(d))
