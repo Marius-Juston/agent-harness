@@ -41,6 +41,10 @@ agent's environment. `dev lit` reads the file itself, and the plugin's Bash guar
 keep agents from reading it. The steps: [docs/SETUP.md](docs/SETUP.md#research-api-keys), which every project made
 from the template carries too; `uv run dev doctor` reports each key as found or missing.
 
+Results from Semantic Scholar come from the Semantic Scholar Academic Graph; work that publishes them cites
+Kinney et al., [The Semantic Scholar Open Data Platform](https://arxiv.org/abs/2301.10140) (2023), as the
+[API license](https://www.semanticscholar.org/product/api/license) asks.
+
 ## Configuration
 What differs between projects lives in the project: `[tool.devkit]` in its pyproject.toml (the keys and defaults
 are in [devkit/config.py](devkit/config.py)), word budgets and test floors in `.devkit/ratchets.toml`, the area-label map in

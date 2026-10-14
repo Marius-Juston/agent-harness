@@ -119,6 +119,19 @@ def test_cooldown_holds_every_caller_off(tmp_path):
     assert sum(clock.slept) >= 30
 
 
+def test_clients_of_two_repositories_share_one_rate_dir(tmp_path, monkeypatch):
+    # regression: buckets lived in each repository's git dir, so sessions in two repositories spent one S2 key twice
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    shared = lit.user_state_dir("lit")
+    assert shared == tmp_path / "state" / "devkit" / "lit"
+    clock = Clock()
+    a, b = (lit.Client(tmp_path / r, clock=clock, sleep=clock.sleep, env={}, rate_dir=shared) for r in ("r1", "r2"))
+    a.bucket.acquire("s2")
+    b.bucket.acquire("s2")  # the burst of 1 is spent by the other repository's client
+    assert sum(clock.slept) >= 1 / lit.RATES["s2"][0] - 1e-9
+    assert not (tmp_path / "r1" / "buckets.json").exists()
+
+
 def _worker(args):
     d, n = args
     b = lit.Bucket(__import__("pathlib").Path(d))
@@ -454,6 +467,8 @@ def test_source_accepts_europepmc_and_its_rate_is_below_the_documented_limit():
     assert burst <= 2
     # regression: Crossref cut searches to 1/s (public pool) on 2026-07-21; this client sent up to 5/s
     assert lit.RATES["crossref"][0] < 1 and lit.RATES["crossref"][1] <= 1
+    # a Semantic Scholar key allows 1/s across all endpoints, and its terms ask clients to stay below that
+    assert lit.RATES["s2"][0] < 1 and lit.RATES["s2"][1] <= 1
 
 
 def test_plan_auto_falls_back_but_an_explicit_list_does_not():
@@ -772,7 +787,10 @@ def test_a_key_from_the_file_is_sent_but_never_printed_logged_or_cached(tmp_path
     net, clock, real = FakeNet(healthy()), Clock(), lit.Client
     (tmp_path / "state").mkdir()
     monkeypatch.setattr(lit, "state_dir", lambda *_: tmp_path / "state")
-    monkeypatch.setattr(lit, "Client", lambda d, env: real(d, get=net, clock=clock, sleep=clock.sleep, env=env))
+    monkeypatch.setattr(lit, "user_state_dir", lambda *_: tmp_path / "state")
+    monkeypatch.setattr(
+        lit, "Client", lambda d, env, **kw: real(d, get=net, clock=clock, sleep=clock.sleep, env=env, **kw)
+    )
     cli.run_lit(cli.build().parse_args(["lit", "search", "q", "--source", "openalex,s2"]))
     assert cli.run_lit(cli.build().parse_args(["lit", "status"])) == 0
     assert any("api_key=fake-oa-123" in u for u, _ in net.calls)
@@ -790,6 +808,7 @@ def test_a_refused_secrets_file_is_reported_without_its_contents(tmp_path, monke
         monkeypatch.setenv(k, v)
     (tmp_path / "state").mkdir()
     monkeypatch.setattr(lit, "state_dir", lambda *_: tmp_path / "state")
+    monkeypatch.setattr(lit, "user_state_dir", lambda *_: tmp_path / "state")
     c = lit.client()
     err = capsys.readouterr().err
     assert "OPENALEX_API_KEY" not in c.env and "chmod 600" in err and "fake-oa-789" not in err
@@ -943,7 +962,10 @@ def test_no_key_leaks_on_error_paths(tmp_path, monkeypatch, capsys, answers):
     clock, real = Clock(), lit.Client
     (tmp_path / "state").mkdir()
     monkeypatch.setattr(lit, "state_dir", lambda *_: tmp_path / "state")
-    monkeypatch.setattr(lit, "Client", lambda d, env: real(d, get=net, clock=clock, sleep=clock.sleep, env=env))
+    monkeypatch.setattr(lit, "user_state_dir", lambda *_: tmp_path / "state")
+    monkeypatch.setattr(
+        lit, "Client", lambda d, env, **kw: real(d, get=net, clock=clock, sleep=clock.sleep, env=env, **kw)
+    )
     cli.run_lit(cli.build().parse_args(["lit", "search", "q"]))
     cli.run_lit(cli.build().parse_args(["lit", "get", "10.1/x"]))
     assert cli.run_lit(cli.build().parse_args(["lit", "status"])) == 1

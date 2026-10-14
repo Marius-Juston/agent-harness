@@ -2,6 +2,7 @@
 every agent worktree (each worktree has its own top level; they share one git common dir)."""
 
 import functools
+import os
 import subprocess
 from pathlib import Path
 
@@ -28,6 +29,15 @@ def common_dir() -> Path:
 def state_dir(*parts: str) -> Path:
     """Machine-local state shared by all worktrees: <git-common-dir>/devkit/<parts>. Never committed."""
     path = common_dir().joinpath("devkit", *parts)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def user_state_dir(*parts: str) -> Path:
+    """Per-user state shared by every repository on this machine: $XDG_STATE_HOME/devkit/<parts>, else
+    ~/.local/state/devkit/<parts>. For what an outside service counts per key or per IP, not per repository."""
+    base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
+    path = Path(base).joinpath("devkit", *parts)
     path.mkdir(parents=True, exist_ok=True)
     return path
 

@@ -62,7 +62,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from devkit import code, lit
-from devkit.paths import state_dir
+from devkit.paths import state_dir, user_state_dir
 
 # Requests per second and burst per source. GitHub's search API allows 10 requests a minute without a token and 30
 # with one; ecosyste.ms, deps.dev, spdx.org, Blue Oak and the registries state no lower limit for this volume;
@@ -1061,4 +1061,4 @@ def client() -> lit.Client:
     env = dict(os.environ)
     if tok := github_token(env):
         env["GITHUB_TOKEN"] = tok
-    return lit.Client(state_dir("lit"), env=env, rates=RATES, keys=KEYS, auth=auth)
+    return lit.Client(state_dir("lit"), env=env, rates=RATES, keys=KEYS, auth=auth, rate_dir=user_state_dir("lit"))

@@ -10,6 +10,8 @@ falls back to the weaker indexes. Both keys are free:
 
 - OpenAlex: sign in at [openalex.org](https://openalex.org) and create an API key in your account settings.
 - Semantic Scholar: request one with the [API key form](https://www.semanticscholar.org/product/api#api-key-form).
+  A key allows 1 request per second across all endpoints, counted per key: `dev lit` keeps every process of every
+  repository on one machine below that, but another machine or script using the same key shares the budget and gets 429s.
 
 Store them once per machine in `~/.config/api-keys.env`, mode 600, outside any repository. `read -rsp` keeps the key
 off the screen and out of shell history, and `printf` is a shell builtin, so the key never shows in a process list.
@@ -26,3 +28,15 @@ another file). It reads only a regular file owned by you that nobody else can ac
 and it never prints, logs or caches a key. Agents cannot read the file either: the plugin's Bash guard blocks it and
 the project settings deny `Read` on it. Check with `uv run dev doctor` (each key found or missing, never its value)
 and `uv run dev lit status` (`(key)` next to each keyed source).
+
+## Removing devkit's local files
+devkit keeps no state outside these places, all plain files owned by you:
+- `<repository>/.git/devkit/`: per-repository caches, logs and locks (never committed); deleting the repository
+  deletes it.
+- `${XDG_STATE_HOME:-~/.local/state}/devkit/`: the rate limits `dev lit` shares across repositories, since an API
+  counts a key or an IP, not a repository.
+- `~/.config/api-keys.env`: your research API keys, if you stored them.
+- `~/<project>-claude-memory.tgz`: only if you ran `scripts/claude-memory.sh export` without naming a file.
+
+After uninstalling the plugin, `rm -rf "${XDG_STATE_HOME:-$HOME/.local/state}/devkit"` removes the shared state;
+delete the keys file only if nothing else on the machine uses it.
