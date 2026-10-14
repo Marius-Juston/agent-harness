@@ -4,6 +4,39 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.8 (2026-10-14)
+
+Research tools share one rate limit per user: sessions in different repositories on one machine no longer overrun
+an API key together. The `Reuse:` line asks whether each new dependency does the job, and through which API.
+
+### Upgrading a project
+Run `uvx copier update --data harness_ref=v0.1.8`, then `uv sync && uv run dev docs && uv run dev check`. These can
+need attention:
+- **Rate limits move to a per-user directory.** `dev lit` and `dev reuse` keep their token buckets and shared
+  cooldowns in `$XDG_STATE_HOME/devkit/lit` (default `~/.local/state/devkit/lit`), shared by every repository on the
+  machine; the response cache stays in `<git-common-dir>/devkit/lit`. A project still on an older release keeps its
+  own buckets, so update every project that searches with the same keys. SETUP.md lists every file devkit keeps
+  outside a repository and how to remove it. (#241)
+- **New fit clause in the `Reuse:` line.** Each new dependency needs `fit: <package> does <need> via <API>` (or
+  `fit: unsure`) in a `Reuse:` line; `Reuse: none: harness adoption` on this update needs none. (#196)
+
+### Added
+- The `Reuse:` completion check refuses a new dependency without a fit clause, and the builder asks the fit question
+  before `uv add`; the method is picked by a pre-registered eval in `software-discovery.md` §11. (#196)
+- README cites The Semantic Scholar Open Data Platform (arXiv:2301.10140), as the Semantic Scholar API license asks.
+  (#241)
+- Research notes: recall of `dev lit search` against WebSearch and the arxiv MCP (#192), a pre-registered rerun of
+  the discovery benchmark (#176), decision records and drift (#220), and builders' reuse trigger rate (#183).
+
+### Changed
+- Semantic Scholar is asked at 0.8 requests/s (was 1/s), below a key's 1/s across all endpoints. (#241)
+- `dev reuse --from` builds the need from the symbol's name, its docstring's first sentence and its third-party
+  imports only. (#175)
+
+### Fixed
+- `dev reuse check --json a b` and other option orders: bare words after an option join the need. (#175)
+- The licence gate (G5) matches SPDX ids case-insensitively: `mit` and `apache-2.0` were HOLD. (#215)
+
 ## v0.1.7 (2026-10-13)
 
 Reuse before build becomes a checked step: agents verify candidate libraries before they write code, `uv add` runs
