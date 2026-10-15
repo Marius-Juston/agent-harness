@@ -4,6 +4,17 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.9 (2026-10-15)
+
+The owner can change the weekly quota cap on one machine without a PR: `! uv run dev quota-cap <0-100>`.
+
+### Upgrading a project
+Run `uvx copier update --data harness_ref=v0.1.9`, then `uv sync && uv run dev docs && uv run dev check`.
+- **Machine-local quota cap.** `uv run dev quota-cap` prints the effective cap and its source; `<pct>` writes an
+  override to `<git-common-dir>/devkit/quota_cap` (never committed, shared by all worktrees), `--clear` drops it.
+  The spawn guard, `orient` and `status` use it over `[tool.devkit] quota_cap`. The Bash and Edit guards deny agents
+  setting it. (#247)
+
 ## v0.1.8 (2026-10-14)
 
 Research tools share one rate limit per user: sessions in different repositories on one machine no longer overrun
