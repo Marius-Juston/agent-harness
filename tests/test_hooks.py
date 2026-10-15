@@ -1048,7 +1048,7 @@ def test_guard_bash_allows_reading_the_quota_cap(hook, cmd):
     assert code == 0, (cmd, err)
 
 
-@pytest.mark.parametrize("path", [".git/devkit/quota_cap", "/home/o/repo/.git/devkit/quota_cap"])
+@pytest.mark.parametrize("path", [".git/devkit/quota_cap", "/srv/repo/.git/devkit/quota_cap"])
 @pytest.mark.parametrize("tool", ["Write", "Edit"])
 def test_edit_guard_blocks_the_quota_cap_override(hook, path, tool):
     code, _, err = hook("edit_guard.py", {"tool_name": tool, "tool_input": {"file_path": path}})
