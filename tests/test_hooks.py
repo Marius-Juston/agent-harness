@@ -1002,3 +1002,54 @@ def test_completion_gate_fails_open_only_on_its_own_crash(hook, tmp_path):
     (tmp_path / "bin/uv").write_text("#!/usr/bin/env bash\necho 'ModuleNotFoundError: devkit' >&2; exit 1\n")
     code, out, err = hook("completion_gate.py", _stop(repo), env)
     assert code not in (0, 2) and out == "" and "gate probe" in err
+
+
+# #247: the quota cap override is the owner's (`! uv run dev quota-cap 90` skips the hooks); an agent may read the cap
+# but never set it, by the command or by writing the file.
+QUOTA_CAP_WRITES = [
+    "uv run dev quota-cap 90",
+    "uv run --quiet dev quota-cap 100",
+    "dev quota-cap --clear",
+    "uv run dev quota-cap -- 90",
+    "uv run python -m devkit.cli quota-cap 90",
+    "cd x && uv run dev quota-cap 99",
+    "bash -c 'uv run dev quota-cap 99'",
+    "echo 99 > .git/devkit/quota_cap",
+    "echo 99 >$(git rev-parse --git-common-dir)/devkit/quota_cap",
+    "printf 99 | tee /repo/.git/devkit/quota_cap",
+    "cp /tmp/x .git/devkit/quota_cap",
+    "rm .git/devkit/quota_cap",
+    "cd .git/devkit && echo 99 > quota_cap",
+    "cd .git/devkit && mv x quota_cap",
+    "python3 -c \"open('.git/devkit/quota_cap', 'w').write('99')\"",
+    "sed -i s/80/99/ .git/devkit/quota_cap",
+]
+QUOTA_CAP_READS = [
+    "uv run dev quota-cap",
+    "uv run dev quota-cap --help",
+    "cat .git/devkit/quota_cap",
+    "ls -l .git/devkit/quota_cap",
+    "grep -rn quota_cap devkit",
+    "uv run dev code refs quota_cap",
+    "git commit -m 'dev quota-cap 90 is owner only'",
+]
+
+
+@pytest.mark.parametrize("cmd", QUOTA_CAP_WRITES)
+def test_guard_bash_blocks_an_agent_setting_the_quota_cap(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "cwd": "/repo"})
+    assert code == 2, cmd
+    assert "quota cap" in err
+
+
+@pytest.mark.parametrize("cmd", QUOTA_CAP_READS)
+def test_guard_bash_allows_reading_the_quota_cap(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "cwd": "/repo"})
+    assert code == 0, (cmd, err)
+
+
+@pytest.mark.parametrize("path", [".git/devkit/quota_cap", "/srv/repo/.git/devkit/quota_cap"])
+@pytest.mark.parametrize("tool", ["Write", "Edit"])
+def test_edit_guard_blocks_the_quota_cap_override(hook, path, tool):
+    code, _, err = hook("edit_guard.py", {"tool_name": tool, "tool_input": {"file_path": path}})
+    assert code == 2 and "quota cap" in err

@@ -55,6 +55,12 @@ BRANCH_D = (
     "`git branch -D` deletes an unmerged branch, maybe another worker's. Use `git branch -d`; for a squash-merged "
     "branch, check `gh pr view <branch>` first and leave the deletion to `uv run dev integrate`."
 )
+QUOTA = (
+    "the quota cap is the owner's: agents never change it. `uv run dev quota-cap` prints it; ask the owner to run "
+    "`! uv run dev quota-cap <pct>` (or to raise [tool.devkit] quota_cap). Stop spawning; commit and hand off."
+)
+CAP_FILE = "devkit/quota_cap"  # under the git common dir: `dev quota-cap`'s machine-local override
+CAP_READERS = {"cat", "head", "tail", "ls", "stat", "wc", "test", "[", "[[", "file"}
 WHOLE_TREE = {".", "./", ":", ":/", ":/*", "*"}  # pathspecs that name every file
 HOOK_VAR = re.compile(r"^(SKIP|PRE_COMMIT\w*|GIT_CONFIG\w*)(=|$)")
 C_RUNNERS = {"flock", "su", "runuser", "script"}  # their -c / --command value is a shell command
@@ -563,6 +569,8 @@ class Checker:
             for body, _ in c.stdin:
                 if why := self.code(body, lang, depth):
                     return why
+        if why := self.quota_cap(argv, c.writes, paths):
+            return why
         if self.read_only and (why := read_only(argv, c.writes, self.read_only, tuple(assigns))):
             return why
         if not argv:
@@ -606,6 +614,22 @@ class Checker:
             return self.git(args, assigns)
         if name == "rm":
             return self.rm(args)
+        return None
+
+    def quota_cap(self, argv: list[str], writes: list[str], paths: list[Word]) -> str | None:
+        """QUOTA when the command sets the owner's cap: `dev quota-cap <pct>|--clear`, or touches its file other
+        than to read it (a `cd` earlier in the command counts, so `cd .git/devkit && echo 99 > quota_cap` too)."""
+        name, args = (base(argv[0]), argv[1:]) if argv else ("", [])
+        if name in ("dev", "devkit.cli") and args[:1] == ["quota-cap"] and not set(args[1:]) <= {"-h", "--help"}:
+            return QUOTA
+
+        def cap_file(v: str) -> bool:
+            return CAP_FILE in v or os.path.normpath(os.path.join(self.cwd, v)).endswith("/" + CAP_FILE)
+
+        if any(cap_file(w) for w in writes):
+            return QUOTA
+        if name not in CAP_READERS and any(cap_file(w.value) for w in paths):
+            return QUOTA
         return None
 
     def git(self, args: list[str], assigns: list[str]) -> str | None:
