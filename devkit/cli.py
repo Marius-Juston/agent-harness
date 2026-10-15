@@ -266,6 +266,13 @@ def build() -> argparse.ArgumentParser:
         "usage-poll", help="record the weekly usage percent every 10 min for the spawn guard (detach it)"
     )
     x.add_argument("--once", action="store_true", help="one reading, then exit")
+    x = sub.add_parser(
+        "quota-cap",
+        help="the spawn guard's weekly cap and its source; owner only: `! uv run dev quota-cap <0-100>` sets a "
+        "machine-local override (never committed), --clear drops it",
+    )
+    x.add_argument("pct", nargs="?", help="new cap percent, 0-100")
+    x.add_argument("--clear", action="store_true", help="drop the override: back to [tool.devkit] quota_cap")
     x = sub.add_parser("eval", help="micro-scenario evals of the agent surface via claude -p in a remote-less clone")
     x.add_argument("names", nargs="*", help="scenario names (default: all in the evals dir)")
     x.add_argument("--trials", type=int, default=3)
@@ -390,6 +397,8 @@ def run(a: argparse.Namespace) -> int:
             return setup.doctor()
         case "usage-poll":
             return workflow.usage_poll(once=a.once)
+        case "quota-cap":
+            return run_quota_cap(a)
         case "suite-audit":
             return run_suite_audit(a)
         case "eval":
@@ -398,6 +407,23 @@ def run(a: argparse.Namespace) -> int:
             print(stats.report(a.json))
         case "consolidation":
             return run_consolidation(a)
+    return 0
+
+
+def run_quota_cap(a: argparse.Namespace) -> int:
+    if a.pct is not None and a.clear:
+        print("error: give a percent or --clear, not both", file=sys.stderr)
+        return 1
+    if a.pct is not None:
+        try:
+            workflow.set_quota_cap(config.parse_cap(a.pct))
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    elif a.clear:
+        workflow.set_quota_cap(None)
+    cap, source = workflow.quota_cap()
+    print(f"quota cap {cap}% ({workflow.CAP_SOURCES[source]})")
     return 0
 
 

@@ -29,6 +29,10 @@ and it never prints, logs or caches a key. Agents cannot read the file either: t
 the project settings deny `Read` on it. Check with `uv run dev doctor` (each key found or missing, never its value)
 and `uv run dev lit status` (`(key)` next to each keyed source).
 
+## Weekly quota cap
+The spawn guard refuses new agents at `[tool.devkit] quota_cap`; `! uv run dev quota-cap 90` overrides it on this
+machine only (`.git/devkit/quota_cap`, no PR), `--clear` drops the override, and agents are denied both.
+
 ## Removing devkit's local files
 devkit keeps no state outside these places, all plain files owned by you:
 - `<repository>/.git/devkit/`: per-repository caches, logs and locks (never committed); deleting the repository

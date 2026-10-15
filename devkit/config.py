@@ -4,6 +4,7 @@ a typo must not silently fall back to a default."""
 
 import dataclasses
 import functools
+import re
 import tomllib
 from dataclasses import dataclass, field
 
@@ -94,6 +95,14 @@ def _consolidation(table: dict) -> dict:
         if not ok:
             raise ConfigError(f"[tool.devkit.consolidation] {key} = {value!r}: expected {type(default).__name__}")
     return {**CONSOLIDATION, **table}
+
+
+def parse_cap(text: str) -> int:
+    """A quota cap percent: a decimal integer 0-100 (surrounding whitespace allowed), else ValueError."""
+    t = text.strip()
+    if not re.fullmatch(r"[0-9]{1,3}", t) or int(t) > 100:
+        raise ValueError(f"quota cap {text!r}: expected an integer percent 0-100")
+    return int(t)
 
 
 @functools.cache

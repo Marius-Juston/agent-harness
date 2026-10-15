@@ -2,7 +2,8 @@
 # Two resource gates before a subagent works, on two events (Claude Code 2.1.296: a workflow fires PreToolUse for
 # `Workflow`, never for `Agent`, and SubagentStart with agent_type `workflow-subagent`).
 # 1. PreToolUse(Agent|Workflow), quota: refuse when the weekly all-models usage recorded by `uv run dev usage-poll` is
-#    at or above its cap (`[tool.devkit] quota_cap`, written into the same reading). Fails open without a fresh
+#    at or above its cap (the owner's `dev quota-cap` override, else `[tool.devkit] quota_cap` as written into the
+#    same reading). Fails open without a fresh
 #    reading. On a workflow this refuses the whole run.
 # 2. SubagentStart, memory: hold a heavy agent (builder, tester, plugin-scoped or not, and any workflow agent, whose
 #    definition is unknown here) until MemAvailable is above DEVKIT_SPAWN_FLOOR_GB (default 6), up to
@@ -23,8 +24,14 @@ if [[ "$event" == "PreToolUse" ]]; then
   [[ -f "$usage" ]] || exit 0
   read -r pct t cap < <(jq -r '"\(.pct) \(.t) \(.cap // 95)"' "$usage" 2>/dev/null) \
     || warn "unreadable usage reading; allowed without the quota gate"
-  if [[ "$pct" =~ ^[0-9]+$ && "$t" =~ ^[0-9]+$ && "$cap" =~ ^[0-9]+$ ]] && (( $(date +%s) - t < 1800 && pct >= cap )); then
-    jq -n --arg r "Quota gate: weekly usage ${pct}% >= cap ${cap}% ([tool.devkit] quota_cap). Stop spawning; commit and hand off." \
+  source="[tool.devkit] quota_cap"
+  # the owner's machine-local override (`uv run dev quota-cap`) wins when valid: a poller may still record the old cap
+  local_cap=$(tr -d '[:space:]' <"$common/devkit/quota_cap" 2>/dev/null) || local_cap=""
+  if [[ "$local_cap" =~ ^[0-9]{1,3}$ ]] && (( 10#$local_cap <= 100 )); then
+    cap=$(( 10#$local_cap )); source="local: uv run dev quota-cap"
+  fi
+  if [[ "$pct" =~ ^[0-9]+$ && "$t" =~ ^[0-9]+$ && "$cap" =~ ^[0-9]+$ ]] && (( $(date +%s) - t < 1800 && pct >= 10#$cap )); then
+    jq -n --arg r "Quota gate: weekly usage ${pct}% >= cap ${cap}% (${source}). Stop spawning; commit and hand off." \
       '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $r}}'
   fi
   exit 0

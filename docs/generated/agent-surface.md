@@ -94,6 +94,7 @@
 | `setup` | once per machine/clone: uv sync, git config, plugin install, then doctor |
 | `doctor` | read-only: what this machine still needs |
 | `usage-poll` | record the weekly usage percent every 10 min for the spawn guard (detach it) |
+| `quota-cap` | the spawn guard's weekly cap and its source; owner only: `! uv run dev quota-cap <0-100>` sets a machine-local override (never committed), --clear drops it |
 | `eval` | micro-scenario evals of the agent surface via claude -p in a remote-less clone |
 | `consolidation` | architecture review: is one due (orient shows it), and the report the architect reads |
 | `consolidation status` | is a review due since the last Consolidation-Review: trailer, and why (fast) |
