@@ -166,13 +166,16 @@ RECORD = {"id": "harness-ops@agent-harness", "version": "0.1.1", "scope": "proje
 
 @pytest.fixture
 def stub_project(tmp_path, monkeypatch):
-    """A project pinned to v0.1.1 whose doctor checks all pass but the plugin build's, with a stub `claude` on PATH.
-    `install(tree)` sets the recorded install; a re-pin's `plugin install` records `pinned`."""
+    """A project pinned to v0.1.1 whose doctor checks all pass but the plugin build's, with a stub `claude` on PATH
+    (and `gh`, `uv`, `uvx` stubs that succeed, for setup's other steps). `install(tree)` sets the recorded install;
+    a re-pin's `plugin install` records `pinned`."""
     project, pinned = tmp_path / "proj", build(tmp_path, "pinned")
     (project / ".venv").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    for name, body in (("claude", FAKE_CLAUDE.format(python=sys.executable)), ("gh", "#!/bin/sh\nexit 0\n")):
+    ok = "#!/bin/sh\nexit 0\n"
+    for name, body in (("claude", FAKE_CLAUDE.format(python=sys.executable)), ("gh", ok), ("uv", ok), ("uvx", ok)):
         (bin_dir / name).write_text(body)
         (bin_dir / name).chmod(0o755)
     state = tmp_path / "claude.json"
@@ -218,9 +221,7 @@ def test_doctor_fails_on_another_version_string(stub_project, tmp_path, capsys):
     assert setup.doctor() == 1 and "installed 0.1.0, pinned v0.1.1" in capsys.readouterr().out
 
 
-def test_setup_repins_a_skewed_plugin_then_doctor_passes(stub_project, monkeypatch, capsys):
-    real_ok = setup._ok
-    monkeypatch.setattr(setup, "_ok", lambda cmd: real_ok(cmd) if cmd[0] == "claude" else (True, ""))
+def test_setup_repins_a_skewed_plugin_then_doctor_passes(stub_project, capsys):
     stub_project.install(stub_project.state.parent / "head", others=("/elsewhere",))
     assert setup.setup() == 0
     calls = json.loads(stub_project.state.read_text())["calls"]
@@ -233,9 +234,7 @@ def test_setup_repins_a_skewed_plugin_then_doctor_passes(stub_project, monkeypat
     assert "uninstalled from /elsewhere" in out and "still not the pinned build" not in out and "all good" in out
 
 
-def test_setup_leaves_the_pinned_build_alone(stub_project, monkeypatch):
-    real_ok = setup._ok
-    monkeypatch.setattr(setup, "_ok", lambda cmd: real_ok(cmd) if cmd[0] == "claude" else (True, ""))
+def test_setup_leaves_the_pinned_build_alone(stub_project):
     stub_project.install(stub_project.pinned)
     assert setup.setup() == 0
     assert not [c for c in json.loads(stub_project.state.read_text())["calls"] if "remove" in c]
@@ -247,8 +246,7 @@ def _git(*args, cwd):
     )
 
 
-@pytest.mark.slow
-@pytest.mark.skipif(shutil.which("claude") is None, reason="Claude Code is not installed")
+@pytest.mark.slow  # about 4 s; needs `claude` on PATH, as doctor does
 def test_real_cli_repin_installs_the_tag_commit_not_the_branch_head(tmp_path, monkeypatch):
     """#296 with the real `claude` CLI, offline, in a temporary HOME (the owner's ~/.claude is never touched): a
     marketplace added at main installs main's head under the tag's version string; setup's re-pin replaces it with
