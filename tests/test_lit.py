@@ -750,6 +750,18 @@ def test_search_exits_nonzero_and_says_degraded_when_both_major_indexes_are_down
     assert len(out) > 1 and out[1] != "no results"
 
 
+def test_search_coverage_marks_sources_that_answered_only_from_the_cache(tmp_path):
+    """A cached answer says nothing about the source now, so the line must not pass it off as live (#266 review)."""
+    full = healthy() | {OA: [(200, {}, oa_body(lit.DEFAULT_N))]}
+    c = make(tmp_path, FakeNet(full), clock=Clock(1_792_368_000.0))
+    *_, health = c.search_coverage("q")
+    assert lit.discovery(health) == "OK (openalex, s2 answered)"
+    c.get = FakeNet({})  # every source now answers 404, but the cache still holds both answers
+    *_, health = c.search_coverage("q")
+    assert lit.discovery(health) == "OK (openalex (cached), s2 (cached) answered)"
+    assert lit.coverage_line(health, c.clock()).startswith("discovery 2026-10-19: OK (openalex (cached)")
+
+
 def test_search_with_explicit_sources_all_down_is_not_reported_ok(tmp_path, monkeypatch, capsys):
     args = ("lit", "search", "q", "--source", "crossref")
     assert _search_cli(tmp_path, monkeypatch, {CR: [(500, {}, "")]}, args) == 1
@@ -758,11 +770,13 @@ def test_search_with_explicit_sources_all_down_is_not_reported_ok(tmp_path, monk
 
 
 def test_researcher_and_research_skill_drop_the_separate_lit_status_step():
+    """No `lit status` call before searching; the lead still uses it to see discovery is back after a DEGRADED."""
     plugin = Path(__file__).parents[1] / "plugins" / "harness-ops"
+    assert "lit status" not in (plugin / "agents/researcher.md").read_text()
+    skill = (plugin / "skills/research/SKILL.md").read_text()
+    assert "Run `uv run dev lit status`" not in skill and "re-dispatch only once `uv run dev lit status`" in skill
     for rel in ("agents/researcher.md", "skills/research/SKILL.md"):
-        text = (plugin / rel).read_text()
-        assert "lit status" not in text, rel
-        assert "DEGRADED" in text, rel  # the stop rule stays, now read off the search's header
+        assert "DEGRADED" in (plugin / rel).read_text(), rel  # the stop rule stays, now read off the search's header
 
 
 # ---- key-aware cooldowns (#23) ----

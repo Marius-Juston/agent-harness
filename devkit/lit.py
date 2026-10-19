@@ -653,10 +653,8 @@ class Client:
         """Body of a 200 answer for `url`, from the shared cache when younger than `max_age` seconds (never when
         `live`). Raises SourceError otherwise."""
         path = self._cache_path(url)
-        with contextlib.suppress(FileNotFoundError, json.JSONDecodeError, KeyError):
-            rec = json.loads(path.read_text())
-            if not live and self.clock() - rec["t"] < max_age:
-                return rec["body"]
+        if not live and (body := self._cached(url, max_age)) is not None:
+            return body
         send, headers = self.auth(source, url, self.env)
         keyed = self.keyed(source)
         status, body = 0, ""
@@ -682,6 +680,14 @@ class Client:
             if not throttled and attempt + 1 < tries:  # a throttle's wait is the cooldown, which acquire() honours
                 self.sleep(backoff.wait(attempt, hint, self.rng, cap=MAX_WAIT))
         raise SourceError(f"{source}: {'HTTP ' + str(status) if status else 'unreachable'} after {tries} tries")
+
+    def _cached(self, url: str, max_age: float = CACHE_DAYS * 86400) -> str | None:
+        """The cached body for `url` when younger than `max_age` seconds, else None."""
+        with contextlib.suppress(FileNotFoundError, json.JSONDecodeError, KeyError):
+            rec = json.loads(self._cache_path(url).read_text())
+            if self.clock() - rec["t"] < max_age:
+                return rec["body"]
+        return None
 
     def keyed(self, source: str) -> bool:
         return bool(self.env.get(self.keys.get(source, "")))
@@ -731,7 +737,8 @@ class Client:
     ) -> tuple[list[Paper], list[str], list["Health"]]:
         """(papers merged across sources in rank order, alternating sources, at most n; notes on failed sources;
         the Health of each source asked: ok when it answered any query, so `dev lit search` can print the coverage
-        header that `dev lit status` probed for separately, #266).
+        header that `dev lit status` probed for separately, #266). An answer served from the cache says nothing about
+        the source now: a source that answered only from the cache is ok with detail "cached", and the line says so.
 
         Each `also` paraphrase is searched too (#194, as `dev reuse --also`: paraphrases doubled package recall in
         #169); every (query, source) list takes its turn at each rank, so a paper several of them find is listed
@@ -741,8 +748,14 @@ class Client:
         queries = list(dict.fromkeys((query, *also)))
         merged: dict[str, Paper] = {}
         notes: list[str] = []
-        answers = [(src, self._ranked(src, q, n, years, notes)) for q in queries for src in sources]
-        ranked = [r for _, r in answers if r is not None]
+        answers = []
+
+        def ask(src: str, q: str) -> list[Paper] | None:
+            live = self._cached(search_url(src, q, n, years)) is None
+            answers.append((src, got := self._ranked(src, q, n, years, notes), live))
+            return got
+
+        ranked = [r for q in queries for src in sources if (r := ask(src, q)) is not None]
         health = {src: Health(src, False, "no answer") for src in sources}
         for i in range(max(map(len, ranked), default=0)):
             for papers in ranked:
@@ -757,9 +770,7 @@ class Client:
             for q in queries:
                 if len(merged) >= n:
                     break
-                got = self._ranked(src, q, n, years, notes)
-                answers.append((src, got))
-                for p in got or []:
+                for p in ask(src, q) or []:
                     if len(merged) >= n:
                         break
                     _merge(merged, p)
@@ -767,9 +778,9 @@ class Client:
                 answered.append(f"{src} ({len(merged) - before})")
         if answered:
             notes.append("fallback: answered by " + ", ".join(answered))
-        for src, got in answers:
-            if got is not None:
-                health[src] = Health(src, True, "ok")
+        for src, got, live in answers:
+            if got is not None and not (health[src].ok and health[src].detail == "ok"):
+                health[src] = Health(src, True, "ok" if live else "cached")
         return list(merged.values())[:n], notes, list(health.values())
 
     def _ranked(self, src: str, query: str, n: int, years: str, notes: list[str]) -> list[Paper] | None:
@@ -943,7 +954,7 @@ def degraded(health: list[Health]) -> bool:
 
 def discovery(health: list[Health]) -> str:
     """The verdict after `discovery:`: DEGRADED, OK, partial or OK, naming the sources down and those that answered."""
-    answered = ", ".join(h.source for h in health if h.ok) or "none"
+    answered = ", ".join(h.source + (" (cached)" if h.detail == "cached" else "") for h in health if h.ok) or "none"
     if degraded(health):
         return f"DEGRADED ({', '.join(down(health))} down; {answered} answered): do not start a research round; wait and re-run"
     if not any(h.ok for h in health):  # only an explicit --source list without a default source gets here

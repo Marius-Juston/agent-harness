@@ -22,8 +22,9 @@ Crossref, WebSearch/WebFetch, context7, Wikipedia (orientation only).
 
 ## 1. A round
 0. **Check discovery.** Every `uv run dev lit search` prints a `discovery` line first. If a researcher's says DEGRADED
-   (OpenAlex and Semantic Scholar both down or rate limited; one is enough), it stops and reports; hold the round,
-   wait and re-run it. A round on the fallbacks alone misses papers silently. That line is the note's `Search coverage:`.
+   (OpenAlex and Semantic Scholar both down or rate limited; one is enough), it stops and reports; hold the round and
+   re-dispatch only once `uv run dev lit status` reports OK. A round on the fallbacks alone misses papers silently.
+   Each researcher records the worst line it saw as the note's `Search coverage:`.
 1. **Decompose** what is still open into sub-questions that do not overlap and together cover it. Use 3 by default
    and up to 8 for a broad topic; split by mechanism, evidence base, prior art, tools (`uv run dev reuse check`), and risks or counter-evidence.
    Always give one researcher the job of arguing *against* the current leading answer.

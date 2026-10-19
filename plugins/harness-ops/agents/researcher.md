@@ -26,7 +26,7 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 - **Check the math.** Where a number matters, check it with a script in `_scratch/<slug>/scripts/`; that makes it VERIFIED.
 
 ## Output
-- Both modes record a `Search coverage:` line: the first search's `discovery` line (sources up, any down, the date).
+- Both modes record a `Search coverage:` line: the worst `discovery` line your searches printed.
 - Round mode: findings first, each labelled and linked; then gaps you did not close; then sources fetched. Skip the house-style header.
 - Issue mode, house style: `# Research: <topic>`, `Status:`, `Labels:` and `Search coverage:` lines, then "0. Findings in one paragraph" (the answer first), numbered sections, a Recommendation for this project with concrete numbers and bounds, Sources, and Follow-ups (`- [ ] ... DONE WHEN ...`).
 - Every claim gets a label (VERIFIED / SOURCED / BELIEVED / ASSUMED) and an inline link whose text is the source's title, with author/year/venue after it.
