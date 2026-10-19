@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -22,8 +23,7 @@ REAL_POPEN = subprocess.Popen
 
 
 class FinishedGate:
-    """A Popen stand-in for the gate integrate starts, already exited with `code`. No real process: Popen.wait polls
-    with time.sleep, which the fake clocks below record."""
+    """The gate's Popen, already exited with `code` (a real one would sleep on the fake clocks)."""
 
     def __init__(self, code):
         self.code, self.pid = code, -1
@@ -1295,11 +1295,13 @@ def test_orient_syncs_the_board_first(monkeypatch, tmp_path):
     assert "board sync: failed (rate limited)" in workflow.orient()
 
 
-def test_a_test_that_sleeps_past_the_timeout_fails_the_gate_with_a_timeout_message(tmp_path, monkeypatch):
-    """#43: pytest-timeout ends a hung test at `test_timeout_s`; the gate fails and says why, long before the sleep."""
+@pytest.mark.parametrize("n", [1, 2])
+def test_a_test_that_sleeps_past_the_timeout_fails_the_gate_with_a_timeout_message(tmp_path, monkeypatch, n):
+    """#43: pytest-timeout ends a hung test at `test_timeout_s`, with or without xdist workers; the gate fails and
+    says why, long before the sleep ends."""
     monkeypatch.setattr(gate.config, "get", lambda: gate.config.Config(test_timeout_s=1))
     (tmp_path / "test_hang.py").write_text("import time\n\ndef test_hang():\n    time.sleep(60)\n")
-    cmd = gate.pytest_cmd([str(tmp_path)], n=1)
+    cmd = gate.pytest_cmd([str(tmp_path)], n=n)
     assert "--timeout=1" in cmd
     started = time.monotonic()
     ran = gate._run("tests", [*cmd, "-p", "no:cacheprovider"], cwd=tmp_path)
@@ -1311,21 +1313,50 @@ def test_a_test_that_sleeps_past_the_timeout_fails_the_gate_with_a_timeout_messa
 def test_bounded_run_kills_the_whole_process_group_at_its_deadline(tmp_path):
     """#43: a gate killed at its deadline must not leave a process under it (a pytest worker) holding the gate lock."""
     pid_file = tmp_path / "pid"
-    spawner = (
+    started = time.monotonic()
+    assert workflow.bounded_run([sys.executable, "-c", _spawner(pid_file)], 3) is None
+    assert time.monotonic() - started < 20
+    assert _ends(int(pid_file.read_text()))
+    assert workflow.bounded_run([sys.executable, "-c", "raise SystemExit(3)"], 30) == 3
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGHUP])
+def test_bounded_run_kills_the_group_when_its_caller_is_terminated(tmp_path, sig):
+    """#43 review: the gate runs in a session of its own, so a SIGTERM or SIGHUP to integrate never reaches it;
+    bounded_run kills the group on the way out instead of leaving the gate holding the lock."""
+    pid_file = tmp_path / "pid"
+    caller = (
+        "import sys\nfrom devkit import workflow\n"
+        f"workflow.bounded_run([sys.executable, '-c', {_spawner(pid_file)!r}], 60)\n"
+    )
+    proc = REAL_POPEN([sys.executable, "-c", caller])
+    try:
+        waited = time.monotonic() + 20
+        while not pid_file.exists() or not pid_file.read_text():
+            assert time.monotonic() < waited and proc.poll() is None, "the gate never started"
+            time.sleep(0.05)
+        proc.send_signal(sig)
+        assert proc.wait(timeout=20) == 128 + sig
+    finally:
+        proc.kill()
+    assert _ends(int(pid_file.read_text()))
+
+
+def _spawner(pid_file):
+    """A stand-in gate: starts a sleeping worker, writes the worker's pid to `pid_file`, then sleeps."""
+    return (
         "import subprocess, sys, time\n"
         "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
         f"open({str(pid_file)!r}, 'w').write(str(p.pid))\n"
         "time.sleep(60)\n"
     )
-    started = time.monotonic()
-    assert workflow.bounded_run([sys.executable, "-c", spawner], 3) is None
-    assert time.monotonic() - started < 20
-    worker = int(pid_file.read_text())
-    deadline = time.monotonic() + 10
-    while _alive(worker) and time.monotonic() < deadline:
+
+
+def _ends(pid, within=10):
+    deadline = time.monotonic() + within
+    while _alive(pid) and time.monotonic() < deadline:
         time.sleep(0.05)
-    assert not _alive(worker)
-    assert workflow.bounded_run([sys.executable, "-c", "raise SystemExit(3)"], 30) == 3
+    return not _alive(pid)
 
 
 def _alive(pid):
