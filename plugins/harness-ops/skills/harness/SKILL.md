@@ -38,7 +38,7 @@ Details and sources: [agent-harness.md](https://github.com/Marius-Juston/agent-h
 ## Measure
 - `uv run dev agent-stats`: per agent type, runs, median tool calls, fresh, cached and output tokens, and the share of
   tool-result characters in big results. Compare before and after a change over 10 or more runs.
-- Watch: hand-backs over 25 lines, whole-file reads, repeated gate failures of one kind, review findings that recur.
+- Watch: hand-backs over the agent's own line limit, whole-file reads, repeated gate failures of one kind, review findings that recur.
   A finding class that recurs in 5 % of reviews or more becomes one checklist line or a lint.
 - An agent-file change that changes nothing measurable over about 30 runs gets reverted.
 
