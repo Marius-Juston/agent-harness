@@ -125,3 +125,19 @@ def test_the_lead_skill_preloads_dev_status_without_aborting():
     cmds = checks.INJECTION.findall(body)
     assert any("dev status" in c for c in cmds)
     assert all(c.rstrip().endswith("|| true") for c in cmds)
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_every_agent_body_states_the_one_hand_back_contract(agent):
+    """#263: one limit, stated in each agent body because the plugin travels without HARNESS.md, and one order with
+    what needs the lead first (docs/research/harness-efficiency.md change 8)."""
+    _, body = frontmatter.read(PLUGIN / "agents" / f"{agent}.md")
+    assert re.findall(r"at most (\d+) lines", body) == ["25"]
+    heads = [body.find(f"**{h}**") for h in ("Blocked on me", "Changed", "Found")]
+    assert -1 not in heads and heads == sorted(heads), heads
+
+
+def test_the_harness_skill_watches_each_agents_own_hand_back_limit():
+    text = (PLUGIN / "skills/harness/SKILL.md").read_text()
+    assert "hand-backs over the agent's own line limit" in text
+    assert not re.search(r"hand-backs over \d+", text)

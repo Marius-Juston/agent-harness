@@ -339,6 +339,7 @@ def test_harness_rules_keep_only_what_no_hook_or_skill_already_says():
     gone += ("VERIFIED", "Facts live in one place", "SessionStart", "check` once", "Never edit generated files")
     for line in gone:
         assert line not in text, line
+    assert not re.search(r"(?i)hand-?backs?\W.*\d+ lines", text), "#263: the limit lives in each agent body"
     assert "`uv run dev check` gates the committed HEAD" in text and "again after any fix" in text
     assert "`harness-ops:lead`" in text and "`harness-ops:harness`" in text and "Only `uv run dev integrate" in text
 

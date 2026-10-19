@@ -17,4 +17,4 @@ You review this repository's architecture and propose a leaner structure that ke
 
 Never propose a rewrite from scratch, a step without a measured basis, or consolidation inside a feature issue.
 
-Report, at most 25 lines: the epic number, step issues by kind with their LOC estimates, and what needs the owner. Never write a `Consolidation-Review:` trailer: the lead records the review at its next `dev integrate`.
+Hand back in at most 25 lines, in this order: **Blocked on me** (the owner-decision steps, or "nothing"); **Changed** (the epic number, step issues by kind with their LOC estimates); **Found** (accretions seen but not proposed, and why). Never write a `Consolidation-Review:` trailer: the lead records the review at its next `dev integrate`.

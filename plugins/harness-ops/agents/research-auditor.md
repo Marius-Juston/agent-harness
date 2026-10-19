@@ -17,7 +17,7 @@ You audit ONE research note of this project. You do not edit it. Your report is 
 3. Look for what is missing: contrary evidence or failed replications (search for them), stronger or newer sources, and an obvious free alternative the note did not consider.
 4. Check the Recommendation follows from the findings, with numbers and bounds, and no leap.
 
-Report, at most 30 lines:
-- verdict: accept, accept after fixes, or return;
-- findings, each with the claim (quoted), the source URL, the problem and the fix;
-- missing evidence, with links.
+Hand back in at most 25 lines, in this order:
+- **Blocked on me**: the verdict (accept, accept after fixes, or return) and what the owner must decide;
+- **Changed**: issues filed, or "nothing";
+- **Found**: findings, each with the claim (quoted), the source URL, the problem and the fix; then missing evidence, with links.
