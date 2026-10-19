@@ -10,6 +10,8 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from devkit import board, workflow
+from tests.test_board import mk
+from tests.test_merge_hygiene import land_on_main, last_json, out, project, sh  # noqa: F401 - project is a fixture
 
 
 @pytest.fixture
@@ -296,3 +298,37 @@ def test_fit_missing_is_exactly_the_dependencies_without_a_named_clause(names, n
 def test_the_fit_forms_are_documented():
     for form in ("fit: <package> does <need> via <API>", "fit: unsure"):
         assert form in workflow.REUSE_FORMS
+
+
+# --- integrate: a merge that deletes another open issue's Owns (#230) ---------------------------------------------
+
+
+def _delete_in_pr(world: dict, path: str, number: int = 7) -> None:
+    """Push PR `number`: its branch deletes `path` from the current main, as GitHub would hold it."""
+    clone = world["clone"]
+    sh(clone, "git", "checkout", "-q", "-b", world["branch"])
+    sh(clone, "git", "rm", "-q", path)
+    sh(clone, "git", "commit", "-q", "-m", "delete")
+    sh(clone, "git", "push", "-q", "origin", world["branch"])
+    sh(world["origin"], "git", "update-ref", f"refs/pull/{number}/head", out(clone, "git", "rev-parse", "HEAD"))
+    sh(clone, "git", "checkout", "-q", "main")
+
+
+@pytest.mark.parametrize(("others", "outcome"), [((15, 16), "refused"), ((), "merged")])
+def test_integrate_refuses_deleting_a_path_another_open_issue_owns(project, capsys, monkeypatch, others, outcome):  # noqa: F811
+    """docs/research/decision-records-and-drift.md check 2: PR 7 (branch 12-c, Closes #12, Refs #14) deletes
+    old/x.py. Its own issues may own it; any other open issue that owns it refuses the merge, named."""
+    land_on_main(project, {"old/x.py": "x\n"})
+    project["body"] = "Closes #12\n\nRefs #14"
+    _delete_in_pr(project, "old/x.py")
+    body = "## Owns\n- `old/x.py`\n"
+    issues = [mk(n, ["type:build"], body) for n in (12, 14, *others)]
+    monkeypatch.setattr(board, "fetch", lambda *a, **k: issues)
+    code = workflow.integrate(7, harness_ok=True, dry_run=False)
+    printed = capsys.readouterr().out
+    res = last_json(printed)
+    assert res["outcome"] == outcome
+    if others:
+        assert code == 1 and res["owns"] == {"15": ["old/x.py"], "16": ["old/x.py"]}
+        assert "#15" in printed and "#16" in printed and "#12" not in res["owns"]
+        assert not [e for e in project["events"] if e[:3] == ("gh", "pr", "merge")]

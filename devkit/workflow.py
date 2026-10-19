@@ -793,6 +793,16 @@ def merge_main(tree: Path, main: str) -> list[str]:
     return paths
 
 
+def deleted_owns(tree: Path, main: str, info: dict) -> dict[int, list[str]]:
+    """Open issue -> its Owns entries that `main` has and the merged tree at `tree` empties, other than the PR's own
+    issues (docs/research/decision-records-and-drift.md check 2). The board is read only when the merge deletes."""
+    before = set(git("ls-tree", "-r", "--name-only", main).splitlines())
+    after = set(git("ls-tree", "-r", "--name-only", "HEAD", cwd=tree).splitlines())
+    if not (deleted := before - after):
+        return {}
+    return board.deleting_owns(board.fetch(), deleted, after, info["body"] or "", info.get("headRefName", ""))
+
+
 def regenerate(tree: Path) -> bool:
     """`dev docs` in the merged tree, committing what it changed. True when it committed."""
     docs = subprocess.run(
@@ -962,9 +972,15 @@ def _integrate(
                 print(f"RESULT: conflict with main in {', '.join(conflicts)}; sent back, resume {who}")
                 return result(pr_number, 1, "conflict", conflicts=conflicts, resume=workers, branch=info["headRefName"])
             regenerated = regenerate(tmp)
+            gone = deleted_owns(tmp, main, info)
         except RuntimeError as exc:
             print(f"RESULT: stopped ({exc})")
             return result(pr_number, 1, "stopped", reason=str(exc))
+        if gone:
+            rows = [f"#{n}: {', '.join(paths)}" for n, paths in gone.items()]
+            print(f"RESULT: refused: PR #{pr_number} deletes what open issues own:\n  " + "\n  ".join(rows))
+            print("Close or re-scope each issue (edit its Owns), or name it with `Refs #N` in the PR body; then rerun.")
+            return result(pr_number, 1, "refused", reason="deletes paths open issues own", owns=gone)
         tip = git("rev-parse", "HEAD", cwd=tmp)
         print(
             f"gating PR #{pr_number} ({head[:10]}) merged with main {main[:10]} as {tip[:10]} in {tmp} ...", flush=True
