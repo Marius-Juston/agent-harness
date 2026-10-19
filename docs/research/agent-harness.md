@@ -50,6 +50,7 @@ The harness is built from mechanisms measured on the agents of two earlier priva
 - Builder median per run: 138 tool calls, 42 before the first edit, 1.13 M fresh input tokens and 43 M cached. Cache reads dominate cost, not the model choice. 85 % of responses made one tool call, and 13 to 18 % were chained reads that needed no earlier result.
 - [SWE-agent](https://arxiv.org/abs/2405.15793): a capped, windowed file viewer beats raw shell reads.
 - *Design:* symbol navigation (`uv run dev code`), read rewriting, one-line spawn prompts carried by `board brief`, 25-line hand-backs, a "batch independent calls" rule, a 1-hour subagent prompt cache (`subagentPromptCacheTtl`), a capped Bash output (`bashOutputMaxChars`), and `skillOverrides` turning off unrelated skills.
+- Re-measured on a harness-run repository (2026-10-11..16), with per-role Opus 5.5 settings and ranked changes: [harness-efficiency.md](harness-efficiency.md).
 
 ## 7. Research errors (SOURCED; BELIEVED)
 - Fabricated or mismatched references are a known failure of LLM writing. Repository B's lead found its first explanations wrong several times, so its rules require re-checking a root cause with data and labelling every claim.
