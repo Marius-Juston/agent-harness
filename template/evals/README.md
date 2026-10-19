@@ -5,5 +5,8 @@ Run them with `uv run dev eval [name ...] --trials 3` whenever CLAUDE.md, an age
 trial runs `claude -p` in a throwaway clone with no remote, so nothing can be pushed. It costs quota: run the
 scenarios the change touches, not all of them. Results are stored in `.git/devkit/evals/`.
 
+To compare a model or effort, run each arm with `--model`, `--effort` (or `--agent`) and a `--label`, then
+`uv run dev eval --compare <label A> <label B>`. Write the arms, scenarios and margin down before the first run.
+
 Add a scenario every time a real failure is found (the `harness-ops:harness` skill). Graders and fields: the evals
 module of the agent-harness devkit. The template owns the scenarios it ships; give your own files other names.

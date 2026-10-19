@@ -276,6 +276,16 @@ def build() -> argparse.ArgumentParser:
     x = sub.add_parser("eval", help="micro-scenario evals of the agent surface via claude -p in a remote-less clone")
     x.add_argument("names", nargs="*", help="scenario names (default: all in the evals dir)")
     x.add_argument("--trials", type=int, default=3)
+    x.add_argument(
+        "--model", default="", help="run every trial on this model; a trial whose transcript shows another fails"
+    )
+    x.add_argument(
+        "--effort", default="", choices=["", *evals.EFFORTS], help="effort for every trial (recorded, not verified)"
+    )
+    x.add_argument("--agent", default="", help="run every scenario as this agent instead of its own")
+    x.add_argument("--label", default="", help="name this run's record so --compare can find it")
+    x.add_argument("--compare", nargs=2, metavar=("A", "B"), help="paired B-A deltas of two run records, no trials run")
+    x.add_argument("--margin", type=float, default=0.05, help="non-inferiority margin of --compare (pass rate)")
     x = sub.add_parser(
         "consolidation", help="architecture review: is one due (orient shows it), and the report the architect reads"
     )
@@ -402,7 +412,9 @@ def run(a: argparse.Namespace) -> int:
         case "suite-audit":
             return run_suite_audit(a)
         case "eval":
-            return evals.run(a.names, a.trials)
+            if a.compare:
+                return evals.run_compare(*a.compare, a.margin)
+            return evals.run(a.names, a.trials, a.model, a.effort, a.agent, a.label)
         case "agent-stats":
             print(stats.report(a.json))
         case "consolidation":
