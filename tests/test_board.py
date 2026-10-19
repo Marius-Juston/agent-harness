@@ -5,6 +5,7 @@ No test calls GitHub: `board.gh`, `board.get` and `board.repo` are replaced by a
 
 import graphlib
 import json
+import subprocess
 from itertools import pairwise
 
 import pytest
@@ -644,3 +645,88 @@ def test_an_old_gh_without_link_fields_reads_the_body(native):
 def test_parse_ref(monkeypatch, text, ref):
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     assert board.parse_ref(text) == ref
+
+
+# --- deleted Owns (#230; docs/research/decision-records-and-drift.md check 2) ------------------------------------
+
+
+def owns(*paths):
+    return "## DONE WHEN\n- [ ] a test passes\n## Owns\n" + "".join(f"- `{p}`\n" for p in paths)
+
+
+def test_gone_owns_names_entries_the_deletion_empties_not_those_still_matched():
+    deleted, after = {"old/a.py", "lib/b.py"}, {"lib/c.py", "new/a.py"}
+    entries = ["old/a.py", "old/", "lib/", "lib/*.py", "never.py", "new/a.py"]
+    assert board.gone_owns(entries, deleted, after) == ["old/a.py", "old/"]
+
+
+PATHS = st.sets(st.from_regex(r"[ab]{1,2}(/[ab]{1,2}){0,2}", fullmatch=True), max_size=8)
+ENTRIES = st.lists(st.from_regex(r"[ab]{1,2}(/[ab*]{1,2}){0,2}/?", fullmatch=True), max_size=4)
+
+
+@given(PATHS, PATHS, ENTRIES)
+def test_gone_owns_over_the_deleted_paths_is_matched_before_and_none_after(before, after, entries):
+    """Looking only at the deleted paths is the rule itself: an entry some path matched before and none matches after."""
+    hit = lambda o, ps: any(board.owned(p, [o]) for p in ps)  # noqa: E731
+    naive = [o for o in entries if hit(o, before) and not hit(o, after)]
+    assert board.gone_owns(entries, before - after, after) == naive
+
+
+def test_deleting_owns_skips_the_issues_the_pr_closes_refs_or_is_branched_from():
+    issues = [mk(n, ["type:build"], owns("old/x.py")) for n in (12, 13, 14, 15)]
+    issues.append(mk(16, ["type:build"], owns("lib/")))  # lib/b.py is still there
+    issues.append(mk(17, ["type:build"], owns("new/y.py")))  # never existed
+    found = board.deleting_owns(issues, {"old/x.py", "lib/a.py"}, {"lib/b.py"}, "Closes #13\nRefs #14", "12-move")
+    assert found == {15: ["old/x.py"]}
+
+
+@pytest.mark.parametrize(
+    ("text", "closes", "refs"),
+    [
+        ("Closes #1", [1], []),
+        ("Closes #1, #2 and #3", [1, 2, 3], []),
+        ("Fixes: #4", [4], []),
+        ("resolves #5 & #6", [5, 6], []),
+        ("Refs #15, #16", [], [15, 16]),
+        ("Refs: #17", [], [17]),
+        ("refs #18 and #19; closes #20", [20], [18, 19]),
+        ("Closes #1, see #9", [1], []),  # a later bare mention is not part of the list
+        ("prefs #3, enclosed #4", [], []),
+    ],
+)
+def test_closing_and_refs_keywords_read_issue_lists(text, closes, refs):
+    assert board.keyword_numbers(board.CLOSES, text) == closes
+    assert board.keyword_numbers(board.REFS, text) == refs
+    assert board.linked(text, "")[0] == closes
+
+
+def test_lint_reports_an_owns_path_that_existed_and_is_gone_as_an_error():
+    issues = [
+        mk(1, ["type:build", "P2", "status:ready"], owns("old/x.py"), title="devkit: one"),
+        mk(2, ["type:build", "P2", "status:ready"], owns("planned/new.py"), title="devkit: two"),
+        mk(3, ["type:build", "P2", "status:ready"], owns("devkit/"), title="devkit: three"),
+    ]
+    ever, now = {"old/x.py", "devkit/a.py", "devkit/b.py"}, {"devkit/b.py"}
+    gone = [f for f in board.lint(issues, set(), {}, (ever, now)) if "gone" in f.problem]
+    assert [(f.number, f.warn) for f in gone] == [(1, False)]
+    assert "`old/x.py`" in gone[0].problem
+    assert not [f for f in board.lint(issues, set(), {}) if "gone" in f.problem]  # no history read: no claim
+
+
+def test_path_history_lists_every_path_ever_committed_and_the_tracked_ones(tmp_path, monkeypatch):
+    def sh(*a):
+        subprocess.run(["git", *a], cwd=tmp_path, check=True, capture_output=True)
+
+    sh("init", "-q", "-b", "main")
+    sh("config", "user.email", "t@t")
+    sh("config", "user.name", "t")
+    (tmp_path / "a.py").write_text("a")
+    (tmp_path / "b.py").write_text("b")
+    sh("add", "-A")
+    sh("commit", "-qm", "one")
+    sh("rm", "-q", "a.py")
+    sh("commit", "-qm", "two")
+    monkeypatch.chdir(tmp_path)
+    assert board.path_history() == ({"a.py", "b.py"}, {"b.py"})
+    monkeypatch.chdir(tmp_path.parent)  # outside a checkout: nothing to compare
+    assert board.path_history() is None
