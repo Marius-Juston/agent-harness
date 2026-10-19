@@ -9,7 +9,7 @@
 | harness-ops:architect | opus | - | Read, Grep, Glob, Bash | 424 | Read-only consolidation review of the whole repository, run when `uv run dev orient` says a review is due or the owner asks for one. |
 | harness-ops:builder | opus | - | all | 567 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
 | harness-ops:research-auditor | opus | high | Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers | 244 | Adversarial, read-only audit of one research note. |
-| harness-ops:researcher | opus | high | all | 628 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
+| harness-ops:researcher | opus | high | all | 598 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
 | harness-ops:reviewer | opus | - | Read, Grep, Glob, Bash | 236 | Read-only pre-merge review of one PR against its issue's DONE WHEN, the research it cites and the project rules. |
 | harness-ops:suite-auditor | opus | - | Read, Grep, Glob, Bash | 272 | Read-only judgement pass of a size-tiered test-suite audit, run when `uv run dev suite-audit report` lists judgement items. |
 | harness-ops:tester | opus | - | all | 260 | Writes adversarial, property-based and regression tests for one issue or one merged change (inputs nobody planned for, wrong state, crashes midway), fixes sm... |
@@ -112,7 +112,7 @@
 | plugins/harness-ops/agents/architect.md | 424 | 600 |
 | plugins/harness-ops/agents/builder.md | 567 | 600 |
 | plugins/harness-ops/agents/research-auditor.md | 244 | 600 |
-| plugins/harness-ops/agents/researcher.md | 628 | 600 |
+| plugins/harness-ops/agents/researcher.md | 598 | 600 |
 | plugins/harness-ops/agents/reviewer.md | 236 | 600 |
 | plugins/harness-ops/agents/suite-auditor.md | 272 | 600 |
 | plugins/harness-ops/agents/tester.md | 260 | 600 |
