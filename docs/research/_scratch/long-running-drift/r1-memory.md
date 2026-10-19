@@ -48,7 +48,7 @@ Scripts (all take paths as arguments): [r1_memory_scan.py](r1_memory_scan.py) (i
 
 **F5. No verified harmful act traces to a stale entry. Repo rules beat memory when both are in context (VERIFIED, [r1_memory_cites.py](r1_memory_cites.py) and transcript tallies; harm detection is a lower bound).**
 - The superseded-tool entry (E-07) was in the context of every repo-E worker (683 subagent transcripts). Even so, 239 of the 260 researcher transcripts that ran a literature search used the shared client first. 4 started with the arXiv MCP, and 17 with WebSearch. I found 0 calls to the uninstalled CLI, excluding this round's own greps. Auditors, who re-check cited papers, started with the arXiv MCP or WebSearch in 48 of 55.
-- Explicit citations are rare: 1-8 per entry, almost all by the lead in the session that wrote it. Of the 63 generic "memory says" mentions, the repo-E ones that I read mostly refer to a research note about learner memory, not to auto memory.
+- Explicit citations are rare: 1-8 per entry, almost all by the lead in the session that wrote it. Of the 63 generic "memory says" mentions, the repo-E ones that I read mostly refer to a product research note on memory as a feature, not to auto memory.
 - The one entry whose advice did harm (E-09, the `cd`-prefix route for cross-repository workers) was followed by the lead. Its advice was wrong from the start, or was made wrong by a later harness guard; I did not determine which. The H #254 research tied it to worktree-isolation refusals. The entry records 685 and the lead's later summary says 146; I did not re-count.
 - Limit: drift that silently steered work leaves no citation. "No harm found" is a lower bound (same caveat as [r1-against](r1-against.md)).
 
