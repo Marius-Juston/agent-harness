@@ -4,9 +4,11 @@ import fcntl
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,6 +18,24 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from devkit import board, gate, workflow
+
+REAL_POPEN = subprocess.Popen
+
+
+class FinishedGate:
+    """The gate's Popen, already exited with `code` (a real one would sleep on the fake clocks)."""
+
+    def __init__(self, code):
+        self.code, self.pid = code, -1
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def wait(self, timeout=None):
+        return self.code
 
 
 def _sh(cwd, *args):
@@ -437,6 +457,8 @@ def fake_integrate(monkeypatch, tmp_path):
 
     def git(*args, cwd=None, check=True):
         ev.append(("git", *args))
+        if args[:2] == ("worktree", "add"):
+            Path(args[3]).mkdir(parents=True, exist_ok=True)  # the gate process starts in it
         if args[0] == "rev-parse":
             return world["tip"] if args[1] == "HEAD" else world["fetched_head"] if "pr-" in args[1] else MAIN
         if args[0] == "--version":
@@ -499,6 +521,7 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(workflow, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
     workflow.config.get()  # resolve this repository's config with the real git, before subprocess.run is faked
     monkeypatch.setattr(workflow.subprocess, "run", run)
+    monkeypatch.setattr(workflow.subprocess, "Popen", lambda cmd, **kw: FinishedGate(run(cmd, **kw).returncode))
     return world
 
 
@@ -1270,3 +1293,90 @@ def test_orient_syncs_the_board_first(monkeypatch, tmp_path):
 
     monkeypatch.setattr(board, "sync", down)
     assert "board sync: failed (rate limited)" in workflow.orient()
+
+
+@pytest.mark.parametrize("n", [1, 2])
+def test_a_test_that_sleeps_past_the_timeout_fails_the_gate_with_a_timeout_message(tmp_path, monkeypatch, n):
+    """#43: pytest-timeout ends a hung test at `test_timeout_s`, with or without xdist workers; the gate fails and
+    says why, long before the sleep ends."""
+    monkeypatch.setattr(gate.config, "get", lambda: gate.config.Config(test_timeout_s=1))
+    (tmp_path / "test_hang.py").write_text("import time\n\ndef test_hang():\n    time.sleep(60)\n")
+    cmd = gate.pytest_cmd([str(tmp_path)], n=n)
+    assert "--timeout=1" in cmd
+    started = time.monotonic()
+    ran = gate._run("tests", [*cmd, "-p", "no:cacheprovider"], cwd=tmp_path)
+    assert time.monotonic() - started < 30
+    assert not ran.ok
+    assert any("Timeout" in p and "pytest-timeout" in p for p in ran.problems), ran.problems
+
+
+def test_bounded_run_kills_the_whole_process_group_at_its_deadline(tmp_path):
+    """#43: a gate killed at its deadline must not leave a process under it (a pytest worker) holding the gate lock."""
+    pid_file = tmp_path / "pid"
+    started = time.monotonic()
+    assert workflow.bounded_run([sys.executable, "-c", _spawner(pid_file)], 3) is None
+    assert time.monotonic() - started < 20
+    assert _ends(int(pid_file.read_text()))
+    assert workflow.bounded_run([sys.executable, "-c", "raise SystemExit(3)"], 30) == 3
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGHUP])
+def test_bounded_run_kills_the_group_when_its_caller_is_terminated(tmp_path, sig):
+    """#43 review: the gate runs in a session of its own, so a SIGTERM or SIGHUP to integrate never reaches it;
+    bounded_run kills the group on the way out instead of leaving the gate holding the lock."""
+    pid_file = tmp_path / "pid"
+    caller = (
+        "import sys\nfrom devkit import workflow\n"
+        f"workflow.bounded_run([sys.executable, '-c', {_spawner(pid_file)!r}], 60)\n"
+    )
+    proc = REAL_POPEN([sys.executable, "-c", caller])
+    try:
+        waited = time.monotonic() + 20
+        while not pid_file.exists() or not pid_file.read_text():
+            assert time.monotonic() < waited and proc.poll() is None, "the gate never started"
+            time.sleep(0.05)
+        proc.send_signal(sig)
+        assert proc.wait(timeout=20) == 128 + sig
+    finally:
+        proc.kill()
+    assert _ends(int(pid_file.read_text()))
+
+
+def _spawner(pid_file):
+    """A stand-in gate: starts a sleeping worker, writes the worker's pid to `pid_file`, then sleeps."""
+    return (
+        "import subprocess, sys, time\n"
+        "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+        f"open({str(pid_file)!r}, 'w').write(str(p.pid))\n"
+        "time.sleep(60)\n"
+    )
+
+
+def _ends(pid, within=10):
+    deadline = time.monotonic() + within
+    while _alive(pid) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    return not _alive(pid)
+
+
+def _alive(pid):
+    try:
+        status = Path(f"/proc/{pid}/status").read_text()
+    except FileNotFoundError:
+        return False
+    return "\nState:\tZ" not in status  # a zombie is dead, only not yet reaped
+
+
+def test_integrate_stops_when_the_gate_runs_past_its_deadline(fake_integrate, monkeypatch, capsys):
+    """#43: a hung gate is killed at `gate_deadline_s` and integrate ends `stopped`, never merging."""
+    monkeypatch.setattr(workflow.config, "get", lambda: workflow.config.Config(gate_deadline_s=1))
+    monkeypatch.setattr(workflow.subprocess, "Popen", REAL_POPEN)  # a real process, sleeping past the deadline
+    monkeypatch.setattr(workflow, "GATE", [sys.executable, "-c", "import time; time.sleep(60)"])
+    started = time.monotonic()
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert time.monotonic() - started < 30
+    out = capsys.readouterr().out
+    assert "RESULT: stopped" in out and "deadline" in out
+    res = _last_json(out)
+    assert res["outcome"] == "stopped" and "1 s" in res["reason"]
+    assert not _merged(fake_integrate["events"])

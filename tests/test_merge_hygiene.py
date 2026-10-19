@@ -4,6 +4,7 @@ conflict instead of interleaving, and integrate brings a PR that is behind main 
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ATTRIBUTES = ROOT / "template/.gitattributes"
 INDEX = "docs/research/INDEX.md"
 REAL_RUN = subprocess.run
+REAL_POPEN = subprocess.Popen
 
 
 def sh(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -189,11 +191,18 @@ def project(tmp_path, monkeypatch):
             return subprocess.CompletedProcess(cmd, 0 if fresh else 1, "", "")
         return REAL_RUN(cmd, **kw)
 
+    def popen(cmd, **kw):
+        """The gate integrate starts (bounded_run): `run` decides its outcome, a real process exits with it."""
+        if list(cmd[:2]) != ["uv", "run"]:
+            return REAL_POPEN(cmd, **kw)
+        return REAL_POPEN([sys.executable, "-c", f"raise SystemExit({run(cmd, **kw).returncode})"], **kw)
+
     claim = board.Claim(host="box", agent="builder-12", branch="12-c", at="", token=None, cid="")
     paths.root.cache_clear()  # root() and common_dir() are cached per process: drop what other tests resolved
     paths.common_dir.cache_clear()
     monkeypatch.chdir(clone)
     monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(subprocess, "Popen", popen)
     monkeypatch.setattr(board, "gh", gh)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "pr_feedback", lambda n: {"threads": []})
