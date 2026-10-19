@@ -383,7 +383,9 @@ def reuse_problem(body: str) -> str | None:
 
 def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> str:
     """Push the gated branch and open its PR. A body without a `Closes #N` / `Refs #N` first line gets `Closes #N`
-    (a complete hand-back: the merge closes the issue), or `Refs #N` with `partial` (the issue returns to ready)."""
+    (a complete hand-back: the merge closes the issue), or `Refs #N` with `partial` (the issue returns to ready).
+    Prints two lines, the PR URL and a status with the ref line the body carries; keep it at two so nobody pipes it
+    (worktree isolation refuses a piped `dev pr`, #261)."""
     branch = git("branch", "--show-current")
     if branch in ("main", ""):
         raise board.BoardError("open PRs from an issue branch in a worktree, not from main")
@@ -397,6 +399,11 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
         raise board.BoardError("--partial, but the summary starts with 'Closes #N': write 'Refs #N' or drop --partial")
     if not re.match(r"(Closes|Refs) #\d+", body):
         body = f"{'Refs' if partial else 'Closes'} #{number}\n\n{body}"
+    title = f"{issue.title} (#{number})"
+    commits = git("log", "--format=%B", f"{base}..HEAD") if (base := checks.merge_base()) else ""
+    texts = {"PR title": title, "PR body": body, "branch commit messages": commits}
+    if (leaks := session_leaks(**texts)) and repo_public():
+        raise board.BoardError(f"{SESSION_RULE}: the {' and '.join(leaks)} carry one; remove it and rerun")
     git("push", "-u", "origin", branch)
     args = [
         "pr",
@@ -408,7 +415,7 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
         "--head",
         branch,
         "--title",
-        f"{issue.title} (#{number})",
+        title,
         "--body-file",
         "-",
     ]
@@ -420,7 +427,47 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
     url = board.gh(*args, input=body).strip()
     board.comment(number, f"PR ready for review: {url}\n\n{body[:1500]}")
     board.set_status(number, "review")
-    return url
+    ref = re.match(r"(Closes|Refs) #\d+", body)
+    return f"{url}\n#{number} status:review, {ref.group(0) if ref else ''}"
+
+
+# Owner rule (2026-10-05): a public repository never gets a session link or trailer in a commit, PR or comment.
+# Assembled from pieces: the scrub test bans the literal link from this public repository.
+SESSION_URL = "claude.ai/code/" + "session"
+SESSION_LEAK = re.compile(rf"https?://{re.escape(SESSION_URL)}_\w|^[ \t]*Claude-Session[ \t]*:", re.I | re.M)
+SESSION_RULE = f"this repository is public: no {SESSION_URL} URL or Claude-Session trailer"
+# A worker's PR body may not carry the consolidation trailer onto main: only `integrate --consolidation-review` does.
+REVIEW_LINE = re.compile(rf"^[ \t]*{re.escape(consolidation.REVIEW_TRAILER.rstrip(':'))}[ \t]*:.*\n?", re.I | re.M)
+
+
+def session_leaks(**texts: str | None) -> list[str]:
+    """The names of `texts` that carry a session link (https:// + SESSION_URL + `_<id>`) or a Claude-Session
+    trailer; a mention of the path alone, as in a rule's text, is not one."""
+    return [name for name, text in texts.items() if SESSION_LEAK.search(text or "")]
+
+
+def repo_public() -> bool:
+    """Whether GitHub may show this repository to anyone. Fails closed: only a visibility read as PRIVATE or
+    INTERNAL is not public."""
+    try:
+        seen = json.loads(board.gh("repo", "view", board.repo(), "--json", "visibility")).get("visibility")
+    except (board.BoardError, ValueError, AttributeError):
+        return True
+    return seen not in ("PRIVATE", "INTERNAL")
+
+
+def squash_message(pr_number: int, info: dict, review: int | None = None) -> tuple[str, str]:
+    """(subject, body) of the squash commit: the PR title and body, never the branch's commit messages (GitHub's
+    COMMIT_MESSAGES default would copy them and their trailers onto main). `review` appends the
+    `Consolidation-Review: #<review>` trailer as the body's last paragraph, where `consolidation.last_review` reads
+    it; one a worker wrote into the PR body is dropped (only the lead resets the trigger). Neither part is ever empty:
+    an empty `--body` would let GitHub's default message back in."""
+    title, tag = (info.get("title") or "").strip(), f"(#{pr_number})"
+    subject = title if title.endswith(tag) else f"{title} {tag}".strip()
+    body = REVIEW_LINE.sub("", info.get("body") or "").strip()
+    if review:
+        body = f"{body}\n\n{consolidation.REVIEW_TRAILER} #{review}".strip()
+    return subject, body or f"PR {tag} has no description."
 
 
 PR_FIELDS = (
@@ -762,23 +809,50 @@ def _remote_shas(pr_number: int) -> tuple[str, str]:
 
 
 def _merge_if_unchanged(
-    pr_number: int, head: str, main: str, dry_run: bool = False, review: int | None = None
+    pr_number: int, head: str, main: str, dry_run: bool = False, review: int | None = None, info: dict | None = None
 ) -> str | None:
-    """Merge only what was gated: the head is pinned by --match-head-commit, main is re-read just before. Returns the
-    reason for not merging, or None. `review`: the merge commit carries `Consolidation-Review: #<review>`, the
-    first-parent trailer that resets the consolidation trigger (only the lead writes it, through integrate)."""
+    """Squash-merge only what was gated: the head is pinned by --match-head-commit, main is re-read just before.
+    Returns the reason for not merging, or None. The commit is `squash_message` of `info` (the PR as last read);
+    `review` adds `Consolidation-Review: #<review>`, the first-parent trailer that resets the consolidation trigger
+    (only the lead writes it, through integrate)."""
     now_head, now_main = _remote_shas(pr_number)
     if now_head != head:
         return f"the PR head moved during the gate ({head[:10]} -> {now_head[:10]}): rerun integrate"
     if now_main != main:
         return f"main moved during the gate ({main[:10]} -> {now_main[:10]}): rerun integrate"
+    subject, body = squash_message(pr_number, info or {}, review)
+    if session_leaks(**{"PR title": subject, "PR body": body}) and repo_public():
+        return f"{SESSION_RULE} in the squash commit: edit the PR title or body, then rerun integrate"
+    if branch := (info or {}).get("headRefName"):
+        retarget_stacked(branch, head, dry_run)
     if not dry_run:
-        trailer = ["--body", f"{consolidation.REVIEW_TRAILER} #{review}"] if review else []
         board.gh(
-            "pr", "merge", str(pr_number), "-R", board.repo(), "--merge", "--match-head-commit", head, "--delete-branch",
-            *trailer,
+            "pr", "merge", str(pr_number), "-R", board.repo(), "--squash", "--subject", subject, "--body", body,
+            "--match-head-commit", head, "--delete-branch",
         )  # fmt: skip
     return None
+
+
+def retarget_stacked(branch: str, tip: str, dry_run: bool = False) -> list[int]:
+    """Stacked PRs: point every open PR based on `branch` (about to be squash-merged and deleted, which would close
+    them) at main, and say how each stacked PR drops its parent's commits, which the squash commit already carries on
+    main under another sha. Returns the retargeted PR numbers."""
+    found = board.gh(
+        "pr", "list", "-R", board.repo(), "--base", branch, "--state", "open", "--json", "number,headRefName"
+    )
+    stacked = json.loads(found or "[]")
+    for pr in stacked:
+        n, name = pr["number"], pr["headRefName"]
+        if dry_run:
+            print(f"would retarget stacked PR #{n} ({name}) from {branch} to main")
+            continue
+        board.gh("pr", "edit", str(n), "-R", board.repo(), "--base", "main")
+        print(
+            f"retargeted stacked PR #{n} ({name}) from {branch} to main. Before its integrate, in its worktree: "
+            f"`git rebase --onto origin/main {tip[:12]} {name}` then push with --force-with-lease (drops the "
+            f"parent's commits; integrate merging main in instead can conflict wherever the parent changed after {name} left it)"
+        )
+    return [c["number"] for c in stacked]
 
 
 def _pr_state(pr_number: int, ignore: frozenset[str] = frozenset()) -> tuple[dict, list[str]]:
@@ -832,6 +906,16 @@ def merge_main(tree: Path, main: str) -> list[str]:
             f"git merge of main failed without a conflict: {(merge.stdout + merge.stderr).strip()[-300:]}"
         )
     return paths
+
+
+def deleted_owns(tree: Path, main: str, info: dict) -> dict[int, list[str]]:
+    """Open issue -> its Owns entries that `main` has and the merged tree at `tree` empties, other than the PR's own
+    issues (docs/research/decision-records-and-drift.md check 2). The board is read only when the merge deletes."""
+    before = set(git("ls-tree", "-r", "--name-only", main).splitlines())
+    after = set(git("ls-tree", "-r", "--name-only", "HEAD", cwd=tree).splitlines())
+    if not (deleted := before - after):
+        return {}
+    return board.deleting_owns(board.fetch(), deleted, after, info["body"] or "", info.get("headRefName", ""))
 
 
 def regenerate(tree: Path) -> bool:
@@ -940,12 +1024,19 @@ def _integrate(
     head, whatever the branch protection, and reads feedback once more; a timeout is `waiting`, and a rerun on that
     head resumes the wait instead of refusing its pending checks. With `local_ci` (no Actions minutes), required checks
     Actions does not run are left to the local run on the merged tree (`_stand_in`), which posts them as commit statuses
-    only after it passed. Issues close only after the merge; the last line printed is `result`."""
+    only after it passed. A merged tree that empties an Owns entry of an open issue other than the PR's own
+    (`deleted_owns`) is refused before the gate, and `override` does not lift that: name the issue with `Refs #N` in
+    the PR body, or edit that issue's Owns. A deleting merge whose board cannot be read stops (fail closed). Issues
+    close only after the merge; the last line printed is `result`."""
     info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
     if info["state"] != "OPEN" or info["isDraft"]:
         print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
         return result(pr_number, 1, "not-open")
     if reason := refusal(info):
+        print(f"RESULT: refused: {reason}")
+        return result(pr_number, 1, "refused", reason=reason)
+    if (leaks := session_leaks(**{"PR title": info.get("title"), "PR body": info.get("body")})) and repo_public():
+        reason = f"{SESSION_RULE}: the {' and '.join(leaks)} carry one; edit the PR, then rerun integrate"
         print(f"RESULT: refused: {reason}")
         return result(pr_number, 1, "refused", reason=reason)
     if override is not None and not override.strip():
@@ -1003,9 +1094,18 @@ def _integrate(
                 print(f"RESULT: conflict with main in {', '.join(conflicts)}; sent back, resume {who}")
                 return result(pr_number, 1, "conflict", conflicts=conflicts, resume=workers, branch=info["headRefName"])
             regenerated = regenerate(tmp)
+            gone = deleted_owns(tmp, main, info)
+        except OSError as exc:  # no gh at all; a gh failure is a BoardError, a RuntimeError
+            print(f"RESULT: stopped (cannot read the board to check deleted Owns: {exc})")
+            return result(pr_number, 1, "stopped", reason=f"cannot read the board: {exc}")
         except RuntimeError as exc:
             print(f"RESULT: stopped ({exc})")
             return result(pr_number, 1, "stopped", reason=str(exc))
+        if gone:
+            rows = [f"#{n}: {', '.join(paths)}" for n, paths in gone.items()]
+            print(f"RESULT: refused: PR #{pr_number} deletes what open issues own:\n  " + "\n  ".join(rows))
+            print("--override does not lift this: name each issue with `Refs #N` in the PR body, or edit its Owns.")
+            return result(pr_number, 1, "refused", reason="deletes paths open issues own", owns=gone)
         tip = git("rev-parse", "HEAD", cwd=tmp)
         print(
             f"gating PR #{pr_number} ({head[:10]}) merged with main {main[:10]} as {tip[:10]} in {tmp} ...", flush=True
@@ -1070,7 +1170,9 @@ def _integrate(
     elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update)) is not None:
         return code
     try:
-        reason = _merge_if_unchanged(pr_number, head if dry_run else tip, main, dry_run=dry_run, review=review)
+        reason = _merge_if_unchanged(
+            pr_number, head if dry_run else tip, main, dry_run=dry_run, review=review, info=state
+        )
     except board.BoardError as exc:  # e.g. branch protection waiting for checks on the update just pushed
         print(f"RESULT: stopped (GitHub refused the merge: {exc}); rerun integrate once its checks pass")
         return result(pr_number, 1, "stopped", reason=f"GitHub refused the merge: {exc}", **update)

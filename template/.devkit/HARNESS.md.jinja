@@ -6,40 +6,23 @@ put project facts in CLAUDE.md. Everything else is derived: `uv run dev --help` 
 what is already researched.
 
 ## Every session
-- A SessionStart hook injects `uv run dev orient` (handoff, board, worktrees, memory, quota). Run it again after long breaks.
 - The board is GitHub issues: `uv run dev board next`, `board brief <n>`, `board claim <n> --agent <name>`.
   Work without an issue does not exist. Each issue has a measurable DONE WHEN. A small fix found on the way
   belongs to the current issue: the fix-now rule (multi-agent.md §3).
-- The main session is the **lead** for its machine. It plans, dispatches and integrates (the `harness-ops:lead`
-  skill), and it never builds while workers run. Workers are `harness-ops:` subagents, one issue each, in their own
-  worktree.
+- The main session is the lead: the `harness-ops:lead` skill. Workers are `harness-ops:` subagents, one issue each,
+  in their own worktree.
 - Multi-agent and multi-machine protocol: [multi-agent.md](../docs/specs/multi-agent.md).
 
 ## Rules
-- Python is managed with **uv only** (`uv add`, `uv run`), never pip. A hook enforces this.
-- Branch `<issue>-<slug>` in a worktree. Never commit to `main` directly. Only `uv run dev integrate <pr>` merges.
-- Run `uv run dev test --affected` while iterating. Run `uv run dev check` once at the end, on a committed tip.
-  Never weaken a check, test or budget to pass. Ask the owner instead.
+- Branch `<issue>-<slug>` in a worktree. Only `uv run dev integrate <pr>` merges.
+- Run `uv run dev test --affected` while iterating. `uv run dev check` gates the committed HEAD: run it when you
+  believe you are done, and again after any fix. Never weaken a check, test or budget to pass. Ask the owner instead.
 - **Research before implementing.** Any design or algorithm choice needs a cited note in `docs/research/`.
   Check INDEX.md first and extend an existing note rather than writing a parallel one. Use the research skill.
-- **Reuse before build.** Verify known libraries with `uv run dev reuse check <name>...`. Search
-  (`uv run dev reuse "<need>"`) only when you know no good candidate or want more. Prefer free, open source.
-  Record the choice, license and alternatives in the note.
-- Label claims **VERIFIED** (measured here, script named), **SOURCED** (cited and fetched), **BELIEVED** (judgment)
-  or **ASSUMED**. Never cite a source you did not fetch. `uv run dev cite-check` must pass for changed notes.
+- Label claims **VERIFIED** (measured here), **SOURCED** (cited and fetched), **BELIEVED** or **ASSUMED**.
+- Never read `.env`.
 - Re-check a root cause with data before writing it down. First explanations are often wrong.
-- Navigate by symbol: `uv run dev code outline|show|refs|find`. Do not read whole files. A hook answers whole-file
-  reads of long files with an outline.
-- Batch independent reads and searches as parallel tool calls in one response.
-- Never edit generated files (`docs/generated/`, `docs/research/INDEX.md`, `uv.lock`); run `uv run dev docs`.
-  Never read `.env`.
-- Facts live in one place. Link to them; do not copy counts, field lists or commands into prose. The gate fails on
-  dangling paths and unknown `uv run dev` commands.
-- Hand-backs are at most 25 lines. Details go in the PR body or an issue comment.
+- Link to a fact where it lives; never copy counts, field lists or commands into prose.
 - Unclear requirement: add it to `docs/questions/OPEN_QUESTIONS.md` with your default, then proceed on that default.
-
-## Changing the agent surface
-CLAUDE.md, this file, `.claude/`, `.devkit/`, `[tool.devkit]` and CI are the harness every agent is judged by. Follow
-the `harness-ops:harness` skill: keep text short, keep word budgets (`.devkit/ratchets.toml`) falling, and measure
-with `uv run dev agent-stats`. Generic changes go to agent-harness itself, then `copier update` here. A PR that
-touches harness files needs the lead to read its diff.
+- Before editing CLAUDE.md, `.claude/`, `.devkit/`, `[tool.devkit]` or CI, load the `harness-ops:harness` skill.
+  Generic changes go to agent-harness itself, then `copier update` here.

@@ -547,6 +547,15 @@ def tracked_files() -> list[str]:
     return git("ls-files").splitlines()
 
 
+def path_history() -> tuple[set[str], set[str]] | None:
+    """(every path ever committed in HEAD's history, the paths tracked now), or None outside a git checkout."""
+    try:
+        ever = git("log", "--format=", "--name-only", "--no-renames", "HEAD")
+        return set(ever.splitlines()) - {""}, set(tracked_files())
+    except RuntimeError:
+        return None
+
+
 def areas(owns: list[str], globs: dict[str, list[str]], files: list[str]) -> list[str]:
     """Area labels for an item: a label applies when one of its globs matches a tracked file under an Owns entry,
     or a stand-in path for the entry itself (so a path nothing occupies yet still gets its area)."""
@@ -846,6 +855,24 @@ def overlap(a: list[str], b: list[str]) -> bool:
     return any(owned(x, [y]) or owned(y, [x]) for x in a for y in b)
 
 
+def gone_owns(owns: list[str], deleted: Iterable[str], after: Iterable[str]) -> list[str]:
+    """Owns entries that matched a path and match none now: a `deleted` path matches, no `after` path does
+    (docs/research/decision-records-and-drift.md check 2). An entry for a file never created is not gone."""
+    deleted, after = list(deleted), list(after)
+    return [o for o in owns if any(owned(p, [o]) for p in deleted) and not any(owned(p, [o]) for p in after)]
+
+
+def deleting_owns(
+    issues: list[Issue], deleted: set[str], after: set[str], body: str, branch: str
+) -> dict[int, list[str]]:
+    """Open issue -> its Owns entries a merge empties, leaving out the PR's own issues: those its `body` closes or
+    refs, and the `<n>-slug` of its `branch` (a migration owns what it moves)."""
+    closes, own = linked(body, branch)
+    mine = {*closes, *own, *keyword_numbers(REFS, body)}
+    found = {i.number: gone_owns(owns_of(i), deleted, after) for i in issues if i.number not in mine}
+    return {n: paths for n, paths in sorted(found.items()) if paths}
+
+
 def wave(issues: list[Issue], n: int, done: set[Ref]) -> list[Issue]:
     """Up to n startable items, in `next` order, whose Owns overlap neither each other nor any item in progress or
     in review (greedy, after a sibling project's batching wave). An item with no Owns overlaps nothing."""
@@ -954,10 +981,18 @@ def _title_findings(t: str, kind: str) -> list[str]:
     return out
 
 
-def lint(issues: list[Issue], done: set[Ref], merged: dict[int, list[int]]) -> list[Finding]:
+def lint(
+    issues: list[Issue],
+    done: set[Ref],
+    merged: dict[int, list[int]],
+    history: tuple[set[str], set[str]] | None = None,
+) -> list[Finding]:
     """Every convention an open item breaks. `done`: blockers known closed (`resolved`); `merged`: issue -> merged
-    PRs that close it by keyword (`merged_closes`). A warning (warn=True) is worth a look but breaks no convention."""
+    PRs that close it by keyword (`merged_closes`); `history`: (paths ever committed, paths now) from `path_history`,
+    for Owns that existed and are gone. A warning (warn=True) is worth a look but breaks no convention."""
     by = {i.number: i for i in issues}
+    ever, now = history or (set(), set())
+    deleted = ever - now
     named_parent = {i.parent for i in issues if i.parent is not None}
     titles: dict[str, list[int]] = {}
     out: list[Finding] = []
@@ -970,6 +1005,8 @@ def lint(issues: list[Issue], done: set[Ref], merged: dict[int, list[int]]) -> l
             out.append(Finding(n, "DONE WHEN is empty (or only bare numbers)"))
         if kind in NEEDS_OWNS and not owns_of(i):
             out.append(Finding(n, f"type:{kind} without Owns (backticked paths)"))
+        for p in gone_owns(owns_of(i), deleted, now) if deleted else ():
+            out.append(Finding(n, f"Owns `{p}` existed and is gone: close the item or fix its Owns"))
         if kind == "epic" and not (i.links and i.links.subs) and n not in named_parent:
             out.append(Finding(n, "epic with no sub-issues"))
         if n in merged:
@@ -1000,7 +1037,7 @@ def merged_closes() -> dict[int, list[int]]:
 
 def _findings() -> tuple[list[Issue], list[Finding]]:
     issues = fetch(with_comments=True, links=ALL_LINK_FIELDS)
-    return issues, lint(issues, resolved(issues), merged_closes())
+    return issues, lint(issues, resolved(issues), merged_closes(), path_history())
 
 
 def lint_board(fix: bool = False) -> tuple[str, int]:
@@ -1122,13 +1159,20 @@ def sync() -> list[str]:
     return moved
 
 
-CLOSES = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)", re.I)
+ISSUE_LIST = r"#\d+(?:\s*(?:,|and|&)\s*#\d+)*"  # `#1`, `#1, #2`, `#1 and #2`
+CLOSES = re.compile(rf"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s*({ISSUE_LIST})", re.I)
+REFS = re.compile(rf"\brefs?:?\s*({ISSUE_LIST})", re.I)
+
+
+def keyword_numbers(rx: re.Pattern[str], text: str | None) -> list[int]:
+    """Issue numbers after a keyword of `rx` (CLOSES, REFS), lists and `Keyword: #n` included, once each in order."""
+    return list(dict.fromkeys(int(n) for found in rx.findall(text or "") for n in re.findall(r"#(\d+)", found)))
 
 
 def linked(body: str, branch: str) -> tuple[list[int], list[int]]:
     """(issues a PR closes by keyword, its own issue from the `<n>-slug` branch when it does not close it).
     `Refs #N` links nothing: a mention must never move another agent's item."""
-    closes = list(dict.fromkeys(int(n) for n in CLOSES.findall(body or "")))
+    closes = keyword_numbers(CLOSES, body)
     m = re.match(r"(\d+)-", branch or "")
     own = [int(m.group(1))] if m and int(m.group(1)) not in closes else []
     return closes, own

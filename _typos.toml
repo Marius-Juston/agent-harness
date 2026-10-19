@@ -1,5 +1,9 @@
 # Proper names that typos misreads (report-only hook, see .pre-commit-config.yaml).
 [default.extend-words]
 
+# Deliberate misspellings in tests (a config key typed wrong must be rejected).
+[default.extend-identifiers]
+fp_comits = "fp_comits"
+
 [files]
 extend-exclude = ["docs/research/**"]  # cited author names and venues are not typos
