@@ -177,7 +177,7 @@ def test_integrate_writes_the_trailer_into_the_merge_commit(monkeypatch):
     assert workflow._merge_if_unchanged(7, "h1", "m1", review=138) is None
     assert calls[-1][calls[-1].index("--body") + 1] == "Consolidation-Review: #138"
     assert workflow._merge_if_unchanged(7, "h1", "m1") is None
-    assert "--body" not in calls[-1]
+    assert "Consolidation-Review" not in calls[-1][calls[-1].index("--body") + 1]  # #292: squash always sets a body
     args = cli.build().parse_args(["integrate", "5", "--consolidation-review", "138"])
     assert args.consolidation_review == 138
 
