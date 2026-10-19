@@ -27,16 +27,16 @@ KINDS = ("input", "write", "read", "output")
 
 # modelled cost by agent type, $ (r2_cost_phases.py line "modelled cost all agents"; it has no uncached input)
 MODELLED = {
-    "researcher": 1223,
-    "builder": 558,
-    "lead": 384,
-    "research-auditor": 100,
-    "security-reviewer": 72,
-    "general-purpose": 39,
-    "reviewer": 39,
-    "tester": 28,
+    "researcher": 1178,
+    "builder": 535,
+    "lead": 376,
+    "research-auditor": 95,
+    "security-reviewer": 68,
+    "general-purpose": 37,
+    "reviewer": 37,
+    "tester": 26,
 }
-TOTAL_MODELLED = 2444
+TOTAL_MODELLED = 2356
 LAST_RECORD = 2231  # the old total: each session's last cost record only
 COST_RECORDS = 2756  # cost records summed per process segment (cost_segments.py), a lower bound
 ESTIMATE = 2928  # cost_segments.py transcript-priced estimate, which also covers a process with no record
@@ -70,19 +70,19 @@ print("1. Sonnet 5.5 vs Opus 5.5 price per token kind:")
 for k, o, s in zip(KINDS, PRICES["opus-5-5"], PRICES["sonnet-5-5"], strict=True):
     print(f"   {k:6s} {s / o:.2f}x")
 mixes = {
-    "window (cost records per segment: read 42, write 28, output 20, input 10 %)": {
-        "input": 0.10,
-        "write": 0.28,
-        "read": 0.42,
-        "output": 0.20,
+    "window (per-process records, each model at its prices: read 47.9, write 29.4, output 19.7, input 2.5 %)": {
+        "input": 0.025,
+        "write": 0.294,
+        "read": 0.479,
+        "output": 0.197,
     },
-    "researcher (r2 rerun: read 42, write 32, output 27 %)": {
+    "researcher (r2 rerun: read 43, write 33, output 24 %)": {
         "input": 0.0,
-        "write": 0.32,
-        "read": 0.42,
-        "output": 0.27,
+        "write": 0.33,
+        "read": 0.43,
+        "output": 0.24,
     },
-    "lead (r2 rerun: read 62, write 23, output 15 %)": {"input": 0.0, "write": 0.23, "read": 0.62, "output": 0.15},
+    "lead (r2 rerun: read 64, write 23, output 13 %)": {"input": 0.0, "write": 0.23, "read": 0.64, "output": 0.13},
 }
 for name, mix in mixes.items():
     print(f"   {name}: " + ", ".join(f"{m} {ratio(m, mix):.3f}x" for m in PRICES if m != "opus-5-5"))
@@ -91,7 +91,7 @@ print(
     f"\n0. Window: ${LAST_RECORD} last records, ${COST_RECORDS} per segment, ${ESTIMATE} estimated; per merged PR "
     f"${COST_RECORDS / MERGED_PRS:.1f}-{ESTIMATE / MERGED_PRS:.1f}"
 )
-print("\n2. Spend by agent type, output corrected (share of the $2,444 modelled):")
+print("\n2. Spend by agent type, output corrected (share of the $2,356 modelled):")
 for at, c in MODELLED.items():
     print(f"   {at:18s} ${c:5d} {c / TOTAL_MODELLED:5.1%}")
 review = sum(MODELLED[a] for a in ("research-auditor", "security-reviewer", "reviewer"))
@@ -104,7 +104,7 @@ for name, c in (
     ("security-reviewer + research-auditor", guard),
     ("researcher", MODELLED["researcher"]),
 ):
-    s = c * (1 - ratio("sonnet-5-5", mixes["researcher (r2 rerun: read 42, write 32, output 27 %)"]))
+    s = c * (1 - ratio("sonnet-5-5", mixes["researcher (r2 rerun: read 43, write 33, output 24 %)"]))
     print(f"   {name}: ${s:.0f} = {s / TOTAL_MODELLED:.1%} of spend, ${s / MERGED_PRS:.2f} per merged PR")
 print("   break-even: Sonnet may use 2.0x the tokens before it costs more")
 
@@ -113,7 +113,7 @@ lead_artifact = 3251 * 12_900 * 0.20 / 1e6  # 3,251 lead calls re-reading the 12
 for name, lo, hi in (
     ("Artifact + Agent schemas in workers (component_cost.py; Skill kept)", 74 + 2.5, 116 + 4),
     ("  plus Artifact in lead calls (enableArtifact: false)", 74 + 2.5 + lead_artifact, 116 + 4 + lead_artifact),
-    ("lead compaction at 150-400k (r2_cost_phases.py F)", 384 - 226, 384 - 206),
+    ("lead compaction at 150-400k (r2_cost_phases.py F)", 376 - 218, 376 - 198),
 ):
     print(f"   {name}: ${lo:.0f}-{hi:.0f} = {lo / ESTIMATE:.1%}-{hi / COST_RECORDS:.1%}")
 

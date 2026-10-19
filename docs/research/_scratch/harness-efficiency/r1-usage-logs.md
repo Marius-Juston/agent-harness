@@ -113,5 +113,5 @@ Outcome in the same window: 188 merged PRs in repo-E (`gh pr list --state merged
 - Totals (research-auditor, PR #270): the $2,231 kept only each session's last cost record; a resumed session starts
   a new process whose total restarts at 0, which lost a $525 process, and one session's records cover only a fraction
   of its transcript. Per process the records sum to $2,756; the transcript-priced estimate is about $2,928
-  (scripts/cost_segments.py). Token-kind shares from the per-process records at list prices: cache read 42 %, cache
-  write 28 %, output 20 %, uncached input 10 %.
+  (scripts/cost_segments.py). Token-kind shares from the per-process records, each model at its own list prices: cache read
+  48 %, cache write 29 %, output 20 %, uncached input 2.5 %, Haiku side calls 0.4 %.

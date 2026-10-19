@@ -30,6 +30,7 @@ def body_of(b):
 
 
 automode, runs, iso_runs, iso_cause, prform = Counter(), Counter(), Counter(), Counter(), Counter()
+target_runs, target_kind = defaultdict(list), Counter()  # change-6 baseline: each refused call counted once
 checks, passes = defaultdict(list), defaultdict(list)
 lit = Counter()
 branch_m, piped = Counter(), Counter()
@@ -57,6 +58,7 @@ for f in glob.glob(ROOT + "/*.jsonl") + glob.glob(ROOT + "/*/subagents/*.jsonl")
         "",
     )
     uses, had_iso, n_check, n_pass, n_lit, did_m = {}, False, 0, 0, 0, False
+    n_target = 0
     has_auto = False
     for r in R:
         t = r.get("type")
@@ -101,11 +103,24 @@ for f in glob.glob(ROOT + "/*.jsonl") + glob.glob(ROOT + "/*/subagents/*.jsonl")
                         "piped" if re.search(r"EOF'?\s*(2>&1)?\s*\|", first) else "plain"
                     )
                     prform[(form, "refused" if refused else "error" if b.get("is_error") else "ok")] += 1
+                if refused:
+                    cross = bool(re.match(r"\s*cd\s+\S*agent-harness", cmd))
+                    pr_piped = bool(
+                        re.search(r"\bdev pr\b", cmd)
+                        and "--summary" in cmd
+                        and re.search(r"EOF'?\s*(2>&1)?\s*\|", cmd.split("\n")[0])
+                    )
+                    if cross or pr_piped:
+                        n_target += 1
+                        target_kind[
+                            (ag, "cross-repo and piped" if cross and pr_piped else "cross-repo" if cross else "piped")
+                        ] += 1
                 if re.search(r"\bdev check\b", cmd):
                     n_check += 1
                     n_pass += "RESULT: passed" in text
     automode[(ag, has_auto)] += 1
     iso_runs[ag] += had_iso
+    target_runs[ag].append(n_target)
     if ag == "builder":
         checks[ag].append(n_check)
         passes[ag].append(n_pass)
@@ -128,3 +143,8 @@ print(
 print("direct literature-API calls (agent, rule in body, metric):", dict(sorted(lit.items())))
 print(f"builder runs with git branch -m: {branch_m['builder']}/{runs['builder']}")
 print("dev output piped to tail/head/grep:", dict(piped))
+b = target_runs["builder"]
+print(
+    f"change-6 baseline: piped-dev-pr or cross-repo refusals, each call once: builder {sum(b)} in {len(b)} runs "
+    f"({sum(b) / len(b):.2f} per run); by agent and kind {dict(target_kind)}"
+)

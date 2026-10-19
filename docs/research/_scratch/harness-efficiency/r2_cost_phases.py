@@ -4,7 +4,7 @@ Usage: python3 r2_cost_phases.py <claude-project-dir> <repo-E-repo> [--exclude <
 
 Reads the main session transcripts (*.jsonl = lead) and subagent transcripts (*/subagents/*.jsonl, agent type from the
 .meta.json). Prices are the per-M fit from extra_stats.py (input 4.09, output 20.05, cache read 0.20, cache write 7.95).
-Transcript output_tokens are streaming snapshots that undercount (4.2 M vs 31.3 M in the cost-state records, summed per process segment), so the
+Transcript output_tokens are streaming snapshots that undercount (4.2 M vs 27.0 M Opus 5.5 output in the cost-state records, summed per process segment), so the
 billed output of a turn is its visible characters (thinking summary, text, tool input) times the fitted tokens per
 character, plus an equal share per turn of the rest of the cost-state output (hidden thinking; an assumption). Tokens per
 character of content entering the context come from a least-squares fit of cache growth (section C).
@@ -85,7 +85,7 @@ def load(f, at):
             k = len(turns) - 1  # index of the last turn seen; pieces enter the context of turn k + 1
             if t == "cost-state":
                 tot = d.get("totalCostUSD", 0) or 0
-                out = sum(m.get("outputTokens", 0) for m in d.get("modelUsage", {}).values())
+                out = d.get("modelUsage", {}).get("claude-opus-5-5", {}).get("outputTokens", 0)  # Opus only
                 if not cs_segs or tot < cs_segs[-1][0]:
                     cs_segs.append([tot, out])
                 else:

@@ -117,7 +117,7 @@ Claude (Opus 4.8+) can now write a task-specific multi-agent harness: a JavaScri
    - Input: owner corrections in session JSONL files and review comments. Cluster them, then for each candidate rule ask "would this rule have prevented a real mistake?"
    - This turns the harness skill's rule ("a finding class that recurs in ≥5% of reviews becomes a checklist line or lint") into an automated pipeline.
    - Tie it to the word-budget ratchet: a new rule must displace text.
-4. **EFFECTIVENESS (user safety): quarantine for anything that ingests untrusted text.** The cases are repo-E intake packs, scraped curricula, and issue or PR comments relayed to agents.
+4. **EFFECTIVENESS (user safety): quarantine for anything that ingests untrusted text.** The cases are scraped web content and issue or PR comments relayed to agents.
    - Readers run with no write or network tools and emit structured `schema` JSON. The actor sees only that JSON.
    - Also document that `ultracode` cannot be triggered by relayed PR comments or webhooks.
 5. **TOKENS: set an explicit `workflowSizeGuideline` (small or medium) in harness settings.**
@@ -369,7 +369,7 @@ For specs, plans, reviews and reports that humans must actually read, HTML beats
 | 4 | Research rounds as a saved workflow (schema outputs, deterministic saturation stop, prefix stagger) | EFF + TOKENS | Lead-context tokens per research issue; rounds honoured |
 | 5 | Structured (schema-validated) hand-backs and verdicts | EFF | Lead re-queries per hand-back |
 | 6 | Per-rule verifier plus skeptic workflow for harness-rule compliance; mine corrections into rules monthly | EFF | Recall of planted violations vs the reviewer; false-positive rate |
-| 7 | Quarantine readers for untrusted content (intake packs, PR comments) | EFF / safety | Red-team injected instructions in fixtures; actor never sees raw text |
+| 7 | Quarantine readers for untrusted content (scraped web content, PR comments) | EFF / safety | Red-team injected instructions in fixtures; actor never sees raw text |
 | 8 | Retest old scaffolding on Opus 5.5 via `dev eval`; prune what is dead weight | EFF + TOKENS | Eval pass rate unchanged with fewer words and hooks |
 | 9 | Per-agent `tools:` restriction (drop irrelevant MCP stubs) | TOKENS + EFF | Prefix size and first-turn creation tokens |
 | 10 | HTML only at the owner boundary (PR security review, board triage editor), produced in a subagent | EFF | Owner review turnaround; owner turns per ranking |

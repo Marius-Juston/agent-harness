@@ -280,6 +280,16 @@ def resolver(prs):
     return resolve
 
 
+def in_window(path):
+    """A transcript belongs to the window when its first timestamp is on or before UNTIL (later sessions excluded)."""
+    with open(path, errors="ignore") as fh:
+        for line in fh:
+            ts = re.search(r'"timestamp":\s*"([^"]+)"', line)
+            if ts:
+                return ts.group(1)[:10] <= UNTIL
+    return False
+
+
 def rounds(cache, project):
     prs = load_prs(cache)
     resolve = resolver(prs)
@@ -287,7 +297,7 @@ def rounds(cache, project):
     for meta in sorted(glob.glob(f"{project}/*/subagents/*.meta.json")):
         m = jload(meta)
         role = REVIEW_TYPES.get(m.get("agentType"))
-        if not role:
+        if not role or not in_window(meta.replace(".meta.json", ".jsonl")):
             continue
         segs = segments(meta.replace(".meta.json", ".jsonl"))
         if not segs:
@@ -316,6 +326,8 @@ def rounds(cache, project):
         m = jload(meta)
         t = m.get("agentType", "")
         if t in REVIEW_TYPES or not re.search(r"builder|researcher|tester", t):
+            continue
+        if not in_window(meta.replace(".meta.json", ".jsonl")):
             continue
         for s in segments(meta.replace(".meta.json", ".jsonl"))[1:]:
             if re.search(
@@ -849,6 +861,8 @@ def lead_overhead(project):
             review_ids.add(os.path.basename(meta).removeprefix("agent-").removesuffix(".meta.json"))
     calls, cost, seen = 0, 0.0, set()
     for f in glob.glob(f"{project}/*.jsonl"):
+        if not in_window(f):
+            continue
         for line in lines(f):
             d = json.loads(line)
             if d.get("type") != "assistant" or not isinstance(d["message"]["content"], list):

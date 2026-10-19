@@ -88,18 +88,19 @@ def transcript_cost(path: str) -> Counter:
 
 
 def cost_state(path: str):
-    """Segments of the running total: (max totalCostUSD, output tokens at that record) per process."""
+    """Segments of the running total, one per process: [max totalCostUSD, Opus 5.5 output tokens, modelUsage]."""
     segs, cur = [], None
     for d in records(path):
         if d.get("type") != "cost-state":
             continue
         tot = d.get("totalCostUSD", 0) or 0
-        out = sum(m.get("outputTokens", 0) for m in d.get("modelUsage", {}).values())
+        mu = d.get("modelUsage", {})
+        out = mu.get("claude-opus-5-5", {}).get("outputTokens", 0)
         if cur is None or tot < cur[0] - 1e-9:
-            cur = [tot, out]
+            cur = [tot, out, mu]
             segs.append(cur)
         elif tot >= cur[0]:
-            cur[0], cur[1] = tot, out
+            cur[0], cur[1], cur[2] = tot, out, mu
     return segs
 
 
@@ -157,7 +158,37 @@ kinds = {
     "cache read": tot["read"],
     "cache write": tot["write"],
     "input": tot["input"],
-    "output (visible + hidden)": tot["output_visible"] + per_turn * tot["turns"],
+    "output, plus hidden output and uncached input": tot["output_visible"] + per_turn * tot["turns"],
 }
-print("estimate by kind:", {k: f"${v:.0f} ({v / est:.0%})" for k, v in kinds.items()})
-by_kind = defaultdict(float)
+print(
+    "transcript-priced estimate by kind (uncached input is absent from transcripts):",
+    {k: f"${v:.0f} ({v / est:.0%})" for k, v in kinds.items()},
+)
+
+# token-kind split of the per-process records, each model at its own list prices (cache writes at the 1-hour price,
+# since 99.6 % of writes were 1-hour; Haiku at its <=100k-prompt prices, ASSUMED for its short side calls)
+FIELDS = (
+    ("input", "inputTokens", 0),
+    ("cache write", "cacheCreationInputTokens", 2),
+    ("cache read", "cacheReadInputTokens", 3),
+    ("output", "outputTokens", 4),
+)
+split = defaultdict(float)
+for _, _, segs, _ in rows:
+    for seg in segs:
+        for model, u in seg[2].items():
+            fam = family(model)
+            if "opus-5-5" in model:
+                for kind, key, i in FIELDS:
+                    split[kind] += u.get(key, 0) * PRICE["opus"][i] / 1e6
+            elif fam == "haiku":
+                split["Haiku 5.5 side calls"] += sum(u.get(key, 0) * PRICE["haiku"][i] for _, key, i in FIELDS) / 1e6
+            else:
+                split["other models (record costUSD)"] += u.get("costUSD", 0)
+tot_split = sum(split.values())
+print(
+    "per-process records by kind, each model at its list prices:",
+    {k: f"${v:.0f} ({v / tot_split:.1%})" for k, v in split.items()},
+)
+opus_out = sum(seg[1] for _, _, segs, _ in rows for seg in segs)
+print(f"Opus 5.5 output tokens in the per-process records: {opus_out / 1e6:.1f} M")

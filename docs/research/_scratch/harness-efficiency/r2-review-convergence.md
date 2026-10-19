@@ -113,7 +113,7 @@ rounds did not prevent escapes.** VERIFIED (`misses`, an SZZ-style blame, plus m
 - Confident escapes from reviewed PRs, with the bug filed after the merge: 9 of 141 (6 %, CI 3-12 %); 13 of 141 (9 %)
   if all the UI and model-wrapper candidates count (four more PRs).
   - repo-E: per-PR detail is omitted because the repository is private (`misses` prints it). By kind: same-class
-    defects past three reviewed safety gates, grading and parsing errors found on live runs, an infrastructure
+    defects past three reviewed safety gates, scoring and parsing errors found on live runs, an infrastructure
     batch limit found by an eval, an event-loop bug from a playtest, and seven layout defects from a visual review.
   - agent-harness #171 (2 code rounds): #179, #180 and #215 (licence-gate bugs found in later use).
 - Not counted: #687 was filed during review and deferred, which is a known gap rather than a miss. Bugs in the initial
