@@ -1115,7 +1115,34 @@ LIT_ALLOWED_CMDS = [
     "git commit -m 'hook: deny wget http://export.arxiv.org/api/query'",
     "echo https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=x",
     "curl -s https://xapi.openalex.org/works",
+    # review of PR #285: a deny URL elsewhere in the command does not make an unrelated `$` fetch a literature call
+    "cat > notes.md <<'E'\nUse dev lit, not https://api.openalex.org/works\nE\ncurl -sI \"https://doi.org/$DOI\"",
+    'git commit -m "see https://api.openalex.org/works" && curl -s "$GH_API/repos"',
+    'for i in 1 2; do curl -s "https://example.com/$i"; done; echo api.crossref.org/works',
+    # the URL is matched at the start of an argument, not inside a request body
+    'curl -s https://api.github.com/repos/a/b/issues -d \'{"body": "see https://api.openalex.org/works"}\'',
+    'u="https://doi.org/10.1/x"; curl -s "$u"; echo https://api.crossref.org/works',
 ]
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        "export u=https://api.crossref.org/works/10.1/x; curl -s $u",
+        'for w in W1 W2; do u="https://api.openalex.org/works/$w"; curl -s "${u}?select=id"; done',
+        "WGET=1 wget -qO- --url=https://api.openalex.org/works",
+    ],
+)
+def test_guard_bash_denies_a_fetch_of_a_variable_set_to_a_literature_api(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}})
+    assert code == 2 and "uv run dev lit" in err, cmd
+
+
+@pytest.mark.parametrize("url", ["HTTPS://API.OPENALEX.ORG/works", "https://Export.ArXiv.org/api/query?id_list=1"])
+def test_literature_api_hosts_match_in_any_case(hook, url):
+    webfetch = {"tool_name": "WebFetch", "tool_input": {"url": url, "prompt": "x"}}
+    assert hook("guard_bash.py", webfetch)[0] == 2
+    assert hook("guard_bash.py", {"tool_input": {"command": f"curl -s {url}"}})[0] == 2
 
 
 @pytest.mark.parametrize("url", LIT_ALLOWED_URLS)
