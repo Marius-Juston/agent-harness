@@ -30,7 +30,7 @@ NOTE_TEMPLATE = """# Research: {title}
 
 Status: v0 ({date}). Issue: #{issue}
 Labels: SOURCED = cited and fetched; VERIFIED = measured in this repo (script named); BELIEVED = judgment; ASSUMED = unchecked premise.
-Search coverage: (sources `uv run dev lit status` showed up, and any that were down, with the date)
+Search coverage: (the `discovery` line `uv run dev lit search` printed first, with any sources down and the date)
 Companions: (closest notes from INDEX.md)
 
 ## 0. Findings in one paragraph
@@ -451,7 +451,15 @@ def run_lit(a: argparse.Namespace) -> int:
     try:
         if a.sub == "search":
             sources, fallback = lit.plan(a.source)
-            papers, notes = lit.client().search(a.query, sources, a.n, a.years, fallback=fallback, also=tuple(a.also))
+            c = lit.client()
+            papers, notes, health = c.search_coverage(
+                a.query, sources, a.n, a.years, fallback=fallback, also=tuple(a.also)
+            )
+            print(lit.coverage_line(health, c.clock()))
+            print(lit.render(papers, notes, a.snippet))
+            if lit.degraded(health) or not any(h.ok for h in health):
+                return 1
+            return 0 if papers or not notes else 1
         elif a.sub in lit.CHASE:
             papers, notes = lit.client().chase(a.id, a.sub, a.n, a.years)
         else:

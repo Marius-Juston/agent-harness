@@ -103,11 +103,12 @@ def test_the_new_note_template_has_a_search_coverage_line():
     assert "\nSearch coverage: " in cli.NOTE_TEMPLATE
 
 
-def test_research_skill_researcher_and_template_require_lit_status_and_coverage():
+def test_research_skill_researcher_and_template_require_discovery_check_and_coverage():
+    """The discovery check moved from a separate `dev lit status` call into `dev lit search`'s first line (#266)."""
     from devkit.paths import root
 
     plugin = root() / "plugins/harness-ops"
     for rel in ("skills/research/SKILL.md", "agents/researcher.md"):
         text = (plugin / rel).read_text()
-        assert "uv run dev lit status" in text and "Search coverage" in text, rel
+        assert "uv run dev lit search" in text and "DEGRADED" in text and "Search coverage" in text, rel
     assert "Search coverage" in (root() / "template/docs/research/README.md").read_text()

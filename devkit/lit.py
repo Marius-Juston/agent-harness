@@ -24,7 +24,8 @@ fell back to weaker sources. Every call here goes through one client:
 - `refs` and `cited-by`: backward and forward citation chasing (snowballing) through OpenAlex filters (#193);
 - `dev lit status`: each source's health from a live probe; OK while at least one default source answers (partial
   names the ones down), DEGRADED and exit 1 only when all are down, so a research round never starts on the weaker
-  fallbacks alone without knowing it (#8, #23).
+  fallbacks alone without knowing it (#8, #23). `dev lit search` prints the same verdict for the sources it asked
+  as its first line and exits 1 on DEGRADED, so no separate status call is needed (#266).
 
 stdlib only: pyalex and semanticscholar each cover one API and retry in-process, which does not share a rate limit
 or a cache across processes, the part that failed.
@@ -714,7 +715,23 @@ class Client:
         fallback: tuple[str, ...] = (),
         also: tuple[str, ...] = (),
     ):
-        """(papers merged across sources in rank order, alternating sources, at most n; notes on failed sources).
+        """(papers, notes) of search_coverage."""
+        papers, notes, _ = self.search_coverage(query, sources, n, years, fallback=fallback, also=also)
+        return papers, notes
+
+    def search_coverage(
+        self,
+        query: str,
+        sources: tuple[str, ...] = DEFAULT_SOURCES,
+        n: int = DEFAULT_N,
+        years: str = "",
+        *,
+        fallback: tuple[str, ...] = (),
+        also: tuple[str, ...] = (),
+    ) -> tuple[list[Paper], list[str], list["Health"]]:
+        """(papers merged across sources in rank order, alternating sources, at most n; notes on failed sources;
+        the Health of each source asked: ok when it answered any query, so `dev lit search` can print the coverage
+        header that `dev lit status` probed for separately, #266).
 
         Each `also` paraphrase is searched too (#194, as `dev reuse --also`: paraphrases doubled package recall in
         #169); every (query, source) list takes its turn at each rank, so a paper several of them find is listed
@@ -724,7 +741,9 @@ class Client:
         queries = list(dict.fromkeys((query, *also)))
         merged: dict[str, Paper] = {}
         notes: list[str] = []
-        ranked = [r for q in queries for src in sources if (r := self._ranked(src, q, n, years, notes)) is not None]
+        answers = [(src, self._ranked(src, q, n, years, notes)) for q in queries for src in sources]
+        ranked = [r for _, r in answers if r is not None]
+        health = {src: Health(src, False, "no answer") for src in sources}
         for i in range(max(map(len, ranked), default=0)):
             for papers in ranked:
                 if i < len(papers):
@@ -734,15 +753,24 @@ class Client:
             if len(merged) >= n:
                 break
             before = len(merged)
-            for p in (p for q in queries if len(merged) < n for p in self._ranked(src, q, n, years, notes) or []):
+            health[src] = Health(src, False, "no answer")
+            for q in queries:
                 if len(merged) >= n:
                     break
-                _merge(merged, p)
+                got = self._ranked(src, q, n, years, notes)
+                answers.append((src, got))
+                for p in got or []:
+                    if len(merged) >= n:
+                        break
+                    _merge(merged, p)
             if len(merged) > before:
                 answered.append(f"{src} ({len(merged) - before})")
         if answered:
             notes.append("fallback: answered by " + ", ".join(answered))
-        return list(merged.values())[:n], notes
+        for src, got in answers:
+            if got is not None:
+                health[src] = Health(src, True, "ok")
+        return list(merged.values())[:n], notes, list(health.values())
 
     def _ranked(self, src: str, query: str, n: int, years: str, notes: list[str]) -> list[Paper] | None:
         """One source's papers in its rank order, or None (with a note) when it failed."""
@@ -913,18 +941,26 @@ def degraded(health: list[Health]) -> bool:
     return bool(defaults) and not any(h.ok for h in defaults)
 
 
-def render_status(health: list[Health]) -> str:
-    lines = [f"{h.source:<10} {'ok  ' if h.ok else 'DOWN'}  {h.detail}" for h in health]
+def discovery(health: list[Health]) -> str:
+    """The verdict after `discovery:`: DEGRADED, OK, partial or OK, naming the sources down and those that answered."""
     answered = ", ".join(h.source for h in health if h.ok) or "none"
     if degraded(health):
-        lines.append(
-            f"discovery: DEGRADED ({', '.join(down(health))} down): do not start a research round; wait and re-run"
-        )
-    elif bad := down(health):
-        lines.append(f"discovery: OK, partial ({', '.join(bad)} down; {answered} answered)")
-    else:
-        lines.append(f"discovery: OK ({answered} answered)")
-    return "\n".join(lines)
+        return f"DEGRADED ({', '.join(down(health))} down; {answered} answered): do not start a research round; wait and re-run"
+    if not any(h.ok for h in health):  # only an explicit --source list without a default source gets here
+        return f"no answer ({', '.join(h.source for h in health)} down)"
+    if bad := down(health):
+        return f"OK, partial ({', '.join(bad)} down; {answered} answered)"
+    return f"OK ({answered} answered)"
+
+
+def render_status(health: list[Health]) -> str:
+    lines = [f"{h.source:<10} {'ok  ' if h.ok else 'DOWN'}  {h.detail}" for h in health]
+    return "\n".join([*lines, "discovery: " + discovery(health)])
+
+
+def coverage_line(health: list[Health], now: float) -> str:
+    """`dev lit search`'s first line, dated so a researcher copies it into the note's `Search coverage:` (#266)."""
+    return f"discovery {time.strftime('%Y-%m-%d', time.gmtime(now))}: {discovery(health)}"
 
 
 def plan(spec: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
