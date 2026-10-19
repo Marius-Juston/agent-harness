@@ -139,7 +139,9 @@ def test_the_lead_skill_dispatch_escalates_effort_in_order():
     dispatch = body.split("## 4. Dispatch", 1)[1].split("\n## ", 1)[0]
     rungs = [dispatch.find(s) for s in ("`high`", "`xhigh`", "`model: fable`")]
     assert -1 not in rungs and rungs == sorted(rungs), rungs
-    assert "gate failure" in dispatch and "board beat" in dispatch
+    # a resume keeps the old effort, so escalation is a respawn; the log covers the first dispatch too
+    assert "gate failure" in dispatch and "respawn one level up" in dispatch
+    assert "Log every dispatch: `board beat" in dispatch
 
 
 def test_the_lead_skill_preloads_dev_status_without_aborting():
