@@ -18,7 +18,24 @@ from hypothesis import strategies as st
 
 from devkit import board, gate, workflow
 
-REAL_BOUNDED_RUN = workflow.bounded_run
+REAL_POPEN = subprocess.Popen
+
+
+class FinishedGate:
+    """A Popen stand-in for the gate integrate starts, already exited with `code`. No real process: Popen.wait polls
+    with time.sleep, which the fake clocks below record."""
+
+    def __init__(self, code):
+        self.code, self.pid = code, -1
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def wait(self, timeout=None):
+        return self.code
 
 
 def _sh(cwd, *args):
@@ -440,6 +457,8 @@ def fake_integrate(monkeypatch, tmp_path):
 
     def git(*args, cwd=None, check=True):
         ev.append(("git", *args))
+        if args[:2] == ("worktree", "add"):
+            Path(args[3]).mkdir(parents=True, exist_ok=True)  # the gate process starts in it
         if args[0] == "rev-parse":
             return world["tip"] if args[1] == "HEAD" else world["fetched_head"] if "pr-" in args[1] else MAIN
         if args[0] == "--version":
@@ -502,7 +521,7 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(workflow, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
     workflow.config.get()  # resolve this repository's config with the real git, before subprocess.run is faked
     monkeypatch.setattr(workflow.subprocess, "run", run)
-    monkeypatch.setattr(workflow, "bounded_run", lambda cmd, timeout_s, **kw: run(cmd, **kw).returncode)
+    monkeypatch.setattr(workflow.subprocess, "Popen", lambda cmd, **kw: FinishedGate(run(cmd, **kw).returncode))
     return world
 
 
@@ -1320,8 +1339,7 @@ def _alive(pid):
 def test_integrate_stops_when_the_gate_runs_past_its_deadline(fake_integrate, monkeypatch, capsys):
     """#43: a hung gate is killed at `gate_deadline_s` and integrate ends `stopped`, never merging."""
     monkeypatch.setattr(workflow.config, "get", lambda: workflow.config.Config(gate_deadline_s=1))
-    # the real bounded_run, minus the cwd: the faked git never creates the merged worktree
-    monkeypatch.setattr(workflow, "bounded_run", lambda cmd, timeout_s, cwd: REAL_BOUNDED_RUN(cmd, timeout_s))
+    monkeypatch.setattr(workflow.subprocess, "Popen", REAL_POPEN)  # a real process, sleeping past the deadline
     monkeypatch.setattr(workflow, "GATE", [sys.executable, "-c", "import time; time.sleep(60)"])
     started = time.monotonic()
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
