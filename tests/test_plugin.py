@@ -173,3 +173,41 @@ def test_the_builder_sends_the_pr_body_as_a_heredoc_with_nothing_piped_after_it(
     finish = body.split("## Finish", 1)[1]
     assert "--summary - <<'EOF'" in finish and "nothing piped after" in finish
     assert "`| tail` makes worktree isolation refuse the call" in finish
+
+
+TAGS = ("Blocking", "Nit", "Pre-existing", "Follow-up")
+
+
+@pytest.mark.parametrize("agent", ["reviewer", "research-auditor"])
+def test_review_agents_tag_every_finding_and_only_blocking_sends_back(agent):
+    """#260: report every finding, tagged, because a "report only high severity" prompt makes the model report less;
+    only Blocking returns the PR, so nits stop costing fix resumes and confirmation rounds (harness-efficiency.md §4,
+    change 5)."""
+    _, body = frontmatter.read(PLUGIN / "agents" / f"{agent}.md")
+    assert all(f"**{t}**" in body for t in TAGS)
+    assert "Report every finding" in body and "only report" not in body.lower()
+    assert "Only **Blocking** findings send" in body and "At most 3 **Nit**" in body
+    assert "no confirmation round" in body
+    # a re-review reads what changed, not the whole PR again; the builder's map says which push fixed what
+    assert "since the last reviewed SHA" in body and "fix-to-finding map" in body
+    # round 3 still blocked: question the approach instead of another fix list
+    assert "From round 3" in body and "**reconsider the approach**" in body
+
+
+def test_the_reviewer_re_review_follows_the_changed_symbols():
+    _, body = frontmatter.read(PLUGIN / "agents/reviewer.md")
+    line = body.split("since the last reviewed SHA", 1)[1].split("\n", 1)[0]
+    assert "`uv run dev code refs`" in line
+
+
+def test_the_lead_skill_carries_the_review_verdict_contract():
+    """#260: the lead acts on the tags, skips confirmation rounds after nit-only fixes (security re-reviews any code
+    change), and escalates after round 3 instead of merging an open blocker."""
+    _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
+    loop = body.split("## 2. Close the loop first", 1)[1].split("\n## ", 1)[0]
+    assert all(t in loop for t in TAGS)
+    assert "Only Blocking findings return the PR" in loop and "at most 3 Nits" in loop
+    assert "fix-to-finding map" in loop and "last reviewed SHA" in loop
+    assert "no confirmation round" in loop and "security re-reviews any code change" in loop
+    assert "file the rest as issues" in loop
+    assert "reconsider the approach" in loop and "never merge with an open Blocking finding" in loop
