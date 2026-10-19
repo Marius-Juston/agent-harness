@@ -27,7 +27,7 @@ CHECKS = {
     "pointer check recall": (5, 8),
     # version skew (r1-platform-and-skew F2, F3)
     "harness-ops subagents running a body older than the pin": (305, 491),
-    "builder spawns without the completion gate": (92, 96),
+    "builder spawns after the v0.1.5 pin without the completion gate (skew_impact --reloaded)": (108, 112),
     "uv add calls without the reuse guard": (27, 29),
     # prose (r1-prose-vs-behaviour F1, F2, F5, F9)
     "L3 instruction-file claims co-fixed": (16, 17),
@@ -51,6 +51,15 @@ for name, (a, b) in CHECKS.items():
 # skew window: the four pinned-ahead intervals sum to the reported 162.4 h
 legs = [1.5, 9.8, 39.5, 111.6]
 print(f"pinned-ahead hours: {' + '.join(map(str, legs))} = {sum(legs):.1f}")
+# window close (auditor, PR #303): v0.1.5 pin 2026-10-13T04:23:15Z to the 2026-10-19T23:13:45Z install record
+from datetime import datetime  # noqa: E402
+
+h = (
+    datetime.fromisoformat("2026-10-19T23:13:45+00:00") - datetime.fromisoformat("2026-10-13T04:23:15+00:00")
+).total_seconds() / 3600
+print(
+    f"skew window to the update: {h:.2f} h; last leg {h - sum(legs[:3]):.2f} h; with the 37.2 h in sync: {h + 37.2:.1f} h"
+)
 # Claude Code release cadence (r1-outside F7): 155 versions in six months; r1-platform F8: 18 versions in 44 days
 print(f"versions per month (155 / 6): {155 / 6:.1f}; versions per day (18 / 44): {18 / 44:.2f}")
 # memory sweep cost per entry (r1-memory F6) and LLM prose sweep cost per doc (r1-prose F5)

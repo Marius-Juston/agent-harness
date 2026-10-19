@@ -67,7 +67,9 @@ subagents in repo-E's transcripts matched one body.
 - Exposure in the window ([skew_impact.py](scripts/skew_impact.py)):
   - 29 `uv add` calls after the v0.1.7 pin. 27 of them ran without the reuse-gate hook (the other 2 ran during the
     0.1.7 reload window, F4).
-  - 96 builder spawns after the v0.1.5 pin. 92 of them ran without the completion gate.
+  - Corrected after the PR #303 audit (`skew_impact.py --reloaded`, window to 2026-10-19 23:13 UTC): 112 builder spawns
+    after the v0.1.5 pin, 108 of them without the completion gate; the 4 others ran after a reload. The original
+    "92 of 96" was the count after the v0.1.7 pin.
   - 0 Workflow calls, so the workflow quota-gate bypass had no exposure.
 - The v0.1.9 headline fix, a machine-local quota cap, still worked through 0.1.4. The v0.1.9 devkit rewrites
   `usage.json` with the effective cap, and the 0.1.4 hook reads that file. Today's reading carries `cap: 50`, equal to
@@ -106,7 +108,7 @@ BELIEVED).**
     `/plugin marketplace update` or `claude plugin update`, and "a user gets a new copy of a plugin only when its
     computed version changes". The computed version is the manifest `version` first.
   - Docs say a declared marketplace "whose source changed in settings" is re-fetched. repo-E changed the declared
-    `ref` five times after 2026-10-13, but the checkout's `lastUpdated` stayed at 2026-10-14 04:04 UTC. A ref change did
+    `ref` four times after 2026-10-13 (v0.1.5, v0.1.6, v0.1.7, v0.1.9; corrected after the PR #303 audit), but the checkout's `lastUpdated` stayed at 2026-10-14 04:04 UTC. A ref change did
     not trigger a re-fetch here (VERIFIED observation; BELIEVED that ref is not compared).
 - **Detection failed for 162 h (VERIFIED).**
   - `staleness()` in [setup.py](../../../../devkit/setup.py) has warned "plugin X installed V, pinned P -> claude plugin

@@ -17,7 +17,8 @@ Method ([r1_claims_replay.py](scripts/r1_claims_replay.py)). A *claim* is a back
 **F2. Specs and design docs are where code-level drift accumulates. They are fixed late, in bulk, by deleting them (VERIFIED, [r1_score.py](scripts/r1_score.py), [r1_snapshots.py](scripts/r1_snapshots.py)).**
 - In L3, specs were co-fixed for only 21 of 105 invalidated claims (20%), against 94% for instruction files.
 - 31 of 41 spec break episodes were true drift. The mechanical stale share of L3 spec claims peaked at 17.4% of 484 claims on 2026-07-26. For claims older than 30 days it reached 13.8% of 943, against 3.6% for younger ones (2026-08-09).
-- Of the 52 true L3 episodes, 34 were fixed after a median of 90.7 days (p25 70.6, p75 105.1; median 63 merges). 33 of the 34 fixes were agent-made commits, and 31 of them came from one agent-written commit on 2026-10-18 that deleted every shipped spec and plan (19,127 lines removed, 2,650 added). It replaced them with one feature map and a schema snapshot read from the production database. 31 of the 34 fixes deleted the doc rather than correcting it. No check prompted the commit, and its message names no trigger (how it was noticed is not recorded).
+- Of the 52 true L3 episodes (all doc types: 31 spec, 10 docstring, 10 vendored from one copy event, 1 other), 34 were fixed after a median of 90.7 days (p25 70.6, p75 105.1; median 63 merges). 33 of the 34 fixes were agent-made commits, and 31 of them came from one agent-written commit on 2026-10-18 that deleted every shipped spec and plan (19,127 lines removed, 2,650 added). It replaced them with one feature map and a schema snapshot read from the production database. 31 of the 34 fixes deleted the doc rather than correcting it. No check prompted the commit, and its message names no trigger (how it was noticed is not recorded).
+- Replay point (added after the PR #303 audit): L3 was replayed at commit `ab79ea29a1`, which is now on no branch. The auditor's rerun on current branches gives T = 51 true episodes and a median of 83.7 days to fix.
 - L3's own instruction file already had a lifecycle rule to delete a spec when its slice ships. The specs drifted for about 3 months anyway, until the bulk deletion.
 - In L1, true drift was 3 episodes in 623 merges: 2 in docs, 1 in a docstring. One was fixed in the next merge by an agent; 2 are still open after 0.7 and 9.7 days.
 
@@ -111,7 +112,7 @@ Method ([r1_claims_replay.py](scripts/r1_claims_replay.py)). A *claim* is a back
 - Only one model (Sonnet 5.5) and one prompt were tried for the sweep. Haiku cost and precision were not measured, and repeated runs (variance) were not either.
 - Silent misuse of stale prose by agents is not measurable from tool errors. A planted-stale-claim experiment would measure it.
 - L3's main contributor works on another machine, so most L3 sessions (and the trigger for the 2026-10-18 rewrite) are not in local transcripts.
-- Docstring drift in Python repositories (L1, E, H) was replayed, but only L3's Swift comments showed long-lived cases.
+- Docstring drift in Python repositories (L1, E, H) was replayed, but only L3's app-code comments showed long-lived cases.
 
 ## Sources fetched
 - Tan, Wagner and Treude, [Detecting outdated code element references in software repository documentation](https://doi.org/10.1007/s10664-023-10397-6), EMSE 2023 (abstract): most of over 3,000 GitHub projects held an outdated code element reference at some point. SOURCED.
