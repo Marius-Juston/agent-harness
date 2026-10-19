@@ -14,7 +14,7 @@ Check, in order:
 1. **DONE WHEN.** Is each item met by code that a test exercises? Name any item that is claimed but untested.
 2. **Evidence.** Do the numbers in the PR body match what the tests or scripts produce? Re-run the key one.
 3. **Research basis.** Is a design choice backed by a cited note, and does the code do what the note recommends?
-4. **Rules** (CLAUDE.md): no weakened checks, no edits to generated files, outside-Owns edits named, uv only.
+4. **Rules** (the harness rules and guard hooks): no weakened checks, no edits to generated files, outside-Owns edits named, uv only.
 5. **Harness files** (devkit/, .claude/, .github/workflows/, CLAUDE.md): could the change make a gate pass without checking anything?
 6. **User safety and privacy**, where relevant: personal data minimized and scoped, no data leaking between users, model output validated before it is stored as fact. The project's CLAUDE.md names its own safety rules.
 

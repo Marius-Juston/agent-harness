@@ -12,6 +12,7 @@ context = 600    # CLAUDE.md/AGENTS.md plus the files they @-import: loaded into
                  # a rule with `paths:` has its own budget of this kind. A .claude/commands/ file: kind skill.)
 
 [words]
+"template/.devkit/HARNESS.md.jinja" = 320   # loads into every agent of every project; tests/test_template.py checks it
 
 # [[raise]]
 # key = "words..claude/agents/builder.md"   # "<section>.<key>"
