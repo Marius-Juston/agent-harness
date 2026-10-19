@@ -5,7 +5,7 @@ model: opus
 maxTurns: 250
 color: cyan
 effort: high  # judged for Opus 5.5 on 2026-10-19 (harness-efficiency.md §3)
-disallowedTools: Agent
+disallowedTools: Agent, Artifact, Skill
 experimental:
   cacheTtl: 1h
 ---

@@ -173,3 +173,20 @@ def test_the_builder_sends_the_pr_body_as_a_heredoc_with_nothing_piped_after_it(
     finish = body.split("## Finish", 1)[1]
     assert "--summary - <<'EOF'" in finish and "nothing piped after" in finish
     assert "`| tail` makes worktree isolation refuse the call" in finish
+
+
+# #256: a tool schema is re-read on every call whether the agent uses it or not (harness-efficiency.md, change 1).
+# In 410 worker runs Artifact was called 4 times, Skill 3 and Agent never. The builder keeps Skill because HARNESS.md
+# sends harness-file work through the harness skill.
+WITHHELD = {
+    "builder": {"Agent", "Artifact"},
+    "researcher": {"Agent", "Artifact", "Skill"},
+    "tester": {"Agent", "Artifact", "Skill"},
+}
+
+
+@pytest.mark.parametrize("agent", sorted(WITHHELD))
+def test_the_workers_withhold_the_tools_they_never_call(agent):
+    meta, _ = frontmatter.read(PLUGIN / f"agents/{agent}.md")
+    assert "tools" not in meta  # an allowlist would also drop the MCP tools researchers use; trim the pool instead
+    assert {t.strip() for t in str(meta["disallowedTools"]).split(",")} == WITHHELD[agent]

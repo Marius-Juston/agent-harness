@@ -329,6 +329,13 @@ def test_the_settings_compact_near_400k(rendered):
     assert "`autoCompactWindow`" in lead  # the lead knows when compaction comes and keeps HANDOFF ahead of it
 
 
+def test_the_settings_turn_the_artifact_tool_off(rendered):
+    # #256: the Artifact schema is ~12.9k tokens of every call and workers called it 4 times in 410 runs
+    # (harness-efficiency.md, change 1). `false` in any settings file turns it off and no file turns it back on, so
+    # the lead loses it too; the workers also withhold it in their frontmatter (tests/test_plugin.py).
+    assert json.loads((rendered / ".claude/settings.json").read_text())["enableArtifact"] is False
+
+
 def test_the_settings_allow_the_read_only_board_commands(rendered):
     allow = json.loads((rendered / ".claude/settings.json").read_text())["permissions"]["allow"]
     for rule in (
