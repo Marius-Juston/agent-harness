@@ -2,6 +2,7 @@
 The PR summary's `Reuse:` line (#173), which the completion gate checks."""
 
 import io
+import json
 import subprocess
 from types import SimpleNamespace
 
@@ -80,6 +81,36 @@ def test_empty_stdin_is_refused_before_anything_is_pushed(opened, monkeypatch):
     with pytest.raises(board.BoardError, match="stdin"):
         workflow.pr(33, "-", draft=False)
     assert opened == []
+
+
+@pytest.mark.parametrize(
+    ("body", "log"),
+    [
+        (f"Closes #33\n\nsee https://{workflow.SESSION_URL}_1\n", ""),
+        ("Closes #33\n\nfine\n", f"fix x\n\nCo-Authored-By: C <c@x>\nClaude-Session: https://{workflow.SESSION_URL}\n"),
+    ],
+)
+def test_dev_pr_refuses_a_session_leak_in_a_public_repo(opened, monkeypatch, body, log):
+    """#292, owner rule 2026-10-05: no session URL or Claude-Session trailer in a public repo's PR or commits."""
+    pushed, seen = [], ["PUBLIC"]
+    monkeypatch.setattr(
+        workflow, "git", lambda *a: "33-x" if a[0] == "branch" else log if a[0] == "log" else pushed.append(a) or ""
+    )
+    monkeypatch.setattr(workflow.checks, "merge_base", lambda: "base")
+    create = board.gh
+    monkeypatch.setattr(
+        board,
+        "gh",
+        lambda *a, **k: json.dumps({"visibility": seen[0]}) if a[:2] == ("repo", "view") else create(*a, **k),
+    )
+    monkeypatch.setattr("sys.stdin", io.StringIO(body))
+    with pytest.raises(board.BoardError, match="public"):
+        workflow.pr(33, "-", draft=False)
+    assert opened == [] and not [a for a in pushed if a[0] == "push"]
+    seen[0] = "PRIVATE"
+    monkeypatch.setattr("sys.stdin", io.StringIO(body))
+    workflow.pr(33, "-", draft=False)
+    assert opened == [body]
 
 
 def test_summary_file_still_works(opened, tmp_path):

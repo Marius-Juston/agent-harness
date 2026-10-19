@@ -396,6 +396,9 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
         raise board.BoardError("--partial, but the summary starts with 'Closes #N': write 'Refs #N' or drop --partial")
     if not re.match(r"(Closes|Refs) #\d+", body):
         body = f"{'Refs' if partial else 'Closes'} #{number}\n\n{body}"
+    commits = git("log", "--format=%B", f"{base}..HEAD") if (base := checks.merge_base()) else ""
+    if (leaks := session_leaks(**{"PR body": body, "branch commit messages": commits})) and repo_public():
+        raise board.BoardError(f"{SESSION_RULE}: the {' and '.join(leaks)} carry one; remove it and rerun")
     git("push", "-u", "origin", branch)
     args = [
         "pr",
@@ -421,6 +424,40 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
     board.set_status(number, "review")
     ref = re.match(r"(Closes|Refs) #\d+", body)
     return f"{url}\n#{number} status:review, {ref.group(0) if ref else ''}"
+
+
+# Owner rule (2026-10-05): a public repository never gets a session link or trailer in a commit, PR or comment.
+# Assembled from pieces: the scrub test bans the literal link from this public repository.
+SESSION_URL = "claude.ai/code/" + "session"
+SESSION_LEAK = re.compile(rf"{re.escape(SESSION_URL)}|^[ \t]*Claude-Session[ \t]*:", re.I | re.M)
+SESSION_RULE = f"this repository is public: no {SESSION_URL} URL or Claude-Session trailer"
+
+
+def session_leaks(**texts: str | None) -> list[str]:
+    """The names of `texts` that carry a session URL (SESSION_URL) or a Claude-Session trailer."""
+    return [name for name, text in texts.items() if SESSION_LEAK.search(text or "")]
+
+
+def repo_public() -> bool:
+    """Whether GitHub may show this repository to anyone. Fails closed: only a visibility read as PRIVATE or
+    INTERNAL is not public."""
+    try:
+        seen = json.loads(board.gh("repo", "view", board.repo(), "--json", "visibility")).get("visibility")
+    except (board.BoardError, ValueError, AttributeError):
+        return True
+    return seen not in ("PRIVATE", "INTERNAL")
+
+
+def squash_message(pr_number: int, info: dict, review: int | None = None) -> tuple[str, str]:
+    """(subject, body) of the squash commit: the PR title and body, never the branch's commit messages (GitHub's
+    COMMIT_MESSAGES default would copy them and their trailers onto main). `review` appends the
+    `Consolidation-Review: #<review>` trailer as the body's last paragraph, where `consolidation.last_review` reads
+    it."""
+    subject = f"{(info.get('title') or '').strip()} (#{pr_number})".strip()
+    body = (info.get("body") or "").strip()
+    if review:
+        body = f"{body}\n\n{consolidation.REVIEW_TRAILER} #{review}".strip()
+    return subject, body
 
 
 PR_FIELDS = (
@@ -724,21 +761,24 @@ def _remote_shas(pr_number: int) -> tuple[str, str]:
 
 
 def _merge_if_unchanged(
-    pr_number: int, head: str, main: str, dry_run: bool = False, review: int | None = None
+    pr_number: int, head: str, main: str, dry_run: bool = False, review: int | None = None, info: dict | None = None
 ) -> str | None:
-    """Merge only what was gated: the head is pinned by --match-head-commit, main is re-read just before. Returns the
-    reason for not merging, or None. `review`: the merge commit carries `Consolidation-Review: #<review>`, the
-    first-parent trailer that resets the consolidation trigger (only the lead writes it, through integrate)."""
+    """Squash-merge only what was gated: the head is pinned by --match-head-commit, main is re-read just before.
+    Returns the reason for not merging, or None. The commit is `squash_message` of `info` (the PR as last read);
+    `review` adds `Consolidation-Review: #<review>`, the first-parent trailer that resets the consolidation trigger
+    (only the lead writes it, through integrate)."""
     now_head, now_main = _remote_shas(pr_number)
     if now_head != head:
         return f"the PR head moved during the gate ({head[:10]} -> {now_head[:10]}): rerun integrate"
     if now_main != main:
         return f"main moved during the gate ({main[:10]} -> {now_main[:10]}): rerun integrate"
+    subject, body = squash_message(pr_number, info or {}, review)
+    if session_leaks(**{"PR title": subject, "PR body": body}) and repo_public():
+        return f"{SESSION_RULE} in the squash commit: edit the PR title or body, then rerun integrate"
     if not dry_run:
-        trailer = ["--body", f"{consolidation.REVIEW_TRAILER} #{review}"] if review else []
         board.gh(
-            "pr", "merge", str(pr_number), "-R", board.repo(), "--merge", "--match-head-commit", head, "--delete-branch",
-            *trailer,
+            "pr", "merge", str(pr_number), "-R", board.repo(), "--squash", "--subject", subject, "--body", body,
+            "--match-head-commit", head, "--delete-branch",
         )  # fmt: skip
     return None
 
@@ -923,6 +963,10 @@ def _integrate(
     if reason := refusal(info):
         print(f"RESULT: refused: {reason}")
         return result(pr_number, 1, "refused", reason=reason)
+    if (leaks := session_leaks(**{"PR title": info.get("title"), "PR body": info.get("body")})) and repo_public():
+        reason = f"{SESSION_RULE}: the {' and '.join(leaks)} carry one; edit the PR, then rerun integrate"
+        print(f"RESULT: refused: {reason}")
+        return result(pr_number, 1, "refused", reason=reason)
     if override is not None and not override.strip():
         print("RESULT: refused: --override needs a reason")
         return result(pr_number, 1, "refused", reason="--override needs a reason")
@@ -1045,7 +1089,9 @@ def _integrate(
     elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update)) is not None:
         return code
     try:
-        reason = _merge_if_unchanged(pr_number, head if dry_run else tip, main, dry_run=dry_run, review=review)
+        reason = _merge_if_unchanged(
+            pr_number, head if dry_run else tip, main, dry_run=dry_run, review=review, info=state
+        )
     except board.BoardError as exc:  # e.g. branch protection waiting for checks on the update just pushed
         print(f"RESULT: stopped (GitHub refused the merge: {exc}); rerun integrate once its checks pass")
         return result(pr_number, 1, "stopped", reason=f"GitHub refused the merge: {exc}", **update)
