@@ -1,7 +1,7 @@
 """Review-loop convergence for #254 round 2 (r2-review-convergence.md).
 
 Usage:
-  python3 review_convergence.py fetch <cache_dir>                 # gh: merged PRs since SINCE, both repos
+  python3 review_convergence.py fetch <cache_dir>                 # gh: merged PRs in SINCE..UNTIL, both repos
   python3 review_convergence.py rounds <cache_dir> <project_dir>  # writes <cache_dir>/rounds.json, prints tables
   python3 review_convergence.py comments <cache_dir>              # round-1's comment count, replicated and widened
   python3 review_convergence.py classify <cache_dir>              # keyword flags, delta-only and minor-verdict stats
@@ -11,7 +11,7 @@ Usage:
   python3 review_convergence.py codes                             # hand-code tallies with Wilson 95 % intervals
 
 Sources:
-  - GitHub: every PR merged on/after SINCE in REPOS (comments, commits, files) via `gh pr view`.
+  - GitHub: every PR merged in SINCE..UNTIL in REPOS (comments, commits, files) via `gh pr view`.
   - Claude Code subagent transcripts (<project_dir>/*/subagents/*.jsonl + .meta.json) of the review agent types.
     A review agent is spawned once and resumed with SendMessage ("The coordinator sent a message ..."); a *round* is
     one segment that ends in a SubagentHandback (or, for agents without that tool, an end_turn text). A coordinator
@@ -29,7 +29,9 @@ from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 
 SINCE = "2026-10-11"
-# the consuming repository is private and named by code (repo-E); pass its GitHub name in REPO_E to rerun
+UNTIL = "2026-10-16"  # frozen window end (inclusive), so a rerun sees the same 188 + 73 PRs
+# the consuming repository is private and named by code (repo-E): to rerun, set REPO_E to its bare GitHub
+# repository name (no owner; OWNER below is prepended), e.g. REPO_E=<name> python3 review_convergence.py fetch <dir>
 REPO_E = os.environ.get("REPO_E", "repo-E")
 REPOS = [REPO_E, "agent-harness"]
 OWNER = "Marius-Juston"
@@ -87,7 +89,7 @@ def fetch(cache):
                 "--limit",
                 "500",
                 "--search",
-                f"merged:>={SINCE}",
+                f"merged:{SINCE}..{UNTIL}",
                 "--json",
                 "number",
             )
@@ -103,7 +105,7 @@ def fetch(cache):
     with ThreadPoolExecutor(6) as ex:
         list(ex.map(one, jobs))
     for repo in REPOS:
-        merged = ["--state", "merged", "--limit", "500", "--search", f"merged:>={SINCE}"]
+        merged = ["--state", "merged", "--limit", "500", "--search", f"merged:{SINCE}..{UNTIL}"]
         wtext(
             f"{cache}/merge_{repo}.json",
             gh("pr", "list", "-R", f"{OWNER}/{repo}", *merged, "--json", "number,mergeCommit"),

@@ -1,6 +1,6 @@
 # D. Four claude.dev posts: dynamic workflows, HTML outputs, prompt caching, tool design
 
-Reviewed 2026-10-19 for agent-harness (v0.1.9) and repo-E. The full text of all four posts was fetched: WebFetch only returned summaries, so the raw HTML was pulled with curl and the article text extracted (copies in `scratchpad/blog/raw/*.txt`). Figures are images, so only their captions were readable. Linked resources fetched in full: the Claude Code workflows docs, the Claude Code prompt-caching docs, the API prompt-caching docs (first 100k of 160k characters), the tool-search-tool docs, the anthropics/html-effectiveness repo, the "harnessing Claude's intelligence" blog and the "multi-agent: when and how" blog.
+Reviewed 2026-10-19 for agent-harness (v0.1.9) and repo-E. The full text of all four posts was fetched: WebFetch only returned summaries, so the raw HTML was pulled with curl and the article text extracted (copies in a local raw copy (not committed)). Figures are images, so only their captions were readable. Linked resources fetched in full: the Claude Code workflows docs, the Claude Code prompt-caching docs, the API prompt-caching docs (first 100k of 160k characters), the tool-search-tool docs, the anthropics/html-effectiveness repo, the "harnessing Claude's intelligence" blog and the "multi-agent: when and how" blog.
 **Not fetched**: X/Twitter threads (Jarred Sumner on the Bun rewrite, RLanceMartin, trq212 posts), the Opus 4.8 news page, the "AI code migration" blog, the support.claude.com Research and security-review articles, and agentskills.io.
 
 Harness facts used below were checked on disk:
@@ -119,7 +119,7 @@ Claude (Opus 4.8+) can now write a task-specific multi-agent harness: a JavaScri
    - Tie it to the word-budget ratchet: a new rule must displace text.
 4. **EFFECTIVENESS (user safety): quarantine for anything that ingests untrusted text.** The cases are repo-E intake packs, scraped curricula, and issue or PR comments relayed to agents.
    - Readers run with no write or network tools and emit structured `schema` JSON. The actor sees only that JSON.
-   - Also document that `ultracode` cannot be triggered by relayed PR comments or webhooks. This matches ADR 0003.
+   - Also document that `ultracode` cannot be triggered by relayed PR comments or webhooks.
 5. **TOKENS: set an explicit `workflowSizeGuideline` (small or medium) in harness settings.**
    - The lead can also tell agents not to run heavy commands (the post's tip). The harness already has a `spawn_guard` on `Agent|Workflow`, so add the guideline next to it.
    - Measure the agents per run in `/workflows` and the weekly quota burn.
@@ -347,7 +347,7 @@ For specs, plans, reviews and reports that humans must actually read, HTML beats
 
 ### Implications for agent-harness / repo-E
 1. **EFFECTIVENESS (owner in the loop): produce owner-facing outputs as HTML artifacts.** This covers the lead's HANDOFF summary, the research-note "decision brief", the review of security-labelled PRs, and the architect's consolidation proposal. The repository sources of truth stay Markdown, since the gates (cite-check, docs) parse them.
-   - Example: a PR-review page that renders the diff with severity-tagged margin notes for `review:security` PRs, which fits ADR 0003's strict review.
+   - Example: a PR-review page that renders the diff with severity-tagged margin notes for `review:security` PRs, which fits a strict review policy.
    - Measure: the owner's turnaround time on reviews, and how many review findings the owner catches.
 2. **EFFECTIVENESS: a board-triage editor that ends in "copy as prompt".**
    - The lead generates a Now/Next/Later/Cut board from `uv run dev board list`. The owner drags cards; the export is a list of `uv run dev board ...` commands or a prompt.
@@ -355,7 +355,7 @@ For specs, plans, reviews and reports that humans must actually read, HTML beats
 3. **TOKENS (caution): never route HTML into worker contexts.**
    - Agent-to-agent artifacts (briefs, hand-backs, research notes) must stay terse Markdown or JSON. HTML costs roughly 2–4× the tokens of equivalent Markdown (BELIEVED), and every token in a worker context is re-read about 100 times (section 2, implication 1).
    - Generate HTML only at the lead or owner boundary, ideally inside a subagent so the HTML never sits in the lead's cached context. The subagent writes the file and returns the path.
-4. **EFFECTIVENESS: the "fresh session plus spec files" pattern supports the harness's design.** One-line spawn prompts plus `board brief` are the same idea. Optionally attach a richer HTML plan for UI-heavy issues (staff or student UI in repo-E) and have the reviewer read it for verification.
+4. **EFFECTIVENESS: the "fresh session plus spec files" pattern supports the harness's design.** One-line spawn prompts plus `board brief` are the same idea. Optionally attach a richer HTML plan for UI-heavy issues (user-facing UI) and have the reviewer read it for verification.
 
 ---
 

@@ -36,8 +36,7 @@ security review of adversarial filters.** VERIFIED ([review_convergence.py](revi
   figure caption; a before/after comparison on internal PRs with no N or interval given). The definitions differ:
   their findings clear on their own when a later commit fixes them, while here a confirmation pass is a full agent
   round. So the comparison is only indicative.
-- The slow series cluster. The six longest (#351 with 12 security rounds; #358 with 7; #347, #463, #553 and #573
-  with 5 each) hold 33 of the 151 later rounds (22 %). Every one is a hand-written deny-list or parser gate in
+- The slow series cluster. The six longest (one with 12 security rounds, one with 7, four with 5 each) hold 33 of the 151 later rounds (22 %). Every one is a hand-written deny-list or parser gate in
   repo-E's safety or credential code (details of this private repository's security findings are redacted here because agent-harness is public; they are in the repo-E PRs). All 25 rounds after a third round
   were security rounds. Later code rounds were 18 (78 % pass) and later audit rounds were 32 (81 % pass).
 
@@ -49,8 +48,8 @@ the categories are hand-coded by one coder (`sample` prints the material, `codes
   were confirmations that found nothing blocking.
 - Hand-coding all 51 later rounds that did not pass (4 rounds that belonged to another PR excluded):
   - **introduced by the previous fix push: 22 (43 %, CI 31-57 %)**: regressions, new code added to satisfy a finding,
-    or one reviewer's requested fix breaking another reviewer's rule. Example: #701's code-review fix (a per-step
-    budget) removed the session time cap, which the security review then flagged.
+    or one reviewer's requested fix breaking another reviewer's rule. Example: a code-review fix removed a limit that
+    the security review then flagged.
   - missed earlier, same class: 13 (25 %, CI 16-39 %). Another instance of a class already flagged, or a partial fix.
     Examples: four rounds on one PR of the same validation gap, and repeated instances of one leak class on another
     (details of this private repository's security findings are redacted here because agent-harness is public; they are in the repo-E PRs).
@@ -62,9 +61,8 @@ the categories are hand-coded by one coder (`sample` prints the material, `codes
   SOURCED ([claude.dev](https://claude.dev/blog/solving-code-review-at-anthropic/)), does not carry over. Here the
   analogous share (missed earlier, either kind) is 37 %, and the largest group is fix-introduced bugs.
 - **Repeats:** none of the 51 rounds repeated a posted finding verbatim. Three re-flagged a finding whose fix was
-  partial, which is legitimate. Cross-reviewer duplicates happen: on #660 the code and security reviewers flagged
-  the same `distractor` gap. Class findings also do not travel to sibling PRs: #651 got "the same body-before-auth bug
-  the #650 review found".
+  partial, which is legitimate. Cross-reviewer duplicates happen: on one PR the code and security reviewers flagged
+  the same gap. Class findings also do not travel to sibling PRs: a class found on one PR recurred on its sibling.
 
 **F3. Over half of round-1 findings need not block, and almost none is something `dev check` already enforces.**
 Hand-coded, VERIFIED tallies (`codes`) on 60 random round-1 finding items (seed 11; codes listed under "Codes"):
@@ -79,7 +77,7 @@ Hand-coded, VERIFIED tallies (`codes`) on 60 random round-1 finding items (seed 
 
 Of the non-pass verdicts, 44 of 212 (21 %) say in their first lines that the fixes are small or do not block. A further
 round followed 31 of those. It passed 68 % of the time, but in about 4 of the 10 that did not pass it found a real
-problem (a fix-introduced hole on #553 and #660, a same-class gap on #358 and #385). Skipping re-review after "small
+problem (a fix-introduced hole on two PRs, a same-class gap on two others). Skipping re-review after "small
 fixes" is therefore not free for security review. VERIFIED (`classify`) plus my reading of those 10.
 
 **F4. What the loop costs: reviews are cheap; the fix resumes they trigger are not.** VERIFIED (`rounds`, `lead`).
@@ -113,22 +111,16 @@ rounds did not prevent escapes.** VERIFIED (`misses`, an SZZ-style blame, plus m
   (Rosa et al. 2021, [Evaluating SZZ Implementations Through a Developer-Informed Oracle](https://doi.org/10.1109/icse43902.2021.00049)). I therefore checked each pair against the bug
   issue's text.
 - Confident escapes from reviewed PRs, with the bug filed after the merge: 9 of 141 (6 %, CI 3-12 %); 13 of 141 (9 %)
-  if all the UI and model-wrapper candidates count (adding #403, #526, #562 and #612).
-  - repo-E #385 (4 security rounds): #535 (same class as the reviewed gate), #574 (mixed numbers and signs read wrong),
-    #541 and #605 (an over-strict check and an exact-match grade, found on live runs).
-  - #553 and #573 (5 security rounds each, themselves fixes of #541 and #565): #647 (`\frac ÷ \frac` read
-    ungrouped) and #574.
-  - #393: #446 (a batch-size limit of an infrastructure service; found by an eval).
-  - #299 or #612: #607 (an asyncio event bound to another loop; live playtest).
-  - #550: part of #605.
-  - #526, #562 and #577: #666-672 (seven layout defects found by a visual review).
-  - #31: #53.
+  if all the UI and model-wrapper candidates count (four more PRs).
+  - repo-E: per-PR detail is omitted because the repository is private (`misses` prints it). By kind: same-class
+    defects past three reviewed safety gates, grading and parsing errors found on live runs, an infrastructure
+    batch limit found by an eval, an event-loop bug from a playtest, and seven layout defects from a visual review.
   - agent-harness #171 (2 code rounds): #179, #180 and #215 (licence-gate bugs found in later use).
 - Not counted: #687 was filed during review and deferred, which is a known gap rather than a miss. Bugs in the initial
   agent-harness import (#1, #2) and in unreviewed PRs were also left out.
 - **Who found the escapes:** live smoke runs or playtests 3, property tests or evals 3, research probes 1, a visual
   review 1 cluster, and later use or audit 4. No later review round found one.
-- The three gates with the most rounds (#385, #553, #573) still leaked same-class bugs (#574, #647). Their extra
+- The three gates with the most rounds still leaked same-class bugs. Their extra
   rounds bought little that the class-level property tests did not.
 - This fits the field evidence. Review coverage and participation correlate with fewer post-release defects in Qt,
   VTK and ITK (MSR 2014, up to 2 and 5 extra defects per component when low). SOURCED
@@ -152,12 +144,12 @@ measured here.
 
 | # | Change | What it targets (data) | Expected effect | Label |
 |---|---|---|---|---|
-| 1 | **Class battery.** The reviewer names each finding's class and leaves a runnable probe (a generator or table). The builder commits it as a property or table test and runs it, together with all earlier rounds' probes, before pushing a fix. This merges "flag the class" with the #351 r11 pattern (`tests/test_ring_batteries.py`). | Fix-introduced 22/51 and same-class 13/51 later blocking rounds (69 %); same-class escapes #574 and #647 | If it removes half of those rounds: about 17 rounds and about $33 per window. More important, it closes the escape route of F5. Deterministic probes cost almost no tokens. | BELIEVED |
-| 2 | **Round cap at 3.** A fourth round is not spawned. The reviewer returns "reconsider the approach" (for example allowlist instead of deny-list, or an owner rule as on #351 r7), and the lead decides with the owner. | 9 security series, 25 rounds after the 3rd, about $45 in all (F4) | Series with 5 or more rounds go from 4 % to 0. About $45 per window, about 2 % of spend. Escape risk is not raised, because those PRs escaped anyway (F5). | BELIEVED |
+| 1 | **Class battery.** The reviewer names each finding's class and leaves a runnable probe (a generator or table). The builder commits it as a property or table test and runs it, together with all earlier rounds' probes, before pushing a fix. This merges "flag the class" with a battery pattern one long security series ended with. | Fix-introduced 22/51 and same-class 13/51 later blocking rounds (69 %); two same-class escapes | If it removes half of those rounds: about 17 rounds and about $33 per window. More important, it closes the escape route of F5. Deterministic probes cost almost no tokens. | BELIEVED |
+| 2 | **Round cap at 3.** A fourth round is not spawned. The reviewer returns "reconsider the approach" (for example allowlist instead of deny-list, or an owner rule), and the lead decides with the owner. | 9 security series, 25 rounds after the 3rd, about $45 in all (F4) | Series with 5 or more rounds go from 4 % to 0. About $45 per window, about 2 % of spend. Escape risk is not raised, because those PRs escaped anyway (F5). | BELIEVED |
 | 3 | **Severity tags and a bar.** Every finding is tagged Blocking, Nit, Pre-existing or Follow-up, and the summary leads with the counts. Only Blocking findings need a fix before merge. Nits are capped at 3 and go into the same fix push or are dropped. Pre-existing and Follow-up findings become issues. A code or audit verdict with no Blocking finding is "merge"; security keeps a re-review on any code change. | 55 % (CI 42-67 %) of round-1 items need not block; 21 % of non-pass verdicts are self-described minor; later code and audit rounds pass 78-81 % | Fewer fix resumes, at $1.27-1.70 each. If code and audit stop re-reviewing fixes that were only Nit or Follow-up (about 40 of their 50 later rounds pass), that saves about $17 of review plus the matching resumes. Smaller fix pushes also give fewer fix-introduced bugs. | BELIEVED |
 | 4 | **Builder self-check before the PR (fresh context).** A subagent reviews `git diff main...HEAD` before `dev pr`, and Important findings are fixed inside the live builder. | Round 1 asks for fixes in 93 % of series | Break-even: a pre-PR review costs about $0.72, and each external fix cycle it avoids saves about $1.9, so it pays only if it makes at least about 38 % of PRs pass round 1 clean (VERIFIED arithmetic on F4's means). Unknown; run it as a pre-registered trial (builder A/B on comparable issues), not a default. | ASSUMED, test |
 | 5 | **Diff-only re-review**: `git diff <last-reviewed-sha>..HEAD` plus the open findings and the earlier probes. | Later rounds are already half the cost of round 1; 28 % already say "delta"; delta rounds cost $0.29 against $0.36 | Tokens: at most about $7 per window. Keep it as the rule, because fix-introduced bugs live in the delta. Pair it with re-running earlier probes (item 1), so delta-only does not miss regressions. | VERIFIED cost, BELIEVED rule |
-| 6 | **No repeats; dedupe across reviewers.** The second reviewer gets the findings already posted on the PR. | 0 verbatim repeats in 51 rounds; 1 cross-reviewer duplicate (#660) | About zero rounds saved. It costs one line in the lead's prompt. | VERIFIED count |
+| 6 | **No repeats; dedupe across reviewers.** The second reviewer gets the findings already posted on the PR. | 0 verbatim repeats in 51 rounds; 1 cross-reviewer duplicate | About zero rounds saved. It costs one line in the lead's prompt. | VERIFIED count |
 | 7 | **Skip what `dev check` enforces.** | 0 of 60 sampled items (CI 0-6 %) | About zero. Do not spend prompt words on it; reviewer.md already says "the tests already ran". | VERIFIED |
 | 8 | **Introduced vs pre-existing tag**, with pre-existing findings filed, never blocking (unless fix-now). | Pre-existing 3 % of round-1 items, 0 % of later blocking rounds | Few rounds saved. Its value is in triage and blame, so fold it into item 3's tags rather than adding a separate rule. | VERIFIED count |
 

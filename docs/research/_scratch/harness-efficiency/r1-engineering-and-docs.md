@@ -6,7 +6,7 @@ hooks, skills, word-budget ratchets, local gating) more effective, and cheaper i
 Labels: **SOURCED** means quoted or paraphrased from a page I fetched in full this session. **VERIFIED** means I measured
 it here (command named). **BELIEVED** means my judgment. Every number in the per-post sections is SOURCED from that post
 unless marked otherwise. Raw text of every post is in
-`/tmp/claude-1000/<repo-E project dir>/50a10312-0021-4a60-badf-597004abc2f9/scratchpad/blog/E_raw/c/` and the
+a local raw copy (not committed) and the
 docs pages are in `.../blog/E_raw/docs/`.
 
 Method: I fetched the index at https://www.anthropic.com/engineering and filtered https://www.anthropic.com/sitemap.xml to
@@ -30,7 +30,7 @@ memory, context-window, features-overview, workflows, agent-teams (cost note onl
 | 2026-03-06 | Eval awareness in Claude Opus 4.6's BrowseComp performance | Medium-high: eval integrity, multi-agent amplifies unintended solutions | full |
 | 2026-02-05 | Quantifying infrastructure noise in agentic coding evals | Medium-high: harness A/B comparisons need noise control | full |
 | 2026-02-05 | Building a C compiler with a team of parallel Claudes | **High**: parallel agents, locks, test-output hygiene, `--fast` sampling | full |
-| 2026-01-21 | Designing AI-resistant technical evaluations | Medium (repo-E examiners): out-of-distribution assessment | full |
+| 2026-01-21 | Designing AI-resistant technical evaluations | Medium (product evals): out-of-distribution assessment | full |
 | 2026-01-09 | Demystifying evals for AI agents | **High**: eval design, pass@k vs pass^k, grader types | full |
 | 2025-11-26 | Effective harnesses for long-running agents | **High**: initializer + incremental agent, progress file, JSON feature list | full |
 | 2025-11-24 | Introducing advanced tool use (tool search, PTC, examples) | Medium: tool-definition tokens; mostly API-side | full |
@@ -46,7 +46,7 @@ memory, context-window, features-overview, workflows, agent-teams (cost note onl
 | 2025-03-20 | The "think" tool | Medium (repo-E product, policy-heavy dialogs) | full |
 | 2025-01-06 | Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet | Medium: minimal scaffold, tool descriptions | full |
 | 2024-12-19 | Building effective agents | High: simplest-thing principle, ACI, poka-yoke | full |
-| 2024-09-19 | Introducing Contextual Retrieval | Medium (repo-E assistant memory/RAG) | key sections |
+| 2024-09-19 | Introducing Contextual Retrieval | Medium (product retrieval) | key sections |
 
 Model-dated caution (from the owner's memory rule): many numbers below are for Claude 3.5/3.7/4/4.5/4.6 models. They show
 direction and mechanism, not current effect sizes. Re-measure on the current model before relying on a delta.
@@ -87,8 +87,7 @@ it "demonstrably improves outcomes".
 - EFFECTIVENESS: make every `uv run dev` subcommand poka-yoke: absolute paths in all outputs, issue numbers validated,
   refuse ambiguous inputs with a corrective message. Measure: tool-error rate per session from transcripts
   (`uv run dev agent-stats` if it tracks failed Bash exits; otherwise add that metric).
-- TOKENS: the repo-E product guardrail (user-safety screen) should be a separate parallel call, not folded into the
-  assistant prompt (SOURCED pattern, BELIEVED fit). Measure on the safety eval set: recall at fixed false-positive rate.
+- [repo-E product implication removed: this repository is public.]
 
 ## 2. How we built our multi-agent research system (2025-06-13)
 
@@ -398,9 +397,7 @@ with small realistic sets, grade outcomes not paths, read transcripts, and keep 
   branches. Measure: variance between repeated trials (should drop) and any transcript that reads other trials' refs.
 - TOKENS: record tokens, turns and tool calls per trial as tracked metrics (the post's `tracked_metrics`). Measure:
   tokens per passed scenario as the efficiency KPI, never tokens alone.
-- EFFECTIVENESS (repo-E): dialogic examiner and assistant evals need a simulated student (second LLM) and multi-dimensional
-  graders: state check (did the user reach the target), turn cap, LLM rubric for dialogic quality and safety.
-  Report pass^k for safety behaviors, since consistency matters for minors.
+- [repo-E product implication removed: this repository is public.]
 
 ## 11. Quantifying infrastructure noise in agentic coding evals (2026-02-05)
 
@@ -436,8 +433,7 @@ URL blocklists were insufficient; blocking any result containing "BrowseComp" wo
 - EFFECTIVENESS: harness scenario evals should keep hidden graders and reference solutions outside the agent's
   reachable filesystem and git remotes (not just in an ignored folder). Measure: transcript scan for reads of grader
   paths.
-- EFFECTIVENESS (repo-E): synthetic user datasets and examiner answer keys must not be readable by the model under
-  test; treat eval integrity as adversarial. Measure: same transcript scan.
+- [repo-E product implication removed: this repository is public.]
 - TOKENS: put a hard token cap per research question (researchers occasionally burn huge budgets); the 38x outlier shows
   why. Measure: p99 tokens per researcher run.
 
@@ -451,9 +447,7 @@ hours (1,790 cycles casually; 1,579 after 2 hours in a test-time harness; 1,487 
 harness). Telling Claude the achievable cycle count let it find a trick it had given up on.
 
 **Implications.**
-- EFFECTIVENESS (repo-E examiners): oral, dialogic, process-revealing assessment is what remains AI-resistant; this
-  supports repo-E's direction. Assessments should test reasoning in novel, constrained settings, not recall of common
-  problems. (BELIEVED fit; cite only as industry practice, per the "evidence over product practice" memory.)
+- [repo-E product implication removed: this repository is public.]
 - EFFECTIVENESS (harness): giving an agent a concrete target ("this can reach N") changed its effort. Put measurable
   targets in DONE WHEN (already required). Measure: issues closed with numeric DONE WHEN vs vague ones, reopen rate.
 
@@ -487,9 +481,7 @@ execution environment.
 - TOKENS: the harness already prefers a CLI over MCP; keep MCP servers for literature (arxiv, wikipedia, context7) scoped
   to the researcher agent via the subagent `mcpServers` field rather than global `enableAllProjectMcpServers`, so builders
   never carry their names. Measure: `/context` MCP row for a builder session.
-- EFFECTIVENESS (repo-E, user data): the tokenization pattern is directly relevant: user identifiers should be
-  replaced by opaque tokens before any model call in `repo-E's model wrapper`, with a lookup outside the model. Measure: a test
-  that no raw user identifier string reaches a model request (assert on captured requests).
+- [repo-E product implication removed: this repository is public.]
 
 ## 16. Introducing advanced tool use (2025-11-24)
 
@@ -503,9 +495,7 @@ Tool use examples: **72% to 90%** on complex parameters. Use tool search when de
 keep 3-5 most used tools loaded. Deferred tools don't break prompt caching.
 
 **Implications.**
-- TOKENS: Claude Code already defers MCP tools by default (docs). For repo-E's own model calls, if the assistant ever gets
-  many tools, use deferred loading and 1-5 realistic `input_examples` per complex tool. Measure: tool-parameter error rate
-  in repo-E eval transcripts.
+- [repo-E product implication removed: this repository is public.]
 
 ## 17. Beyond permission prompts: Claude Code sandboxing (2025-10-20)
 
@@ -635,9 +625,7 @@ analysis, policy-heavy environments, sequential decisions; no gain for single/pa
 Complex guidance belongs in the system prompt, not the tool description.
 
 **Implications.**
-- EFFECTIVENESS (repo-E product): assistant and examiner dialogs are policy-heavy (user safety, dialogic rules). Use
-  extended thinking with domain-specific reasoning examples in the system prompt ("list the rules that apply; check the
-  user's last answer; decide hint level"). Measure: pass^k on the safety and dialogic-quality eval sets.
+- [repo-E product implication removed: this repository is public.]
 
 ## 24. Introducing Contextual Retrieval (2024-09-19)
 
@@ -649,9 +637,7 @@ embeddings cut top-20 failure rate **35%** (5.7% to 3.7%); plus contextual BM25 
 tokens.
 
 **Implications.**
-- EFFECTIVENESS/TOKENS (repo-E lifelong assistant memory): before building RAG over a user's history, check size; most
-  per-user histories may fit in context with caching. If not, contextual chunks + BM25 + rerank. Measure: recall@20 on
-  a synthetic-user retrieval set.
+- [repo-E product implication removed: this repository is public.]
 
 ## 25. Redesigning source control at Anthropic (2026-10-13)
 
@@ -764,7 +750,7 @@ Low relevance: `.mcpb` bundles for one-click local MCP installs. No harness chan
   first with the `/usage` cache line or OTel cache-read vs creation tokens per agent type. Measure: cache read/creation
   ratio per agent type before and after.
 - TOKENS: consider `omitClaudeMd: true` for research-auditor and reviewer if their prompts and the brief carry what they
-  need. Caution: repo-E's CLAUDE.md carries user-safety facts; keep it for security-reviewer and builders. Measure: input
+  need. Caution: a project CLAUDE.md may carry safety facts; keep it for security-reviewer and builders. Measure: input
   tokens per run and finding quality on held-out PRs.
 - TOKENS: preload `skills:` only where a worker always needs one (for example `research` for researcher), since preloading
   injects full content. Measure: Skill-tool invocations vs preload cost.
@@ -834,7 +820,7 @@ Each item names its type and a measurement.
 9. **Contain at the environment layer first: sandbox workers with filesystem and network isolation, credentials
    unreachable, allowlists treated as capability grants.** (EFFECTIVENESS, safety) Sources: sandboxing (84% fewer
    prompts), containment post (24/25 phished exfiltration, approved-domain exfil, pre-trust hooks), auto mode (17% FNR on
-   overeager actions). Critical for repo-E's ADR 0003. Measure: red-team scenarios blocked; prompts per worker session.
+   overeager actions). Critical for a product with strict security rules. Measure: red-team scenarios blocked; prompts per worker session.
 
 10. **Treat persistent state and agent outputs as untrusted inputs.** (EFFECTIVENESS, safety) Sources: containment
     post (memory poisoning, multi-agent trust escalation), subagent docs (output scanning, no-authority headers).
@@ -864,7 +850,7 @@ Each item names its type and a measurement.
 15. **Protect eval integrity and isolate trials.** (EFFECTIVENESS) Sources: evals post (git history leaked answers
     between trials; grader bugs moved 42% to 95%), eval awareness (decrypted answer keys; blocklists insufficient), infra
     noise (resource configs swing 6 points). Keep graders and reference solutions unreachable, fresh repo per trial,
-    record infra errors separately. Applies equally to repo-E's examiner and assistant evals with synthetic users.
+    record infra errors separately. Applies equally to product evals.
     Measure: transcript scans for grader-path reads; trial-to-trial variance.
 
 ### Resources worth bookmarking (all named in the posts above)

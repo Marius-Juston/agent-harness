@@ -6,7 +6,7 @@ arxiv.org/html through WebFetch. WebFetch summarises the page with a small model
 "(WebFetch, full text)" are SOURCED but were not read line by line.
 
 VERIFIED numbers come from three scripts in the session scratchpad
-(`/tmp/claude-1000/<repo-E project dir>/50a10312-0021-4a60-badf-597004abc2f9/scratchpad/r2/`):
+(a local raw copy (not committed)):
 - `cost_mix.py`: per-agent cost mix, cache-TTL split, `effort` field and API-call gaps, from repo-E transcripts
   for 2026-10-11..16;
 - `power_and_savings.py`: power analysis, Sonnet savings bounds, and TTL and compaction arithmetic;
@@ -37,7 +37,7 @@ and privacy defects (§5) (details of this private repository's security finding
   - Opus-priced transcript cost: research-auditor $77 (4.0 %), security-reviewer $49 (2.6 %), reviewer $28 (1.5 %).
     The total is $1,903.
   - Cache reads cost the same on both models ($0.20/MTok; Sonnet 5.5 post price table,
-    `scratchpad/blog/raw/building-with-claude-sonnet-5-5.md`, SOURCED). So Sonnet halves only cache writes, output
+    a local raw copy (not committed), SOURCED). So Sonnet halves only cache writes, output
     and uncached input.
   - At the same tokens, that saves 33-39 % per role: **$55 for the window, 2.9 % of spend, $0.29 per merged PR**.
   - Transcripts undercount output tokens (§6), so the true figure is somewhat higher. It is bounded by 50 % of the
@@ -77,7 +77,7 @@ and privacy defects (§5) (details of this private repository's security finding
 
 ### Verdict
 - **Reject** for security-reviewer and research-auditor. The saving is small and the loss is asymmetric for a
-  minors' product.
+  product with user-safety gates.
 - **Adopt behind eval** for a *new* read-only lookup or log-reading agent: "where is X defined", summarising
   `dev check` failures. There a wrong answer is cheap to spot and the agent does not decide anything.
 - Expect little money from it, because such agents do not exist today and their spend would be new.
@@ -89,7 +89,7 @@ and privacy defects (§5) (details of this private repository's security finding
 - Brevity rules on the agent's own text cut reasoning that happens in the visible channel.
 
 ### Evidence
-- **The reverted line, read in full** (`scratchpad/blog/E_raw/april-23-postmortem.txt` lines 62-71, SOURCED).
+- **The reverted line, read in full** (a local raw copy (not committed) lines 62-71, SOURCED).
   - The line was "Length limits: keep text between tool calls to ≤25 words. Keep final responses to ≤100 words unless
     the task requires more detail."
   - It shipped "After multiple weeks of internal testing and no regressions in the set of evaluations we ran". Then
@@ -269,8 +269,8 @@ whole window).
 - **Round 2 is mostly a confirmation pass, and it still finds blocking defects.**
   - By verdict head, 48 of 59 round-1 verdicts were "merge after fixes" or "send back".
   - Round 2: 27 pass and **12 of 39 (31 %) still blocked**. Round 3+: **3 of 10 still blocked**.
-  - The round-2+ blocks I read include several user-safety or privacy findings on five PRs, among them three
-    successive bypasses of one safety gate over four rounds (details of this private repository's security findings are redacted here because agent-harness is public; they are in the repo-E PRs).
+  - The round-2+ blocks I read include several user-safety or privacy findings on five PRs (counted, not described:
+    this repository is public).
     - PR 601: the reviewer revised its own round-1 finding ("time was bounded, but memory is not").
 - **Diff-only would have caught most of these, but not all.**
   - Most were introduced by the fix commits, so a diff-scoped re-review that also reads the callers and callees of
@@ -377,7 +377,7 @@ whole window).
 - Lumer et al., 2601.06007 (abstract; confirms 41-80 % and 13-31 %).
 - Zheng et al., CORVUS, 2607.22711 (abstract).
 - Vercel, "AGENTS.md outperforms skills in our agent evals" (vercel.com/blog).
-- Anthropic, "An update on recent Claude Code quality reports" (raw copy `scratchpad/blog/E_raw/april-23-postmortem.txt`).
-- Claude Code prompt-caching docs (raw copy `scratchpad/blog/E_raw/docs/prompt-caching.md`).
-- Sonnet 5.5 post (raw copy `scratchpad/blog/raw/building-with-claude-sonnet-5-5.md`).
+- Anthropic, "An update on recent Claude Code quality reports" (local raw copy, not committed).
+- Claude Code prompt-caching docs (local raw copy, not committed).
+- Sonnet 5.5 post (local raw copy, not committed).
 - repo-E transcripts, cost-state records and `gh pr list` (2026-10-19).

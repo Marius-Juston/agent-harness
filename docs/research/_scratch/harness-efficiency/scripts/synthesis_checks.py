@@ -5,7 +5,9 @@ Usage: python3 synthesis_checks.py   (stdlib only; no transcripts needed)
 Inputs are copied from the round files, each named next to its constant:
 - list prices: platform.claude.com/docs/en/about-claude/pricing, fetched 2026-10-19 (1-hour cache writes, since every
   repo-E request wrote the 1-hour cache, r2-against.md section 7);
-- modelled cost by agent type, output corrected: r2_cost_phases.py, rerun 2026-10-19 with --exclude 50a10312;
+- window totals: scripts/cost_segments.py (cost records summed per process segment, and the transcript-priced
+  estimate);
+- modelled cost by agent type, output corrected: r2_cost_phases.py, rerun 2026-10-19 after the per-segment fix;
 - review-loop costs: r2-review-convergence.md F4;
 - fixed-component costs: r2-surface-audit.md F1 (scripts/component_cost.py).
 """
@@ -23,21 +25,22 @@ PRICES = {
 }
 KINDS = ("input", "write", "read", "output")
 
-# modelled cost by agent type, $ (r2_cost_phases.py line "modelled cost all agents"); window total $2,314 modelled,
-# $2,231 in the cost-state records
+# modelled cost by agent type, $ (r2_cost_phases.py line "modelled cost all agents"; it has no uncached input)
 MODELLED = {
-    "researcher": 1157,
-    "builder": 524,
-    "lead": 372,
-    "research-auditor": 93,
-    "security-reviewer": 66,
-    "general-purpose": 37,
-    "reviewer": 35,
-    "tester": 26,
+    "researcher": 1223,
+    "builder": 558,
+    "lead": 384,
+    "research-auditor": 100,
+    "security-reviewer": 72,
+    "general-purpose": 39,
+    "reviewer": 39,
+    "tester": 28,
 }
-TOTAL_MODELLED = 2314
-COST_STATE = 2231
-MERGED_PRS = 188
+TOTAL_MODELLED = 2444
+LAST_RECORD = 2231  # the old total: each session's last cost record only
+COST_RECORDS = 2756  # cost records summed per process segment (cost_segments.py), a lower bound
+ESTIMATE = 2928  # cost_segments.py transcript-priced estimate, which also covers a process with no record
+MERGED_PRS = 188  # repo-E only; agent-harness PRs worked from the same sessions are not in the denominator
 
 
 def ratio(model: str, share: dict[str, float]) -> float:
@@ -67,42 +70,58 @@ print("1. Sonnet 5.5 vs Opus 5.5 price per token kind:")
 for k, o, s in zip(KINDS, PRICES["opus-5-5"], PRICES["sonnet-5-5"], strict=True):
     print(f"   {k:6s} {s / o:.2f}x")
 mixes = {
-    "window (r1: read 48, write 29, output 20, input 3 %)": {
-        "input": 0.03,
-        "write": 0.29,
-        "read": 0.48,
+    "window (cost records per segment: read 42, write 28, output 20, input 10 %)": {
+        "input": 0.10,
+        "write": 0.28,
+        "read": 0.42,
         "output": 0.20,
     },
-    "researcher (r2: read 44, write 33, output 23 %)": {"input": 0.0, "write": 0.33, "read": 0.44, "output": 0.23},
-    "lead (r2: read 64, write 24, output 12 %)": {"input": 0.0, "write": 0.24, "read": 0.64, "output": 0.12},
+    "researcher (r2 rerun: read 42, write 32, output 27 %)": {
+        "input": 0.0,
+        "write": 0.32,
+        "read": 0.42,
+        "output": 0.27,
+    },
+    "lead (r2 rerun: read 62, write 23, output 15 %)": {"input": 0.0, "write": 0.23, "read": 0.62, "output": 0.15},
 }
 for name, mix in mixes.items():
     print(f"   {name}: " + ", ".join(f"{m} {ratio(m, mix):.3f}x" for m in PRICES if m != "opus-5-5"))
 
-print("\n2. Spend by agent type, output corrected (share of the $2,314 modelled):")
+print(
+    f"\n0. Window: ${LAST_RECORD} last records, ${COST_RECORDS} per segment, ${ESTIMATE} estimated; per merged PR "
+    f"${COST_RECORDS / MERGED_PRS:.1f}-{ESTIMATE / MERGED_PRS:.1f}"
+)
+print("\n2. Spend by agent type, output corrected (share of the $2,444 modelled):")
 for at, c in MODELLED.items():
     print(f"   {at:18s} ${c:5d} {c / TOTAL_MODELLED:5.1%}")
 review = sum(MODELLED[a] for a in ("research-auditor", "security-reviewer", "reviewer"))
 print(f"   three review roles ${review} = {review / TOTAL_MODELLED:.1%}")
 
 print("\n3. Same-token Sonnet 5.5 savings at the live price (every kind is 0.5x):")
-for name, c in (("review roles", review), ("researcher", MODELLED["researcher"])):
-    s = c * (1 - ratio("sonnet-5-5", mixes["researcher (r2: read 44, write 33, output 23 %)"]))
+guard = MODELLED["security-reviewer"] + MODELLED["research-auditor"]
+for name, c in (
+    ("review roles", review),
+    ("security-reviewer + research-auditor", guard),
+    ("researcher", MODELLED["researcher"]),
+):
+    s = c * (1 - ratio("sonnet-5-5", mixes["researcher (r2 rerun: read 42, write 32, output 27 %)"]))
     print(f"   {name}: ${s:.0f} = {s / TOTAL_MODELLED:.1%} of spend, ${s / MERGED_PRS:.2f} per merged PR")
 print("   break-even: Sonnet may use 2.0x the tokens before it costs more")
 
-print("\n4. Fixed components and lead compaction, as shares of the cost-state total:")
+print("\n4. Fixed components and lead compaction, as shares of the corrected total (estimate to records):")
+lead_artifact = 3251 * 12_900 * 0.20 / 1e6  # 3,251 lead calls re-reading the 12.9k-token Artifact schema
 for name, lo, hi in (
-    ("Artifact + Skill + Agent schemas (component_cost.py)", 74 + 29 + 2.5, 116 + 45 + 4),
-    ("lead compaction at 150-400k (r2_cost_phases.py F)", 372 - 214, 372 - 194),
+    ("Artifact + Agent schemas in workers (component_cost.py; Skill kept)", 74 + 2.5, 116 + 4),
+    ("  plus Artifact in lead calls (enableArtifact: false)", 74 + 2.5 + lead_artifact, 116 + 4 + lead_artifact),
+    ("lead compaction at 150-400k (r2_cost_phases.py F)", 384 - 226, 384 - 206),
 ):
-    print(f"   {name}: ${lo:.0f}-{hi:.0f} = {lo / COST_STATE:.1%}-{hi / COST_STATE:.1%}")
+    print(f"   {name}: ${lo:.0f}-{hi:.0f} = {lo / ESTIMATE:.1%}-{hi / COST_RECORDS:.1%}")
 
 print("\n5. Review loop (r2-review-convergence F4):")
 rounds, fixes, lead = 167, 281, 49
 print(
     f"   reviews ${rounds}, fix resumes ${fixes}, lead ${lead}: ${rounds + fixes + lead} = "
-    f"{(rounds + fixes + lead) / COST_STATE:.1%}"
+    f"{(rounds + fixes + lead) / ESTIMATE:.1%}-{(rounds + fixes + lead) / COST_RECORDS:.1%} (a lower bound)"
 )
 extra_round = 0.36 + 1.27 + 2 * 0.13
 print(f"   one extra review-and-fix round ${extra_round:.2f}; pre-PR self-review at $0.72 breaks even when it saves")

@@ -91,7 +91,7 @@ for f in glob.glob(ROOT + "/*.jsonl") + glob.glob(ROOT + "/*/subagents/*.jsonl")
                         "cd other repo"
                         if re.match(r"\s*cd\s+\S*agent-harness", cmd)
                         else "scratchpad /tmp"
-                        if "/tmp/claude" in cmd  # noqa: S108 (a match on command text, not a file)
+                        if "scratchpad" in cmd
                         else "other"
                     )
                     iso_cause[(ag, cause)] += 1

@@ -4,7 +4,7 @@ Usage: python3 r2_cost_phases.py <claude-project-dir> <repo-E-repo> [--exclude <
 
 Reads the main session transcripts (*.jsonl = lead) and subagent transcripts (*/subagents/*.jsonl, agent type from the
 .meta.json). Prices are the per-M fit from extra_stats.py (input 4.09, output 20.05, cache read 0.20, cache write 7.95).
-Transcript output_tokens are streaming snapshots that undercount (4.2 M vs 24.8 M in the cost-state records), so the
+Transcript output_tokens are streaming snapshots that undercount (4.2 M vs 31.3 M in the cost-state records, summed per process segment), so the
 billed output of a turn is its visible characters (thinking summary, text, tool input) times the fitted tokens per
 character, plus an equal share per turn of the rest of the cost-state output (hidden thinking; an assumption). Tokens per
 character of content entering the context come from a least-squares fit of cache growth (section C).
@@ -74,7 +74,7 @@ def load(f, at):
     by_id = {}
     prompt = None
     effort = Counter()
-    cs_out = 0
+    cs_segs = []  # one [totalCostUSD, outputTokens] per Claude Code process: a drop in the running total starts one
     with open(f, errors="ignore") as fh:
         for line in fh:
             try:
@@ -84,7 +84,12 @@ def load(f, at):
             t = d.get("type")
             k = len(turns) - 1  # index of the last turn seen; pieces enter the context of turn k + 1
             if t == "cost-state":
-                cs_out = sum(m.get("outputTokens", 0) for m in d.get("modelUsage", {}).values())
+                tot = d.get("totalCostUSD", 0) or 0
+                out = sum(m.get("outputTokens", 0) for m in d.get("modelUsage", {}).values())
+                if not cs_segs or tot < cs_segs[-1][0]:
+                    cs_segs.append([tot, out])
+                else:
+                    cs_segs[-1] = [tot, out]
             if t == "api-request":
                 effort[(d.get("params", {}).get("output_config") or {}).get("effort", "?")] += 1
             elif t == "assistant":
@@ -143,7 +148,14 @@ def load(f, at):
             elif t == "system" and d.get("subtype") == "compact_boundary":
                 compact.append(len(turns))
     return dict(
-        at=at, f=f, turns=turns, pieces=pieces, compact=compact, prompt=prompt or "", effort=effort, cs_out=cs_out
+        at=at,
+        f=f,
+        turns=turns,
+        pieces=pieces,
+        compact=compact,
+        prompt=prompt or "",
+        effort=effort,
+        cs_out=sum(o for _, o in cs_segs),
     )
 
 
@@ -431,7 +443,7 @@ for r in RUNS:
     bytype[r["at"]] += sum(turn_cost(t) for t in r["turns"])
 tot_all = sum(bytype.values())
 print(
-    f"modelled cost all agents ${tot_all:.0f} (cost-state total in extra_stats.py: $2,231); by type:",
+    f"modelled cost all agents ${tot_all:.0f} (cost records summed per process segment: $2,756; scripts/cost_segments.py); by type:",
     {k: f"${v:.0f} ({v / tot_all:.0%})" for k, v in bytype.most_common(8)},
 )
 

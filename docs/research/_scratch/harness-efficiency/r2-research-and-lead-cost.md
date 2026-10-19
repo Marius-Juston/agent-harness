@@ -1,8 +1,8 @@
 # r2: why researchers and the lead cost what they cost, and which changes cut it
 
 Round mode, sub-question of #254 (round 2). Data: the repo-E transcripts for 2026-10-11..16 (14 lead sessions with
-calls, 644 subagent runs; this session, 50a10312, excluded). Script: `r2_cost_phases.py` in this folder, run as
-`python3 r2_cost_phases.py ~/.claude/projects/<repo-E project dir> ~/GitHub/repo-E --exclude 50a10312`.
+calls, 644 subagent runs; the synthesis session excluded). Script: `r2_cost_phases.py` in this folder, run as
+`python3 r2_cost_phases.py ~/.claude/projects/<repo-E project dir> ~/GitHub/repo-E --exclude <synthesis-session-id>`.
 Every number labelled VERIFIED comes from that script's output unless another script is named.
 
 Search coverage: no literature search was needed (measurement question). The launcher's `dev lit status` line read

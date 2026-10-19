@@ -1,7 +1,7 @@
 # Blog review C: four claude.dev posts for agent-harness / repo-E
 
 Fetched 2026-10-19. WebFetch would only summarise, so the full text of every post was pulled with `curl` and stripped
-to text (raw copies: `scratchpad/blog/raw/*.txt`, followed links: `scratchpad/blog/rawC/`). All four posts were read
+to text (raw copies: a local raw copy (not committed), followed links: a local raw copy (not committed)). All four posts were read
 in full. Followed links: "A harness for every task: dynamic workflows" (full), "A field guide to Claude Fable 5"
 (full), "Getting started with loops" (full), ThariqS skill-logging gist (full), the Claude Code skills doc
 (frontmatter table + lifecycle sections), and the anthropics/skills frontend-design SKILL.md (head).
@@ -147,10 +147,8 @@ pure cost; reasoning-reproduction requests can trigger a model switch; low-effor
 Opus 5 (anecdotal, one tester). Common: definition of done, task file, review pass.
 
 **Implications.**
-- **O1 TOKENS — purge "think" phrasing and reasoning-echo requests.** grep agents/skills/HARNESS for "think
-  carefully/step by step/hard", "show your reasoning", "explain your thinking". (Quick grep found no emphatic caps or
-  "think hard" in harness-ops; check repo-E prompts in `repo-E's model wrapper` / examiner prompts too — a request to reveal
-  reasoning in a *product* prompt could cause model switches/flags.) Measure: count = 0, gate test for it.
+- **O1 TOKENS — purge "think" phrasing and reasoning-echo requests.** grep agents, skills and HARNESS for
+  such phrasing (a quick grep found none in harness-ops). Measure: count = 0, gate test for it.
 - **O2 EFFECTIVENESS — adopt the stop rule for workers.** Builders/testers run autonomously; premature "want me to
   continue?" hand-backs waste a full re-spawn (cold context). Add the 2-sentence keep-going/stop-only-when rule to the
   shared worker preamble (one place), with the destructive list mapped to this repo (force-push, `integrate`, editing
@@ -231,11 +229,7 @@ frontmatter: `disable-model-invocation`, `user-invocable`, `allowed-tools`, `dis
 undertriggering; config.json setup; skill-local memory. Common: concise, progressive disclosure, good descriptions.
 
 **Implications.**
-- **S1 EFFECTIVENESS (highest expected) — a repo-E verification skill.** No product-verification skill exists. Build
-  one (e.g. `verify-student-flow`): scripts that drive the examiner/assistant end-to-end with synthetic users and
-  assert state (safety filters fired, no PII stored, model calls via `repo-E's model wrapper`), recording transcripts as
-  evidence. Reference it from CLAUDE.md in one line. Measure: post-merge defect issues per merged PR; tester-found
-  bugs that the builder's own run should have caught.
+- **S1** [repo-E product implication removed: this repository is public.]
 - **S2 EFFECTIVENESS — Gotchas sections in each harness-ops skill and agent,** seeded from recurring
   reviewer/lead corrections and `integrate` failures (mine HANDOFF history + PR review comments). Keep each ≤ 8 bullets.
   Measure: recurrence of the same correction across PRs.
@@ -356,9 +350,7 @@ rollout, CI ratchets.
   review comments → cluster → adversarially verify 'would this rule have prevented a real mistake?' → distill" loop to
   produce Gotchas (S2) — and as the counterpart, a rule-by-rule verifier for the few rules the gate can't check. Owner
   memory "no edge-case overfitting" applies: only rules with ≥2 real occurrences survive.
-- **P6 EFFECTIVENESS — quarantine for repo-E.** User text is untrusted; the quarantine pattern (readers without
-  privileges, actors see summaries) is relevant to ADR 0003 for any agentic assistant tooling and to research agents
-  reading the web. Note for security-reviewer rubric.
+- **P6** [repo-E product implication removed: this repository is public.]
 - **P7 TOKENS — pilot before fan-out; effort/model routing.** Research rounds (harness-ops:research) fan out
   researchers; pilot one researcher on a sub-question first and set explicit token budgets per worker. Measure:
   tokens per research note vs audit pass rate.

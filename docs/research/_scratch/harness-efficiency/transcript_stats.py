@@ -147,8 +147,13 @@ def process(f, is_sub, agent_type):
             continue
         t = d.get("type")
         if t == "cost-state" and not is_sub:
-            S["cost"] = S["cost"]  # summed per session below
-            S.setdefault("_cost", {})[d["sessionId"]] = d
+            # one running total per Claude Code process: a drop starts a new process (a resume), so keep each
+            # process's last record instead of only the session's last (which lost a $525 process); see cost_segments.py
+            segs = S.setdefault("_cost", {}).setdefault(d["sessionId"], [])
+            if not segs or (d.get("totalCostUSD") or 0) < (segs[-1].get("totalCostUSD") or 0):
+                segs.append(d)
+            else:
+                segs[-1] = d
         if t == "system" and d.get("subtype") == "compact_boundary":
             S["compactions"] += 1
         if t == "assistant":
@@ -267,12 +272,12 @@ for proj in sys.argv[1:]:
                 at = json.load(fh).get("agentType", "unknown")
         process(f, True, at)
 
-cost = S.pop("_cost", {})
-S["cost"] = sum(c["totalCostUSD"] for c in cost.values())
-for c in cost.values():
+cost = [c for segs in S.pop("_cost", {}).values() for c in segs]
+S["cost"] = sum(c["totalCostUSD"] for c in cost)
+for c in cost:
     for mname, mu in c.get("modelUsage", {}).items():
         S["cost_by_model"][mname] += mu.get("costUSD", 0)
-S["lines_added"] = sum(c.get("totalLinesAdded", 0) for c in cost.values())
+S["lines_added"] = sum(c.get("totalLinesAdded", 0) for c in cost)
 S["big_results"] = sorted(S["big_results"], reverse=True)[:25]
 
 

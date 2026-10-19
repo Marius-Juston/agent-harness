@@ -110,3 +110,8 @@ Outcome in the same window: 188 merged PRs in repo-E (`gh pr list --state merged
 - Cache TTL: `subagentPromptCacheTtl` in settings overrides agent frontmatter, so every subagent wrote 1-hour cache
   (r2-against), consistent with the fitted write price. §2 stands.
 - Sonnet 5.5 cache reads are $0.10/M, not the same as Opus (r2-opus55-handling).
+- Totals (research-auditor, PR #270): the $2,231 kept only each session's last cost record; a resumed session starts
+  a new process whose total restarts at 0, which lost a $525 process, and one session's records cover only a fraction
+  of its transcript. Per process the records sum to $2,756; the transcript-priced estimate is about $2,928
+  (scripts/cost_segments.py). Token-kind shares from the per-process records at list prices: cache read 42 %, cache
+  write 28 %, output 20 %, uncached input 10 %.

@@ -9,7 +9,7 @@ Posts reviewed (all four fetched in full on 2026-10-19):
 Method: WebFetch would only give summaries ("I can't reproduce the full article verbatim"), so I fetched the site's
 own markdown copies (`https://claude.dev/blog/<slug>.md`, linked from each page's "Copy markdown" button) with curl and
 read them in full. That copy includes figure captions that carry numbers missing from the body text. Raw copies are in
-`/tmp/claude-1000/<repo-E project dir>/50a10312-0021-4a60-badf-597004abc2f9/scratchpad/blogA_raw/`.
+a local raw copy (not committed).
 
 Linked resources I followed and read: the Code Review docs (`code-review.md`, `code-review-customize.md`), the
 `code-review-local` docs (fetched, only skimmed), the "Agentic coding is straining CI" test-impact-analysis article, the
@@ -319,7 +319,7 @@ the budget-pause-looks-like-silence trap, and preferences as a read-only store w
    `maxTurns: 300` exhaustion: the completion gate should report "turn cap reached", not just a missing PR.
 6. **If repo-E adds scheduled automations** (e.g. nightly `dev suite-audit`, a weekly research-freshness sweep, or a
    nightly reviewer pass over existing code as in post 1): use this exact rule set (bookmark = last processed SHA or
-   date, run record per run, confirm-then-record, read-only creds, a $ cap at 3–5× a normal run). Note ADR 0002: the
+   date, run record per run, confirm-then-record, read-only creds, a $ cap at 3–5× a normal run). Note the owner's model-provider rule: the
    Claude subscription is for owner development only. A Managed Agents deployment is API-billed, so this needs an
    owner decision. File it as an open question; do not build it.
 
@@ -397,7 +397,7 @@ out-of-scope breakage instead of fixing it (which matches repo-E's Owns rule).
    Measure: one `claude --cloud "uv run dev doctor && uv run dev test --affected"` run passes. Value: a disposable
    environment for the "run untrusted code" case (new dependencies vetted by `reuse check`) and parallel builders
    without local memory pressure (`spawn_guard` waits for free RAM today).
-   Constraint: cloud sessions draw on the same subscription limits, and ADR 0003's no-real-user-data rule still holds
+   Constraint: cloud sessions draw on the same subscription limits, and the no-real-user-data rule still holds
    (synthetic only), so this is compatible.
 2. **Use cloud sessions to relieve local memory pressure.** (TOKENS-neutral, EFFECTIVENESS) Today the SubagentStart
    guard can wait up to 330 s for free memory. Offloading `dev check`-heavy builders to `--cloud` with an Owns-split
@@ -521,6 +521,6 @@ middleware Rewrite/Answer moves, registering model-callable tools, and the 10 s 
 | 9 | Reviewer eval from post-merge fixes and reverts, rescored on prompt or model change (post 1) | EFFECTIVENESS | eval score history |
 | 10 | Cloud portability check (`CLAUDE_CODE_REMOTE`, project-scoped plugin) and a one-issue pilot (post 3) | EFFECTIVENESS | one green cloud run; wall-clock vs local |
 
-Things not to adopt: zero-human merges for low tier (repo-E's ADR 0003 user-safety stance and the post's own
-"start strict and loosen with evidence"), Managed Agents automations (API billing conflicts with ADR 0002 until the owner
+Things not to adopt: zero-human merges for low tier (repo-E's strict security stance and the post's own
+"start strict and loosen with evidence"), Managed Agents automations (API billing conflicts with the owner's model-provider rule until the owner
 decides), and moving the fail-closed guards into a mod.

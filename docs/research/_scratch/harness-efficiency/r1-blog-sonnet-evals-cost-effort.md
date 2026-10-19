@@ -2,7 +2,7 @@
 
 Reviewed 2026-10-19. All four posts were read in full from their markdown sources (`https://claude.dev/blog/<slug>.md`,
 fetched with curl; WebFetch gave only summaries). Raw copies are in
-`/tmp/claude-1000/<repo-E project dir>/50a10312-0021-4a60-badf-597004abc2f9/scratchpad/blog/raw/`.
+a local raw copy (not committed).
 
 Linked resources I followed and read: "Reducing cost and improving performance with Claude Platform" (claude.com
 blog), "Choosing a Claude model and effort level in Claude Code" (claude.com blog), "Maximizing the value of your
@@ -127,11 +127,7 @@ workarounds.
    without it).
 4. **[TOKENS] Audit the harness text for tool-minimizing and "think less" prose.** On 5.5 models both act literally
    or not at all; see the prompt-audit list in section 2. Effort is the control.
-5. **[EFFECTIVENESS, repo-E product] The assistant and examiner prompts must not ask the model to show its reasoning in
-   the reply.** That invites `reasoning_extraction` refusals. Handle `stop_reason: "refusal"` with its category
-   explicitly in `repo-E's model wrapper`, and log categories separately from failures; this is also SB/user-safety
-   relevant. Use `between_tools` rather than `disabled` when latency matters. The 512-token cache minimum means short
-   examiner system prompts are now cacheable. **Measure:** count refusals by category in the examiner eval runs.
+5. [repo-E product implication removed: this repository is public.]
 6. **[EFFECTIVENESS] Remember the default-effort trap.** Claude Code runs Sonnet at medium but the API defaults to
    high. Any eval comparing harness runs (Claude Code) with product runs (API) must pin effort explicitly.
 
@@ -280,13 +276,7 @@ default objective near saturation; and the reflection that found the model rever
    prohibition runs and rules that nothing enforces. The audit's advice "Enforce in code what can be enforced in code"
    matches the harness's hook-first stance. **Measure:** words per agent file, pass^k, and `cost_usd` per scenario,
    before and after.
-8. **[EFFECTIVENESS, repo-E product] Use build-eval and hillclimb principles for the dialogic examiner and assistant
-   prompts.** Sources should be synthetic-user transcripts (no real user data) plus hand-written hard cases with
-   a stated reason. The judge must not be the model under test. Use a rubric of checkable claims (e.g. "did not reveal
-   the answer", "asked one question"). Calibrate the judge to ≥90% agreement with owner labels. Add known-negative
-   probes. Add both-directions safety cases (should escalate vs should not). Keep refusals out of the capability
-   score. Do a second-model check before switching models in `repo-E's model wrapper`. This fits the existing pre-registration
-   memory: freeze the split and configs, then score TEST once.
+8. [repo-E product implication removed: this repository is public.]
 9. **[EFFECTIVENESS] Copy the "remembered form → current form" table trick** into skills where agents keep reverting
    to trained priors. Candidates: pip instead of uv, reading whole files instead of `dev code outline`, and old Claude
    API shapes in `repo-E's model wrapper`. Put the table at the top of the relevant skill or hook message.
@@ -447,9 +437,7 @@ per-invocation subagent `effort` parameter; and verification rituals and scratch
    WHEN as an executable check.
 8. **[TOKENS] Do not use agent teams** (7×). The harness's subagent-per-issue model is the right shape. Keep
    `CLAUDE_CODE_SUBAGENT_MODEL` unset so per-agent `model:` fields stay authoritative.
-9. **[TOKENS, repo-E product] Pricing levers for `repo-E's model wrapper`:** the Batch API (half price) for offline evals and
-   intake digests; caching the stable examiner prompt prefix (≥512 tokens on Sonnet 5.5); no timestamps or IDs in the
-   prefix; and recording `usage` per call so cost per assistant turn can be measured.
+9. [repo-E product implication removed: this repository is public.]
 
 ---
 
@@ -535,9 +523,7 @@ tasks deserve more compute.
 4. **[TOKENS] Do not default any agent to max.** Opus 5.5 at high already matches Fable 5.1 at max. Reserve xhigh for
    escalation after failures, and Fable for two xhigh failures. If max or xhigh is ever used, add the "don't launch
    reviewer sub-agents" stop line from section 1.
-5. **[EFFECTIVENESS, repo-E product] Run the user-safety classifier and examiner grading at higher effort.** These are
-   edge-case-heavy, like the sanitizer task. Routine assistant dialogue can run at low or medium. Verify this with an
-   effort sweep in the pre-registered eval before fixing settings in `repo-E's model wrapper`.
+5. [repo-E product implication removed: this repository is public.]
 
 ---
 
@@ -554,7 +540,7 @@ tasks deserve more compute.
 | 7 | Quiet-on-success `dev test` and `dev check`, or a PreToolUse output-filter hook | TOK | Less resent output per turn | `_result_chars` per session |
 | 8 | Lead cache hygiene (compact or handoff before long idle, no mid-session model or MCP changes) | TOK | Avoid full cache rewrites | Cache share in `/usage` and transcripts |
 | 9 | Real-check paragraph and reproduce-first, test-fails-unfixed as DONE WHEN outcomes | EFF | Fewer false "done" claims, especially at low or medium | Scenario with a broken test runner |
-| 10 | repo-E `repo-E's model wrapper`: no reasoning-in-response prompts, refusal-category logging, Batch for offline evals, cache the examiner prefix, judge ≠ tested model with ≥90% human agreement | EFF+TOK | Fewer `reasoning_extraction` refusals; cheaper evals | Refusal counts; judge agreement |
+| 10 | [repo-E product implication removed: this repository is public.] | — | — | — |
 
 Caveat on all cost figures: they are Anthropic's list-price illustrations and single internal benchmarks (44 tickets;
 Terminal-Bench at 5 attempts per task). Per the owner's "model-dated evidence" memory, re-measure on our own scenarios

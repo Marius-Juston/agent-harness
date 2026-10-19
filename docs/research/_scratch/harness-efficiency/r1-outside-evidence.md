@@ -61,7 +61,7 @@ self-generated skills hurt; adherence decays with the number of instructions.
     change. The harness note already reports 42 calls before the first edit in repository A. Make it a column in
     `uv run dev agent-stats`.
 - **[EFFECTIVENESS] Directory-scoped instructions.** The Codex nearest-file convention, and Claude Code's nested
-  CLAUDE.md loaded on demand, let area-specific rules (for example `apps/student/`) load only when an agent works
+  CLAUDE.md loaded on demand, let area-specific rules (for example `apps/<area>/`) load only when an agent works
   there. This keeps them out of every agent's always-loaded prefix.
   - Measure: always-loaded words per run (agent-stats) against the gate-failure rate in that area.
 - **[EFFECTIVENESS] Ablate before adding.** 1a's conclusion matches the harness rule "delete guidance that changes
