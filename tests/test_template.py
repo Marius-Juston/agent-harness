@@ -328,3 +328,25 @@ def test_the_settings_allow_the_read_only_board_commands(rendered):
     ):
         assert rule in allow, rule
     assert not [r for r in allow if r.startswith("Bash(uv run dev board lint") and r != "Bash(uv run dev board lint)"]
+
+
+def test_harness_rules_keep_only_what_no_hook_or_skill_already_says():
+    """#267: HARNESS.md loads into every agent, so it drops lines a hook enforces or another file already says
+    (docs/research/harness-efficiency.md change 12), and states the gate rule the completion gate actually applies."""
+    text = (ROOT / "template/.devkit/HARNESS.md.jinja").read_text()
+    assert frontmatter.words(text) <= 320
+    gone = ("never pip", "Navigate by symbol", "Batch independent", "Hand-backs are at most", "Reuse before build")
+    gone += ("VERIFIED", "Facts live in one place", "SessionStart", "check` once", "Never edit generated files")
+    for line in gone:
+        assert line not in text, line
+    assert "`uv run dev check` gates the committed HEAD" in text and "again after any fix" in text
+    assert "`harness-ops:lead`" in text and "`harness-ops:harness`" in text and "Only `uv run dev integrate" in text
+
+
+def test_builder_states_the_read_before_edit_gotcha_and_the_gate_rule():
+    """#267: 5.8 % of builder edits failed with 'File has not been read yet' after a sed or cat read; and a builder
+    re-runs the gate after every fix, so the text no longer says to run it once."""
+    text = (ROOT / "plugins/harness-ops/agents/builder.md").read_text()
+    assert "Edit and Write need a prior Read of that file; reading it with sed or cat does not count." in text
+    assert "`uv run dev check` gates the committed HEAD" in text and "run it again after any fix" in text
+    assert "check` once" not in text
