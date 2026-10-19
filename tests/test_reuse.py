@@ -817,8 +817,9 @@ def test_researcher_checks_every_recommended_tool_and_names_dev_reuse():
     # #169: the agent's own names, verified, beat search alone; so verify first and search only for more options
     for rel in ("agents/researcher.md", "agents/builder.md", "skills/research/SKILL.md"):
         assert "uv run dev reuse check" in (code.root() / "plugins/harness-ops" / rel).read_text()
+    # #267: the agents that build carry the rule; HARNESS.md loads into every agent, so it no longer repeats it
     harness = (code.root() / "template/.devkit/HARNESS.md.jinja").read_text()
-    assert "uv run dev reuse check" in harness and "only when you know no good candidate" in harness
+    assert "uv run dev reuse" not in harness
 
 
 def test_documentation_falls_back_to_readme_size(tmp_path):

@@ -617,6 +617,44 @@ def test_read_guard_respects_explicit_limit_and_short_files(hook, tmp_path):
         assert out == ""
 
 
+def _tool_results(tmp_path):
+    """Where Claude Code persists a Bash output too large for the context."""
+    d = tmp_path / ".claude/projects/-home-u-repo/0a1b-session/tool-results"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def test_read_guard_windows_persisted_tool_results(hook, tmp_path):
+    """#265: a Bash output persisted to tool-results/*.txt and Read back whole gets the first window and a grep hint."""
+    big = _long_file(_tool_results(tmp_path), "toolu_01.txt", 900)
+    _, out, _ = hook("read_guard.py", {"tool_name": "Read", "tool_input": {"file_path": str(big)}})
+    data = json.loads(out)["hookSpecificOutput"]
+    assert data["updatedInput"]["limit"] == 250 and "900 lines" in data["additionalContext"]
+    assert "Grep" in data["additionalContext"]
+    small = _long_file(_tool_results(tmp_path), "toolu_02.txt", 50)
+    (tmp_path / "tool-results").mkdir()
+    for payload in (
+        {"file_path": str(big), "offset": 300, "limit": 100},
+        {"file_path": str(small)},
+        {"file_path": str(_long_file(tmp_path, "notes.txt", 900))},
+        {"file_path": str(_long_file(tmp_path / "tool-results", "x.txt", 900))},  # not under .claude/projects/
+    ):
+        assert hook("read_guard.py", {"tool_name": "Read", "tool_input": payload})[1] == "", payload
+
+
+def test_read_guard_windows_short_but_huge_persisted_output(hook, tmp_path):
+    """#265 review: 122 lines can hold 1 MB; a persisted output is also windowed by size, to about SIZE_CAP bytes."""
+    p = _tool_results(tmp_path) / "toolu_03.txt"
+    p.write_text("".join(f"{i:04d}" + "y" * 9_995 + "\n" for i in range(122)))  # 10 KB lines, 1.22 MB
+    _, out, _ = hook("read_guard.py", {"tool_name": "Read", "tool_input": {"file_path": str(p)}})
+    data = json.loads(out)["hookSpecificOutput"]
+    assert data["updatedInput"]["limit"] == 4 and "Grep" in data["additionalContext"]
+    one = _tool_results(tmp_path) / "toolu_04.txt"
+    one.write_text("z" * 200_000)  # a single huge line still gets limit 1, never 0
+    _, out, _ = hook("read_guard.py", {"tool_name": "Read", "tool_input": {"file_path": str(one)}})
+    assert json.loads(out)["hookSpecificOutput"]["updatedInput"]["limit"] == 1
+
+
 def _devkit_project(tmp_path) -> dict:
     """A project with devkit installed (`.venv/bin/dev`): the environment its hooks run in."""
     (tmp_path / ".venv/bin").mkdir(parents=True)
@@ -654,11 +692,14 @@ def test_read_guard_leaves_cat_alone_in_a_project_without_devkit(hook, tmp_path)
         ("head -500 big.py", True),
         ("head --lines=1000 big.py", True),
         ("cat 'big.py'", True),
+        ("cat {tr}/big.txt", False),  # #265: no outline of a persisted output; the Read window covers it
     ],
 )
 def test_read_guard_head_only_when_long(hook, tmp_path, cmd, rewritten):
     _long_file(tmp_path, "big.py", 900)
-    payload = {"tool_name": "Bash", "cwd": str(tmp_path), "tool_input": {"command": cmd}}
+    tr = _tool_results(tmp_path)
+    _long_file(tr, "big.txt", 900)
+    payload = {"tool_name": "Bash", "cwd": str(tmp_path), "tool_input": {"command": cmd.format(tr=tr)}}
     _, out, _ = hook("read_guard.py", payload, env=_devkit_project(tmp_path))
     assert (out != "") == rewritten, cmd
 
