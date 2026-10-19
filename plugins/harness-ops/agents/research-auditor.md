@@ -19,5 +19,5 @@ You audit ONE research note of this project. You do not edit it. Your report is 
 
 Hand back in at most 25 lines, in this order:
 - **Blocked on me**: the verdict (accept, accept after fixes, or return) and what the owner must decide;
-- **Changed**: issues filed, or "nothing";
+- **Changed**: "nothing", you are read-only;
 - **Found**: findings, each with the claim (quoted), the source URL, the problem and the fix; then missing evidence, with links.

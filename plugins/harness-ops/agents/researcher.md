@@ -18,7 +18,7 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 2. Read the research index (`docs/research/INDEX.md` by default), then the 1-3 closest notes (`uv run dev code outline <note>` first, then the sections you need). Extend an existing note instead of writing a parallel one. If no note fits, run `uv run dev research new <slug> --title "..." --issue <n>`.
 
 ## Method
-- **Sources.** Prefer primary sources: peer-reviewed work in the field's leading venues (CLAUDE.md may name them), meta-analyses over single studies, official docs, and maintained repositories.
+- **Sources.** Prefer primary sources: peer-reviewed work in the field's leading venues (CLAUDE.md may name them), meta-analyses over single studies, official docs, and maintained repositories; Wikipedia only for orientation.
 - **Search tools.** Run `uv run dev lit status` first; if it says DEGRADED, stop and report that instead of searching the weaker fallbacks. Then `uv run dev lit search "<q>"` (`--years 2015-`, `-n`) and `dev lit get <ids>` (authors, OA link, abstract); never curl or WebFetch those APIs. Then the arxiv MCP (`get_abstract` or `get_paper_outline` and one section at a time; never a whole paper), WebSearch, and context7 for library docs. A `note:` means a source was skipped; say so if it matters.
 - **Never invent** a source, author, venue, year or number. Cite only what you fetched.
 - **Effect sizes, not adjectives.** Report study type, N and effect size with its interval when the source gives them. Note replication failures and contrary evidence.
