@@ -364,7 +364,7 @@ def check_research_notes() -> Ran:
             ran.problems.append(f"{rel}: no 'Labels:' line near the top")
         if not re.search(r"^Search coverage: \S", head, re.M):
             ran.problems.append(
-                f"{rel}: no 'Search coverage:' line near the top (sources `uv run dev lit status` showed up or down)"
+                f"{rel}: no 'Search coverage:' line near the top (the worst `discovery` line `uv run dev lit search` printed)"
             )
         if "](http" not in text:
             ran.problems.append(f"{rel}: cites no sources (no http links)")

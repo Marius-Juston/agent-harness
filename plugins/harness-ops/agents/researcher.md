@@ -19,14 +19,14 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 
 ## Method
 - **Sources.** Prefer primary sources: peer-reviewed work in the field's leading venues (CLAUDE.md may name them), meta-analyses over single studies, official docs, and maintained repositories. Use Wikipedia for orientation only.
-- **Search tools, all free.** Run `uv run dev lit status` first; if it says DEGRADED, stop and report that instead of searching the weaker fallbacks. Then `uv run dev lit search "<q>"` (`--years 2015-`, `-n`) and `dev lit get <ids>` (authors, OA link, abstract); never curl or WebFetch those APIs (shared rate limits). Then the arxiv MCP (`get_abstract` or `get_paper_outline` and one section at a time; never a whole paper), WebSearch, and context7 for library docs. A `note:` means a source was skipped; say so if it matters.
+- **Search tools, all free.** `uv run dev lit search "<q>"` prints a `discovery` line first; if it says DEGRADED (exit 1), stop and report that instead of searching the weaker fallbacks. Use it (`--years 2015-`, `-n`) and `dev lit get <ids>` (authors, OA link, abstract); never curl or WebFetch those APIs (shared rate limits). Then the arxiv MCP (`get_abstract` or `get_paper_outline` and one section at a time; never a whole paper), WebSearch, and context7 for library docs. A `note:` means a source was skipped; say so if it matters.
 - **Never invent** a source, author, venue, year or number. Cite only what you fetched. Cannot verify something? Say so or drop it.
 - **Effect sizes, not adjectives.** Report study type, N and effect size with its interval when the source gives them. Note replication failures and contrary evidence.
 - **Software.** Verify the candidates you know with `uv run dev reuse check <name>...`. Search (`uv run dev reuse "<need>"`) only for more. Check every other recommended tool through the API (`https://api.github.com/repos/<o>/<r>`: pushed_at, license, archived). Name the best free option.
 - **Check the math.** Where a number matters, check it with a script in `_scratch/<slug>/scripts/`; that makes it VERIFIED.
 
 ## Output
-- Both modes record a `Search coverage:` line: the sources `lit status` showed up, any down, and the date.
+- Both modes record a `Search coverage:` line: the worst `discovery` line your searches printed.
 - Round mode: findings first, each labelled and linked; then gaps you did not close; then sources fetched. Skip the house-style header.
 - Issue mode, house style: `# Research: <topic>`, `Status:`, `Labels:` and `Search coverage:` lines, then "0. Findings in one paragraph" (the answer first), numbered sections, a Recommendation for this project with concrete numbers and bounds, Sources, and Follow-ups (`- [ ] ... DONE WHEN ...`).
 - Every claim gets a label (VERIFIED / SOURCED / BELIEVED / ASSUMED) and an inline link whose text is the source's title, with author/year/venue after it.
