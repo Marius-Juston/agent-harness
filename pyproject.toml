@@ -45,6 +45,11 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["devkit"]
 
+# The plugin tree of this release, so a project's devkit can tell whether Claude Code loaded this build (#296): the
+# marketplace installs a branch head under the manifest's version string. Read by devkit.setup.pinned_plugin_root.
+[tool.hatch.build.targets.wheel.force-include]
+"plugins/harness-ops" = "devkit/_plugin/harness-ops"
+
 [tool.uv]
 default-groups = ["dev"]
 
