@@ -30,7 +30,7 @@ NOTE_TEMPLATE = """# Research: {title}
 
 Status: v0 ({date}). Issue: #{issue}
 Labels: SOURCED = cited and fetched; VERIFIED = measured in this repo (script named); BELIEVED = judgment; ASSUMED = unchecked premise.
-Search coverage: (sources `uv run dev lit status` showed up, and any that were down, with the date)
+Search coverage: (the `discovery` line `uv run dev lit search` printed first, with any sources down and the date)
 Companions: (closest notes from INDEX.md)
 
 ## 0. Findings in one paragraph
@@ -289,6 +289,14 @@ def build() -> argparse.ArgumentParser:
     y.add_argument("--tools", action="store_true", help="also run pinned pyscn and vulture on a git-archive copy")
     x = sub.add_parser("agent-stats", help="scorecard from transcripts: tokens, calls, big-result share per agent type")
     x.add_argument("--json", action="store_true")
+    g = x.add_mutually_exclusive_group()
+    g.add_argument("--cost", dest="mode", action="store_const", const="cost", help="$ by token kind per type and issue")
+    g.add_argument("--reviews", dest="mode", action="store_const", const="reviews", help="review rounds per role")
+    g.add_argument(
+        "--misses", dest="mode", action="store_const", const="misses", help="candidate post-merge defect pairs"
+    )
+    x.add_argument("--since", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or after")
+    x.add_argument("--until", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or before")
     x = sub.add_parser("suite-audit", help="size-tiered audit of the whole test suite: is one due, and the nine checks")
     xs = x.add_subparsers(dest="sub", required=True)
     y = xs.add_parser("status", help="is an audit due since the last one (what orient shows), and why")
@@ -404,7 +412,7 @@ def run(a: argparse.Namespace) -> int:
         case "eval":
             return evals.run(a.names, a.trials)
         case "agent-stats":
-            print(stats.report(a.json))
+            print(stats.run(a.mode, a.since, a.until, a.json) if a.mode else stats.report(a.json))
         case "consolidation":
             return run_consolidation(a)
     return 0
@@ -451,7 +459,15 @@ def run_lit(a: argparse.Namespace) -> int:
     try:
         if a.sub == "search":
             sources, fallback = lit.plan(a.source)
-            papers, notes = lit.client().search(a.query, sources, a.n, a.years, fallback=fallback, also=tuple(a.also))
+            c = lit.client()
+            papers, notes, health = c.search_coverage(
+                a.query, sources, a.n, a.years, fallback=fallback, also=tuple(a.also)
+            )
+            print(lit.coverage_line(health, c.clock()))
+            print(lit.render(papers, notes, a.snippet))
+            if lit.degraded(health) or not any(h.ok for h in health):
+                return 1
+            return 0 if papers or not notes else 1
         elif a.sub in lit.CHASE:
             papers, notes = lit.client().chase(a.id, a.sub, a.n, a.years)
         else:

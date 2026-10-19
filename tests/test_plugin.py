@@ -141,3 +141,11 @@ def test_the_harness_skill_watches_each_agents_own_hand_back_limit():
     text = (PLUGIN / "skills/harness/SKILL.md").read_text()
     assert "hand-backs over the agent's own line limit" in text
     assert not re.search(r"hand-backs over \d+", text)
+
+
+def test_the_builder_sends_the_pr_body_as_a_heredoc_with_nothing_piped_after_it():
+    """#261: a pipe after `dev pr` (`2>&1 | tail`) is refused by worktree isolation 105 of 106 times."""
+    _, body = frontmatter.read(PLUGIN / "agents/builder.md")
+    finish = body.split("## Finish", 1)[1]
+    assert "--summary - <<'EOF'" in finish and "nothing piped after" in finish
+    assert "`| tail` makes worktree isolation refuse the call" in finish
