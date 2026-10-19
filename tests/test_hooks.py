@@ -1094,3 +1094,128 @@ def test_guard_bash_allows_reading_the_quota_cap(hook, cmd):
 def test_edit_guard_blocks_the_quota_cap_override(hook, path, tool):
     code, _, err = hook("edit_guard.py", {"tool_name": tool, "tool_input": {"file_path": path}})
     assert code == 2 and "quota cap" in err
+
+
+# #227: the literature APIs that `uv run dev lit` wraps (devkit/lit.py), denied to curl, wget and WebFetch.
+LIT_URLS = [
+    "https://api.openalex.org/works?search=spaced+retrieval",
+    "http://api.openalex.org/works/W2741809807",
+    "https://api.semanticscholar.org/graph/v1/paper/search?query=x",
+    "https://api.crossref.org/works?query=x&rows=5",
+    "https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=x&format=json",
+    "https://export.arxiv.org/api/query?search_query=all:x",
+    "http://export.arxiv.org/api/query?id_list=2401.00001",
+]
+LIT_FETCHES = [
+    "curl -s '{u}'",
+    'curl -sL "{u}" | jq .results',
+    "wget -qO- {u}",
+    "cd /tmp && curl --url={u}",
+    "timeout 20 curl -s {u} | head",
+    "bash -c 'curl -s \"{u}\"'",
+    'U="{u}"; curl -s "$U"',
+    'for q in a b; do curl -s "{u}&q=$q"; done',
+    "python3 -c \"import subprocess; subprocess.run(['curl', '-s', '{u}'])\"",
+]
+
+
+@pytest.mark.parametrize("fetch", LIT_FETCHES)
+@pytest.mark.parametrize("url", LIT_URLS)
+def test_guard_bash_denies_curl_and_wget_to_the_literature_apis(hook, url, fetch):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": fetch.format(u=url)}})
+    assert code == 2, fetch.format(u=url)
+    assert "uv run dev lit" in err
+
+
+@pytest.mark.parametrize("url", LIT_URLS)
+def test_guard_bash_denies_webfetch_to_the_literature_apis(hook, url):
+    payload = {"tool_name": "WebFetch", "tool_input": {"url": url, "prompt": "list the titles"}}
+    code, _, err = hook("guard_bash.py", payload)
+    assert code == 2, url
+    assert "uv run dev lit" in err
+
+
+LIT_ALLOWED_URLS = [
+    "https://arxiv.org/abs/2401.00001",
+    "https://arxiv.org/pdf/2401.00001",
+    "https://doi.org/10.1037/a0021017",
+    "https://api.datacite.org/dois/10.5281/zenodo.1",
+    "https://europepmc.org/article/PMC/PMC1234567",
+    "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC1234567/fullTextXML",
+    "https://openalex.org/W2741809807",
+    "https://api.github.com/repos/a/b",
+]
+LIT_ALLOWED_CMDS = [
+    "uv run dev lit search 'spaced retrieval practice' --n 5",
+    "uv run dev lit get 10.1037/a0021017",
+    "uv run dev cite-check docs/research/x.md",
+    "grep -rn 'api.openalex.org/works' devkit/lit.py",
+    "cat docs/research/x.md | grep https://api.crossref.org/works",
+    "cat > .scratch/n.md <<'EOF'\ncurl https://api.openalex.org/works is denied\nEOF",
+    "gh issue comment 1 --body 'never curl https://api.semanticscholar.org/graph/v1/paper/x'",
+    "git commit -m 'hook: deny wget http://export.arxiv.org/api/query'",
+    "echo https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=x",
+    "curl -s https://xapi.openalex.org/works",
+    # review of PR #285: a deny URL elsewhere in the command does not make an unrelated `$` fetch a literature call
+    "cat > notes.md <<'E'\nUse dev lit, not https://api.openalex.org/works\nE\ncurl -sI \"https://doi.org/$DOI\"",
+    'git commit -m "see https://api.openalex.org/works" && curl -s "$GH_API/repos"',
+    'for i in 1 2; do curl -s "https://example.com/$i"; done; echo api.crossref.org/works',
+    # the URL is matched at the start of an argument, not inside a request body
+    'curl -s https://api.github.com/repos/a/b/issues -d \'{"body": "see https://api.openalex.org/works"}\'',
+    'u="https://doi.org/10.1/x"; curl -s "$u"; echo https://api.crossref.org/works',
+]
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        "export u=https://api.crossref.org/works/10.1/x; curl -s $u",
+        'for w in W1 W2; do u="https://api.openalex.org/works/$w"; curl -s "${u}?select=id"; done',
+        "WGET=1 wget -qO- --url=https://api.openalex.org/works",
+    ],
+)
+def test_guard_bash_denies_a_fetch_of_a_variable_set_to_a_literature_api(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}})
+    assert code == 2 and "uv run dev lit" in err, cmd
+
+
+@pytest.mark.parametrize("url", ["HTTPS://API.OPENALEX.ORG/works", "https://Export.ArXiv.org/api/query?id_list=1"])
+def test_literature_api_hosts_match_in_any_case(hook, url):
+    webfetch = {"tool_name": "WebFetch", "tool_input": {"url": url, "prompt": "x"}}
+    assert hook("guard_bash.py", webfetch)[0] == 2
+    assert hook("guard_bash.py", {"tool_input": {"command": f"curl -s {url}"}})[0] == 2
+
+
+@pytest.mark.parametrize("url", LIT_ALLOWED_URLS)
+def test_guard_bash_allows_article_pages_and_full_text(hook, url):
+    for cmd in (f"curl -sL '{url}'", f"wget -q {url}"):
+        assert hook("guard_bash.py", {"tool_input": {"command": cmd}})[0] == 0, cmd
+    payload = {"tool_name": "WebFetch", "tool_input": {"url": url, "prompt": "abstract"}}
+    assert hook("guard_bash.py", payload)[0] == 0, url
+
+
+@pytest.mark.parametrize("cmd", LIT_ALLOWED_CMDS)
+def test_guard_bash_allows_mentions_of_the_literature_apis_without_a_fetch(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}})
+    assert code == 0, (cmd, err)
+
+
+def test_literature_api_override_lets_work_on_dev_lit_compare_with_the_raw_api(hook):
+    url = LIT_URLS[0]
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": f"curl -s '{url}'"}})
+    assert code == 2 and "DEVKIT_LIT_RAW=1" in err  # the reason names the override
+    assert hook("guard_bash.py", {"tool_input": {"command": f"DEVKIT_LIT_RAW=1 curl -s '{url}'"}})[0] == 0
+    env = {**os.environ, "DEVKIT_LIT_RAW": "1"}
+    assert hook("guard_bash.py", {"tool_input": {"command": f"curl -s '{url}'"}}, env=env)[0] == 0
+    webfetch = {"tool_name": "WebFetch", "tool_input": {"url": url, "prompt": "x"}}
+    assert hook("guard_bash.py", webfetch)[0] == 2
+    assert hook("guard_bash.py", webfetch, env=env)[0] == 0
+    # the inline override covers the fetch it prefixes, not a later one in the same command
+    later = f"DEVKIT_LIT_RAW=1 true; curl -s '{url}'"
+    assert hook("guard_bash.py", {"tool_input": {"command": later}})[0] == 2
+
+
+def test_guard_bash_runs_on_webfetch():
+    entries = _hook_entries("PreToolUse", "guard_bash.py")
+    assert any(re.fullmatch(e["matcher"], "WebFetch") for e in entries)
+    assert any(re.fullmatch(e["matcher"], "Bash") for e in entries)
