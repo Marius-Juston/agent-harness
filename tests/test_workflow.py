@@ -48,6 +48,12 @@ def test_a_successful_dev_pr_prints_the_url_and_one_status_line(opened, monkeypa
     assert lines == ["https://example/pr/1", "#33 status:review, Closes #33"]
 
 
+def test_the_status_line_names_the_ref_the_body_carries(opened, monkeypatch):
+    """The body may close another issue than the CLI number: print what the PR will do, not what was asked."""
+    monkeypatch.setattr("sys.stdin", io.StringIO("Refs #40\n\nfollow-up\n"))
+    assert workflow.pr(33, "-", draft=False).splitlines() == ["https://example/pr/1", "#33 status:review, Refs #40"]
+
+
 def test_a_body_without_a_ref_line_closes_its_issue(opened, monkeypatch):
     """#38: a complete hand-back gets 'Closes #N', so the merge closes the issue (PRs said 'Refs' and reopened it)."""
     monkeypatch.setattr("sys.stdin", io.StringIO("just text\n"))

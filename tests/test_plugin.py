@@ -132,3 +132,4 @@ def test_the_builder_sends_the_pr_body_as_a_heredoc_with_nothing_piped_after_it(
     _, body = frontmatter.read(PLUGIN / "agents/builder.md")
     finish = body.split("## Finish", 1)[1]
     assert "--summary - <<'EOF'" in finish and "nothing piped after" in finish
+    assert "`| tail` makes worktree isolation refuse the call" in finish

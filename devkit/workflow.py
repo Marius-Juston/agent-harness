@@ -381,7 +381,8 @@ def reuse_problem(body: str) -> str | None:
 def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> str:
     """Push the gated branch and open its PR. A body without a `Closes #N` / `Refs #N` first line gets `Closes #N`
     (a complete hand-back: the merge closes the issue), or `Refs #N` with `partial` (the issue returns to ready).
-    Returns two lines, the PR URL and a status: longer output got piped, and worktree isolation refuses a pipe (#261)."""
+    Prints two lines, the PR URL and a status with the ref line the body carries; keep it at two so nobody pipes it
+    (worktree isolation refuses a piped `dev pr`, #261)."""
     branch = git("branch", "--show-current")
     if branch in ("main", ""):
         raise board.BoardError("open PRs from an issue branch in a worktree, not from main")
@@ -418,7 +419,8 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
     url = board.gh(*args, input=body).strip()
     board.comment(number, f"PR ready for review: {url}\n\n{body[:1500]}")
     board.set_status(number, "review")
-    return f"{url}\n#{number} status:review, {body.split(maxsplit=2)[0]} #{number}"
+    ref = re.match(r"(Closes|Refs) #\d+", body)
+    return f"{url}\n#{number} status:review, {ref.group(0) if ref else ''}"
 
 
 PR_FIELDS = (
