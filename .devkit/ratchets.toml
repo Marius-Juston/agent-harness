@@ -1,8 +1,7 @@
 # Word budgets for text every agent (or every agent of a kind) loads. A raise needs evidence and owner approval: the
-# gate refuses a budget above main's unless a new [[raise]] entry below names its key, has the repository owner's
-# GitHub login as approved_by, and has a `to` that covers it. The gate does not read `reason`: the owner judges the
-# evidence there. Evidence: guidance helps when short and procedural (SkillsBench: compact skills +19 pts,
-# comprehensive docs +0.7); adherence decays with instruction count.
+# gate refuses one against main unless a [[raise]] entry below names it and the owner approved it. Evidence: guidance
+# helps when short and procedural (SkillsBench: compact skills +19 pts, comprehensive docs +0.7); adherence decays
+# with instruction count.
 
 [defaults]
 agent = 600      # body + initialPrompt words of a .claude/agents/*.md
