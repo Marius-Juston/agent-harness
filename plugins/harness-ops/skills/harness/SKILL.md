@@ -28,7 +28,7 @@ Details and sources: [agent-harness.md](https://github.com/Marius-Juston/agent-h
 3. **One source per fact.** Commands come from the CLI parser, the surface from its files, budgets from
    `.devkit/ratchets.toml`. Prose links to them. After a change, run `uv run dev docs`; the gate checks freshness,
    dangling paths and unknown `uv run dev` commands.
-4. **A raise needs evidence.** It needs a `[[raise]]` entry approved by the owner. Cut text before you add text.
+4. **Budgets only tighten.** A raise needs a `[[raise]]` entry approved by the owner. Cut text before you add text.
 5. **Must-hold rules go first** in a skill: after compaction only its first ~5,000 tokens survive.
 6. **Descriptions say when to use.** They are the only text the model sees before invoking, and they are capped
    at 1,536 characters. Name the triggers.
