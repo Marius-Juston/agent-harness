@@ -773,7 +773,7 @@ def test_researcher_and_research_skill_drop_the_separate_lit_status_step():
     """No `lit status` call before searching; the lead still uses it to see discovery is back after a DEGRADED."""
     plugin = Path(__file__).parents[1] / "plugins" / "harness-ops"
     assert "lit status" not in (plugin / "agents/researcher.md").read_text()
-    skill = (plugin / "skills/research/SKILL.md").read_text()
+    skill = " ".join((plugin / "skills/research/SKILL.md").read_text().split())
     assert "Run `uv run dev lit status`" not in skill and "re-dispatch only once `uv run dev lit status`" in skill
     for rel in ("agents/researcher.md", "skills/research/SKILL.md"):
         assert "DEGRADED" in (plugin / rel).read_text(), rel  # the stop rule stays, now read off the search's header
