@@ -27,6 +27,20 @@ CONSOLIDATION: dict[str, float | int | str | list[str]] = {
     "since": "",  # a commit to count from instead of the newest `Consolidation-Review:` trailer
 }
 
+# `[tool.devkit.prices.<family>]`: list $ per million tokens that `dev agent-stats --cost` prices with (devkit/stats.py).
+# A model takes the first family whose name is part of its id, else the first family. Defaults: the pricing page as
+# fetched for docs/research/harness-efficiency.md §2 (2026-10-19); a table replaces the whole default set.
+PRICE_KEYS = ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")
+PRICES: dict[str, dict[str, float]] = {
+    family: dict(zip(PRICE_KEYS, p, strict=True))
+    for family, p in {
+        "opus": (4.0, 5.0, 8.0, 0.20, 20.0),
+        "sonnet": (2.0, 2.5, 4.0, 0.10, 10.0),
+        "haiku": (0.10, 0.125, 0.20, 0.01, 0.50),
+        "fable": (10.0, 12.5, 20.0, 0.25, 50.0),
+    }.items()
+}
+
 
 @dataclass(frozen=True)
 class Config:
@@ -61,6 +75,7 @@ class Config:
         }
     )
     consolidation: dict[str, object] = field(default_factory=lambda: dict(CONSOLIDATION))
+    prices: dict[str, dict[str, float]] = field(default_factory=lambda: {k: dict(v) for k, v in PRICES.items()})
 
 
 class ConfigError(ValueError):
@@ -78,7 +93,18 @@ def parse(data: dict) -> Config:
             raise ConfigError(f"[tool.devkit] {key} = {value!r}: expected {want}")
     if "consolidation" in data:
         data = {**data, "consolidation": _consolidation(data["consolidation"])}
+    if "prices" in data:
+        _prices(data["prices"])
     return Config(**data)
+
+
+def _prices(table: dict) -> None:
+    if not table:
+        raise ConfigError("[tool.devkit.prices]: expected at least one model family")
+    for family, p in table.items():
+        ok = isinstance(p, dict) and set(p) == set(PRICE_KEYS)
+        if not ok or not all(isinstance(v, int | float) and not isinstance(v, bool) and v >= 0 for v in p.values()):
+            raise ConfigError(f"[tool.devkit.prices.{family}]: expected numbers for exactly {list(PRICE_KEYS)}")
 
 
 def _consolidation(table: dict) -> dict:

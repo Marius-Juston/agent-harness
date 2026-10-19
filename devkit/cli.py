@@ -289,6 +289,12 @@ def build() -> argparse.ArgumentParser:
     y.add_argument("--tools", action="store_true", help="also run pinned pyscn and vulture on a git-archive copy")
     x = sub.add_parser("agent-stats", help="scorecard from transcripts: tokens, calls, big-result share per agent type")
     x.add_argument("--json", action="store_true")
+    g = x.add_mutually_exclusive_group()
+    g.add_argument("--cost", dest="mode", action="store_const", const="cost", help="$ by token kind per type and issue")
+    g.add_argument("--reviews", dest="mode", action="store_const", const="reviews", help="review rounds per role")
+    g.add_argument("--misses", dest="mode", action="store_const", const="misses", help="traced post-merge defects")
+    x.add_argument("--since", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or after")
+    x.add_argument("--until", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or before")
     x = sub.add_parser("suite-audit", help="size-tiered audit of the whole test suite: is one due, and the nine checks")
     xs = x.add_subparsers(dest="sub", required=True)
     y = xs.add_parser("status", help="is an audit due since the last one (what orient shows), and why")
@@ -404,7 +410,7 @@ def run(a: argparse.Namespace) -> int:
         case "eval":
             return evals.run(a.names, a.trials)
         case "agent-stats":
-            print(stats.report(a.json))
+            print(stats.run(a.mode, a.since, a.until, a.json) if a.mode else stats.report(a.json))
         case "consolidation":
             return run_consolidation(a)
     return 0
