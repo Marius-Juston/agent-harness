@@ -909,7 +909,10 @@ def _integrate(
     head, whatever the branch protection, and reads feedback once more; a timeout is `waiting`, and a rerun on that
     head resumes the wait instead of refusing its pending checks. With `local_ci` (no Actions minutes), required checks
     Actions does not run are left to the local run on the merged tree (`_stand_in`), which posts them as commit statuses
-    only after it passed. Issues close only after the merge; the last line printed is `result`."""
+    only after it passed. A merged tree that empties an Owns entry of an open issue other than the PR's own
+    (`deleted_owns`) is refused before the gate, and `override` does not lift that: name the issue with `Refs #N` in
+    the PR body, or edit that issue's Owns. A deleting merge whose board cannot be read stops (fail closed). Issues
+    close only after the merge; the last line printed is `result`."""
     info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
     if info["state"] != "OPEN" or info["isDraft"]:
         print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
@@ -973,13 +976,16 @@ def _integrate(
                 return result(pr_number, 1, "conflict", conflicts=conflicts, resume=workers, branch=info["headRefName"])
             regenerated = regenerate(tmp)
             gone = deleted_owns(tmp, main, info)
+        except OSError as exc:  # no gh at all; a gh failure is a BoardError, a RuntimeError
+            print(f"RESULT: stopped (cannot read the board to check deleted Owns: {exc})")
+            return result(pr_number, 1, "stopped", reason=f"cannot read the board: {exc}")
         except RuntimeError as exc:
             print(f"RESULT: stopped ({exc})")
             return result(pr_number, 1, "stopped", reason=str(exc))
         if gone:
             rows = [f"#{n}: {', '.join(paths)}" for n, paths in gone.items()]
             print(f"RESULT: refused: PR #{pr_number} deletes what open issues own:\n  " + "\n  ".join(rows))
-            print("Close or re-scope each issue (edit its Owns), or name it with `Refs #N` in the PR body; then rerun.")
+            print("--override does not lift this: name each issue with `Refs #N` in the PR body, or edit its Owns.")
             return result(pr_number, 1, "refused", reason="deletes paths open issues own", owns=gone)
         tip = git("rev-parse", "HEAD", cwd=tmp)
         print(

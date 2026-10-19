@@ -862,16 +862,13 @@ def gone_owns(owns: list[str], deleted: Iterable[str], after: Iterable[str]) -> 
     return [o for o in owns if any(owned(p, [o]) for p in deleted) and not any(owned(p, [o]) for p in after)]
 
 
-REFS = re.compile(r"\brefs?\s+#(\d+)", re.I)
-
-
 def deleting_owns(
     issues: list[Issue], deleted: set[str], after: set[str], body: str, branch: str
 ) -> dict[int, list[str]]:
     """Open issue -> its Owns entries a merge empties, leaving out the PR's own issues: those its `body` closes or
     refs, and the `<n>-slug` of its `branch` (a migration owns what it moves)."""
     closes, own = linked(body, branch)
-    mine = {*closes, *own, *(int(n) for n in REFS.findall(body or ""))}
+    mine = {*closes, *own, *keyword_numbers(REFS, body)}
     found = {i.number: gone_owns(owns_of(i), deleted, after) for i in issues if i.number not in mine}
     return {n: paths for n, paths in sorted(found.items()) if paths}
 
@@ -1162,13 +1159,20 @@ def sync() -> list[str]:
     return moved
 
 
-CLOSES = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)", re.I)
+ISSUE_LIST = r"#\d+(?:\s*(?:,|and|&)\s*#\d+)*"  # `#1`, `#1, #2`, `#1 and #2`
+CLOSES = re.compile(rf"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s*({ISSUE_LIST})", re.I)
+REFS = re.compile(rf"\brefs?:?\s*({ISSUE_LIST})", re.I)
+
+
+def keyword_numbers(rx: re.Pattern[str], text: str | None) -> list[int]:
+    """Issue numbers after a keyword of `rx` (CLOSES, REFS), lists and `Keyword: #n` included, once each in order."""
+    return list(dict.fromkeys(int(n) for found in rx.findall(text or "") for n in re.findall(r"#(\d+)", found)))
 
 
 def linked(body: str, branch: str) -> tuple[list[int], list[int]]:
     """(issues a PR closes by keyword, its own issue from the `<n>-slug` branch when it does not close it).
     `Refs #N` links nothing: a mention must never move another agent's item."""
-    closes = list(dict.fromkeys(int(n) for n in CLOSES.findall(body or "")))
+    closes = keyword_numbers(CLOSES, body)
     m = re.match(r"(\d+)-", branch or "")
     own = [int(m.group(1))] if m and int(m.group(1)) not in closes else []
     return closes, own

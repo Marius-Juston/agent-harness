@@ -680,6 +680,26 @@ def test_deleting_owns_skips_the_issues_the_pr_closes_refs_or_is_branched_from()
     assert found == {15: ["old/x.py"]}
 
 
+@pytest.mark.parametrize(
+    ("text", "closes", "refs"),
+    [
+        ("Closes #1", [1], []),
+        ("Closes #1, #2 and #3", [1, 2, 3], []),
+        ("Fixes: #4", [4], []),
+        ("resolves #5 & #6", [5, 6], []),
+        ("Refs #15, #16", [], [15, 16]),
+        ("Refs: #17", [], [17]),
+        ("refs #18 and #19; closes #20", [20], [18, 19]),
+        ("Closes #1, see #9", [1], []),  # a later bare mention is not part of the list
+        ("prefs #3, enclosed #4", [], []),
+    ],
+)
+def test_closing_and_refs_keywords_read_issue_lists(text, closes, refs):
+    assert board.keyword_numbers(board.CLOSES, text) == closes
+    assert board.keyword_numbers(board.REFS, text) == refs
+    assert board.linked(text, "")[0] == closes
+
+
 def test_lint_reports_an_owns_path_that_existed_and_is_gone_as_an_error():
     issues = [
         mk(1, ["type:build", "P2", "status:ready"], owns("old/x.py"), title="devkit: one"),

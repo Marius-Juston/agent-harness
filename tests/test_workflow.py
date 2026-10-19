@@ -332,3 +332,30 @@ def test_integrate_refuses_deleting_a_path_another_open_issue_owns(project, caps
         assert code == 1 and res["owns"] == {"15": ["old/x.py"], "16": ["old/x.py"]}
         assert "#15" in printed and "#16" in printed and "#12" not in res["owns"]
         assert not [e for e in project["events"] if e[:3] == ("gh", "pr", "merge")]
+
+
+def test_override_does_not_lift_the_deleted_owns_refusal_but_refs_does(project, capsys, monkeypatch):  # noqa: F811
+    land_on_main(project, {"old/x.py": "x\n"})
+    _delete_in_pr(project, "old/x.py")
+    issues = [mk(n, ["type:build"], "## Owns\n- `old/x.py`\n") for n in (12, 15, 16)]
+    monkeypatch.setattr(board, "fetch", lambda *a, **k: issues)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, override="moved on purpose") == 1
+    assert last_json(capsys.readouterr().out)["outcome"] == "refused"
+    project["body"] = "Closes #12\n\nRefs: #15, #16"
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert last_json(capsys.readouterr().out)["outcome"] == "merged"
+
+
+@pytest.mark.parametrize("error", [board.BoardError("gh issue list: offline"), FileNotFoundError("gh")])
+def test_a_deleting_merge_stops_when_the_board_cannot_be_read(project, capsys, monkeypatch, error):  # noqa: F811
+    """Fail closed: no board, no proof the deletion is safe, no merge."""
+    land_on_main(project, {"old/x.py": "x\n"})
+    _delete_in_pr(project, "old/x.py")
+
+    def offline(*a, **k):
+        raise error
+
+    monkeypatch.setattr(board, "fetch", offline)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert last_json(capsys.readouterr().out)["outcome"] == "stopped"
+    assert not [e for e in project["events"] if e[:3] == ("gh", "pr", "merge")]
