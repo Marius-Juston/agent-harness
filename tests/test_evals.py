@@ -3,6 +3,7 @@
 import json
 import re
 import runpy
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -146,21 +147,35 @@ def test_parse_reads_the_main_thread_model_and_token_kinds_of_a_recorded_transcr
     assert t["models"] == ["claude-haiku-5-5"] and t["final"] == "ok"
     assert t["tokens"] == {"input": 2, "write_1h": 15072, "write_5m": 0, "read": 8857, "output": 4}
     assert t["cost"] == pytest.approx(0.0031, abs=1e-4)
+    assert t["billed_models"] == ["claude-haiku-5-5"] and t["claude_code_version"] == "2.1.304"
 
 
 @pytest.mark.parametrize(
-    ("asked", "ok"),
+    ("asked", "seen", "ok"),
     [
-        ("haiku", True),
-        ("claude-haiku-5-5", True),
-        ("Haiku", True),
-        ("haiku[1m]", True),
-        ("sonnet", False),
-        ("ha", False),
+        ("haiku", "claude-haiku-5-5", True),
+        ("claude-haiku-5-5", "claude-haiku-5-5", True),
+        ("Haiku", "claude-haiku-5-5", True),
+        ("haiku[1m]", "claude-haiku-5-5", True),
+        ("claude-haiku-5-5", "claude-haiku-5-5-20261001", True),
+        ("sonnet", "claude-haiku-5-5", False),
+        ("ha", "claude-haiku-5-5", False),
+        # #288 review: a different model given as a partial id must not pass (Sonnet 5 and 5.5 both exist)
+        ("claude-sonnet-5", "claude-sonnet-5-5", False),
+        ("sonnet-5", "claude-sonnet-5-5", False),
+        ("claude", "claude-sonnet-5-5", False),
+        ("claude-sonnet-5-5", "claude-sonnet-5", False),
+        ("claude-sonnet-5-5", "claude-sonnet-5-5-x", False),
     ],
 )
-def test_the_model_check_accepts_an_alias_or_the_full_id_and_nothing_else(asked, ok):
-    assert (evals.model_fails(asked, evals.parse(RECORDED)["models"]) == []) is ok
+def test_the_model_check_takes_a_bare_family_alias_or_the_exact_id_up_to_a_date(asked, seen, ok):
+    assert (evals.model_fails(asked, [seen]) == []) is ok
+
+
+@pytest.mark.parametrize("model", ["opusplan", "default", "OpusPlan[1m]"])
+def test_run_rejects_a_model_setting_that_picks_models_itself_before_any_trial(monkeypatch, model, capsys):
+    monkeypatch.setattr(evals, "_trial", lambda *a, **k: pytest.fail("a trial ran"))
+    assert evals.run([], 3, model=model) == 1 and "cannot hold" in capsys.readouterr().out
 
 
 def test_a_subagent_on_another_model_passes_but_a_main_thread_fallback_fails():
@@ -193,6 +208,40 @@ def test_run_fails_when_the_transcript_shows_another_model_and_records_the_arm(m
     assert rec["arm"]["observed_models"] == ["claude-haiku-5-5"] and len(rec["arm"]["commit"]) == 40
     assert rec["results"]["s1"]["passes"] == 0 and {sc["agent"] for sc in seen} == {"y"}
     assert rec["results"]["s1:trials"][0]["tokens"]["write_1h"] == 15072
+    assert rec["arm"]["billed_models"] == ["claude-haiku-5-5"] and rec["arm"]["machine"]
+    assert len(rec["arm"]["user_claude"]) == 12 and isinstance(rec["arm"]["dropped_env"], list)
+
+
+def test_the_trial_env_keeps_only_the_model_and_effort_settings_the_arm_sets():
+    base = {
+        "PATH": "/bin",
+        "CLAUDE_CODE_EFFORT_LEVEL": "max",
+        "ANTHROPIC_MODEL": "x",
+        "CLAUDE_CODE_SUBAGENT_MODEL": "y",
+    }
+    assert evals.trial_env(base, {}) == {"PATH": "/bin"}
+    assert evals.trial_env(base, {"CLAUDE_CODE_EFFORT_LEVEL": "low"}) == {
+        "PATH": "/bin",
+        "CLAUDE_CODE_EFFORT_LEVEL": "low",
+    }
+
+
+def test_a_trial_hands_the_arm_to_the_claude_process(monkeypatch, tmp_path):
+    """The env merge and the argv reach the process runner; the caller's own effort and model variables do not."""
+    monkeypatch.setenv("CLAUDE_CODE_EFFORT_LEVEL", "max")
+    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-fable-5-1")
+    (tmp_path / "repo").mkdir()
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append((cmd, kw["env"]))
+        return subprocess.CompletedProcess(cmd, 0, "\n".join(RECORDED), "")
+
+    t = evals._trial({"prompt": "p"}, "haiku", "medium", runner=fake_run, sandbox=lambda: tmp_path / "repo")
+    ((cmd, env),) = calls
+    assert env["CLAUDE_CODE_EFFORT_LEVEL"] == "medium" and "ANTHROPIC_MODEL" not in env and "PATH" in env
+    assert cmd[cmd.index("--model") + 1] == "haiku" and t["models"] == ["claude-haiku-5-5"]
+    assert not (tmp_path / "repo").exists()
 
 
 def test_run_passes_under_the_named_model(monkeypatch, tmp_path):
@@ -214,18 +263,34 @@ def test_compare_pairs_scenarios_and_reports_deltas_with_one_sided_bounds():
     c = evals.compare(a, b, margin=0.05)
     assert [r["name"] for r in c["rows"]] == ["s1", "s2", "s3"] and c["unpaired"] == ["only_a", "only_b"]
     assert c["pass_delta"] == pytest.approx(0.0) and c["cost_delta"] == pytest.approx(-0.5)
-    assert c["pass_lower"] == pytest.approx(-2 / 9) and c["cost_upper"] == pytest.approx(-0.5)
+    assert c["pass_lower"] < -0.2 and c["cost_upper"] == pytest.approx(-0.5)
     assert c["solved_cost"] == (pytest.approx(9.0 / 8), pytest.approx(4.5 / 8))
-    assert c["verdict"].startswith("not shown non-inferior")
+    assert c["verdict"].startswith("insufficient trials: 3 paired scenarios")
     text = evals.render(c, "A", "B")
-    assert "effort=high" in text and "effort=medium" in text and "-0.22" in text and "only_a" in text
+    assert "effort=high" in text and "effort=medium" in text and "only_a" in text and "insufficient" in text
 
 
 def test_compare_calls_b_non_inferior_when_its_bound_clears_the_margin():
-    a = _record({f"s{i}": (2, 1.0) for i in range(10)})
-    b = _record({f"s{i}": (3 if i < 5 else 2, 1.0) for i in range(10)})
+    a = _record({f"s{i}": (1, 1.0) for i in range(12)})
+    b = _record({f"s{i}": (3, 1.0) for i in range(12)})
     c = evals.compare(a, b, margin=0.05)
-    assert c["pass_delta"] == pytest.approx(1 / 6) and c["pass_lower"] > 0 and c["verdict"].startswith("non-inferior")
+    assert c["pass_delta"] == pytest.approx(2 / 3) and c["pass_lower"] > 0 and c["verdict"].startswith("non-inferior")
+
+
+def test_compare_does_not_call_a_ceiling_tie_non_inferior():
+    """#288 review: 10 scenarios at 3/3 in both arms gave a zero-width bootstrap and "non-inferior", although 30/30 is
+    consistent with a true rate near 0.90. Jeffreys draws keep the binomial spread."""
+    full = _record({f"s{i}": (3, 1.0) for i in range(10)})
+    c = evals.compare(full, full, margin=0.05)
+    assert c["pass_delta"] == 0 and c["pass_lower"] < -0.05 and c["verdict"].startswith("not shown non-inferior")
+
+
+@pytest.mark.parametrize(("n", "trials"), [(2, 3), (9, 3), (10, 2)])
+def test_compare_gives_no_verdict_below_the_pre_registered_size(n, trials):
+    """#288 review: 2 scenarios, A at 3/3 and B at 1/1, were called non-inferior."""
+    a = _record({f"s{i}": (trials, 1.0) for i in range(n)}, trials=trials)
+    c = evals.compare(a, a)
+    assert c["verdict"].startswith("insufficient trials") and c["pass_lower"] is not None
 
 
 def test_compare_refuses_an_interval_from_one_scenario():
@@ -233,15 +298,26 @@ def test_compare_refuses_an_interval_from_one_scenario():
     assert c["pass_lower"] is None and "too few" in c["verdict"]
 
 
+# This property used to assert that identical arms get a bound of exactly 0 and a "non-inferior" verdict. That encoded
+# the zero-spread bug the #288 review found; identical arms must now show binomial spread below 0.
 @settings(max_examples=60, deadline=None)
 @given(st.lists(st.tuples(st.integers(0, 3), st.integers(0, 3)), min_size=2, max_size=12), st.integers(0, 2**16))
-def test_compare_bounds_are_seeded_and_never_above_the_mean(pairs, seed):
+def test_compare_bounds_are_seeded_and_identical_arms_keep_their_spread(pairs, seed):
     a = _record({f"s{i}": (x, 1.0) for i, (x, _) in enumerate(pairs)})
     b = _record({f"s{i}": (y, 1.0) for i, (_, y) in enumerate(pairs)})
     c = evals.compare(a, b, seed=seed, draws=500)
-    assert c["pass_lower"] <= c["pass_delta"] + 1e-9 and c == evals.compare(a, b, seed=seed, draws=500)
+    assert -1 <= c["pass_lower"] <= 1 and c == evals.compare(a, b, seed=seed, draws=500)
     same = evals.compare(a, a, seed=seed, draws=500)
-    assert same["pass_delta"] == same["pass_lower"] == 0 and same["verdict"].startswith("non-inferior")
+    assert same["pass_delta"] == 0 and same["pass_lower"] < 0
+    assert not same["verdict"].startswith("non-inferior") or len(pairs) >= 10
+
+
+def test_run_compare_prints_the_report_and_fails_on_an_unknown_record(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(evals, "state_dir", lambda *_: tmp_path)
+    (tmp_path / "run-1.json").write_text(json.dumps(_record({"s1": (3, 1.0), "s2": (2, 1.0)}, label="a")))
+    (tmp_path / "run-2.json").write_text(json.dumps(_record({"s1": (3, 1.0), "s2": (3, 1.0)}, label="b")))
+    assert evals.run_compare("a", "b", 0.05) == 0 and "verdict: insufficient trials" in capsys.readouterr().out
+    assert evals.run_compare("a", "missing", 0.05) == 1 and "no eval run record" in capsys.readouterr().out
 
 
 def test_load_record_takes_a_path_a_run_stem_or_the_newest_run_with_a_label(monkeypatch, tmp_path):
