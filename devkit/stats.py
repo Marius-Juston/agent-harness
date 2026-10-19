@@ -605,8 +605,10 @@ def is_code(path: str) -> bool:
 def trace(prs: list[dict], bugs: dict[int, dict], git: Callable[..., str]) -> list[dict]:
     """(introducing PR, bug-fix PR) candidates: a PR fixes a bug when it closes or its branch names a bug issue; the
     lines it removes or changes in code files are blamed at its merge commit's first parent, and each blamed commit
-    maps to the merged PR that carried it. `after_merge`: the bug was filed after the introducing PR merged."""
+    maps to the merged PR that carried it (a branch commit, or the squash commit itself: a squash merge puts none of
+    the branch's commits on main). `after_merge`: the bug was filed after the introducing PR merged."""
     owner = {c["oid"]: p["number"] for p in prs for c in p.get("commits") or []}
+    owner |= {mc: p["number"] for p in prs if (mc := (p.get("mergeCommit") or {}).get("oid"))}
     merged_at = {p["number"]: p.get("mergedAt", "") for p in prs}
     by_pr = pr_issues(prs)
     out = []

@@ -4,7 +4,7 @@ description: Adversarial, read-only audit of one research note. Re-fetches its s
 model: opus
 maxTurns: 120
 color: orange
-effort: high
+effort: high  # judged for Opus 5.5 on 2026-10-19 (harness-efficiency.md §3)
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers
 ---
 You audit ONE research note of this project. You do not edit it. Your report is the evidence the lead uses to accept or return it.
@@ -17,7 +17,7 @@ You audit ONE research note of this project. You do not edit it. Your report is 
 3. Look for what is missing: contrary evidence or failed replications (search for them), stronger or newer sources, and an obvious free alternative the note did not consider.
 4. Check the Recommendation follows from the findings, with numbers and bounds, and no leap.
 
-Report, at most 30 lines:
-- verdict: accept, accept after fixes, or return;
-- findings, each with the claim (quoted), the source URL, the problem and the fix;
-- missing evidence, with links.
+Hand back in at most 25 lines, in this order:
+- **Blocked on me**: the verdict (accept, accept after fixes, or return) and what the owner must decide;
+- **Changed**: "nothing", you are read-only;
+- **Found**: findings, each with the claim (quoted), the source URL, the problem and the fix; then missing evidence, with links.

@@ -5,6 +5,7 @@ own one issue in their own worktree and finish with a PR. Only the lead merges, 
 gate on the merged tree in a throwaway worktree, never on the worker's say-so.
 """
 
+import contextlib
 import hashlib
 import itertools
 import json
@@ -12,9 +13,11 @@ import os
 import random
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import tomllib
 import traceback
@@ -396,6 +399,11 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
         raise board.BoardError("--partial, but the summary starts with 'Closes #N': write 'Refs #N' or drop --partial")
     if not re.match(r"(Closes|Refs) #\d+", body):
         body = f"{'Refs' if partial else 'Closes'} #{number}\n\n{body}"
+    title = f"{issue.title} (#{number})"
+    commits = git("log", "--format=%B", f"{base}..HEAD") if (base := checks.merge_base()) else ""
+    texts = {"PR title": title, "PR body": body, "branch commit messages": commits}
+    if (leaks := session_leaks(**texts)) and repo_public():
+        raise board.BoardError(f"{SESSION_RULE}: the {' and '.join(leaks)} carry one; remove it and rerun")
     git("push", "-u", "origin", branch)
     args = [
         "pr",
@@ -407,7 +415,7 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
         "--head",
         branch,
         "--title",
-        f"{issue.title} (#{number})",
+        title,
         "--body-file",
         "-",
     ]
@@ -421,6 +429,45 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
     board.set_status(number, "review")
     ref = re.match(r"(Closes|Refs) #\d+", body)
     return f"{url}\n#{number} status:review, {ref.group(0) if ref else ''}"
+
+
+# Owner rule (2026-10-05): a public repository never gets a session link or trailer in a commit, PR or comment.
+# Assembled from pieces: the scrub test bans the literal link from this public repository.
+SESSION_URL = "claude.ai/code/" + "session"
+SESSION_LEAK = re.compile(rf"https?://{re.escape(SESSION_URL)}_\w|^[ \t]*Claude-Session[ \t]*:", re.I | re.M)
+SESSION_RULE = f"this repository is public: no {SESSION_URL} URL or Claude-Session trailer"
+# A worker's PR body may not carry the consolidation trailer onto main: only `integrate --consolidation-review` does.
+REVIEW_LINE = re.compile(rf"^[ \t]*{re.escape(consolidation.REVIEW_TRAILER.rstrip(':'))}[ \t]*:.*\n?", re.I | re.M)
+
+
+def session_leaks(**texts: str | None) -> list[str]:
+    """The names of `texts` that carry a session link (https:// + SESSION_URL + `_<id>`) or a Claude-Session
+    trailer; a mention of the path alone, as in a rule's text, is not one."""
+    return [name for name, text in texts.items() if SESSION_LEAK.search(text or "")]
+
+
+def repo_public() -> bool:
+    """Whether GitHub may show this repository to anyone. Fails closed: only a visibility read as PRIVATE or
+    INTERNAL is not public."""
+    try:
+        seen = json.loads(board.gh("repo", "view", board.repo(), "--json", "visibility")).get("visibility")
+    except (board.BoardError, ValueError, AttributeError):
+        return True
+    return seen not in ("PRIVATE", "INTERNAL")
+
+
+def squash_message(pr_number: int, info: dict, review: int | None = None) -> tuple[str, str]:
+    """(subject, body) of the squash commit: the PR title and body, never the branch's commit messages (GitHub's
+    COMMIT_MESSAGES default would copy them and their trailers onto main). `review` appends the
+    `Consolidation-Review: #<review>` trailer as the body's last paragraph, where `consolidation.last_review` reads
+    it; one a worker wrote into the PR body is dropped (only the lead resets the trigger). Neither part is ever empty:
+    an empty `--body` would let GitHub's default message back in."""
+    title, tag = (info.get("title") or "").strip(), f"(#{pr_number})"
+    subject = title if title.endswith(tag) else f"{title} {tag}".strip()
+    body = REVIEW_LINE.sub("", info.get("body") or "").strip()
+    if review:
+        body = f"{body}\n\n{consolidation.REVIEW_TRAILER} #{review}".strip()
+    return subject, body or f"PR {tag} has no description."
 
 
 PR_FIELDS = (
@@ -647,15 +694,53 @@ def local_ci_refusal(contexts: list[str], bound: list[str]) -> str | None:
     return None
 
 
-def local_ci_run(tree: Path, contexts: list[str], log: Path) -> bool:
+GATE = ["uv", "run", "--quiet", "dev", "check", "--no-cache"]  # what integrate runs in the merged tree
+
+
+def bounded_run(cmd: list[str], timeout_s: float, **kwargs: object) -> int | None:
+    """Run `cmd` in a session of its own and return its exit code, or None when it outran `timeout_s`: then the whole
+    process group (uv, the gate, its pytest workers) is killed, since killing only `uv` would leave the gate under it
+    holding the machine's gate lock. An interrupt, SIGTERM or SIGHUP to this process kills the group too, since none
+    of them reaches a separate session (in the main thread only, where Python can handle signals)."""
+    main = threading.current_thread() is threading.main_thread()
+    old = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGHUP)} if main else {}
+    for s, handler in old.items():
+        if handler != signal.SIG_IGN:  # nohup's ignored SIGHUP stays ignored
+            signal.signal(s, _exit_on_signal)
+    try:
+        with subprocess.Popen(cmd, start_new_session=True, **kwargs) as proc:  # type: ignore[call-overload]
+            try:
+                return proc.wait(timeout=timeout_s)
+            except subprocess.TimeoutExpired:
+                _kill_group(proc)
+                return None
+            except BaseException:
+                _kill_group(proc)
+                raise
+    finally:
+        for s, handler in old.items():
+            signal.signal(s, handler)
+
+
+def _exit_on_signal(signum: int, _frame: object) -> None:
+    raise SystemExit(128 + signum)  # the shell's exit status for a process ended by that signal
+
+
+def _kill_group(proc: subprocess.Popen) -> None:
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGKILL)
+    proc.wait()
+
+
+def local_ci_run(tree: Path, contexts: list[str], log: Path) -> bool | None:
     """The gate, then each required context's own stand-in commands, in the merged tree; all output goes to `log`
-    (printed after). True when every one passed."""
+    (printed after). True when every one passed, None when the gate ran past `gate_deadline_s`."""
     commands = config.get().local_ci
     with log.open("w") as out:
         out.write(f"## gate: uv run dev check --no-cache in {tree}\n")
         out.flush()
-        gate = ["uv", "run", "--quiet", "dev", "check", "--no-cache"]
-        ok = subprocess.run(gate, cwd=tree, stdout=out, stderr=subprocess.STDOUT, check=False).returncode == 0
+        code = bounded_run(GATE, config.get().gate_deadline_s, cwd=tree, stdout=out, stderr=subprocess.STDOUT)
+        ok = None if code is None else code == 0
         for argv in [a for c in contexts for a in commands.get(c, [])] if ok else []:
             with tempfile.TemporaryDirectory(prefix="local-ci-") as tmpdir:
                 cmd = [a.replace("{tmpdir}", tmpdir) for a in argv]
@@ -724,23 +809,50 @@ def _remote_shas(pr_number: int) -> tuple[str, str]:
 
 
 def _merge_if_unchanged(
-    pr_number: int, head: str, main: str, dry_run: bool = False, review: int | None = None
+    pr_number: int, head: str, main: str, dry_run: bool = False, review: int | None = None, info: dict | None = None
 ) -> str | None:
-    """Merge only what was gated: the head is pinned by --match-head-commit, main is re-read just before. Returns the
-    reason for not merging, or None. `review`: the merge commit carries `Consolidation-Review: #<review>`, the
-    first-parent trailer that resets the consolidation trigger (only the lead writes it, through integrate)."""
+    """Squash-merge only what was gated: the head is pinned by --match-head-commit, main is re-read just before.
+    Returns the reason for not merging, or None. The commit is `squash_message` of `info` (the PR as last read);
+    `review` adds `Consolidation-Review: #<review>`, the first-parent trailer that resets the consolidation trigger
+    (only the lead writes it, through integrate)."""
     now_head, now_main = _remote_shas(pr_number)
     if now_head != head:
         return f"the PR head moved during the gate ({head[:10]} -> {now_head[:10]}): rerun integrate"
     if now_main != main:
         return f"main moved during the gate ({main[:10]} -> {now_main[:10]}): rerun integrate"
+    subject, body = squash_message(pr_number, info or {}, review)
+    if session_leaks(**{"PR title": subject, "PR body": body}) and repo_public():
+        return f"{SESSION_RULE} in the squash commit: edit the PR title or body, then rerun integrate"
+    if branch := (info or {}).get("headRefName"):
+        retarget_stacked(branch, head, dry_run)
     if not dry_run:
-        trailer = ["--body", f"{consolidation.REVIEW_TRAILER} #{review}"] if review else []
         board.gh(
-            "pr", "merge", str(pr_number), "-R", board.repo(), "--merge", "--match-head-commit", head, "--delete-branch",
-            *trailer,
+            "pr", "merge", str(pr_number), "-R", board.repo(), "--squash", "--subject", subject, "--body", body,
+            "--match-head-commit", head, "--delete-branch",
         )  # fmt: skip
     return None
+
+
+def retarget_stacked(branch: str, tip: str, dry_run: bool = False) -> list[int]:
+    """Stacked PRs: point every open PR based on `branch` (about to be squash-merged and deleted, which would close
+    them) at main, and say how each stacked PR drops its parent's commits, which the squash commit already carries on
+    main under another sha. Returns the retargeted PR numbers."""
+    found = board.gh(
+        "pr", "list", "-R", board.repo(), "--base", branch, "--state", "open", "--json", "number,headRefName"
+    )
+    stacked = json.loads(found or "[]")
+    for pr in stacked:
+        n, name = pr["number"], pr["headRefName"]
+        if dry_run:
+            print(f"would retarget stacked PR #{n} ({name}) from {branch} to main")
+            continue
+        board.gh("pr", "edit", str(n), "-R", board.repo(), "--base", "main")
+        print(
+            f"retargeted stacked PR #{n} ({name}) from {branch} to main. Before its integrate, in its worktree: "
+            f"`git rebase --onto origin/main {tip[:12]} {name}` then push with --force-with-lease (drops the "
+            f"parent's commits; integrate merging main in instead can conflict wherever the parent changed after {name} left it)"
+        )
+    return [c["number"] for c in stacked]
 
 
 def _pr_state(pr_number: int, ignore: frozenset[str] = frozenset()) -> tuple[dict, list[str]]:
@@ -923,6 +1035,10 @@ def _integrate(
     if reason := refusal(info):
         print(f"RESULT: refused: {reason}")
         return result(pr_number, 1, "refused", reason=reason)
+    if (leaks := session_leaks(**{"PR title": info.get("title"), "PR body": info.get("body")})) and repo_public():
+        reason = f"{SESSION_RULE}: the {' and '.join(leaks)} carry one; edit the PR, then rerun integrate"
+        print(f"RESULT: refused: {reason}")
+        return result(pr_number, 1, "refused", reason=reason)
     if override is not None and not override.strip():
         print("RESULT: refused: --override needs a reason")
         return result(pr_number, 1, "refused", reason="--override needs a reason")
@@ -995,11 +1111,20 @@ def _integrate(
             f"gating PR #{pr_number} ({head[:10]}) merged with main {main[:10]} as {tip[:10]} in {tmp} ...", flush=True
         )
         run_log = state_dir("integrate") / f"pr-{pr_number}-{tip[:12]}.log"
+        deadline = config.get().gate_deadline_s
         if local_ci:
             passed = local_ci_run(tmp, contexts, run_log)
         else:
-            gate = ["uv", "run", "--quiet", "dev", "check", "--no-cache"]
-            passed = subprocess.run(gate, cwd=tmp, check=False).returncode == 0
+            code = bounded_run(GATE, deadline, cwd=tmp)
+            passed = None if code is None else code == 0
+        if passed is None:
+            # the deadline also counts any wait for this machine's gate lock, so the output, not this line, says why
+            reason = f"the gate, counting any wait for the machine's gate lock, ran past {deadline} s (gate_deadline_s)"
+            print(
+                f"RESULT: stopped ({reason}) and was killed; its output shows a hung stage or a wait on another gate "
+                "(`uv run dev status` names the holder), then rerun integrate"
+            )
+            return result(pr_number, 1, "stopped", reason=reason)
         if not passed:
             print(f"RESULT: stopped (merged tree fails the gate); comment on PR #{pr_number} and send it back")
             return result(pr_number, 1, "gate-failed")
@@ -1045,7 +1170,9 @@ def _integrate(
     elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update)) is not None:
         return code
     try:
-        reason = _merge_if_unchanged(pr_number, head if dry_run else tip, main, dry_run=dry_run, review=review)
+        reason = _merge_if_unchanged(
+            pr_number, head if dry_run else tip, main, dry_run=dry_run, review=review, info=state
+        )
     except board.BoardError as exc:  # e.g. branch protection waiting for checks on the update just pushed
         print(f"RESULT: stopped (GitHub refused the merge: {exc}); rerun integrate once its checks pass")
         return result(pr_number, 1, "stopped", reason=f"GitHub refused the merge: {exc}", **update)

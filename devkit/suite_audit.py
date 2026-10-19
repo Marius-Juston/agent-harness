@@ -674,16 +674,26 @@ def ci_ledger(runs: list[dict]) -> list[dict]:
 
 
 def _base(repo: Path, snap: dict | None) -> str | None:
-    sha = (snap or {}).get("commit")
-    if (
-        sha
-        and subprocess.run(
-            ["git", "-C", str(repo), "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True
-        ).returncode
-        == 0
-    ):
-        return sha
+    """The last audit's commit, else its fork point from main: an audit run on a branch that was then squash-merged
+    (#292) left a commit no other clone has."""
+    for sha in ((snap or {}).get("commit"), (snap or {}).get("fork")):
+        if (
+            sha
+            and subprocess.run(
+                ["git", "-C", str(repo), "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True
+            ).returncode
+            == 0
+        ):
+            return sha
     return None
+
+
+def fork_point(repo: Path) -> str:
+    """Where HEAD left main (origin's, else the local branch), or "" when neither is known."""
+    for ref in ("origin/main", "main"):
+        if sha := _git(repo, "merge-base", "HEAD", ref, check=False).strip():
+            return sha
+    return ""
 
 
 def due(repo: Path, snap: dict | None, now: float | None = None) -> dict:
@@ -870,6 +880,7 @@ def report(repo: Path, reruns: int | None = None, quick: bool = False, now: floa
         "notes": notes,
         "snapshot": {
             "commit": sha,
+            "fork": fork_point(repo),
             "proxy": test_count(repo, "HEAD"),
             "collected": len(collected),
             "tier": tier,

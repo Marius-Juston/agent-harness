@@ -318,6 +318,17 @@ def test_the_project_carries_the_agent_surface_evals(rendered):
     assert "uv run dev eval" in (rendered / "evals/README.md").read_text()
 
 
+def test_the_settings_compact_near_400k(rendered):
+    # #258: the lead compacted at 501-966k; 150-400k cut its simulated cost 42-47 % (harness-efficiency.md, change 3).
+    # 400k, not 300k: subagents inherit the window, and only ~5 of 672 worker runs exceed 400k (32 exceed 300k).
+    # A plain int in Claude Code's 100000-1000000 range; `claude --autocompact auto` restores the default per launch.
+    window = json.loads((rendered / ".claude/settings.json").read_text())["autoCompactWindow"]
+    assert window == 400000
+    assert type(window) is int
+    lead = (ROOT / "plugins/harness-ops/skills/lead/SKILL.md").read_text()
+    assert "`autoCompactWindow`" in lead  # the lead knows when compaction comes and keeps HANDOFF ahead of it
+
+
 def test_the_settings_allow_the_read_only_board_commands(rendered):
     allow = json.loads((rendered / ".claude/settings.json").read_text())["permissions"]["allow"]
     for rule in (
@@ -340,6 +351,9 @@ def test_harness_rules_keep_only_what_no_hook_or_skill_already_says():
     gone += ("cite-check", "SessionStart", "check` once", "Never edit generated files")
     for line in gone:
         assert line not in text, line
+    limit = re.compile(r"(?i)hand[- ]?backs?\W.*\d+ lines")  # #263: the limit lives in each agent body
+    assert limit.search("Hand back in at most 25 lines") and limit.search("- Hand-backs are at most 25 lines.")
+    assert not limit.search(text)
     assert "`uv run dev check` gates the committed HEAD" in text and "again after any fix" in text
     assert "`harness-ops:lead`" in text and "`harness-ops:harness`" in text and "Only `uv run dev integrate" in text
     # kept by the lead's decision: skills mostly do not load, so these two do not move into the harness skill

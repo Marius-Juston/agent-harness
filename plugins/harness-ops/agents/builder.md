@@ -4,6 +4,7 @@ description: Implements one build/infra/bug issue test-first in its own worktree
 model: opus
 maxTurns: 300
 color: blue
+effort: medium  # judged for Opus 5.5 on 2026-10-19 (harness-efficiency.md §3)
 isolation: worktree
 experimental:
   cacheTtl: 1h
@@ -31,4 +32,4 @@ You implement ONE issue for this project. Other agents work in parallel, so stay
 2. Open the PR (add `--partial` if a DONE WHEN item is unmet) with the summary as a heredoc on stdin (do not write a report file): `uv run dev pr <n> --summary - <<'EOF'` ... `EOF`, with nothing piped after it: it prints two lines, and a trailing `| tail` makes worktree isolation refuse the call. The body: what changed (files), evidence (test names, numbers), a verdict per DONE WHEN item, what is unverified, `Fixed in passing`, and follow-ups filed as issues (`uv run dev board new ...`), each naming the fix-now condition it failed. A new dependency or non-test module needs a `Reuse:` line: candidates with their `reuse check` results, the note that weighed them, or `none: <reason>`; per new dependency add `fit: <package> does <need> via <API>` or `fit: unsure`. Never merge.
 3. Resumed after a hand-back? `git pull --ff-only` first: integrate may have pushed main into your branch.
 
-Reply in at most 25 lines: branch, the gate's last line, a verdict per DONE WHEN item, files outside Owns, fixes in passing, and follow-up issue numbers.
+Hand back in at most 25 lines, in this order: **Blocked on me** (what the lead or owner must decide or do, or "nothing"); **Changed** (the PR URL, branch, the gate's last line, a verdict per DONE WHEN item, files outside Owns, fixes in passing); **Found** (follow-up issue numbers, surprises). Details go in the PR body.

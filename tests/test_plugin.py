@@ -94,12 +94,25 @@ def test_every_plugin_agent_bounds_its_turns():
         assert isinstance(meta.get("maxTurns"), int) and meta["maxTurns"] > 0, p.name
 
 
-def test_only_the_research_agents_override_the_session_effort():
-    """#153: effort is set only where a role's evidence justifies it (agent-harness.md §10); the rest inherit the
-    owner's session level."""
-    metas = {p.stem: frontmatter.read(p)[0] for p in (PLUGIN / "agents").glob("*.md")}
-    assert {n for n, m in metas.items() if "effort" in m} == {"researcher", "research-auditor"}
-    assert all(m["effort"] in checks.EFFORTS for m in metas.values() if "effort" in m)
+# #259: every agent pins its effort, so one /effort in the lead no longer moves every worker. Values from
+# harness-efficiency.md §3, judged for one model on one date: a model change means re-measuring them (#82).
+EFFORT = {
+    "architect": "high",
+    "builder": "medium",
+    "research-auditor": "high",
+    "researcher": "high",
+    "reviewer": "medium",
+    "suite-auditor": "medium",
+    "tester": "high",
+}
+EFFORT_JUDGED = re.compile(r"^effort: (\S+) +# judged for Opus 5\.5 on 2026-10-19 \(harness-efficiency\.md §3\)$", re.M)
+
+
+def test_every_plugin_agent_sets_its_effort_and_the_model_it_was_judged_for():
+    texts = {p.stem: p.read_text(encoding="utf-8") for p in (PLUGIN / "agents").glob("*.md")}
+    assert {n: frontmatter.split(t)[0].get("effort") for n, t in texts.items()} == EFFORT
+    assert {n: EFFORT_JUDGED.findall(t) for n, t in texts.items()} == {n: [e] for n, e in EFFORT.items()}
+    assert set(EFFORT.values()) <= set(checks.EFFORTS)
 
 
 @pytest.mark.parametrize("agent", ["architect", "builder", "suite-auditor", "tester"])
@@ -120,11 +133,38 @@ def test_the_lead_skill_documents_cross_repo_dispatch():
     assert "Another repository's issue" in body and "prefix every command with cd <abs path> &&" in body
 
 
+def test_the_lead_skill_dispatch_escalates_effort_in_order():
+    """#259: the escalation ladder lives in section 4 (Dispatch), in the order high, xhigh, fable."""
+    _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
+    dispatch = body.split("## 4. Dispatch", 1)[1].split("\n## ", 1)[0]
+    rungs = [dispatch.find(s) for s in ("`high`", "`xhigh`", "`model: fable`")]
+    assert -1 not in rungs and rungs == sorted(rungs), rungs
+    # a resume keeps the old effort, so escalation is a respawn; the log covers the first dispatch too
+    assert "gate failure" in dispatch and "respawn one level up" in dispatch
+    assert "Log every dispatch: `board beat" in dispatch
+
+
 def test_the_lead_skill_preloads_dev_status_without_aborting():
     _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
     cmds = checks.INJECTION.findall(body)
     assert any("dev status" in c for c in cmds)
     assert all(c.rstrip().endswith("|| true") for c in cmds)
+
+
+@pytest.mark.parametrize("agent", AGENTS)
+def test_every_agent_body_states_the_one_hand_back_contract(agent):
+    """#263: one limit, stated in each agent body because the plugin travels without HARNESS.md, and one order with
+    what needs the lead first (docs/research/harness-efficiency.md change 8)."""
+    _, body = frontmatter.read(PLUGIN / "agents" / f"{agent}.md")
+    assert re.findall(r"at most (\d+) lines", body) == ["25"]
+    heads = [body.find(f"**{h}**") for h in ("Blocked on me", "Changed", "Found")]
+    assert -1 not in heads and heads == sorted(heads), heads
+
+
+def test_the_harness_skill_watches_each_agents_own_hand_back_limit():
+    text = (PLUGIN / "skills/harness/SKILL.md").read_text()
+    assert "hand-backs over the agent's own line limit" in text
+    assert not re.search(r"hand-backs over \d+", text)
 
 
 def test_the_builder_sends_the_pr_body_as_a_heredoc_with_nothing_piped_after_it():
