@@ -47,6 +47,11 @@ class Config:
     path_check_skip: list[str] = field(default_factory=list)
     quota_cap: int = 95  # weekly all-models percent at which the spawn guard refuses new agents
     checks_wait_s: int = 900  # how long integrate waits for the checks on a PR head it pushed before it merges
+    # #43: one test's limit (pytest-timeout; 0 = none; a test needing more says `@pytest.mark.timeout(n)`), and the
+    # deadline of integrate's gate run, past which its whole process group is killed so the gate lock is freed.
+    # docs/research/test-suite-design.md §6: the slowest passing test seen was 75 s.
+    test_timeout_s: int = 300
+    gate_deadline_s: int = 3600
     # `dev integrate --local-ci` (#76): a required check that has not queued after this long means Actions cannot run.
     local_ci_wait_s: int = 600
     # `dev integrate --local-ci`: required check context -> the commands (argument lists, run in the merged tree after

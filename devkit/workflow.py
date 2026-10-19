@@ -5,6 +5,7 @@ own one issue in their own worktree and finish with a PR. Only the lead merges, 
 gate on the merged tree in a throwaway worktree, never on the worker's say-so.
 """
 
+import contextlib
 import hashlib
 import itertools
 import json
@@ -12,6 +13,7 @@ import os
 import random
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -644,15 +646,39 @@ def local_ci_refusal(contexts: list[str], bound: list[str]) -> str | None:
     return None
 
 
-def local_ci_run(tree: Path, contexts: list[str], log: Path) -> bool:
+GATE = ["uv", "run", "--quiet", "dev", "check", "--no-cache"]  # what integrate runs in the merged tree
+
+
+def bounded_run(cmd: list[str], timeout_s: float, **kwargs: object) -> int | None:
+    """Run `cmd` in a session of its own and return its exit code, or None when it outran `timeout_s`: then the whole
+    process group (uv, the gate, its pytest workers) is killed, since killing only `uv` would leave the gate under it
+    holding the machine's gate lock. An interrupt kills the group too, as it no longer reaches it from the terminal."""
+    with subprocess.Popen(cmd, start_new_session=True, **kwargs) as proc:  # type: ignore[call-overload]
+        try:
+            return proc.wait(timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            _kill_group(proc)
+            return None
+        except BaseException:
+            _kill_group(proc)
+            raise
+
+
+def _kill_group(proc: subprocess.Popen) -> None:
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(proc.pid, signal.SIGKILL)
+    proc.wait()
+
+
+def local_ci_run(tree: Path, contexts: list[str], log: Path) -> bool | None:
     """The gate, then each required context's own stand-in commands, in the merged tree; all output goes to `log`
-    (printed after). True when every one passed."""
+    (printed after). True when every one passed, None when the gate ran past `gate_deadline_s`."""
     commands = config.get().local_ci
     with log.open("w") as out:
         out.write(f"## gate: uv run dev check --no-cache in {tree}\n")
         out.flush()
-        gate = ["uv", "run", "--quiet", "dev", "check", "--no-cache"]
-        ok = subprocess.run(gate, cwd=tree, stdout=out, stderr=subprocess.STDOUT, check=False).returncode == 0
+        code = bounded_run(GATE, config.get().gate_deadline_s, cwd=tree, stdout=out, stderr=subprocess.STDOUT)
+        ok = None if code is None else code == 0
         for argv in [a for c in contexts for a in commands.get(c, [])] if ok else []:
             with tempfile.TemporaryDirectory(prefix="local-ci-") as tmpdir:
                 cmd = [a.replace("{tmpdir}", tmpdir) for a in argv]
@@ -970,11 +996,16 @@ def _integrate(
             f"gating PR #{pr_number} ({head[:10]}) merged with main {main[:10]} as {tip[:10]} in {tmp} ...", flush=True
         )
         run_log = state_dir("integrate") / f"pr-{pr_number}-{tip[:12]}.log"
+        deadline = config.get().gate_deadline_s
         if local_ci:
             passed = local_ci_run(tmp, contexts, run_log)
         else:
-            gate = ["uv", "run", "--quiet", "dev", "check", "--no-cache"]
-            passed = subprocess.run(gate, cwd=tmp, check=False).returncode == 0
+            code = bounded_run(GATE, deadline, cwd=tmp)
+            passed = None if code is None else code == 0
+        if passed is None:
+            reason = f"the gate ran past its {deadline} s deadline (gate_deadline_s) and was killed"
+            print(f"RESULT: stopped ({reason}); find the hung stage in its output, then rerun integrate")
+            return result(pr_number, 1, "stopped", reason=reason)
         if not passed:
             print(f"RESULT: stopped (merged tree fails the gate); comment on PR #{pr_number} and send it back")
             return result(pr_number, 1, "gate-failed")

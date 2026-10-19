@@ -192,6 +192,7 @@ def project(tmp_path, monkeypatch):
     paths.common_dir.cache_clear()
     monkeypatch.chdir(clone)
     monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(workflow, "bounded_run", lambda cmd, timeout_s, **kw: run(cmd, **kw).returncode)
     monkeypatch.setattr(board, "gh", gh)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "pr_feedback", lambda n: {"threads": []})

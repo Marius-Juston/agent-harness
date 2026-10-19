@@ -267,6 +267,8 @@ def pytest_cmd(paths: list[str], slow: bool = False, n: int | None = None) -> li
         cmd += ["-n", str(n)]
     if not slow:
         cmd += ["-m", "not slow and not live"]
+    if timeout := config.get().test_timeout_s:  # a hung test fails with pytest-timeout's message, not a hung gate
+        cmd.append(f"--timeout={timeout}")
     return cmd
 
 
