@@ -4,7 +4,7 @@ description: Adversarial, read-only audit of one research note. Re-fetches its s
 model: opus
 maxTurns: 120
 color: orange
-effort: high
+effort: high  # judged for Opus 5.5 on 2026-10-19 (harness-efficiency.md §3)
 tools: Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers
 ---
 You audit ONE research note of this project. You do not edit it. Your report is the evidence the lead uses to accept or return it.

@@ -94,12 +94,25 @@ def test_every_plugin_agent_bounds_its_turns():
         assert isinstance(meta.get("maxTurns"), int) and meta["maxTurns"] > 0, p.name
 
 
-def test_only_the_research_agents_override_the_session_effort():
-    """#153: effort is set only where a role's evidence justifies it (agent-harness.md §10); the rest inherit the
-    owner's session level."""
-    metas = {p.stem: frontmatter.read(p)[0] for p in (PLUGIN / "agents").glob("*.md")}
-    assert {n for n, m in metas.items() if "effort" in m} == {"researcher", "research-auditor"}
-    assert all(m["effort"] in checks.EFFORTS for m in metas.values() if "effort" in m)
+# #259: every agent pins its effort, so one /effort in the lead no longer moves every worker. Values from
+# harness-efficiency.md §3, judged for one model on one date: a model change means re-measuring them (#82).
+EFFORT = {
+    "architect": "high",
+    "builder": "medium",
+    "research-auditor": "high",
+    "researcher": "high",
+    "reviewer": "medium",
+    "suite-auditor": "medium",
+    "tester": "high",
+}
+EFFORT_JUDGED = re.compile(r"^effort: (\S+) +# judged for Opus 5\.5 on 2026-10-19 \(harness-efficiency\.md §3\)$", re.M)
+
+
+def test_every_plugin_agent_sets_its_effort_and_the_model_it_was_judged_for():
+    texts = {p.stem: p.read_text(encoding="utf-8") for p in (PLUGIN / "agents").glob("*.md")}
+    assert {n: frontmatter.split(t)[0].get("effort") for n, t in texts.items()} == EFFORT
+    assert {n: EFFORT_JUDGED.findall(t) for n, t in texts.items()} == {n: [e] for n, e in EFFORT.items()}
+    assert set(EFFORT.values()) <= set(checks.EFFORTS)
 
 
 @pytest.mark.parametrize("agent", ["architect", "builder", "suite-auditor", "tester"])
@@ -118,6 +131,15 @@ def test_the_lead_skill_documents_cross_repo_dispatch():
     """#170: the pattern tested in test_hooks.py (cross_repo) is the one the lead is told to use."""
     _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
     assert "Another repository's issue" in body and "prefix every command with cd <abs path> &&" in body
+
+
+def test_the_lead_skill_dispatch_escalates_effort_in_order():
+    """#259: the escalation ladder lives in section 4 (Dispatch), in the order high, xhigh, fable."""
+    _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
+    dispatch = body.split("## 4. Dispatch", 1)[1].split("\n## ", 1)[0]
+    rungs = [dispatch.find(s) for s in ("`high`", "`xhigh`", "`model: fable`")]
+    assert -1 not in rungs and rungs == sorted(rungs), rungs
+    assert "gate failure" in dispatch and "board beat" in dispatch
 
 
 def test_the_lead_skill_preloads_dev_status_without_aborting():

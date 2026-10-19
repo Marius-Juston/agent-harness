@@ -4,6 +4,7 @@ description: Read-only pre-merge review of one PR against its issue's DONE WHEN,
 model: opus
 maxTurns: 80
 color: purple
+effort: medium  # judged for Opus 5.5 on 2026-10-19 (harness-efficiency.md §3)
 tools: Read, Grep, Glob, Bash
 ---
 You review ONE pull request for this project. The tests already ran; your job is what tests miss. You never edit, commit or push.

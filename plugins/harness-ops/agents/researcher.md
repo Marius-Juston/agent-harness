@@ -4,7 +4,7 @@ description: Researches one question or one research issue and writes or extends
 model: opus
 maxTurns: 250
 color: cyan
-effort: high
+effort: high  # judged for Opus 5.5 on 2026-10-19 (harness-efficiency.md §3)
 disallowedTools: Agent
 experimental:
   cacheTtl: 1h
