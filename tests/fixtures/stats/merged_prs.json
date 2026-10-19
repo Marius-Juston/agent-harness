@@ -1,0 +1,26 @@
+[
+ {
+  "number": 20,
+  "headRefName": "12-thing",
+  "closingIssuesReferences": [
+   {
+    "number": 12
+   }
+  ],
+  "mergedAt": "2026-10-13T12:00:00Z",
+  "mergeCommit": {
+   "oid": "0000000000000000000000000000000000000000"
+  },
+  "commits": []
+ },
+ {
+  "number": 21,
+  "headRefName": "13-other",
+  "closingIssuesReferences": [],
+  "mergedAt": "2026-10-14T12:00:00Z",
+  "mergeCommit": {
+   "oid": "1111111111111111111111111111111111111111"
+  },
+  "commits": []
+ }
+]
