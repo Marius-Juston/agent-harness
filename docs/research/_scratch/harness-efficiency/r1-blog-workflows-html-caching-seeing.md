@@ -303,7 +303,7 @@ Design tools around the model's actual abilities, which you learn by reading its
 
    For each, run `uv run dev eval` with and without it (the harness skill already says to revert agent-file changes that change nothing over about 30 runs). Expect some guards to be dead weight, as the context-anxiety resets and TodoWrite reminders were.
 2. **EFFECTIVENESS: anything the harness parses from an agent should be structured, not prose.** This covers hand-backs, review verdicts, auditor "accept / return", and gap lists. The post shows markdown formats fail; free-text hand-backs are the harness analogue.
-   - Use workflow `schema` outputs (validated, 5 retries), or a tiny `uv run dev handback --json` CLI that validates fields such as PR, DONE WHEN met, tests, and open questions.
+   - Use workflow `schema` outputs (validated, 5 retries), or a tiny hand-back validator in the dev CLI (proposed; no such command exists) that validates fields such as PR, DONE WHEN met, tests, and open questions.
    - Measure the share of hand-backs the lead must re-query.
 3. **TOKENS + EFFECTIVENESS: apply the Guide-subagent pattern to `uv run dev`.**
    - Agents currently run `uv run dev --help` and read docs (`multi-agent.md`, `agent-surface.md`) into their main context.
