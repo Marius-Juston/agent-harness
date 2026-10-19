@@ -33,8 +33,19 @@ def opened(monkeypatch):
 
 def test_summary_dash_reads_the_body_from_stdin(opened, monkeypatch):
     monkeypatch.setattr("sys.stdin", io.StringIO("Closes #33\n\nstdin body `$x` ünï\n"))
-    assert workflow.pr(33, "-", draft=False) == "https://example/pr/1"
+    assert workflow.pr(33, "-", draft=False).splitlines()[0] == "https://example/pr/1"
     assert opened == ["Closes #33\n\nstdin body `$x` ünï\n"]
+
+
+def test_a_successful_dev_pr_prints_the_url_and_one_status_line(opened, monkeypatch, capsys):
+    """#261: long output got piped (`2>&1 | tail`), and Claude Code refuses a piped `dev pr` in a worktree."""
+    from devkit import cli
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("just text\n"))
+    assert cli.run(cli.parse(["pr", "33", "--summary", "-"])) in (None, 0)
+    out = capsys.readouterr()
+    lines = (out.out + out.err).splitlines()
+    assert lines == ["https://example/pr/1", "#33 status:review, Closes #33"]
 
 
 def test_a_body_without_a_ref_line_closes_its_issue(opened, monkeypatch):

@@ -125,3 +125,10 @@ def test_the_lead_skill_preloads_dev_status_without_aborting():
     cmds = checks.INJECTION.findall(body)
     assert any("dev status" in c for c in cmds)
     assert all(c.rstrip().endswith("|| true") for c in cmds)
+
+
+def test_the_builder_sends_the_pr_body_as_a_heredoc_with_nothing_piped_after_it():
+    """#261: a pipe after `dev pr` (`2>&1 | tail`) is refused by worktree isolation 105 of 106 times."""
+    _, body = frontmatter.read(PLUGIN / "agents/builder.md")
+    finish = body.split("## Finish", 1)[1]
+    assert "--summary - <<'EOF'" in finish and "nothing piped after" in finish
