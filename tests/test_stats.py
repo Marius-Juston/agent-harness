@@ -46,7 +46,8 @@ def test_report_names_the_usage_field(monkeypatch):
 # --- cost, reviews and misses (#255; docs/research/harness-efficiency.md §2, §4, §9) -------------------------------
 
 STATS = Path(__file__).parent / "fixtures/stats"
-PRICES = {"opus": {"input": 1, "cache_write_5m": 2, "cache_write_1h": 3, "cache_read": 0.5, "output": 10}}
+OPUS = "claude-opus-5-5"
+PRICES = {OPUS: {"input": 1, "cache_write_5m": 2, "cache_write_1h": 3, "cache_read": 0.5, "output": 10}}
 
 
 def _merged():
@@ -83,17 +84,43 @@ def test_cost_per_agent_type_and_per_merged_issue_at_configured_prices():
 
 def test_cost_report_prints_each_token_kind_and_the_per_issue_rate():
     text = stats.cost_report(stats.cost(_runs(), PRICES, _merged(), "proj"))
-    for word in ("input", "write1h", "read", "output", "#12", "per merged issue", "0.443"):
+    for word in ("input", "write1h", "read", "output", "#12", "per merged issue", "0.443", "records-scaled"):
         assert word in text, word
+    assert "exact" not in text
 
 
-def test_prices_come_from_config_and_a_missing_price_is_an_error():
-    assert config.parse({"prices": PRICES}).prices == PRICES
-    assert set(config.parse({}).prices["opus"]) == set(config.PRICE_KEYS)
+def test_cost_reconciles_with_the_cost_records_and_scales_to_them():
+    out = stats.cost(_runs(), PRICES, _merged(), "proj")
+    rec = out["reconcile"]
+    assert rec["sessions"] == 1 and rec["recorded_usd"] == pytest.approx(0.9 + 0.2)  # per process, not the last
+    assert rec["records"]["tokens"]["output"] == 2000 + 999 + 1000  # Haiku side calls are in the records
+    assert rec["records"]["usd"]["output"] == pytest.approx(3000 * 10 / 1e6)  # Haiku is not priced here
+    s1 = (10 * 1 + 1000 * 3 + 1443 * 10 + 2 * 1 + 500 * 3 + 1000 * 0.5 + 1557 * 10) / 1e6  # lead + builder
+    assert sum(rec["transcript"]["usd"].values()) == pytest.approx(s1)
+    text = stats.cost_report(out)
+    own = out["total"] - out["other"]["usd"]["total"]
+    assert f"${own * 1.1 / s1 / 2:,.2f} records-scaled" in text  # 2 merged issues
+
+
+def test_prices_come_from_config_merge_over_defaults_and_match_exact_ids():
+    cfg = config.parse({"prices": {OPUS: {"output": 30}}})
+    assert cfg.prices[OPUS] == {**config.PRICES[OPUS], "output": 30}  # one key changed, the rest kept
+    assert cfg.prices["claude-haiku-5-5"] == config.PRICES["claude-haiku-5-5"]
+    assert config.parse({"prices": {"m-1": PRICES[OPUS]}}).prices["m-1"] == PRICES[OPUS]
     with pytest.raises(config.ConfigError, match="prices"):
-        config.parse({"prices": {"opus": {"input": 1}}})
+        config.parse({"prices": {"new-model": {"input": 1}}})  # a new model needs every price
     with pytest.raises(config.ConfigError, match="prices"):
-        config.parse({"prices": {"opus": {**PRICES["opus"], "output": "10"}}})
+        config.parse({"prices": {OPUS: {"output": "10"}}})
+    with pytest.raises(config.ConfigError, match="prices"):
+        config.parse({"prices": {OPUS: {"outptu": 10}}})
+    assert stats._price("claude-opus-4-8", config.PRICES) is None  # never another generation's prices
+    assert stats._price("claude-haiku-5-5-20261001", config.PRICES) == config.PRICES["claude-haiku-5-5"]
+
+
+def test_turns_of_unpriced_models_are_listed_not_priced():
+    out = stats.cost(_runs(), {"claude-sonnet-5-5": PRICES[OPUS]}, _merged(), "proj")
+    assert out["total"] == 0 and out["unpriced"][OPUS] == 5
+    assert f"{OPUS} (5 turns)" in stats.cost_report(out)
 
 
 @pytest.mark.parametrize(

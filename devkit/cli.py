@@ -292,7 +292,9 @@ def build() -> argparse.ArgumentParser:
     g = x.add_mutually_exclusive_group()
     g.add_argument("--cost", dest="mode", action="store_const", const="cost", help="$ by token kind per type and issue")
     g.add_argument("--reviews", dest="mode", action="store_const", const="reviews", help="review rounds per role")
-    g.add_argument("--misses", dest="mode", action="store_const", const="misses", help="traced post-merge defects")
+    g.add_argument(
+        "--misses", dest="mode", action="store_const", const="misses", help="candidate post-merge defect pairs"
+    )
     x.add_argument("--since", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or after")
     x.add_argument("--until", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or before")
     x = sub.add_parser("suite-audit", help="size-tiered audit of the whole test suite: is one due, and the nine checks")

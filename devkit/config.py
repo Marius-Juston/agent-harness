@@ -27,17 +27,17 @@ CONSOLIDATION: dict[str, float | int | str | list[str]] = {
     "since": "",  # a commit to count from instead of the newest `Consolidation-Review:` trailer
 }
 
-# `[tool.devkit.prices.<family>]`: list $ per million tokens that `dev agent-stats --cost` prices with (devkit/stats.py).
-# A model takes the first family whose name is part of its id, else the first family. Defaults: the pricing page as
-# fetched for docs/research/harness-efficiency.md §2 (2026-10-19); a table replaces the whole default set.
+# `[tool.devkit.prices."<model id>"]`: list $ per million tokens that `dev agent-stats --cost` prices with
+# (devkit/stats.py). A model is priced only by its exact id (a -YYYYMMDD snapshot suffix ignored), so an older model
+# never takes a newer one's prices; unpriced models are listed. Defaults: the pricing page as fetched for
+# docs/research/harness-efficiency.md §2 (2026-10-19). A table merges over the defaults, key by key.
 PRICE_KEYS = ("input", "cache_write_5m", "cache_write_1h", "cache_read", "output")
 PRICES: dict[str, dict[str, float]] = {
-    family: dict(zip(PRICE_KEYS, p, strict=True))
-    for family, p in {
-        "opus": (4.0, 5.0, 8.0, 0.20, 20.0),
-        "sonnet": (2.0, 2.5, 4.0, 0.10, 10.0),
-        "haiku": (0.10, 0.125, 0.20, 0.01, 0.50),
-        "fable": (10.0, 12.5, 20.0, 0.25, 50.0),
+    model: dict(zip(PRICE_KEYS, p, strict=True))
+    for model, p in {
+        "claude-opus-5-5": (4.0, 5.0, 8.0, 0.20, 20.0),
+        "claude-sonnet-5-5": (2.0, 2.5, 4.0, 0.10, 10.0),
+        "claude-haiku-5-5": (0.10, 0.125, 0.20, 0.01, 0.50),
     }.items()
 }
 
@@ -94,17 +94,20 @@ def parse(data: dict) -> Config:
     if "consolidation" in data:
         data = {**data, "consolidation": _consolidation(data["consolidation"])}
     if "prices" in data:
-        _prices(data["prices"])
+        data = {**data, "prices": _prices(data["prices"])}
     return Config(**data)
 
 
-def _prices(table: dict) -> None:
-    if not table:
-        raise ConfigError("[tool.devkit.prices]: expected at least one model family")
-    for family, p in table.items():
-        ok = isinstance(p, dict) and set(p) == set(PRICE_KEYS)
+def _prices(table: dict) -> dict[str, dict[str, float]]:
+    out = {k: dict(v) for k, v in PRICES.items()}
+    for model, p in table.items():
+        if not isinstance(p, dict) or set(p) - set(PRICE_KEYS):
+            raise ConfigError(f"[tool.devkit.prices.{model}]: expected a table of {list(PRICE_KEYS)}")
+        out[model] = {**out.get(model, {}), **p}
+        ok = set(out[model]) == set(PRICE_KEYS)
         if not ok or not all(isinstance(v, int | float) and not isinstance(v, bool) and v >= 0 for v in p.values()):
-            raise ConfigError(f"[tool.devkit.prices.{family}]: expected numbers for exactly {list(PRICE_KEYS)}")
+            raise ConfigError(f"[tool.devkit.prices.{model}]: expected numbers for {list(PRICE_KEYS)}")
+    return out
 
 
 def _consolidation(table: dict) -> dict:

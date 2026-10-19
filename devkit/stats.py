@@ -12,7 +12,7 @@ logged. Messages that never logged a final usage are counted as "partial"; their
 
 Three views judge harness changes (docs/research/harness-efficiency.md §2, §4, §9; #255): `--cost` prices each token
 kind per agent type and per merged issue, `--reviews` counts review rounds per (merged PR, reviewer role), `--misses`
-traces post-merge defects to the reviewed PRs that introduced them.
+pairs bug-fix PRs with the reviewed PRs whose lines they change (candidates to check).
 """
 
 import json
@@ -256,7 +256,13 @@ def _shown_out(turn: dict) -> float:
 def hidden_per_turn(runs: list[Run]) -> float:
     """Billed output the transcripts do not show (hidden thinking), in tokens per turn: in each session whose cost
     records cover its transcripts, records' output of the models the transcripts use minus the visible estimate,
-    spread evenly over those turns (the even spread is ASSUMED, harness-efficiency.md §2)."""
+    spread evenly over those turns (the even spread is ASSUMED, harness-efficiency.md §2).
+
+    This differs on purpose from the note's formula (r2_cost_phases.py: all records' Opus output minus 0.443 x visible
+    chars, over every turn of every run; 233 tokens there, 351 on 2026-10-11..16 here, 302 with this one). A session
+    without records, or whose records stop early, adds turns but no billed output and would skew the rest, so only
+    sessions whose records reach their visible estimate count; and a turn's visible part is the larger of its logged
+    output and the estimate, as in cost_segments.py."""
     sessions: dict[str, list[Run]] = defaultdict(list)
     for r in runs:
         sessions[r.session].append(r)
@@ -272,8 +278,54 @@ def hidden_per_turn(runs: list[Run]) -> float:
     return extra / turns if turns else 0.0
 
 
-def _price(model: str, prices: dict[str, dict[str, float]]) -> dict[str, float]:
-    return next((p for family, p in prices.items() if family in model), next(iter(prices.values())))
+def _price(model: str, prices: dict[str, dict[str, float]]) -> dict[str, float] | None:
+    """The model's prices by exact id (a trailing -YYYYMMDD snapshot date ignored); None when not configured."""
+    return prices.get(re.sub(r"-\d{8}$", "", model))
+
+
+def _turn(t: dict, hidden: float, prices: dict[str, dict[str, float]]) -> tuple[dict, dict | None]:
+    """A turn's tokens per kind and their $ per kind (None when its model has no configured price)."""
+    toks = {**{k: t[k] for k in KINDS if k != "output"}, "output": _shown_out(t) + hidden}
+    p = _price(t["model"], prices)
+    return toks, ({k: n * p[PRICE_OF[k]] / 1e6 for k, n in toks.items()} if p else None)
+
+
+# the cost records' token fields per kind; their cache writes are not split by TTL and are priced at the 1-hour
+# rate (99.6 % of writes in harness-efficiency.md §2 were 1-hour)
+RECORD_FIELDS = {"input": "inputTokens", "write": "cacheCreationInputTokens", "read": "cacheReadInputTokens"}
+RECORD_FIELDS["output"] = "outputTokens"
+RECORD_PRICE = {"input": "input", "write": "cache_write_1h", "read": "cache_read", "output": "output"}
+
+
+def reconcile(runs: list[Run], hidden: float, prices: dict[str, dict[str, float]]) -> dict:
+    """Transcript-priced tokens and $ per kind against the cost records (per process), over the sessions that have
+    records. Transcripts miss most uncached input and calls that are logged only in the records (side calls)."""
+    sessions: dict[str, list[Run]] = defaultdict(list)
+    for r in runs:
+        sessions[r.session].append(r)
+
+    def side() -> dict:
+        return {"tokens": dict.fromkeys(RECORD_FIELDS, 0.0), "usd": dict.fromkeys(RECORD_FIELDS, 0.0)}
+
+    out = {"sessions": 0, "transcript": side(), "records": side(), "recorded_usd": 0.0}
+    for rs in sessions.values():
+        procs = [p for r in rs for p in r.billed]
+        if not procs:
+            continue
+        out["sessions"] += 1
+        out["recorded_usd"] += sum(p["total"] for p in procs)
+        for t in (t for r in rs for t in r.turns):
+            toks, usd = _turn(t, hidden, prices)
+            for k, n in toks.items():
+                kind = "write" if k.startswith("write") else k
+                out["transcript"]["tokens"][kind] += n
+                out["transcript"]["usd"][kind] += usd[k] if usd else 0.0
+        for model, u in (mu for p in procs for mu in p["usage"].items()):
+            price = _price(model, prices)
+            for kind, f in RECORD_FIELDS.items():
+                out["records"]["tokens"][kind] += u.get(f, 0)
+                out["records"]["usd"][kind] += u.get(f, 0) * price[RECORD_PRICE[kind]] / 1e6 if price else 0.0
+    return out
 
 
 def pr_issues(merged: list[dict]) -> dict[int, set[int]]:
@@ -319,20 +371,24 @@ def cost(runs: list[Run], prices: dict[str, dict[str, float]], merged: list[dict
 
     types: dict[str, dict] = defaultdict(row)
     targets: dict[str, dict] = defaultdict(row)
+    unpriced: Counter[str] = Counter()  # model -> turns
     for r in runs:
         rows = (types[r.kind], targets[_target(r, by_pr, repo_name)])
         for x in rows:
             x["runs"] += 1
         for t in r.turns:
-            p = _price(t["model"], prices)
-            toks = {**{k: t[k] for k in KINDS if k != "output"}, "output": _shown_out(t) + hidden}
+            toks, usd = _turn(t, hidden, prices)
+            if usd is None:
+                unpriced[t["model"]] += 1
             for x in rows:
                 for k, n in toks.items():
                     x["tokens"][k] += n
-                    x["usd"][k] += n * p[PRICE_OF[k]] / 1e6
-                    x["usd"]["total"] += n * p[PRICE_OF[k]] / 1e6
+                    x["usd"][k] += usd[k] if usd else 0.0
+                    x["usd"]["total"] += usd[k] if usd else 0.0
     issues = {k: v for k, v in targets.items() if k.startswith("#")}
     return {
+        "reconcile": reconcile(runs, hidden, prices),
+        "unpriced": dict(unpriced),
         "types": dict(types),
         "issues": issues,
         "shared": targets.get("shared", row()),
@@ -366,17 +422,38 @@ def cost_report(c: dict, top: int = 15) -> str:
     out += ["", f"cost by merged issue (top {min(top, len(issues))} of {len(issues)} with runs)", head]
     out += [_cost_line(k, v) for k, v in issues[:top]]
     out += [_cost_line("shared (lead, unnamed)", c["shared"]), _cost_line("other repositories", c["other"])]
+    if c["unpriced"]:
+        models = ", ".join(f"{m} ({n} turns)" for m, n in sorted(c["unpriced"].items()))
+        out.append(f"not priced (no exact id in [tool.devkit.prices], counted at $0 above): {models}")
+    rec = c["reconcile"]
+    out += ["", f"reconciliation with the cost records (`cost-state`, per process) of the {rec['sessions']} sessions"]
+    out.append(f"{'kind':<10}{'transcript tok':>16}{'recorded tok':>16}{'transcript $':>14}{'recorded $':>14}")
+    for k in RECORD_FIELDS:
+        t, r = rec["transcript"], rec["records"]
+        out.append(f"{k:<10}{_n(t['tokens'][k]):>16}{_n(r['tokens'][k]):>16}{t['usd'][k]:>14,.2f}{r['usd'][k]:>14,.2f}")
+    priced = sum(rec["transcript"]["usd"].values())
+    scale = rec["recorded_usd"] / priced if priced and rec["recorded_usd"] else 1.0
+    out.append(
+        f"{'total':<42}{priced:>14,.2f}{sum(rec['records']['usd'].values()):>14,.2f}"
+        f"  (the records' own costUSD: ${rec['recorded_usd']:,.2f}, all models)"
+    )
     n = c["merged_issues"]
     own = c["total"] - c["other"]["usd"]["total"]
     attributed = sum(v["usd"]["total"] for v in c["issues"].values())
     out += [
         "",
-        f"${own:,.2f} for this repository over {n} merged issues: "
-        + (f"${own / n:,.2f} per merged issue" if n else "no merged issue in the window")
-        + f" ({attributed / own:.0%} attributed to one issue by the run's description)" * bool(own),
+        f"this repository: ${own:,.2f} transcript-priced, ${own * scale:,.2f} scaled to the cost records (x{scale:.2f}"
+        f" = records' costUSD / transcript-priced $ of the sessions with records), over {n} merged issues",
+        (
+            f"per merged issue: ${own / n:,.2f} transcript-priced, ${own * scale / n:,.2f} records-scaled"
+            f" ({attributed / own if own else 0:.0%} of the spend attributed to one issue by the run's description)"
+            if n
+            else "no merged issue in the window"
+        ),
         f"output = max(logged usage.output_tokens, visible chars x {VIS_TOKENS_PER_CHAR}) + {c['hidden']:.0f} hidden"
-        f" tokens per turn over {c['turns']:,} turns: the cost records' output minus that estimate, in the sessions"
-        " the records cover (harness-efficiency.md §2). Uncached input is exact; a run's issue is a heuristic.",
+        f" tokens per turn over {c['turns']:,} turns (hidden_per_turn; harness-efficiency.md §2). Transcripts miss"
+        " most uncached input and the calls only the records log; the reconciliation shows how much. A run's issue is"
+        " a heuristic.",
     ]
     return "\n".join(out)
 
@@ -569,7 +646,7 @@ def misses_report(pairs: list[dict], reviewed: dict[int, dict[str, int]]) -> str
         out.append(f"#{x['intro']} ({roles}) <- fix #{x['fix']} for bug {bugs}: {x['path']} ({x['lines']} lines)")
     hit = {x["intro"] for x in after} & set(reviewed)
     out.append(
-        f"reviewed PRs with a traced post-merge defect: {len(hit)} of {len(reviewed)} reviewed PRs"
+        f"reviewed PRs in a candidate post-merge defect pair (check each): {len(hit)} of {len(reviewed)} reviewed PRs"
         + (f" ({len(hit) / len(reviewed):.0%})" if reviewed else "")
     )
     out.append(
