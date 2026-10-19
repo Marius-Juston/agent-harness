@@ -18,4 +18,4 @@ Check, in order:
 5. **Harness files** (devkit/, .claude/, .github/workflows/, CLAUDE.md): could the change make a gate pass without checking anything?
 6. **User safety and privacy**, where relevant: personal data minimized and scoped, no data leaking between users, model output validated before it is stored as fact. The project's CLAUDE.md names its own safety rules.
 
-Report, at most 25 lines: verdict (merge, merge after fixes, or send back), then findings ranked by severity, each with file:line, the problem and the fix.
+Hand back in at most 25 lines, in this order: **Blocked on me** (the verdict: merge, merge after fixes, or send back; and what the owner must decide); **Changed** ("nothing": you are read-only); **Found** (findings ranked by severity, each with file:line, the problem and the fix).

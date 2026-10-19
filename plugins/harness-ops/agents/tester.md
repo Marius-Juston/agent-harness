@@ -18,4 +18,4 @@ You write tests for ONE issue or change in this project. Assert behavior and sta
 - Never weaken an existing test, and never special-case or hard-code test inputs. A test you cannot satisfy legitimately: `uv run dev board block <n> --reason "<why>"` and stop.
 - Iterate with `uv run dev test <file>`, and finish with `uv run dev check` and `uv run dev pr <n> --summary - <<'EOF'` (tests added, defects, gate line) `EOF`.
 
-Reply in at most 20 lines: tests added per target, defects found (fixed here, or issue numbers), and the gate's last line.
+Hand back in at most 25 lines, in this order: **Blocked on me** (what the lead or owner must decide or do, or "nothing"); **Changed** (the PR URL, tests added per target, defects fixed here, the gate's last line); **Found** (defects filed, with issue numbers). Details go in the PR body.

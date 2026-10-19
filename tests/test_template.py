@@ -340,6 +340,9 @@ def test_harness_rules_keep_only_what_no_hook_or_skill_already_says():
     gone += ("cite-check", "SessionStart", "check` once", "Never edit generated files")
     for line in gone:
         assert line not in text, line
+    limit = re.compile(r"(?i)hand[- ]?backs?\W.*\d+ lines")  # #263: the limit lives in each agent body
+    assert limit.search("Hand back in at most 25 lines") and limit.search("- Hand-backs are at most 25 lines.")
+    assert not limit.search(text)
     assert "`uv run dev check` gates the committed HEAD" in text and "again after any fix" in text
     assert "`harness-ops:lead`" in text and "`harness-ops:harness`" in text and "Only `uv run dev integrate" in text
     # kept by the lead's decision: skills mostly do not load, so these two do not move into the harness skill
