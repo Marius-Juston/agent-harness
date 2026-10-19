@@ -59,6 +59,19 @@ QUOTA = (
     "the quota cap is the owner's: agents never change it. `uv run dev quota-cap` prints it; ask the owner to run "
     "`! uv run dev quota-cap <pct>` (or to raise [tool.devkit] quota_cap). Stop spawning; commit and hand off."
 )
+LIT = (
+    "call the literature APIs through `uv run dev lit` (search, get, refs, cited-by, status): it shares one rate "
+    "limit, cache and key set across every worktree. Working on devkit/lit.py itself? Prefix the fetch with "
+    "DEVKIT_LIT_RAW=1."
+)
+# The endpoints devkit/lit.py wraps (#227; docs/research/decision-records-and-drift.md check 9). Europe PMC stops
+# at rest/search: its full-text downloads (rest/PMC.../fullTextXML) are not in dev lit and stay allowed.
+LIT_API = re.compile(
+    r"(?<![\w.-])(?:https?://)?(?:(?:api\.openalex\.org|api\.semanticscholar\.org|api\.crossref\.org)[/?]"
+    r"|www\.ebi\.ac\.uk/europepmc/webservices/rest/search|export\.arxiv\.org/api/)"
+)
+LIT_RAW = "DEVKIT_LIT_RAW"
+FETCHERS = {"curl", "wget"}
 CAP_FILE = "devkit/quota_cap"  # under the git common dir: `dev quota-cap`'s machine-local override
 CAP_READERS = {"cat", "head", "tail", "ls", "stat", "wc", "test", "[", "[[", "file"}
 WHOLE_TREE = {".", "./", ":", ":/", ":/*", "*"}  # pathspecs that name every file
@@ -475,11 +488,14 @@ class Checker:
         self.cwd = cwd
         self.start = cwd  # the session's worktree; a `cd ..` inside the command does not move it
         self.in_python = 0  # > 0 while checking a Python string literal as a shell command
+        self.source = ""  # the whole command, where a variable a fetch expands may have been set
 
     def text(self, text: str, depth: int = 0) -> str | None:
         """Check a shell command string; return the reason it is blocked, or None."""
         if depth > MAX_DEPTH:
             return DEEP
+        if not depth:
+            self.source = text
         for pipe in lex(text):
             cmds = [c for c in pipe if c.words or c.stdin or c.reads or c.writes]
             for k, c in enumerate(cmds):
@@ -608,6 +624,10 @@ class Checker:
             rest = [a for a in args if not a.startswith("-")]
             if rest[:1] == ["pip"] and {"install", "uninstall", "sync"} & set(rest):
                 return PIP
+        if name in FETCHERS and f"{LIT_RAW}=1" not in assigns and os.environ.get(LIT_RAW) != "1":
+            expands = any("$" in a for a in args)  # U=<url>; curl "$U", or a loop variable
+            if any(LIT_API.search(a) for a in args) or (expands and LIT_API.search(self.source)):
+                return LIT
         if name == "pkill" and any(a == "--full" or (re.match(r"-[^-]", a) and "f" in a) for a in args):
             return PKILL
         if name == "git":
@@ -988,8 +1008,12 @@ def main() -> int:
     try:
         data = json.load(sys.stdin)
         cmd = (data.get("tool_input") or {}).get("command", "")
+        url = (data.get("tool_input") or {}).get("url", "") if data.get("tool_name") == "WebFetch" else ""
     except (json.JSONDecodeError, AttributeError):
         return 0
+    if isinstance(url, str) and LIT_API.match(url.strip()) and os.environ.get(LIT_RAW) != "1":
+        print(f"Blocked by project rule: {LIT}", file=sys.stderr)
+        return 2
     if not isinstance(cmd, str):
         return 0
     cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
