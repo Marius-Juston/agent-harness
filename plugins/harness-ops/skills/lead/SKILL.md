@@ -56,4 +56,6 @@ Update the handoff file (`[tool.devkit] handoff`, default `docs/HANDOFF.md`) whe
 - Next: the ranked startable items, and why.
 - Decisions waiting on the owner (also in the open-questions file).
 
+Sessions compact at 300k tokens (`autoCompactWindow`), so also update it after each integrate batch.
+
 Commit HANDOFF with your other lead edits on a branch; land them via `dev pr`/`dev integrate`.
