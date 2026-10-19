@@ -6,7 +6,8 @@ expensive thing it does (in one measured repository, whole-file `cat` of modules
 `cat` output).
 The call is rewritten (updatedInput), not refused, so it answers in the same turn:
 - Read of a .py over PY_LINES lines or a .md over MD_LINES without `limit`: limit WINDOW plus a note;
-- Read of a Bash output persisted to `tool-results/*.txt` over PY_LINES lines, likewise, with a Grep hint (#265);
+- Read of a Bash output persisted to `.claude/projects/.../tool-results/*.txt` over PY_LINES lines or SIZE_CAP bytes:
+  the first WINDOW lines, fewer if they pass SIZE_CAP bytes, plus a Grep hint (#265; its lines can be very long);
 - a plain `cat <file>`, or a `head -n N <file>` with N over the cap, of such a file: `uv run dev code outline <file>`
   plus the note, in a project that has devkit (a `.venv/bin/dev`). A shorter head is already a window and passes.
 Escape: add `# whole-file` to the command, or pass an explicit limit. Stdlib only; any doubt allows the call.
@@ -19,6 +20,8 @@ import shlex
 import sys
 
 PY_LINES, MD_LINES, WINDOW = 300, 400, 250
+SIZE_CAP = 40_000  # bytes of a persisted output read at once (#265: one 122-line output held 1.06 MB)
+PERSISTED = re.compile(r"/\.claude/projects/.+/tool-results/[^/]+\.txt$")
 ESCAPE = "# whole-file"
 HEAD_N = re.compile(r"^(?:-n|--lines=|-)(\d+)$")
 
@@ -56,12 +59,25 @@ def lines_of(path: str) -> int:
 
 def persisted(path: str) -> bool:
     """A Bash output too large for the context, which Claude Code saved to tool-results/ for a later Read."""
-    return path.endswith(".txt") and "/tool-results/" in path.replace(os.sep, "/")
+    return bool(PERSISTED.search(path.replace(os.sep, "/")))
+
+
+def persisted_window(path: str) -> tuple[int, int, int]:
+    """(lines, bytes, window): window is the first WINDOW lines, cut to those within SIZE_CAP bytes (at least 1)."""
+    n = size = window = 0
+    try:
+        with open(path, "rb") as f:
+            for line in f:
+                n += 1
+                size += len(line)
+                if n <= WINDOW and size <= SIZE_CAP:
+                    window = n
+    except OSError:
+        return 0, 0, 0
+    return n, size, max(window, 1)
 
 
 def limit_for(path: str) -> int | None:
-    if persisted(path):
-        return PY_LINES
     if path.endswith((".py", ".ts", ".tsx", ".js", ".rs", ".go")):
         return PY_LINES
     if path.endswith(".md") and not path.endswith(("SKILL.md", "CLAUDE.md")) and "/.claude/agents/" not in path:
@@ -69,13 +85,15 @@ def limit_for(path: str) -> int | None:
     return None
 
 
+def persisted_note(path: str, n: int, size: int, window: int) -> str:
+    return (
+        f"read-guard: {path} is a persisted tool output of {n} lines ({size // 1000} KB), and what you read stays in "
+        f"context for every later call. Shown: its first {window} lines. Next: Grep this file for what you need, or a "
+        f"Read with offset+limit for another window."
+    )
+
+
 def note(path: str, n: int) -> str:
-    if persisted(path):
-        return (
-            f"read-guard: {path} is a persisted tool output of {n} lines, and what you read stays in context for "
-            f"every later call. Shown: its first {WINDOW} lines. Next: Grep this file for what you need, or a Read "
-            f"with offset+limit for another window."
-        )
     return (
         f"read-guard: {path} has {n} lines (~{n * 12 // 1000}k tokens), and what you read stays in context for every "
         f"later call. Shown: its outline / first {WINDOW} lines. Next: `uv run dev code show <Symbol>`, a Read with "
@@ -109,14 +127,18 @@ def main() -> int:
     if tool == "Read":
         path = inp.get("file_path", "")
         cap = limit_for(path)
-        if cap and not inp.get("limit") and not inp.get("offset") and (n := lines_of(path)) > cap:
+        if persisted(path):
+            n, size, window = persisted_window(path)
+            if not inp.get("limit") and not inp.get("offset") and (n > PY_LINES or size > SIZE_CAP):
+                out({**inp, "limit": window}, persisted_note(path, n, size, window))
+        elif cap and not inp.get("limit") and not inp.get("offset") and (n := lines_of(path)) > cap:
             out({**inp, "limit": WINDOW}, note(path, n))
     elif tool == "Bash":
         cmd = inp.get("command", "")
         if isinstance(cmd, str) and ESCAPE not in cmd and (hit := whole_read(cmd)):
             path, asked = hit
             full = path if os.path.isabs(path) else os.path.join(cwd, path)
-            cap = None if persisted(full) else limit_for(full)  # an outline of a .txt output shows nothing
+            cap = limit_for(full)  # None for a persisted .txt output: an outline of it shows nothing
             project = os.environ.get("CLAUDE_PROJECT_DIR") or cwd
             has_devkit = os.path.exists(os.path.join(project, ".venv/bin/dev"))
             if has_devkit and cap and (n := lines_of(full)) > cap and (asked is None or asked > cap):
