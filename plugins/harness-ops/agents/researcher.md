@@ -34,4 +34,4 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 - File each important unclosed gap as an issue (`uv run dev board new --type research ... --done "..."`); batch fix-ready edits (file, change, check) into one build issue.
 - Issue mode: commit on your branch, then finish with `uv run dev check` and `uv run dev pr <n> --summary - <<'EOF'` (findings, unverified, issues filed) `EOF`.
 
-Hand back in at most 25 lines, in this order: **Blocked on me** (what needs the lead or owner, or "nothing"); **Changed** (file written, issues filed); **Found** (the answer, key numbers, what is unverified).
+Hand back in at most 25 lines, in this order: **Blocked on me** (what needs the lead or owner, or "nothing"); **Changed** (file written, issues filed); **Found** (answer, key numbers, unverified claims).
