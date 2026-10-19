@@ -6,6 +6,7 @@ expensive thing it does (in one measured repository, whole-file `cat` of modules
 `cat` output).
 The call is rewritten (updatedInput), not refused, so it answers in the same turn:
 - Read of a .py over PY_LINES lines or a .md over MD_LINES without `limit`: limit WINDOW plus a note;
+- Read of a Bash output persisted to `tool-results/*.txt` over PY_LINES lines, likewise, with a Grep hint (#265);
 - a plain `cat <file>`, or a `head -n N <file>` with N over the cap, of such a file: `uv run dev code outline <file>`
   plus the note, in a project that has devkit (a `.venv/bin/dev`). A shorter head is already a window and passes.
 Escape: add `# whole-file` to the command, or pass an explicit limit. Stdlib only; any doubt allows the call.
@@ -53,7 +54,14 @@ def lines_of(path: str) -> int:
         return 0
 
 
+def persisted(path: str) -> bool:
+    """A Bash output too large for the context, which Claude Code saved to tool-results/ for a later Read."""
+    return path.endswith(".txt") and "/tool-results/" in path.replace(os.sep, "/")
+
+
 def limit_for(path: str) -> int | None:
+    if persisted(path):
+        return PY_LINES
     if path.endswith((".py", ".ts", ".tsx", ".js", ".rs", ".go")):
         return PY_LINES
     if path.endswith(".md") and not path.endswith(("SKILL.md", "CLAUDE.md")) and "/.claude/agents/" not in path:
@@ -62,6 +70,12 @@ def limit_for(path: str) -> int | None:
 
 
 def note(path: str, n: int) -> str:
+    if persisted(path):
+        return (
+            f"read-guard: {path} is a persisted tool output of {n} lines, and what you read stays in context for "
+            f"every later call. Shown: its first {WINDOW} lines. Next: Grep this file for what you need, or a Read "
+            f"with offset+limit for another window."
+        )
     return (
         f"read-guard: {path} has {n} lines (~{n * 12 // 1000}k tokens), and what you read stays in context for every "
         f"later call. Shown: its outline / first {WINDOW} lines. Next: `uv run dev code show <Symbol>`, a Read with "
@@ -102,7 +116,7 @@ def main() -> int:
         if isinstance(cmd, str) and ESCAPE not in cmd and (hit := whole_read(cmd)):
             path, asked = hit
             full = path if os.path.isabs(path) else os.path.join(cwd, path)
-            cap = limit_for(full)
+            cap = None if persisted(full) else limit_for(full)  # an outline of a .txt output shows nothing
             project = os.environ.get("CLAUDE_PROJECT_DIR") or cwd
             has_devkit = os.path.exists(os.path.join(project, ".venv/bin/dev"))
             if has_devkit and cap and (n := lines_of(full)) > cap and (asked is None or asked > cap):

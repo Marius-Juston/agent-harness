@@ -617,6 +617,24 @@ def test_read_guard_respects_explicit_limit_and_short_files(hook, tmp_path):
         assert out == ""
 
 
+def test_read_guard_windows_persisted_tool_results(hook, tmp_path):
+    """#265: a Bash output persisted to tool-results/*.txt and Read back whole gets the first window and a grep hint."""
+    (tmp_path / "tool-results").mkdir()
+    big = _long_file(tmp_path / "tool-results", "toolu_01.txt", 900)
+    _, out, _ = hook("read_guard.py", {"tool_name": "Read", "tool_input": {"file_path": str(big)}})
+    data = json.loads(out)["hookSpecificOutput"]
+    assert data["updatedInput"]["limit"] == 250 and "900 lines" in data["additionalContext"]
+    assert "Grep" in data["additionalContext"]
+    small = _long_file(tmp_path / "tool-results", "toolu_02.txt", 50)
+    other = _long_file(tmp_path, "notes.txt", 900)
+    for payload in (
+        {"file_path": str(big), "offset": 300, "limit": 100},
+        {"file_path": str(small)},
+        {"file_path": str(other)},
+    ):
+        assert hook("read_guard.py", {"tool_name": "Read", "tool_input": payload})[1] == "", payload
+
+
 def _devkit_project(tmp_path) -> dict:
     """A project with devkit installed (`.venv/bin/dev`): the environment its hooks run in."""
     (tmp_path / ".venv/bin").mkdir(parents=True)
@@ -654,10 +672,13 @@ def test_read_guard_leaves_cat_alone_in_a_project_without_devkit(hook, tmp_path)
         ("head -500 big.py", True),
         ("head --lines=1000 big.py", True),
         ("cat 'big.py'", True),
+        ("cat tool-results/big.txt", False),  # #265: no outline of a persisted output; the Read window covers it
     ],
 )
 def test_read_guard_head_only_when_long(hook, tmp_path, cmd, rewritten):
     _long_file(tmp_path, "big.py", 900)
+    (tmp_path / "tool-results").mkdir()
+    _long_file(tmp_path / "tool-results", "big.txt", 900)
     payload = {"tool_name": "Bash", "cwd": str(tmp_path), "tool_input": {"command": cmd}}
     _, out, _ = hook("read_guard.py", payload, env=_devkit_project(tmp_path))
     assert (out != "") == rewritten, cmd
