@@ -30,7 +30,7 @@ For each item in review, in priority order:
 
 ## 3. Pick the next wave
 - `uv run dev board next -n 10`. Prefer P0, then what unblocks most.
-- Research comes first: a build issue whose Refs has no note waits for its research issue.
+- Research first: a build issue whose Refs has no note waits.
 - Run builders in parallel only when `board brief` shows no overlap in Owns. Researchers fan out wide.
 - Orient says `Consolidation review due`: spawn a `harness-ops:architect`. Feature cuts wait for the owner. Only the lead resets the trigger: `dev integrate <pr> --consolidation-review <epic>`.
 - New work found: `uv run dev board new --title ... --type ... --prio ... --done "<measurable>" [--owns ...] [--blocked-by N]`. Split an item when its DONE WHEN would need two different measurements.
@@ -50,12 +50,10 @@ For each item in review, in priority order:
 - A STALE claim (another machine, idle 6 h): take it over with `board claim --force` only after reading its last comment.
 
 ## 6. Keep the record
-Update the handoff file (`[tool.devkit] handoff`, default `docs/HANDOFF.md`) whenever the set of agents changes, in under 40 lines:
+Update the handoff file (`[tool.devkit] handoff`, default `docs/HANDOFF.md`) when agents change and after each integrate batch (`autoCompactWindow` compacts at 300k), in under 40 lines:
 - In flight: issue, agent, branch.
 - Just merged.
 - Next: the ranked startable items, and why.
 - Decisions waiting on the owner (also in the open-questions file).
-
-Sessions compact at 300k tokens (`autoCompactWindow`), so also update it after each integrate batch.
 
 Commit HANDOFF with your other lead edits on a branch; land them via `dev pr`/`dev integrate`.
