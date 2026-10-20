@@ -1362,9 +1362,23 @@ def _ends(pid, within=10):
 def _alive(pid):
     try:
         status = Path(f"/proc/{pid}/status").read_text()
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):  # #318: reaped between open and read (ESRCH) is dead too
         return False
     return "\nState:\tZ" not in status  # a zombie is dead, only not yet reaped
+
+
+@pytest.mark.parametrize("gone", [FileNotFoundError, ProcessLookupError])
+def test_a_process_reaped_while_its_status_is_read_counts_as_dead(monkeypatch, gone):
+    """#318: /proc/<pid>/status can vanish between open and read (ProcessLookupError); that pid is dead, not an
+    error, and a live process still reads as alive."""
+    assert _alive(os.getpid())
+
+    def reaped(self, *a, **k):
+        raise gone(3, "No such process")
+
+    monkeypatch.setattr(Path, "read_text", reaped)
+    assert not _alive(os.getpid())
+    assert _ends(os.getpid(), within=1)
 
 
 def test_integrate_stops_when_the_gate_runs_past_its_deadline(fake_integrate, monkeypatch, capsys):
