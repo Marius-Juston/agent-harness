@@ -1,0 +1,190 @@
+{
+ "what": "The shipped related line's unlabelled alerts on agent-harness TEST (dedup_eval.py ship-test), judged by the #350 builder agent as a second rater, blind to dedup_judged.json's judgements, from titles and DONE WHEN, with rater 1's definitions: related = same component (a module or feature, not a file every issue touches) or overlapping scope a filer would want to see; duplicate = same work. Siblings by template (releases, research notes, experiments on different questions) are unrelated. BELIEVED, single rater.",
+ "pairs": [
+  {
+   "query": 29,
+   "suggested": 8,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 112,
+   "suggested": 111,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 146,
+   "suggested": 144,
+   "judgement": "related"
+  },
+  {
+   "query": 176,
+   "suggested": 37,
+   "judgement": "related"
+  },
+  {
+   "query": 222,
+   "suggested": 183,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 222,
+   "suggested": 209,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 236,
+   "suggested": 229,
+   "judgement": "related"
+  },
+  {
+   "query": 243,
+   "suggested": 30,
+   "judgement": "related"
+  },
+  {
+   "query": 243,
+   "suggested": 23,
+   "judgement": "related"
+  },
+  {
+   "query": 244,
+   "suggested": 20,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 244,
+   "suggested": 26,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 259,
+   "suggested": 153,
+   "judgement": "related"
+  },
+  {
+   "query": 259,
+   "suggested": 258,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 259,
+   "suggested": 256,
+   "judgement": "related"
+  },
+  {
+   "query": 260,
+   "suggested": 257,
+   "judgement": "related"
+  },
+  {
+   "query": 261,
+   "suggested": 256,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 261,
+   "suggested": 185,
+   "judgement": "related"
+  },
+  {
+   "query": 282,
+   "suggested": 238,
+   "judgement": "related"
+  },
+  {
+   "query": 283,
+   "suggested": 257,
+   "judgement": "related"
+  },
+  {
+   "query": 283,
+   "suggested": 268,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 292,
+   "suggested": 38,
+   "judgement": "related"
+  },
+  {
+   "query": 292,
+   "suggested": 12,
+   "judgement": "related"
+  },
+  {
+   "query": 292,
+   "suggested": 154,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 298,
+   "suggested": 233,
+   "judgement": "related"
+  },
+  {
+   "query": 300,
+   "suggested": 299,
+   "judgement": "related"
+  },
+  {
+   "query": 300,
+   "suggested": 236,
+   "judgement": "related"
+  },
+  {
+   "query": 325,
+   "suggested": 324,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 327,
+   "suggested": 296,
+   "judgement": "related"
+  },
+  {
+   "query": 327,
+   "suggested": 301,
+   "judgement": "related"
+  },
+  {
+   "query": 327,
+   "suggested": 163,
+   "judgement": "related"
+  },
+  {
+   "query": 328,
+   "suggested": 327,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 328,
+   "suggested": 98,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 328,
+   "suggested": 191,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 344,
+   "suggested": 244,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 344,
+   "suggested": 316,
+   "judgement": "unrelated"
+  },
+  {
+   "query": 346,
+   "suggested": 76,
+   "judgement": "related"
+  },
+  {
+   "query": 346,
+   "suggested": 324,
+   "judgement": "unrelated"
+  }
+ ]
+}

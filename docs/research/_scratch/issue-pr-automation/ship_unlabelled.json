@@ -1,0 +1,154 @@
+{
+ "what": "Unlabelled shipped-line alerts on agent-harness TEST (dedup_eval.py ship-test)",
+ "labelled_alerts": 18,
+ "pairs": [
+  {
+   "query": 29,
+   "suggested": 8
+  },
+  {
+   "query": 112,
+   "suggested": 111
+  },
+  {
+   "query": 146,
+   "suggested": 144
+  },
+  {
+   "query": 176,
+   "suggested": 37
+  },
+  {
+   "query": 222,
+   "suggested": 183
+  },
+  {
+   "query": 222,
+   "suggested": 209
+  },
+  {
+   "query": 236,
+   "suggested": 229
+  },
+  {
+   "query": 243,
+   "suggested": 30
+  },
+  {
+   "query": 243,
+   "suggested": 23
+  },
+  {
+   "query": 244,
+   "suggested": 20
+  },
+  {
+   "query": 244,
+   "suggested": 26
+  },
+  {
+   "query": 259,
+   "suggested": 153
+  },
+  {
+   "query": 259,
+   "suggested": 258
+  },
+  {
+   "query": 259,
+   "suggested": 256
+  },
+  {
+   "query": 260,
+   "suggested": 257
+  },
+  {
+   "query": 261,
+   "suggested": 256
+  },
+  {
+   "query": 261,
+   "suggested": 185
+  },
+  {
+   "query": 282,
+   "suggested": 238
+  },
+  {
+   "query": 283,
+   "suggested": 257
+  },
+  {
+   "query": 283,
+   "suggested": 268
+  },
+  {
+   "query": 292,
+   "suggested": 38
+  },
+  {
+   "query": 292,
+   "suggested": 12
+  },
+  {
+   "query": 292,
+   "suggested": 154
+  },
+  {
+   "query": 298,
+   "suggested": 233
+  },
+  {
+   "query": 300,
+   "suggested": 299
+  },
+  {
+   "query": 300,
+   "suggested": 236
+  },
+  {
+   "query": 325,
+   "suggested": 324
+  },
+  {
+   "query": 327,
+   "suggested": 296
+  },
+  {
+   "query": 327,
+   "suggested": 301
+  },
+  {
+   "query": 327,
+   "suggested": 163
+  },
+  {
+   "query": 328,
+   "suggested": 327
+  },
+  {
+   "query": 328,
+   "suggested": 98
+  },
+  {
+   "query": 328,
+   "suggested": 191
+  },
+  {
+   "query": 344,
+   "suggested": 244
+  },
+  {
+   "query": 344,
+   "suggested": 316
+  },
+  {
+   "query": 346,
+   "suggested": 76
+  },
+  {
+   "query": 346,
+   "suggested": 324
+  }
+ ]
+}
