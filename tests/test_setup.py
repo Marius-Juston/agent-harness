@@ -366,4 +366,4 @@ def test_real_cli_repin_installs_the_tag_commit_and_keeps_other_projects_install
     assert shas[str(a)] == tag and str(b) in shas
     after = json.loads((a / ".claude/settings.json").read_text())
     assert after["extraKnownMarketplaces"] == committed["extraKnownMarketplaces"]
-    assert after.get("enabledPlugins", {}).get("harness-ops@agent-harness") is True
+    assert after["enabledPlugins"]["harness-ops@agent-harness"] is True
