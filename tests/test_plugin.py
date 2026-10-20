@@ -205,6 +205,22 @@ def test_the_reviewer_re_review_follows_the_changed_symbols_and_widens_on_risky_
     assert all(w in line for w in ("config", "constants", "prompts", "data", "deletes a check", "round-1 code"))
 
 
+def test_each_blocking_finding_leaves_a_probe_the_builder_commits_and_every_fix_push_reruns():
+    """#257: of 51 later review rounds that did not pass, 22 were bugs the previous fix introduced and 13 more
+    instances of a class already flagged (harness-efficiency.md change 2; r2-review-convergence.md F2, F5). A class
+    name and a runnable probe per Blocking finding, committed as a test and rerun before each fix push, targets both."""
+    _, reviewer = frontmatter.read(PLUGIN / "agents/reviewer.md")
+    blocking = reviewer.split("- **Blocking**", 1)[1].split("\n", 1)[0]
+    assert "bug class" in blocking and "runnable probe" in blocking
+    assert all(w in blocking for w in ("table", "generator", "command", "every instance"))
+    assert "A re-review reruns the earlier rounds' probes." in reviewer
+    _, builder = frontmatter.read(PLUGIN / "agents/builder.md")
+    method = builder.split("## Method", 1)[1].split("\n## ", 1)[0]
+    line = next(x for x in method.splitlines() if "probe" in x)
+    assert "commit its probe as a test" in line and "every instance of its class" in line
+    assert "rerun every earlier round's probe before pushing the fix" in line
+
+
 def test_the_auditor_re_audit_rechecks_the_recommendation_on_changed_claims():
     _, body = frontmatter.read(PLUGIN / "agents/research-auditor.md")
     line = body.split("since the last reviewed SHA", 1)[1].split("\n", 1)[0]
@@ -220,7 +236,7 @@ def test_the_lead_skill_carries_the_review_verdict_contract():
     # a project reviewer (a security reviewer) may not tag: its findings must not slip through as non-blocking
     assert "Only Blocking or untagged findings return the PR" in loop and "at most 3 Nits" in loop
     assert "resume the worker for fixes" in loop and "fix-to-finding map" in loop
-    assert "passing round number and last reviewed SHA" in loop
+    assert "passing round number, last reviewed SHA and earlier probes" in loop
     assert "no confirmation round" in loop
     assert "a project's security reviewer, if any, re-reviews any code change" in loop
     assert "file the rest as issues" in loop

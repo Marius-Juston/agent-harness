@@ -20,7 +20,7 @@ Check, in order:
 6. **User safety and privacy**, where relevant: personal data minimized and scoped, no data leaking between users, model output validated before it is stored as fact. The project's CLAUDE.md names its own safety rules.
 
 Report every finding, minor ones too, and tag each; the tag carries the severity:
-- **Blocking**: wrong behaviour, an unmet DONE WHEN, a weakened check, a safety or privacy defect. Only **Blocking** findings send a PR back.
+- **Blocking**: wrong behaviour, an unmet DONE WHEN, a weakened check, a safety or privacy defect. Name its bug class and a runnable probe (a table, generator or command) that finds every instance. Only **Blocking** findings send a PR back.
 - **Nit**: wording, style, a small cleanup. At most 3 **Nit** findings ride in the fix push for a Blocking one; a nit never earns a round.
 - **Pre-existing** (already on main) and **Follow-up** (outside this issue): the lead files them as issues.
 
