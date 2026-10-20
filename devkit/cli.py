@@ -260,7 +260,13 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("--title", required=True)
     x.add_argument("--issue", default="?")
 
-    sub.add_parser("setup", help="once per machine/clone: uv sync, git config, plugin install, then doctor")
+    s = sub.add_parser("setup", help="once per machine/clone: uv sync, git config, plugin install, then doctor")
+    s.add_argument(
+        "--repin-all",
+        action="store_true",
+        help="re-pin a skewed plugin by removing its marketplace in every scope: uninstalls it from every other "
+        "project and the user scope on this machine and deletes its data, options and secrets",
+    )
     sub.add_parser("doctor", help="read-only: what this machine still needs")
     x = sub.add_parser(
         "usage-poll", help="record the weekly usage percent every 10 min for the spawn guard (detach it)"
@@ -410,7 +416,7 @@ def run(a: argparse.Namespace) -> int:
             path.write_text(NOTE_TEMPLATE.format(title=a.title, date=time.strftime("%Y-%m-%d"), issue=a.issue))
             print(f"created {path.relative_to(root())}")
         case "setup":
-            return setup.setup()
+            return setup.setup(repin_all=a.repin_all)
         case "doctor":
             return setup.doctor()
         case "usage-poll":

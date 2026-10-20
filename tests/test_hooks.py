@@ -5,7 +5,9 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -1219,3 +1221,80 @@ def test_guard_bash_runs_on_webfetch():
     entries = _hook_entries("PreToolUse", "guard_bash.py")
     assert any(re.fullmatch(e["matcher"], "WebFetch") for e in entries)
     assert any(re.fullmatch(e["matcher"], "Bash") for e in entries)
+
+
+PIN_VERSION = json.loads((HOOKS.parent / ".claude-plugin/plugin.json").read_text())["version"]
+
+
+def _skew_env(tmp_path, loaded: Path, pin: str = f"v{PIN_VERSION}") -> dict:
+    """A project pinned to this checkout's release, whose devkit is this checkout's (`.venv/bin/python`), with Claude
+    Code's plugin root at `loaded` and a `uv` that fails (no orientation), so only the skew check speaks."""
+    repo = _repo(tmp_path)
+    plugins = f'"harness-ops@agent-harness" = "Marius-Juston/agent-harness@{pin}"' if pin else ""
+    (repo / "pyproject.toml").write_text(f"[tool.devkit.plugins]\n{plugins}\n")
+    (repo / ".venv/bin").mkdir(parents=True)
+    (repo / ".venv/bin/python").write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
+    (repo / ".venv/bin/python").chmod(0o755)
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin/uv").write_text("#!/bin/sh\nexit 1\n")
+    (tmp_path / "bin/uv").chmod(0o755)
+    path = f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}"
+    return {**os.environ, "PATH": path, "CLAUDE_PROJECT_DIR": str(repo), "CLAUDE_PLUGIN_ROOT": str(loaded)}
+
+
+def _loaded(tmp_path, *, edit: bool) -> Path:
+    """A copy of this release's plugin as Claude Code caches it (with its markers), optionally one file changed."""
+    root = tmp_path / "cache/agent-harness/harness-ops" / PIN_VERSION
+    shutil.copytree(HOOKS.parent, root, ignore=shutil.ignore_patterns("__pycache__"))
+    (root / ".in_use").mkdir()
+    (root / ".in_use/4242").write_text("")
+    (root / ".orphaned_at").write_text("1760000000000")
+    (root / "scripts/__pycache__").mkdir(exist_ok=True)
+    (root / "scripts/__pycache__/x.pyc").write_bytes(b"\0")
+    if edit:
+        (root / "agents/builder.md").write_text("an older builder body\n")
+    return root
+
+
+SKEW_EVENTS = [
+    ("session_brief.sh", {"hook_event_name": "SessionStart", "source": "startup"}),
+    ("spawn_guard.sh", {"hook_event_name": "SubagentStart", "agent_type": "harness-ops:researcher", "agent_id": "a1"}),
+    ("spawn_guard.sh", {"hook_event_name": "SubagentStart", "agent_type": "harness-ops:builder", "agent_id": "a1"}),
+]
+
+
+@pytest.mark.parametrize(("script", "payload"), SKEW_EVENTS)
+def test_skewed_plugin_root_prints_one_line_naming_both_builds_and_the_fix(hook, tmp_path, script, payload):
+    """#296: the version string matches the pin, the content does not (the marketplace installed a branch head)."""
+    env = _skew_env(tmp_path, _loaded(tmp_path, edit=True)) | {"DEVKIT_SPAWN_FLOOR_GB": "0"}
+    code, out, _ = hook(script, payload, env=env)
+    message = json.loads(out)["systemMessage"]
+    assert code == 0 and len(message.splitlines()) == 1
+    assert f"loaded {PIN_VERSION} (content " in message and f"pinned v{PIN_VERSION} (content " in message
+    assert "uv run dev setup" in message
+    if script == "session_brief.sh":
+        assert json.loads(out)["hookSpecificOutput"]["additionalContext"] == message
+
+
+@pytest.mark.parametrize(("script", "payload"), SKEW_EVENTS)
+def test_identical_plugin_root_prints_nothing(hook, tmp_path, script, payload):
+    env = _skew_env(tmp_path, _loaded(tmp_path, edit=False)) | {"DEVKIT_SPAWN_FLOOR_GB": "0"}
+    assert hook(script, payload, env=env)[:2] == (0, "")
+
+
+@pytest.mark.parametrize("case", ["unpinned", "no devkit", "no plugin root"])
+def test_skew_check_is_silent_without_a_pin_a_devkit_or_a_plugin_root(hook, tmp_path, case):
+    env = _skew_env(tmp_path, _loaded(tmp_path, edit=True), pin="" if case == "unpinned" else f"v{PIN_VERSION}")
+    if case == "no devkit":
+        (Path(env["CLAUDE_PROJECT_DIR"]) / ".venv/bin/python").unlink()
+    if case == "no plugin root":
+        del env["CLAUDE_PLUGIN_ROOT"]
+    assert hook("session_brief.sh", SKEW_EVENTS[0][1], env=env)[:2] == (0, "")
+
+
+def test_skew_line_follows_the_memory_warning_of_a_held_agent(hook, tmp_path):
+    env = _skew_env(tmp_path, _loaded(tmp_path, edit=True))
+    env |= {"DEVKIT_SPAWN_FLOOR_GB": "100000", "DEVKIT_SPAWN_WAIT_S": "0"}
+    code, out, _ = hook("spawn_guard.sh", SKEW_EVENTS[2][1], env=env)
+    first, second = json.loads(out)["systemMessage"].splitlines()
+    assert code == 0 and first.startswith("spawn_guard: held builder") and second.startswith("harness-ops skew:")

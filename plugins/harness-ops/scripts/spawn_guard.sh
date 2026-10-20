@@ -9,8 +9,16 @@
 #    definition is unknown here) until MemAvailable is above DEVKIT_SPAWN_FLOOR_GB (default 6), up to
 #    DEVKIT_SPAWN_WAIT_S (default 300) s. SubagentStart cannot refuse, so a timeout starts the agent with a warning.
 # Any failure of this script (malformed input, a jq error, no jq) allows with a warning: it never blocks a spawn.
+# 3. SubagentStart, every agent: name a loaded plugin that is not the pinned release's build (plugin_skew.sh, #296).
 set -eEuo pipefail
-warn() { printf '{"systemMessage": "spawn_guard: %s"}\n' "$1"; exit 0; }
+skew=""
+warn() {
+  local m="spawn_guard: $1"
+  [[ -z "$skew" ]] || m+=$'\n'"$skew"
+  jq -n --arg m "$m" '{systemMessage: $m}' 2>/dev/null || printf '{"systemMessage": "spawn_guard: %s"}\n' "$1"
+  exit 0
+}
+say_skew() { [[ -z "$skew" ]] || jq -n --arg m "$skew" '{systemMessage: $m}'; exit 0; }
 trap 'warn "failed at line $LINENO; allowed without the quota and memory gates"' ERR
 
 input=$(cat)
@@ -38,9 +46,10 @@ if [[ "$event" == "PreToolUse" ]]; then
 fi
 
 [[ "$event" == "SubagentStart" ]] || exit 0
+skew=$(bash "$(dirname "${BASH_SOURCE[0]}")/plugin_skew.sh")
 kind=$(jq -r '.agent_type // "" | tostring' <<<"$input")
 kind=${kind##*:}  # harness-ops:builder -> builder
-case "$kind" in builder|tester|workflow-subagent) ;; *) exit 0 ;; esac
+case "$kind" in builder|tester|workflow-subagent) ;; *) say_skew ;; esac
 floor=${DEVKIT_SPAWN_FLOOR_GB:-6}; wait_s=${DEVKIT_SPAWN_WAIT_S:-300}
 [[ "$floor" =~ ^[0-9]+$ && "$wait_s" =~ ^[0-9]+$ ]] || { floor=6; wait_s=300; }
 free_gb() { awk '/^MemAvailable:/ {print int($2 / 1048576)}' /proc/meminfo 2>/dev/null || echo 99; }
@@ -49,4 +58,4 @@ while (( $(free_gb) < floor )); do
   (( $(date +%s) >= deadline )) && warn "held ${kind} ${wait_s} s; only $(free_gb) GB free (floor ${floor} GB). Started anyway: spawn no more until a gate finishes (uv run dev status)."
   sleep 1
 done
-exit 0
+say_skew
