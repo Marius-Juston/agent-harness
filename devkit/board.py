@@ -1395,5 +1395,7 @@ def brief(number: int) -> str:
 - branch: `{i.number}-{slug}`; claim: `uv run dev board claim {i.number} --agent <you> --branch {i.number}-{slug}`
 - navigate: `uv run dev code outline|show|refs|find ...`; tests while iterating: `uv run dev test --affected`
 - gate once at the end: `uv run dev check`; then push and open the PR: `uv run dev pr {i.number}`
-- heartbeat every few hours: `uv run dev board beat {i.number} "<numbers>"`""")
+- heartbeat every few hours: `uv run dev board beat {i.number} "<numbers>"`
+- follow-up out of scope: `uv run dev board new --type build|bug|test|research|infra --title "<title>" \
+--done "<measurable condition>" --owns <path> --refs {i.number}` (repeat --done and --owns)""")
     return "\n".join(out)

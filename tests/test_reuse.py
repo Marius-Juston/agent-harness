@@ -813,7 +813,10 @@ def test_the_whole_shortlist_is_scored_before_the_cut(tmp_path):
 
 def test_researcher_checks_every_recommended_tool_and_names_dev_reuse():
     text = (code.root() / "plugins/harness-ops/agents/researcher.md").read_text()
-    assert "every other recommended tool through the API" in text and "uv run dev reuse" in text
+    assert "uv run dev reuse" in text
+    # #323: other repositories through authenticated `gh api --jq` (5,000 requests/h), not curl (60/h, 7.7 % failed)
+    assert "Check other repositories: `gh api repos/<o>/<r> --jq '{" in text and "never curl" in text
+    assert "api.github.com" not in text
     # #169: the agent's own names, verified, beat search alone; so verify first and search only for more options
     for rel in ("agents/researcher.md", "agents/builder.md", "skills/research/SKILL.md"):
         assert "uv run dev reuse check" in (code.root() / "plugins/harness-ops" / rel).read_text()

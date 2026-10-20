@@ -214,6 +214,7 @@ def stub_project(tmp_path, monkeypatch):
     install(build(tmp_path, "head", agent="newer body"))  # main's head under the pinned version string
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("FAKE_CLAUDE_STATE", str(state))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "user"))  # user settings: never the owner's
     monkeypatch.setattr(setup, "root", lambda: project)
     monkeypatch.setattr(setup, "git", lambda *a, **k: str(project / ".git") if "--git-common-dir" in a else "true")
     monkeypatch.setattr(setup.shutil, "which", lambda tool: f"/usr/bin/{tool}")
@@ -341,6 +342,77 @@ def test_setup_names_the_failed_step_when_it_suggests_repin_all(stub_project, mo
     monkeypatch.setenv("FAKE_CLAUDE_FAIL_MSG", "network error")
     assert setup.setup() == 1
     assert "`plugin install harness-ops@agent-harness --scope project` failed; last resort" in capsys.readouterr().out
+
+
+CLASH = (
+    'Cannot add marketplace "agent-harness": its source doesn\'t match its extraKnownMarketplaces entry in user or '
+    "managed settings"
+)
+
+
+def _register(tmp_path: Path, source: dict) -> None:
+    """User settings that register the agent-harness marketplace at `source`, as another project's setup leaves them."""
+    (tmp_path / "user").mkdir(exist_ok=True)
+    settings = {"extraKnownMarketplaces": {"agent-harness": {"source": source}}}
+    (tmp_path / "user/settings.json").write_text(json.dumps(settings))
+
+
+@pytest.mark.parametrize("pin", ["", "@v0.1.1"])
+def test_setup_warns_naming_both_refs_when_another_project_registered_the_same_repo(
+    stub_project, tmp_path, monkeypatch, capsys, pin
+):
+    """#327: another project's setup registered this repository at v0.1.10; `marketplace add` refuses this project's
+    source (unpinned, as in agent-harness itself, or pinned elsewhere). That is a WARN naming both refs, never a FAIL."""
+    plugins = {"harness-ops@agent-harness": f"{stub_project.remote}{pin}"}
+    monkeypatch.setattr(setup.config, "get", lambda: SimpleNamespace(plugins=plugins))
+    _register(tmp_path, {"source": "git", "url": f"{stub_project.remote}.git", "ref": "v0.1.10"})
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL", "plugin marketplace add")
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL_MSG", CLASH)
+    stub_project.install(stub_project.pinned)
+    setup.run_steps(setup.plugin_steps())
+    out = capsys.readouterr().out
+    assert "FAIL" not in out
+    warn = next(line for line in out.splitlines() if line.startswith("WARN plugin marketplace"))
+    assert "v0.1.10" in warn and f"pins {pin.removeprefix('@') or 'no ref'}" in warn
+    assert f"ok   plugin {next(iter(plugins))}" in out
+
+
+@pytest.mark.parametrize(
+    "registered",
+    [
+        {"source": "github", "repo": "someone/else", "ref": "v0.1.10"},
+        {"source": "directory", "path": "/somewhere/else"},
+    ],
+)
+def test_setup_still_fails_when_another_repository_holds_the_marketplace_name(
+    stub_project, tmp_path, monkeypatch, capsys, registered
+):
+    _register(tmp_path, registered)
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL", "plugin marketplace add")
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL_MSG", CLASH)
+    setup.run_steps(setup.plugin_steps())
+    out = capsys.readouterr().out
+    assert f"FAIL plugin marketplace {stub_project.remote}@v0.1.1" in out and "WARN" not in out
+
+
+def test_a_failed_add_with_no_registry_entry_or_another_error_still_fails(stub_project, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL", "plugin marketplace add")
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL_MSG", CLASH)
+    setup.run_steps(setup.plugin_steps())  # no user settings at all
+    _register(tmp_path, {"source": "git", "url": str(stub_project.remote), "ref": "v0.1.10"})
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL_MSG", "network error")
+    setup.run_steps(setup.plugin_steps())
+    out = capsys.readouterr().out
+    assert out.count("FAIL plugin marketplace") == 2 and "WARN" not in out
+
+
+def test_clash_warning_matches_github_shorthand_and_url_forms():
+    registered = {"source": "github", "repo": "Marius-Juston/agent-harness", "ref": "v0.1.10"}
+    assert "at v0.1.10" in str(setup.clash_warning("Marius-Juston/agent-harness", registered))
+    assert setup.clash_warning(f"{SRC}.git@v0.1.9", registered)
+    assert setup.clash_warning("Marius-Juston/agent-harness@v0.1.10", registered) is None  # same ref: not this clash
+    assert setup.clash_warning("someone/agent-harness", registered) is None
+    assert setup.clash_warning("Marius-Juston/agent-harness", {}) is None
 
 
 def test_settings_that_are_not_an_object_are_restored_without_raising(tmp_path, capsys):
@@ -524,3 +596,22 @@ def test_real_cli_repin_from_a_worktree_with_the_marketplace_in_project_settings
     for d in (a, worktree):
         status = subprocess.run(["git", "status", "--porcelain", ".claude"], cwd=d, capture_output=True, text=True)
         assert status.stdout == "", d
+
+
+@pytest.mark.slow  # about 5 s
+def test_real_cli_setup_in_an_unpinned_project_after_another_pinned_the_marketplace_prints_no_fail(
+    real_cli, tmp_path, monkeypatch, capsys
+):
+    """#327: project B's setup registered the marketplace at v0.1.1 in user settings; the plugin steps of project A,
+    which tracks the same repository unpinned (as agent-harness itself does), print a WARN naming both, never FAIL."""
+    a, b = _project(tmp_path / "a"), _project(tmp_path / "b")
+    monkeypatch.setattr(setup, "root", lambda: b)
+    real_cli.claude(b, "plugin", "marketplace", "add", "fake/src@v0.1.1")
+    monkeypatch.setattr(setup, "root", lambda: a)
+    plugins = {"harness-ops@agent-harness": "fake/src"}
+    monkeypatch.setattr(setup.config, "get", lambda: SimpleNamespace(plugins=plugins))
+    assert _isolation_problem(tmp_path) is None
+    setup.run_steps(setup.plugin_steps())
+    out = capsys.readouterr().out
+    assert "FAIL" not in out, out
+    assert "v0.1.1" in out and "pins no ref" in out

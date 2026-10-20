@@ -12,6 +12,9 @@ file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness
   once, and a timeout ends in `waiting`, which a rerun resumes. Under `--local-ci` the required checks it stands in
   for are neither waited for nor judged there; the others (e.g. CodeQL) are. Not with `--override` or `--dry-run`.
   The lead skill no longer asks the lead to wait for green checks by hand. (#321, #322)
+- researcher checks a repository that is not a registry package with authenticated
+  `gh api repos/<o>/<r> --jq '{...}'` instead of curling `api.github.com` into a Python filter (60 requests/hour
+  unauthenticated; 7.7 % of those calls failed). (#323)
 
 ## v0.1.10 (2026-10-19)
 
@@ -193,7 +196,7 @@ attention:
   coverage (#58). `xfail_strict` on and higher floors in this repository (#136). Per-test JUnit outcome and
   duration history for audits (#121).
 - Frontmatter allowlists match the documented agent and skill fields, with value and injection checks (#153).
-- The word budget counts `.claude/rules` and `.claude/commands` (#44).
+- The word budget counts the rules and commands files under a project's `.claude/` (#44).
 - Free secret and code scanning: a gitleaks hook and ruff `S` rules (#15).
 - cite-check no longer reads DOI fragments as arXiv ids and resolves DataCite (Zenodo) DOIs (#35).
 
