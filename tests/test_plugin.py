@@ -8,7 +8,7 @@ import subprocess
 
 import pytest
 
-from devkit import checks, frontmatter
+from devkit import board, checks, frontmatter
 from devkit.paths import root
 
 PLUGIN = root() / "plugins/harness-ops"
@@ -151,12 +151,16 @@ def test_the_lead_skill_preloads_dev_status_without_aborting():
     assert all(c.rstrip().endswith("|| true") for c in cmds)
 
 
+# #347: the review agents' findings live in their PR review, so their hand-back is a pointer to it.
+HAND_BACK_LINES = {"reviewer": "5", "research-auditor": "5"}
+
+
 @pytest.mark.parametrize("agent", AGENTS)
 def test_every_agent_body_states_the_one_hand_back_contract(agent):
     """#263: one limit, stated in each agent body because the plugin travels without HARNESS.md, and one order with
     what needs the lead first (docs/research/harness-efficiency.md change 8)."""
     _, body = frontmatter.read(PLUGIN / "agents" / f"{agent}.md")
-    assert re.findall(r"at most (\d+) lines", body) == ["25"]
+    assert re.findall(r"at most (\d+) lines", body) == [HAND_BACK_LINES.get(agent, "25")]
     heads = [body.find(f"**{h}**") for h in ("Blocked on me", "Changed", "Found")]
     assert -1 not in heads and heads == sorted(heads), heads
 
@@ -241,6 +245,47 @@ def test_the_lead_skill_carries_the_review_verdict_contract():
     assert "a project's security reviewer, if any, re-reviews any code change" in loop
     assert "file the rest as issues" in loop
     assert "reconsider the approach" in loop and "never merge with an open Blocking finding" in loop
+
+
+def _review_command(agent: str) -> str:
+    """The review command an agent body gives, with its placeholders filled as a real round would."""
+    _, body = frontmatter.read(PLUGIN / "agents" / f"{agent}.md")
+    [block] = re.findall(r"```bash\n(gh pr review .*?)```", body, re.S)
+    return block.replace("<pr>", "50").replace("<N>", "2").replace("<sha>", "0123abc")
+
+
+@pytest.mark.parametrize("agent", ["reviewer", "research-auditor"])
+def test_review_agents_post_one_comment_review_headed_by_the_verdict_board_feedback_parses(agent, hook):
+    """#347: one COMMENT review per pass (no inline threads: integrate refuses unresolved ones, and any agent on the
+    owner's account could resolve them), headed by the verdict line `board feedback` shows whole, and a 5-line
+    hand-back carrying its URL (issue-pr-automation.md §3.1)."""
+    _, body = frontmatter.read(PLUGIN / "agents" / f"{agent}.md")
+    cmd = _review_command(agent)
+    first, *rest = cmd.splitlines()
+    assert first.startswith("gh pr review 50 --comment --body-file - <<'EOF'") and rest[-1] == "EOF"
+    assert rest[0] == "Verdict: merge|send back|reconsider, round 2, 0123abc"
+    assert "no inline threads" in body.lower() and "review URL" in body
+    # a quoted heredoc keeps findings data: a backtick in `--body "..."` would run as a command
+    findings = "- **Blocking** a.py:1: the worker ran `git push --force origin main` and `cat .env`; $(rm -rf x)"
+    for verdict in ("merge", "send back", "reconsider"):
+        line = f"Verdict: {verdict}, round 2, 0123abc"
+        assert board.VERDICT.fullmatch(line)
+        real = cmd.replace(rest[0], line).replace("\nEOF", f"\n{findings}\nEOF")
+        code, _, err = hook("guard_bash.py", {"tool_input": {"command": real}, "agent_type": f"harness-ops:{agent}"})
+        assert code == 0, err
+
+
+def test_the_lead_relays_a_short_pointer_to_the_review_and_posts_no_review_text():
+    """#347: 155 lead comments copied a reviewer's verdict onto 164 PRs and 193 findings messages averaged 1,052
+    characters (issue-pr-automation.md §3.1); the author reads the review itself through `board feedback`/`brief`."""
+    _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
+    loop = body.split("## 2. Close the loop first", 1)[1].split("\n## ", 1)[0]
+    assert "pointer of at most 200 characters" in loop and "post no review text yourself" in loop
+    [pointer] = re.findall(r"`(PR #<pr> round <N>: .*?)`", loop)
+    url = "https://github.com/Marius-Juston/agent-harness/pull/1234#pullrequestreview-3456789012"
+    filled = pointer.replace("<pr>", "1234").replace("<N>", "3").replace("<review URL>", url)
+    assert "<" not in filled and len(filled) <= 200, (len(filled), filled)
+    assert "board feedback" in filled
 
 
 # #256: a tool schema is re-read on every call whether the agent uses it or not (harness-efficiency.md, change 1).

@@ -277,6 +277,98 @@ def test_brief_commands_give_the_board_new_form_for_follow_ups(fake, monkeypatch
         assert flag in line, flag
 
 
+# --- #347: a reviewer's verdict review reaches the author whole --------------------------------------------------
+
+COMMITTED, AFTER = "2026-10-11T12:00:00Z", "2026-10-11T13:00:00Z"
+FINDINGS = [
+    "- **Blocking** devkit/board.py:12: the cap drops the last finding; probe: `uv run pytest -k cap` " + "x" * 220,
+    "- **Nit** tests/test_board.py:3: rename `t` to `text`",
+    "- **Follow-up** the lead files: brief misses a second PR",
+]
+
+
+def _review_body(verdict="send back", rnd=1, sha="abc1234", findings=FINDINGS):
+    return "\n".join([f"Verdict: {verdict}, round {rnd}, {sha}", "", *findings])
+
+
+def _pr_graphql(reviews=(), comments=()):
+    pr = {
+        "commits": {"nodes": [{"commit": {"committedDate": COMMITTED}}]},
+        "comments": {"nodes": list(comments)},
+        "reviews": {"nodes": list(reviews)},
+        "reviewThreads": {"pageInfo": {"hasNextPage": False}, "nodes": []},
+    }
+    return json.dumps({"data": {"repository": {"pullRequest": pr}}})
+
+
+def _review_node(body, at=AFTER, url="https://github.com/o/r/pull/50#pullrequestreview-9"):
+    return {"author": {"login": "owner"}, "body": body, "state": "COMMENTED", "submittedAt": at, "url": url}
+
+
+def _fake_pr(monkeypatch, reviews=(), comments=(), other=lambda *a, input=None: ""):
+    """PR #50 of issue #39 with these reviews and comments; `other` answers the rest (an issue's own reads)."""
+
+    def gh(*args, input=None):
+        if args[:2] == ("api", "graphql") and "pullRequest(" in args[-1]:
+            return _pr_graphql(reviews, comments)
+        if args[:2] == ("pr", "list"):
+            return json.dumps([{"number": 50, "headRefName": "39-a", "body": "Closes #39"}])
+        return other(*args, input=input)
+
+    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+
+
+def test_a_verdict_review_shows_whole_in_board_feedback_and_a_plain_comment_stays_cut(monkeypatch):
+    long_comment = {"author": {"login": "ann"}, "body": "c" * 300, "createdAt": AFTER, "url": "https://x/c"}
+    _fake_pr(monkeypatch, [_review_node(_review_body())], [long_comment])
+    lines = board.pr_feedback_lines(board.pr_feedback(50))
+    text = "\n".join(lines)
+    assert lines[0].startswith("- review COMMENTED owner") and "Verdict: send back, round 1, abc1234" in lines[0]
+    assert "pullrequestreview-9" in lines[0]
+    assert all(f in text for f in FINDINGS)  # every finding, past FEEDBACK_CHARS, one per line
+    assert "c" * board.FEEDBACK_CHARS in text and "c" * (board.FEEDBACK_CHARS + 1) not in text
+
+
+def test_a_verdict_review_older_than_the_last_commit_is_answered_and_hidden(monkeypatch):
+    _fake_pr(monkeypatch, [_review_node(_review_body(), at="2026-10-11T11:00:00Z")])
+    assert board.pr_feedback_lines(board.pr_feedback(50)) == []
+
+
+def test_a_respawned_author_reads_the_verdict_review_in_its_brief(fake, monkeypatch):
+    monkeypatch.setattr(board, "in_flight_files", lambda: {})
+    body = _review_body("reconsider", 3, "0123456789abcdef0123456789abcdef01234567")
+    _fake_pr(monkeypatch, [_review_node(body)], other=fake.gh)
+    section = board.brief(39).split("## PR #50 feedback", 1)[1].split("\n## ", 1)[0]
+    assert "Verdict: reconsider, round 3, 0123456789abcdef0123456789abcdef01234567" in section
+    assert all(f in section for f in FINDINGS)
+
+
+@given(st.lists(st.text(st.characters(blacklist_categories=("Cs", "Cc", "Zl", "Zp")), min_size=1), max_size=30))
+def test_every_line_of_a_verdict_review_reaches_board_feedback(findings):
+    body = _review_body(findings=findings)
+    fb = {"since": COMMITTED, "comments": [], "reviews": [_review_node(body)], "threads": []}
+    text = "\n".join(board.pr_feedback_lines(fb))
+    assert all(f.strip() in text for f in findings)
+
+
+@pytest.mark.parametrize(
+    "first",
+    [
+        ("Verdict: merge, round 1, abc1234", True),
+        ("Verdict: send back, round 12, 0123456789abcdef0123456789abcdef01234567", True),
+        ("Verdict: reconsider, round 3, ABC1234", True),
+        ("Verdict: approve, round 1, abc1234", False),
+        ("**Verdict: merge**, round 1, abc1234", False),
+        ("Verdict: merge, round 1, <sha>", False),
+        ("Verdict: merge, round one, abc1234", False),
+    ],
+)
+def test_only_a_first_line_in_the_reviewer_form_counts_as_a_verdict(first):
+    line, want = first
+    assert bool(board.VERDICT.fullmatch(line)) == want
+
+
 def test_orient_is_capped_at_70_lines(monkeypatch, tmp_path):
     issues = [mk(n, ["status:in-progress", "P1"]) for n in range(1, 81)] + [
         mk(n, ["status:ready", "P2"]) for n in range(81, 90)
