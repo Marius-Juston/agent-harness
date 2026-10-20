@@ -1349,7 +1349,7 @@ def _integrate(
     if name := info.get("headRefName"):
         if (others := open_prs_on(name)) is None:
             print(f"kept branch {name}: cannot read its open PRs from GitHub")
-        elif others:
+        elif others := [n for n in others if n != pr_number]:  # the list can still show the PR just merged as open
             print(f"kept branch {name}: open PR {', '.join(f'#{n}' for n in others)} has it as head")
         else:
             print(drop_branch(name, [tip]))

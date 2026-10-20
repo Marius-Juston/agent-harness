@@ -831,3 +831,20 @@ def test_integrate_keeps_a_branch_another_open_pr_has_as_head(project, capsys, m
     assert _local(clone, "12-c") == tip
     why = "open PR #8 has it as head" if answer == "open" else "cannot read its open PRs from GitHub"
     assert f"kept branch 12-c: {why}" in said
+
+
+def test_integrate_deletes_the_branch_when_a_stale_list_still_shows_the_merged_pr_open(project, capsys, monkeypatch):  # noqa: F811
+    """Round-2 review of #343: right after the merge, `gh pr list --state open` can still show the PR just merged."""
+    clone = project["clone"]
+    tip = open_pr(project, note(clone, "c"))
+    fake = board.gh
+
+    def gh(*args, **kw):
+        if args[:2] == ("pr", "list") and "--head" in args:
+            return json.dumps([{"number": 7, "isCrossRepository": False}])
+        return fake(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    said = capsys.readouterr().out
+    assert not _local(clone, "12-c") and f"deleted branch 12-c (was {tip[:10]})" in said
