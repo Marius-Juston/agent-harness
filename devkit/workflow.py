@@ -184,14 +184,39 @@ def worktrees() -> list[dict]:
 SHA = re.compile(r"[0-9a-f]{40}")
 
 
+# Where a worktree stopped mid-rebase or mid-bisect keeps the branch it will return to: `worktree list` shows such a
+# worktree as detached, yet `rebase --continue` / `bisect reset` fail once that branch is gone.
+IN_USE = ("rebase-merge/head-name", "rebase-apply/head-name", "BISECT_START")
+
+
 def checked_out() -> dict[str, str]:
-    """Branch -> path of the worktree (the main checkout included) that has it checked out."""
+    """Branch -> path of the worktree (the main checkout included) that has it checked out, or is rebasing or
+    bisecting it (`IN_USE`)."""
     rows = {}
     for block in git("worktree", "list", "--porcelain").split("\n\n"):
         path, branch = re.search(r"^worktree (.+)$", block, re.M), re.search(r"^branch refs/heads/(.+)$", block, re.M)
-        if path and branch:
+        if not path:
+            continue
+        if branch:
             rows[branch.group(1)] = path.group(1)
+        gitdir = git("-C", path.group(1), "rev-parse", "--absolute-git-dir", check=False)
+        for name in IN_USE if gitdir else ():
+            with contextlib.suppress(OSError):
+                held = (Path(gitdir) / name).read_text().strip().removeprefix("refs/heads/")
+                if held:
+                    rows.setdefault(held, path.group(1))
     return rows
+
+
+def open_prs_on(branch: str) -> list[int] | None:
+    """Open same-repository PRs whose head is `branch`; None when GitHub cannot say (callers keep the branch)."""
+    try:
+        found = board.gh(
+            "pr", "list", "-R", board.repo(), "--head", branch, "--state", "open", "--json", "number,isCrossRepository"
+        )
+        return [p["number"] for p in json.loads(found or "[]") if not p.get("isCrossRepository")]
+    except (board.BoardError, OSError, ValueError):
+        return None
 
 
 def drop_branch(branch: str, heads: list[str], dry_run: bool = False) -> str:
@@ -231,6 +256,10 @@ def prune_branches(dry_run: bool = False) -> list[str]:
     a superseded one another's); otherwise kept with the reason. One line per such branch."""
     fields, limit = "number,state,headRefName,headRefOid,isCrossRepository", str(PRUNE_LIMIT)
     prs = json.loads(board.gh("pr", "list", "-R", board.repo(), "--state", "all", "--limit", limit, "--json", fields))
+    if len(prs) >= PRUNE_LIMIT:  # an older open PR on a local branch could be past the limit: delete nothing
+        raise board.BoardError(
+            f"worktree prune read {PRUNE_LIMIT} PRs (PRUNE_LIMIT), so an older open PR may be missing; nothing deleted"
+        )
     prs = [p for p in prs if not p.get("isCrossRepository")]
     merged = [p["headRefOid"] for p in prs if p["state"] == "MERGED" and SHA.fullmatch(p["headRefOid"] or "")]
     check = subprocess.run(
@@ -1317,8 +1346,13 @@ def _integrate(
     for w in worktrees():
         if w["branch"] == info["headRefName"] and w["dirty"] == 0:
             git("worktree", "remove", w["path"], check=False)
-    if info.get("headRefName"):
-        print(drop_branch(info["headRefName"], [tip]))
+    if name := info.get("headRefName"):
+        if (others := open_prs_on(name)) is None:
+            print(f"kept branch {name}: cannot read its open PRs from GitHub")
+        elif others:
+            print(f"kept branch {name}: open PR {', '.join(f'#{n}' for n in others)} has it as head")
+        else:
+            print(drop_branch(name, [tip]))
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):
         git("-C", str(main_checkout()), "pull", "--ff-only", check=False)
     print(f"RESULT: merged PR #{pr_number}" + (f"; {', '.join(moved)}" if moved else ""))

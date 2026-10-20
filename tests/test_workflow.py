@@ -687,15 +687,16 @@ def _branch(repo, name: str, *files: str) -> str:
     return tip
 
 
-def _pr(number: int, branch: str, state: str, head: str) -> dict:
-    return {"number": number, "state": state, "headRefName": branch, "headRefOid": head, "isCrossRepository": False}
+def _pr(number: int, branch: str, state: str, head: str, fork: bool = False) -> dict:
+    return {"number": number, "state": state, "headRefName": branch, "headRefOid": head, "isCrossRepository": fork}
 
 
 @pytest.mark.parametrize("dry_run", [False, True])
 def test_worktree_prune_deletes_branches_their_merged_or_superseding_pr_contains(branches, dry_run, tmp_path):
     """#340: `dev worktree prune` deletes a squash-merged branch (tip at or behind its PR head) and a closed PR's
     branch another merged PR's head contains; it keeps one with unpushed commits, one checked out, and one whose merged
-    head this clone lacks, and does not touch main, a branch with an open PR, or one with no PR."""
+    head this clone lacks, and does not touch main, a branch with an open PR, or one with no PR of this repository (a
+    fork's merged PR from a branch of the same name does not count)."""
     repo, prs = branches
     merged = _branch(repo, "1-merged", "x")
     later = _branch(repo, "2-behind", "y1", "y2")
@@ -710,7 +711,7 @@ def test_worktree_prune_deletes_branches_their_merged_or_superseding_pr_contains
     sh(repo, "git", "worktree", "add", "-q", str(tmp_path / "wt"), "5-busy")
     open_ = _branch(repo, "6-open", "o")
     lost = _branch(repo, "7-lost", "l")
-    _branch(repo, "8-nopr", "n")
+    nopr = _branch(repo, "8-nopr", "n")
     prs += [
         _pr(1, "1-merged", "MERGED", merged),
         _pr(2, "2-behind", "MERGED", later),
@@ -721,6 +722,7 @@ def test_worktree_prune_deletes_branches_their_merged_or_superseding_pr_contains
         _pr(16, "6-open", "OPEN", open_),
         _pr(7, "7-lost", "MERGED", "f" * 40),
         _pr(9, "main", "MERGED", merged),
+        _pr(10, "8-nopr", "MERGED", nopr, fork=True),
     ]
     lines = workflow.prune_branches(dry_run)
     said = "\n".join(lines)
@@ -731,7 +733,7 @@ def test_worktree_prune_deletes_branches_their_merged_or_superseding_pr_contains
     assert f"kept branch 4-ahead: its tip {extra[:10]} has 1 commit(s)" in said and _local(repo, "4-ahead") == extra
     assert f"kept branch 5-busy: checked out in {tmp_path / 'wt'}" in said and _local(repo, "5-busy") == busy
     assert f"kept branch 7-lost: its tip {lost[:10]} has 1 commit(s)" in said and _local(repo, "7-lost") == lost
-    assert _local(repo, "6-open") == open_ and _local(repo, "8-nopr") and _local(repo, "main")
+    assert _local(repo, "6-open") == open_ and _local(repo, "8-nopr") == nopr and _local(repo, "main")
     assert "6-open" not in said and "8-nopr" not in said and "main" not in said
     assert len(lines) == 6
 
@@ -757,3 +759,75 @@ def test_dev_worktree_prune_is_a_command(branches, capsys):
     assert "would delete branch 1-merged" in capsys.readouterr().out and _local(repo, "1-merged")
     assert cli.run(cli.parse(["worktree", "prune"])) in (None, 0)
     assert "deleted branch 1-merged" in capsys.readouterr().out and not _local(repo, "1-merged")
+
+
+def _stop_mid(repo, tmp_path, how: str) -> str:
+    """A worktree of branch 1-x stopped mid-rebase (conflict or an `edit` stop) or mid-bisect: shown as detached."""
+    tip = _branch(repo, "1-x", *(["a.txt"] if how == "conflict" else ["x", "y"]))
+    commit(repo, {"a.txt": "main moved\n"}, "main moves")
+    wt = tmp_path / "wt"
+    sh(repo, "git", "worktree", "add", "-q", str(wt), "1-x")
+    if how == "conflict":
+        assert sh(wt, "git", "rebase", "main", check=False).returncode != 0
+    elif how == "edit":
+        sh(wt, "git", "-c", "sequence.editor=sed -i 1s/^pick/edit/", "rebase", "-i", "--onto", "main", "1-x~1")
+    else:
+        sh(wt, "git", "bisect", "start", "1-x", "main~1")
+    assert "detached" in out(repo, "git", "worktree", "list", "--porcelain")
+    return tip
+
+
+@pytest.mark.parametrize("how", ["conflict", "edit", "bisect"])
+def test_drop_branch_keeps_a_branch_a_worktree_is_rebasing_or_bisecting(branches, tmp_path, how):
+    """Review of #343: `git worktree list` shows such a worktree as detached, but `rebase --continue` or
+    `bisect reset` needs the branch back."""
+    repo, _ = branches
+    tip = _stop_mid(repo, tmp_path, how)
+    assert workflow.drop_branch("1-x", [tip]) == f"kept branch 1-x: checked out in {tmp_path / 'wt'}"
+    assert _local(repo, "1-x") == tip
+
+
+def test_drop_branch_keeps_a_branch_that_moved_after_the_check(branches, monkeypatch):
+    repo, _ = branches
+    tip = _branch(repo, "1-x", "x")
+    real = workflow.git
+
+    def git(*args, **kw):
+        if args[:2] == ("update-ref", "-d"):  # another push lands between the check and the delete
+            sh(repo, "git", "branch", "-f", "1-x", "main")
+        return real(*args, **kw)
+
+    monkeypatch.setattr(workflow, "git", git)
+    assert workflow.drop_branch("1-x", [tip]).startswith("kept branch 1-x: ")
+    assert _local(repo, "1-x") == out(repo, "git", "rev-parse", "main")
+
+
+def test_worktree_prune_refuses_when_the_pr_list_may_be_cut_off(branches, monkeypatch):
+    repo, prs = branches
+    tip = _branch(repo, "1-x", "x")
+    monkeypatch.setattr(workflow, "PRUNE_LIMIT", 2)
+    prs += [_pr(1, "1-x", "MERGED", tip), _pr(2, "2-y", "CLOSED", tip)]
+    with pytest.raises(board.BoardError, match="nothing deleted"):
+        workflow.prune_branches()
+    assert _local(repo, "1-x") == tip
+
+
+@pytest.mark.parametrize("answer", ["open", "error"])
+def test_integrate_keeps_a_branch_another_open_pr_has_as_head(project, capsys, monkeypatch, answer):  # noqa: F811
+    clone = project["clone"]
+    tip = open_pr(project, note(clone, "c"))
+    fake = board.gh
+
+    def gh(*args, **kw):
+        if args[:2] == ("pr", "list") and "--head" in args:
+            if answer == "error":
+                raise board.BoardError("gh: offline")
+            return json.dumps([{"number": 8, "isCrossRepository": False}])
+        return fake(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    said = capsys.readouterr().out
+    assert _local(clone, "12-c") == tip
+    why = "open PR #8 has it as head" if answer == "open" else "cannot read its open PRs from GitHub"
+    assert f"kept branch 12-c: {why}" in said
