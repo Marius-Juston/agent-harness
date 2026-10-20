@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "harness-ops@agent-harness": true,
+    "astral@astral-sh": true
+  }
+}

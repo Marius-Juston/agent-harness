@@ -4,6 +4,13 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## Unreleased
+
+### Changed
+- researcher checks a repository that is not a registry package with authenticated
+  `gh api repos/<o>/<r> --jq '{...}'` instead of curling `api.github.com` into a Python filter (60 requests/hour
+  unauthenticated; 7.7 % of those calls failed). (#323)
+
 ## v0.1.10 (2026-10-19)
 
 Research-driven harness changes (#254, #282): shorter always-loaded rules, one hand-back and review contract,
@@ -184,7 +191,7 @@ attention:
   coverage (#58). `xfail_strict` on and higher floors in this repository (#136). Per-test JUnit outcome and
   duration history for audits (#121).
 - Frontmatter allowlists match the documented agent and skill fields, with value and injection checks (#153).
-- The word budget counts `.claude/rules` and `.claude/commands` (#44).
+- The word budget counts the rules and commands files under a project's `.claude/` (#44).
 - Free secret and code scanning: a gitleaks hook and ruff `S` rules (#15).
 - cite-check no longer reads DOI fragments as arXiv ids and resolves DataCite (Zenodo) DOIs (#35).
 
