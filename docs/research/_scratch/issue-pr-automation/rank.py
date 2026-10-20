@@ -23,15 +23,15 @@ filing_turn = allc["4 filing/upkeep of issues"]["usd_per_turn"]
 
 rows = []
 
-# 1 integrate --ready: lower = retries where nothing changed and checks were not pending (#322 already waits);
-#   upper = one integrate turn per burst instead of one per PR
-nothing = it["retry_what_changed"]["nothing changed (same head, same flags)"]
-pending = it["outcome_before_a_retry_where_nothing_changed"].get("refused: pending check", 0)
+# 1 integrate --ready: lower = 0. A refusal cache was priced here as (nothing changed - pending) retries, but a cache
+#   hit still costs the lead the integrate call, and building its key needs the same `gh pr view` and feedback reads
+#   the refusal makes, so it saves about nothing (research-auditor, #346); the filed `--why` is a safety measure.
+#   upper = one integrate turn per burst instead of one per PR (the rejected merging loop)
 bursts = r["integrate_bursts"]["bursts"]
 rows.append(
     (
         "1 integrate --ready queue",
-        (nothing - pending) * turn_int,
+        0.0,
         (split["integrate call"]["turns"] - bursts) * turn_int,
     )
 )

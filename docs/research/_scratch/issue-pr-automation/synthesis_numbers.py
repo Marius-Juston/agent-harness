@@ -33,17 +33,15 @@ total = sum(R134.values())
 print(
     f"\nsession count (retries134.py): {total} retries; same head, feedback and flags {R134['same head+feedback+flags']}"
 )
-# The cache estimate uses the cross-session classification, the only one split by the outcome of the try before:
+# What came before the cross-session retries where nothing changed:
 # report-bookkeeping.json integrate.outcome_before_a_retry_where_nothing_changed (36 of 115 cross-session retries).
 nc = r["integrate"]["outcome_before_a_retry_where_nothing_changed"]
-n36 = sum(nc.values())
-pending, unseen = nc["refused: pending check"], nc["?"]  # #322 now waits; '?' = an output the lead never saw
-other = nc.get("merged", 0) + nc.get("stopped", 0)  # neither is cached (merged is final, stopped is transient)
-hi = n36 - pending  # every remaining unchanged retry, incl. those after an unseen output
-lo = hi - unseen - other  # only retries after a cacheable outcome the lead had seen
+print(f"cross-session nothing-changed retries {sum(nc.values())}: {dict(nc)}")
+# A cache hit still costs the integrate call and the same two GitHub reads, so a refusal cache saves about $0;
+# only gate-failed and conflict outcomes skip real work (merge, gate) on a hit.
+skip = nc.get("gate-failed", 0) + nc.get("conflict", 0)
 print(
-    f"cross-session nothing-changed retries {n36}: pending {pending}, unseen {unseen}, merged/stopped {other}; "
-    f"cache answers {lo}-{hi}, ${lo * turn_int:.2f}-{hi * turn_int:.2f}"
+    f"  hits that would skip real work (gate-failed, conflict): {skip} per window; #348 is --why, saving not modelled"
 )
 merged = r["integrate"]["prs_merged_in_these_tries"]
 print(
@@ -85,9 +83,9 @@ print(
     f"share of lead turns {lead_any['turns'] / r['overview']['lead']['turns']:.1%}"
 )
 
-# Bounds of the four filed changes together (§6): lower and upper per window; #347, #349, #350 from rank.py
-LOWER = {"#347": 3.11, "#348": lo * turn_int, "#349": 0.75, "#350": 1.73}
-UPPER = {"#347": 23.89, "#348": hi * turn_int, "#349": 4.86, "#350": 8.37}
+# Bounds of the four filed changes together (§6): lower and upper per window, from rank.py; #348 (--why) is 0
+LOWER = {"#347": 3.11, "#348": 0.0, "#349": 0.75, "#350": 1.73}
+UPPER = {"#347": 23.89, "#348": 0.0, "#349": 4.86, "#350": 8.37}
 print(
     f"\nfiled four together: ${sum(LOWER.values()):.1f}-{sum(UPPER.values()):.1f} per window "
     f"({sum(UPPER.values()) / spend:.1%} of spend at the upper bound)"
