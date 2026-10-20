@@ -329,6 +329,12 @@ def test_the_settings_compact_near_400k(rendered):
     assert "`autoCompactWindow`" in lead  # the lead knows when compaction comes and keeps HANDOFF ahead of it
 
 
+def test_the_settings_leave_the_artifact_tool_to_the_lead(rendered):
+    # #256, owner decision: only the workers withhold the ~12.9k-token Artifact schema (tests/test_plugin.py). A
+    # `false` here would also take Artifacts from the lead, and no other settings file could turn it back on.
+    assert "enableArtifact" not in json.loads((rendered / ".claude/settings.json").read_text())
+
+
 def test_the_settings_allow_the_read_only_board_commands(rendered):
     allow = json.loads((rendered / ".claude/settings.json").read_text())["permissions"]["allow"]
     for rule in (

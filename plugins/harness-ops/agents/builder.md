@@ -6,6 +6,7 @@ maxTurns: 300
 color: blue
 effort: medium  # judged for Opus 5.5 on 2026-10-19 (harness-efficiency.md §3)
 isolation: worktree
+disallowedTools: Agent, Artifact
 experimental:
   cacheTtl: 1h
 ---

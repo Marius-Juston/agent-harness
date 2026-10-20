@@ -225,3 +225,20 @@ def test_the_lead_skill_carries_the_review_verdict_contract():
     assert "a project's security reviewer, if any, re-reviews any code change" in loop
     assert "file the rest as issues" in loop
     assert "reconsider the approach" in loop and "never merge with an open Blocking finding" in loop
+
+
+# #256: a tool schema is re-read on every call whether the agent uses it or not (harness-efficiency.md, change 1).
+# In 410 worker runs Artifact was called 4 times, Skill 3 and Agent never. The builder keeps Skill because HARNESS.md
+# sends harness-file work through the harness skill.
+WITHHELD = {
+    "builder": {"Agent", "Artifact"},
+    "researcher": {"Agent", "Artifact", "Skill"},
+    "tester": {"Agent", "Artifact", "Skill"},
+}
+
+
+@pytest.mark.parametrize("agent", sorted(WITHHELD))
+def test_the_workers_withhold_the_tools_they_never_call(agent):
+    meta, _ = frontmatter.read(PLUGIN / f"agents/{agent}.md")
+    assert "tools" not in meta  # an allowlist would also drop the MCP tools researchers use; trim the pool instead
+    assert {t.strip() for t in str(meta["disallowedTools"]).split(",")} == WITHHELD[agent]
