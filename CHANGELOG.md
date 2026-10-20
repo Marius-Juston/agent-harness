@@ -4,6 +4,39 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.13 (2026-10-20)
+
+Less issue and PR bookkeeping for the lead, from the #346 research ([issue-pr-automation.md](docs/research/issue-pr-automation.md)):
+conflicts are caught at `dev pr` and right after each merge, reviewers post their own review, `board new` names
+related issues, and `integrate --why` replaces diagnostic reruns.
+
+### Upgrading a project
+Run `uvx copier update --data harness_ref=v0.1.13`, then `uv sync && uv run dev docs && uv run dev check`. These can
+need attention:
+- **`dev pr` needs git 2.40 or later** on every machine that hands back work: it now runs `git merge-tree
+  --write-tree` against `origin/main` and refuses, before pushing, a branch that conflicts (or one it cannot check).
+  Ubuntu 22.04 ships 2.34. (#349; a doctor check is #356)
+- **Reviewers post, the lead points.** `harness-ops:reviewer` and `harness-ops:research-auditor` post one COMMENT review
+  whose first line is `Verdict: merge|send back|reconsider, round <N>, <sha>` and hand back at most 5 lines; the
+  research auditor's verdict words changed from accept/return to merge/send back. With no PR yet, the auditor posts
+  on the issue. A project's own reviewer agents (its `.claude` agents directory) still hand back findings: give them the same
+  posting step, or the lead relays text as before. (#347)
+- **Only the `gh` user's verdict review shows in full** in `board feedback` and `board brief`; anyone else's is cut to
+  200 characters as before. (#347)
+- `board new` fetches every issue once more (about 3 s) to print related issues. (#350)
+
+### Added
+- `dev pr` refuses a branch that conflicts with main, with the conflicted paths; after each merge `integrate` sends
+  back every other open PR the new main conflicts with (`sent_back` in RESULT-JSON). (#349)
+- `board new` prints up to 3 related issues (stdlib BM25 over title, Context and DONE WHEN) and pre-fills Refs; it
+  never refuses. The lead skill closes duplicates with `gh issue close <n> --duplicate-of <m>`. (#350)
+- `dev integrate <pr> --why` prints the PR's last recorded outcome, its reasons and failing gate lines, and whether
+  the head moved since, without running anything or writing to GitHub. The gate's output is also kept in a log under
+  the integrate state directory. (#348)
+- Reviewer and research-auditor verdicts as one GitHub review; `board feedback`/`board brief` show it first, marked
+  stale when its SHA is not the PR head. (#347)
+- Research note [issue-pr-automation.md](docs/research/issue-pr-automation.md). (#346)
+
 ## v0.1.12 (2026-10-20)
 
 `dev integrate` deletes a merged PR's local branch, a new `dev worktree prune` cleans up the rest, and two board and
