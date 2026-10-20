@@ -1,0 +1,5 @@
+pick B0; Tier B TEST: 196 queries
+[leak-removed]
+B0         R@1 0.321 R@3 0.505 [0.439,0.571] R@5 0.571
+Tier A [leak-removed] B0: 8/10 in top 3
+Tier A [full] B0: 9/10 in top 3

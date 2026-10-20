@@ -58,3 +58,48 @@ judged precision (round 1) is not re-run here.
 
 ## Results
 (filled in after the run, below this line; the pre-registration above is not edited)
+
+Labels: VERIFIED = measured by [bm25_variants.py](bm25_variants.py); BELIEVED = judgement. Outputs:
+[bm25_variants_dev.txt](bm25_variants_dev.txt), [bm25_variants_pick.json](bm25_variants_pick.json),
+[bm25_variants_test.txt](bm25_variants_test.txt).
+
+**Implementation checks, run after the commit and before any scoring (VERIFIED).** B0 on `full` gives the same top 3
+as round 1's A4 on 673/673 labelled queries. The stdlib BM25F with all text in one field matches round 1's stdlib
+BM25 (`dedup_explore.bm25_pure`) to a maximum score difference of 1.1e-14 on 59 agent-harness queries.
+
+**R1. No variant beats plain BM25 on DEV; the pick is B0 (VERIFIED, bm25_variants_dev.txt).**
+- On `leak-removed` DEV (476 queries) B0 has recall@3 0.532 [0.487, 0.578]. The 19 arms lie between −0.021 and
+  +0.013 of it. No paired CI has a lower bound above 0:
+  - the best mean, G-1.2-0.5 (k1 1.2, b 0.5): +0.013 [−0.008, +0.034];
+  - ATIRE (M2) and BM25+ (M4): +0.004 [+0.000, +0.011], a lower bound of exactly 0, which the rule does not accept;
+  - Robertson (M1) −0.002, BM25L (M3) −0.006, both with CIs spanning 0.
+- So by the pre-registered rule the pick is B0, and TEST was scored for B0 alone.
+- **b = 1.0 is worse.** G-1.2-1.0 −0.017 [−0.032, −0.004] and G-2.0-1.0 −0.021 [−0.040, −0.002] are below B0 with
+  CIs that exclude 0; G-0.9-1.0 and G-1.5-1.0 are below it too, with CIs touching 0. Full length normalisation
+  penalises the long Context of related issues (BELIEVED for the cause).
+- **Field weighting adds nothing.** Weighting the title up does not help: F1 (1, 1, 1) −0.011, F2 (2, 1, 1) −0.004,
+  F3 (3, 1, 1) 0.000. F4, with Context weighted down to 0.5, is +0.011 [−0.011, +0.032].
+- The `full` text gives the same picture, 0.025-0.038 higher for every arm (B0 0.567). F4 is again the best mean there,
+  +0.011 [−0.011, +0.029], and G-2.0-1.0 is again worse, −0.019 [−0.038, −0.002]. Not used for selection.
+
+**R2. TEST, scored once for the pick (VERIFIED, bm25_variants_test.txt).** B0 on `leak-removed` TEST (196 queries):
+recall@1 0.321, recall@3 **0.505 [0.439, 0.571]**, recall@5 0.571. Round 1's `full` TEST score for the same arm is
+0.536 [0.464, 0.602]. So the leakage in the Context field is worth about 0.03 of recall@3 on both splits (DEV 0.567
+against 0.532).
+
+**R3. Tier A, the 10 real duplicates (VERIFIED).** B0 finds the target in the top 3 for 8 of 10 queries on
+`leak-removed` and 9 of 10 on `full`.
+
+**What it means for #350 (BELIEVED).**
+- Ship plain BM25 as specified: Lucene idf, k1 1.5, b 0.75, one field of title + Context + DONE WHEN. A 15-line
+  stdlib version suffices; no variant, grid cell or field weighting earns its extra code.
+- #350's DONE WHEN asks for recall@3 of at least 0.50 on TEST. That is met on `full` text (0.536), but on
+  `leak-removed` text, the closer model of a filer who does not already know the related issue, it holds by only
+  0.005, inside the CI. Read 0.50 as a regression floor, not as a margin.
+
+## Gaps not closed
+- Repositories are pooled; the per-repository split of round 1 (agent-harness alone) was not repeated for the variants.
+- Only four BM25F weightings and one per-field b were tried. A finer search would need its own DEV split, because
+  this DEV set has now been used to choose.
+- The DEV CIs are not corrected for 19 comparisons. That matters only for an arm that passes, and none did.
+- One tokenizer (round 1's) for every arm.
