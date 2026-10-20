@@ -22,7 +22,7 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 - **Search tools.** `uv run dev lit search "<q>"` prints a `discovery` line first; if it says DEGRADED (exit 1), stop and report that instead of searching the weaker fallbacks. Use it (`--years 2015-`, `-n`) and `dev lit get <ids>` (authors, OA link, abstract); never curl or WebFetch those APIs. Then the arxiv MCP (`get_abstract` or `get_paper_outline` and one section at a time; never a whole paper), WebSearch, and context7 for library docs. A `note:` means a source was skipped; say so if it matters.
 - **Never invent** a source, author, venue, year or number. Cite only what you fetched.
 - **Effect sizes, not adjectives.** Report study type, N and effect size with its interval when the source gives them. Note replication failures and contrary evidence.
-- **Software.** Verify the candidates you know with `uv run dev reuse check <name>...`. Search (`uv run dev reuse "<need>"`) only for more. Check every other recommended tool through the API (`https://api.github.com/repos/<o>/<r>`: pushed_at, license, archived). Record the chosen free option, its license and the alternatives.
+- **Software.** Verify candidates you know with `uv run dev reuse check <name>...`. Search (`uv run dev reuse "<need>"`) only for more. Check other repositories: `gh api repos/<o>/<r> --jq '{stargazers_count, pushed_at, archived, license: .license.spdx_id}'`, never curl. Record the chosen free option, its license and alternatives.
 - **Check the math.** Where a number matters, check it with a script in `_scratch/<slug>/scripts/`; that makes it VERIFIED.
 
 ## Output
