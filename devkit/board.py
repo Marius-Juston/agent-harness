@@ -1307,7 +1307,7 @@ FEEDBACK_CHARS = 200
 THREADS_PAGE = 100  # the reviewThreads(first:) above; past it integrate refuses (fails closed) instead of paginating
 # The first line of the one COMMENT review a reviewer or research auditor posts (#347, issue-pr-automation.md §3.1).
 # Its findings are the author's to-do list, so feedback shows that review whole, not FEEDBACK_CHARS of it, when the
-# PR's author or the gh user posted it: agents act as one of them, and anyone can review a public repository's PR.
+# gh user posted it: agents act as that user, while anyone can open or review a public repository's PR.
 VERDICT = re.compile(r"Verdict: (merge|send back|reconsider), round (\d+), ([0-9a-fA-F]{7,40})")
 
 
@@ -1333,13 +1333,12 @@ def pr_feedback(number: int) -> dict:
              f"query={FEEDBACK_QUERY}")  # fmt: skip
     pr = json.loads(out)["data"]["repository"]["pullRequest"]
     commits = pr["commits"]["nodes"]
-    trusted = {login(pr)} if pr.get("author") else set()
-    if any(login(r) not in trusted and verdict_of(r.get("body") or "") for r in pr["reviews"]["nodes"]):
-        trusted.add(gh_user())  # asked only when a verdict review is not the PR author's
+    verdicts = any(verdict_of(r.get("body") or "") for r in pr["reviews"]["nodes"])
+    trusted = {gh_user()} - {""} if verdicts else set()  # asked only when there is a verdict review
     return {
         "since": commits[-1]["commit"]["committedDate"] if commits else "",
         "head": pr.get("headRefOid") or "",
-        "trusted": trusted - {""},
+        "trusted": trusted,
         "comments": pr["comments"]["nodes"],
         "reviews": pr["reviews"]["nodes"],
         "threads": [t for t in pr["reviewThreads"]["nodes"] if not t["isResolved"]],
@@ -1367,7 +1366,8 @@ def pr_feedback_lines(fb: dict) -> list[str]:
             continue
         head = f"- review {r['state']} {login(r)} {r['submittedAt'][:16]}:"
         if (v := verdict_of(r["body"])) and login(r) in fb.get("trusted", ()):
-            stale = f" stale: the head is now {head_sha[:7]}" if not head_sha.startswith(v[3].lower()) else ""
+            moved = head_sha and not head_sha.startswith(v[3].lower())
+            stale = f" stale: the head is now {head_sha[:7]}" if moved else ""
             rest = r["body"].strip().splitlines()[1:]
             verdicts += [f"{head} {v[0]} ({r['url']}){stale}", *(f"  {x.rstrip()}" for x in rest if x.strip())]
         else:
