@@ -18,7 +18,8 @@ Details and sources: [agent-harness.md](https://github.com/Marius-Juston/agent-h
   and hooks of the `harness-ops` plugin, and the scaffold (Copier template) all live in the agent-harness
   repository. Change them there, release a tag, then bump the pin here and run `copier update`. Never patch a copy.
 - **Project-specific**: CLAUDE.md, `[tool.devkit]` in pyproject.toml, `.devkit/`, `.claude/settings.json`, and any
-  agents or skills of the project's own under `.claude/`.
+  agents or skills of the project's own under `.claude/`. The workers already withhold the Artifact tool; a project
+  that does not need Artifacts in the lead may add `"enableArtifact": false` to save its schema on every lead call.
 
 ## Rules
 1. **Enforce rather than ask.** A rule broken in a quarter of runs or more becomes a hook (with a test) or a gate
