@@ -710,6 +710,100 @@ def test_closing_and_refs_keywords_read_issue_lists(text, closes, refs):
     assert board.linked(text, "")[0] == closes
 
 
+# --- #339: keywords inside code link nothing ----------------------------------------------------------------------
+
+PR_286_BODY = """Closes #230
+
+## What changed
+- `devkit/board.py`:
+  - `gone_owns`: the Owns entries a deletion empties (a deleted path matched the entry and no remaining path does).
+  - `deleting_owns`: maps each open issue to its gone entries, skipping the PR's own issues: the ones it closes, the ones it names with `Refs`, and the `<n>-slug` branch issue.
+  - `path_history`: the paths ever in HEAD's history and the paths tracked now; None outside git.
+  - `lint(..., history)`: reports a gone Owns entry as an error. `_findings` passes `path_history()`.
+  - `CLOSES` and `REFS` now read issue lists such as `Closes #1, #2 and #3`, `Refs: #17` and `Refs #15, #16`, through `keyword_numbers`. This is a fix-now: `CLOSES` had the same gap with lists.
+- `devkit/workflow.py`:
+  - `deleted_owns` compares main's tree with the merged tree.
+  - `_integrate` refuses before the gate with `outcome: refused` and `owns: {issue: [paths]}`. `--override` does not lift the refusal. The ways out are `Refs #N` in the PR body, or editing the other issue's Owns.
+  - Fail-closed: when a merge deletes a path and the board cannot be read (a `BoardError`, or `gh` is missing), integrate stops.
+  - The board is read only when the merge deletes something.
+  - The change is in the integrate path only and does not touch `pr()`, which PR #273 edits.
+- Tests: `tests/test_board.py`, `tests/test_workflow.py`. The integrate tests reuse the git `project` fixture from `tests/test_merge_hygiene.py`.
+
+## Rule and its limits
+The rule is check 2 of docs/research/decision-records-and-drift.md (`r2_owns_replay.py`, `RESULT-AT-MERGE`). The replay exempted an issue a PR closed by keyword or that its branch named. **This PR's `Refs #N` exemption is wider than the replayed rule**, so the note's 11/11 and 0-false-positive numbers do not cover it. Owns entries also match with `board.owned` (fnmatch glob or prefix), not the replay's matcher. Follow-up #291 re-runs the replay with the shipped rule and watches `board lint` for false errors on issues that plan to recreate a deleted path.
+
+## Evidence
+- `test_integrate_refuses_deleting_a_path_another_open_issue_owns`, case `[others0-refused]`: integrate refuses and names #15 and #16 and makes no `gh pr merge` call. #12 (closed by the PR) and #14 (named with `Refs`) are exempt. Case `[others1-merged]` merges.
+- `test_override_does_not_lift_the_deleted_owns_refusal_but_refs_does`: refused with `--override`; merged after `Refs: #15, #16` is added.
+- `test_a_deleting_merge_stops_when_the_board_cannot_be_read`, cases BoardError and FileNotFoundError: outcome `stopped`, no merge.
+- `test_closing_and_refs_keywords_read_issue_lists` (9 cases): lists, colon forms, `and`/`&`; a later bare mention is not read; neither are `prefs` or `enclosed`.
+- `test_deleting_owns_skips_the_issues_the_pr_closes_refs_or_is_branched_from`, plus the Hypothesis test `test_gone_owns_over_the_deleted_paths_is_matched_before_and_none_after`.
+- `test_lint_reports_an_owns_path_that_existed_and_is_gone_as_an_error`: the finding has warn=False. A path never created is not flagged.
+- `test_path_history_lists_every_path_ever_committed_and_the_tracked_ones`: uses a real git repo.
+- Running `uv run dev board lint` on this repo's live board finds 0 gone-Owns errors.
+- `uv run dev check`: RESULT: passed (1587 tests; 100% diff coverage of 41 changed lines).
+
+## DONE WHEN
+- Integrate refuses deleting another open issue's Owns and names the issues (test): PASS
+- `board lint` reports an Owns path that existed and is gone as an error; a path never created is not flagged (test): PASS
+
+## Unverified
+- Not run against a real GitHub PR. The integrate tests fake `gh` over a real bare origin.
+- Lists in `CLOSES` now close every listed issue in `merged_pr`. GitHub's own auto-close may close only the first one; `merged_pr` closes the rest.
+- The gate stage `check_board` still shows these findings as warnings only, by design.
+
+Follow-ups: #291
+
+Reuse: none: glue code over existing `owned`/`owns_of`/`linked`
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)"""  # GitHub linked only #230 (closingIssuesReferences)
+
+
+@pytest.mark.parametrize(
+    ("text", "closes"),
+    [
+        ("Closes #1 and `Closes #2`", [1]),
+        ("``Closes #1 ` and #2``, then fixes #3", [3]),  # a double-backtick span holds a single backtick
+        ("```\nCloses #1\n```\nCloses #2", [2]),
+        ("~~~md\nFixes #1\n~~~~\nfixes #2", [2]),  # a longer closing fence closes it
+        ("  ```py\nCloses #1\n``\nCloses #4\n```\nresolves #5", [5]),  # a shorter run does not close it
+        ("```\nCloses #1", []),  # an unclosed fence runs to the end
+        ("Closes `#1`, #2", []),  # the list does not continue past code
+        ("Closes\n```\nx\n```\n#3", []),
+        ("a ` stray backtick; closes #6", [6]),  # an unmatched run is literal text
+        ("one `tick\n\ncloses #7 `", [7]),  # a span does not cross a blank line
+        ("``` not a fence ` here\ncloses #8", [8]),  # a backtick fence's info string has no backtick
+    ],
+)
+def test_keywords_inside_code_link_nothing(text, closes):
+    assert board.keyword_numbers(board.CLOSES, text) == closes
+
+
+@given(st.lists(st.sampled_from(["Closes", "fixes", "Refs:", " ", ",", "and", "#1", "#22", "x", "\n"])).map("".join))
+def test_any_text_quoted_as_code_links_nothing_and_prose_around_it_still_does(code):
+    for quoted in (f"`{code.replace(chr(10), ' ').strip()}`", f"```md\n{code}\n```", f"~~~\n{code}\n~~~"):
+        text = f"Closes #9\n\n{quoted}\n\nrefs #8"
+        assert board.keyword_numbers(board.CLOSES, text) == [9]
+        assert board.keyword_numbers(board.REFS, text) == [8]
+
+
+def test_the_pr_286_body_closes_only_230():
+    assert board.keyword_numbers(board.CLOSES, PR_286_BODY) == [230]
+    assert board.keyword_numbers(board.REFS, PR_286_BODY) == []
+    assert board.linked(PR_286_BODY, "230-owns-deletion") == ([230], [])
+
+
+def test_lint_does_not_report_an_issue_a_merged_pr_only_quotes(monkeypatch):
+    rows = [{"number": 286, "body": PR_286_BODY, "headRefName": "230-owns-deletion"}]
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board, "default_branch", lambda: "main")
+    monkeypatch.setattr(board, "gh", lambda *a, input=None: json.dumps(rows))
+    merged = board.merged_closes()
+    assert merged == {230: [286]}
+    issues = [mk(n, ["type:build", "status:ready"], "## DONE WHEN\n- [x] done\n\n## Owns\n- `a.py`") for n in (1, 3)]
+    assert not [f for f in board.lint(issues, set(), merged) if "merged PR" in f.problem]
+
+
 def test_lint_reports_an_owns_path_that_existed_and_is_gone_as_an_error():
     issues = [
         mk(1, ["type:build", "P2", "status:ready"], owns("old/x.py"), title="devkit: one"),
