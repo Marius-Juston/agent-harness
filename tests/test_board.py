@@ -267,9 +267,8 @@ def test_brief_caps_each_section_at_40_lines(monkeypatch):
     assert out.count("more:") >= 2  # Context and the hotspot list
 
 
-def test_brief_commands_give_the_board_new_form_for_follow_ups(monkeypatch):
+def test_brief_commands_give_the_board_new_form_for_follow_ups(fake, monkeypatch):
     # #324: workers looked the form up with `dev board new --help` in about one run in five
-    monkeypatch.setattr(board, "get", lambda n: mk(n, ["status:ready"], "## DONE WHEN\n- [ ] a\n"))
     monkeypatch.setattr(board, "in_flight_files", lambda: {})
     monkeypatch.setattr(board, "issue_prs", lambda n: [])
     commands = board.brief(4).split("\n## Commands\n")[1]
