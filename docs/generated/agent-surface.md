@@ -42,6 +42,8 @@
 
 | plugin | enabled | marketplace source |
 |---|---|---|
+| harness-ops@agent-harness | True | - |
+| astral@astral-sh | True | - |
 
 ## MCP servers (`.mcp.json`)
 
