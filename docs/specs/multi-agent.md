@@ -50,7 +50,8 @@ Nothing assumes that two machines share a disk.
    conflicts, so read it too.
    Integrate also refuses a PR with failing or pending checks, a standing CHANGES_REQUESTED review or unresolved
    review threads, unless `--override '<reason>'` is given; the reason is logged on the PR. The lead reads
-   `uv run dev board feedback <pr>` first and answers or fixes each comment.
+   `uv run dev board feedback <pr>` first and answers or fixes each comment. When pending checks are the only
+   unfinished feedback, integrate waits for them (bounded by `checks_wait_s`; a timeout is `waiting`) instead.
 8. **No Actions minutes** (billing-blocked, Actions disabled, or a required check never queues): run
    `uv run dev integrate <pr> --local-ci`. Integrate then runs, in the merged tree, the gate and each required
    check's stand-in commands (`local_ci` in `[tool.devkit]`: context -> commands; `[]` is the gate alone), with all

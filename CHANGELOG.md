@@ -4,6 +4,14 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## Unreleased
+
+### Changed
+- `dev integrate` waits (bounded by `checks_wait_s`) for checks still running on the PR's own head when they are its
+  only unfinished feedback, then judges them; a failing check, requested change or open thread still refuses at
+  once, and a timeout ends in `waiting`, which a rerun resumes. Not with `--override`, `--local-ci` or `--dry-run`.
+  The lead skill no longer asks the lead to wait for green checks by hand. (#321, #322)
+
 ## v0.1.10 (2026-10-19)
 
 Research-driven harness changes (#254, #282): shorter always-loaded rules, one hand-back and review contract,
