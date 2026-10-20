@@ -545,11 +545,56 @@ def ship_test() -> None:
     SHIP_TEST.write_text(text + "\n")
 
 
+def kappa(a: list[bool], b: list[bool]) -> float:
+    """Cohen's kappa of two raters' binary calls on the same items."""
+    n = len(a)
+    po = sum(x == y for x, y in zip(a, b, strict=True)) / n
+    pa, pb = sum(a) / n, sum(b) / n
+    pe = pa * pb + (1 - pa) * (1 - pb)
+    return (po - pe) / (1 - pe) if pe < 1 else 1.0
+
+
+def ship_agree() -> None:
+    """Both raters' precision of the shipped line on agent-harness TEST, and their agreement (run after rater 2
+    committed dedup_judged_r2.json without reading dedup_judged.json's judgements)."""
+    shipped = json.loads(SHIP_UNLABELLED.read_text())
+    keys = [(p["query"], p["suggested"]) for p in shipped["pairs"]]
+    raters = {
+        name: {(p["query"], p["suggested"]): p["judgement"] for p in json.loads((HERE / f).read_text())["pairs"]}
+        for name, f in (("rater 1", "dedup_judged.json"), ("rater 2", "dedup_judged_r2.json"))
+    }
+    shown, out = shipped["labelled_alerts"] + len(keys), []
+    calls = {}
+    for name, j in raters.items():
+        missing = [k for k in keys if k not in j]
+        if missing:
+            sys.exit(f"{name} has not judged {missing}")
+        calls[name] = [j[k] != "unrelated" for k in keys]
+        dup = sum(j[k] == "duplicate" for k in keys)
+        p = (shipped["labelled_alerts"] + sum(calls[name])) / shown
+        out.append(
+            f"{name}: {sum(calls[name])} of {len(keys)} unlabelled related ({dup} duplicates); precision "
+            f"({shipped['labelled_alerts']} labelled + {sum(calls[name])}) / {shown} = {p:.3f}"
+        )
+    a, b = calls["rater 1"], calls["rater 2"]
+    out.append(
+        f"agreement on {len(keys)} unlabelled: {sum(x == y for x, y in zip(a, b, strict=True))} same call, "
+        f"Cohen's kappa {kappa(a, b):.3f}; both related {sum(x and y for x, y in zip(a, b, strict=True))}, "
+        f"only rater 1 {sum(x and not y for x, y in zip(a, b, strict=True))}, "
+        f"only rater 2 {sum(y and not x for x, y in zip(a, b, strict=True))}"
+    )
+    text = "\n".join(out)
+    print(text)
+    (HERE / "ship_agree_output.txt").write_text(text + "\n")
+
+
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "dev"
     if mode == "ship-dev":
         ship_dev()
     elif mode == "ship-test":
         ship_test()
+    elif mode == "ship-agree":
+        ship_agree()
     else:
         main(mode)

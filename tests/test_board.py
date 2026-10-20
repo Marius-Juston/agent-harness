@@ -1097,3 +1097,9 @@ def test_new_never_refuses_when_the_board_cannot_be_read(fake, monkeypatch, answ
     monkeypatch.setattr(board, "gh", gh)
     assert _new() == "https://github.com/o/r/issues/50 (ready)"
     assert board.sections(fake.created)["DONE WHEN"] == "- [ ] lit search backs off on 429"
+
+
+def test_the_lead_closes_a_duplicate_with_state_reason_duplicate():
+    """`--duplicate-of` sets stateReason DUPLICATE, so later dedup evaluations read labels, not closing prose."""
+    lead = (board.root() / "plugins/harness-ops/skills/lead/SKILL.md").read_text()
+    assert "`gh issue close <n> --duplicate-of <m>`" in lead

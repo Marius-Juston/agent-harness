@@ -34,7 +34,7 @@ Per item in review, by priority:
 - A build issue whose Refs has no note waits for research.
 - Parallel builders only when `board brief` shows no Owns overlap. Researchers fan out wide.
 - `Consolidation review due` in orient: spawn a `harness-ops:architect`; feature cuts wait for the owner. Only the lead resets it: `dev integrate <pr> --consolidation-review <epic>`.
-- New work: `uv run dev board new` with a measurable `--done`, `--owns`, and `--blocked-by` when it waits. Split an item whose DONE WHEN needs two measurements.
+- New work: `uv run dev board new` with measurable `--done`, `--owns`, `--blocked-by` if waiting. Split an item whose DONE WHEN needs two measurements. Duplicates: `gh issue close <n> --duplicate-of <m>`.
 
 ## 4. Dispatch
 - Issue researchers need `isolation: worktree` (builders, testers set it). Prompt `Work on #N. Start with uv run dev board brief N.`, plus only owner words or your decisions.
