@@ -1,0 +1,110 @@
+# README demo: adding the harness to an existing project. Format: scripts/demo_cast.py. Output was captured from a
+# scratch run: a small uv app with its own pyproject.toml, README.md, CLAUDE.md and .gitignore, the template copied in,
+# the replaced fields merged back, then a passing `uv run dev check`.
+
+prompt = "{cmd}~/my-app{/} $ "
+
+[[scene]]
+caption = "Start from a clean git tree: git then shows every change the template makes"
+[[scene.step]]
+cmd = "git status --short && ls"
+output = """
+app  CLAUDE.md  pyproject.toml  README.md  tests
+"""
+
+[[scene]]
+caption = "Copy the template in: CLAUDE.md and README.md stay yours, the rest asks first"
+[[scene.step]]
+cmd = "uvx copier copy gh:Marius-Juston/agent-harness ."
+run_s = 2.0
+output = """
+🎤 Project name (a Python distribution name, e.g. my-project)
+   my-app
+🎤 One sentence on what the project is for
+   An existing app.
+🎤 Minimum Python version
+   3.13
+{dim}Copying from template version 0.1.13{/}
+{del}  conflict{/}  pyproject.toml
+ Overwrite pyproject.toml? [Y/n] y
+{del}  conflict{/}  CLAUDE.md
+{ok}      skip{/}  CLAUDE.md
+{del}  conflict{/}  README.md
+{ok}      skip{/}  README.md
+{del}  conflict{/}  .gitignore
+ Overwrite .gitignore? [Y/n] y
+{ok}    create{/}  .claude/  .devkit/  .github/  docs/  CONTRIBUTING.md  SECURITY.md ...
+"""
+
+[[scene]]
+caption = "Merge back what the template replaced: your [project] fields and dependencies"
+[[scene.step]]
+cmd = "git diff --stat"
+output = """
+ .gitignore     | 28 {ok}++++++++++++++++++++++++++++{/}
+ pyproject.toml | 50 {ok}+++++++++++++++++++++++++++++++++++++++++++++++{/}{del}---{/}
+"""
+[[scene.step]]
+cmd = "git diff pyproject.toml"
+output = """
+ [project]
+ name = "my-app"
+{del}-version = "1.4.0"{/}
+{ok}+version = "0.0.1"{/}
+ description = "An existing app."
+ readme = "README.md"
+ requires-python = ">=3.13"
+{del}-dependencies = ["httpx>=0.28"]{/}
+{ok}+dependencies = []{/}
+"""
+[[scene.step]]
+cmd = "# your editor: put version (and anything else of yours) back under [project]"
+output = ""
+[[scene.step]]
+cmd = "uv add \"httpx>=0.28\""
+run_s = 1.5
+output = """
+{ok} + httpx==0.28.1{/}
+"""
+
+[[scene]]
+caption = "Import the harness rules into your CLAUDE.md, set up, commit, gate"
+[[scene.step]]
+cmd = "echo '@.devkit/HARNESS.md' >> CLAUDE.md"
+output = ""
+[[scene.step]]
+cmd = "uv run dev setup"
+run_s = 3.0
+output = """
+ok   uv sync
+ok   generated references (dev docs)
+ok   pre-commit hooks (prek)
+ok   plugin harness-ops@agent-harness
+"""
+[[scene.step]]
+cmd = "git add -A && git commit -qm \"Adopt agent-harness\""
+output = ""
+[[scene.step]]
+cmd = "uv run dev check"
+run_s = 3.0
+output = """
+ok   doc links and paths: 14 checked, 0 problem(s)
+ok   ruff lint: 3 checked, 0 problem(s)
+ok   ruff format: 3 checked, 0 problem(s)
+ok   tests: 2 checked, 0 problem(s)
+{ok}RESULT: passed{/} (1 s)
+"""
+
+[[scene]]
+caption = "From here it is the same loop as a new project"
+[[scene.step]]
+prompt = ""
+cmd = ""
+output = """
+{b}Once:{/}       gh repo create (if it is not on GitHub yet)  →  uv run dev board init
+{b}Each task:{/}  uv run dev board new ... --done "..."
+{b}Then:{/}       claude  →  paste the /goal prompt from docs/SESSION.md
+
+{dim}The template's lint and test settings now cover your code: fix what the gate finds, or set{/}
+{dim}them in pyproject.toml; the gate never lowers a check to pass.{/}
+"""
