@@ -479,6 +479,16 @@ def reuse_problem(body: str) -> str | None:
     return None
 
 
+def main_conflicts() -> list[str]:
+    """The paths HEAD conflicts in with origin/main, fetched now, as integrate would merge them (#349: 7 of 19
+    conflicting hand-backs already conflicted at `dev pr`). Fails closed: no fetch, no PR."""
+    try:
+        git("fetch", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main")
+        return merge_conflicts("HEAD", git("rev-parse", "refs/remotes/origin/main"))
+    except RuntimeError as exc:
+        raise board.BoardError(f"cannot check this branch for conflicts with origin/main: {exc}") from exc
+
+
 def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> str:
     """Push the gated branch and open its PR. A body without a `Closes #N` / `Refs #N` first line gets `Closes #N`
     (a complete hand-back: the merge closes the issue), or `Refs #N` with `partial` (the issue returns to ready).
@@ -491,6 +501,11 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
         raise board.BoardError(f"uncommitted files (commit them, or move scratch files to .scratch/):\n{dirty}")
     if not _gate_passed():
         raise board.BoardError("run `uv run dev check` on this tip first: the PR must be gated")
+    if conflicts := main_conflicts():
+        raise board.BoardError(
+            "this branch conflicts with origin/main in:\n  " + "\n  ".join(conflicts) + "\nmerge main, re-gate: "
+            "`git merge origin/main`, resolve these files, `uv run dev docs`, commit, `uv run dev check`, then rerun"
+        )
     issue = board.get(number)
     body = _summary_body(number, summary)
     if partial and re.match(r"Closes #\d+", body):
@@ -1012,17 +1027,56 @@ def git_version() -> tuple[int, ...]:
     return tuple(int(x) for x in m.groups()) if m else (0, 0)
 
 
-def merge_main(tree: Path, main: str) -> list[str]:
-    """Merge main into the PR head checked out at `tree`, as GitHub's "Update branch" would, with the generated-file
-    driver. Merge rules come from main's `.gitattributes` (`--attr-source`): an old branch must not bring back a
-    union rule that interleaves rewrites. Returns the paths that really conflict (the merge is then aborted), or []
-    when it merged or was current. Raises RuntimeError when git is too old or the merge failed without a conflict."""
+def _merge_rules(main: str) -> list[str]:
+    """The git options every merge of main into a PR runs with: main's `.gitattributes` (`--attr-source`; an old
+    branch must not bring back a union rule that interleaves rewrites) and the generated-file driver. Raises
+    RuntimeError when git is too old for `--attr-source`."""
     if (have := git_version()) < ATTR_SOURCE_GIT:
         need, got = ".".join(map(str, ATTR_SOURCE_GIT)), ".".join(map(str, have))
-        raise RuntimeError(f"integrate needs git >= {need} (--attr-source); this is git {got}")
-    config = [arg for key, value in GENERATED_MERGE for arg in ("-c", f"{key}={value}")]
+        raise RuntimeError(f"merging main needs git >= {need} (--attr-source); this is git {got}")
+    return [f"--attr-source={main}", *(arg for key, value in GENERATED_MERGE for arg in ("-c", f"{key}={value}"))]
+
+
+def merge_conflicts(head: str, main: str, cwd: Path | None = None) -> list[str]:
+    """The paths that conflict when `main` is merged into `head` as `merge_main` merges it, without a worktree or a
+    commit: `git merge-tree --write-tree` (3.7 ms a PR, docs/research/issue-pr-automation.md §3.2). [] when it
+    merges cleanly. Raises RuntimeError when git is too old or merge-tree fails (unrelated histories, a bad sha)."""
+    rules = _merge_rules(main)
+    run = subprocess.run(
+        ["git", *rules, "merge-tree", "--write-tree", "--name-only", "--no-messages", head, main],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    lines = run.stdout.splitlines()
+    # exit 1 is a conflict, but also "not something we can merge": only a tree id on the first line says it merged
+    if run.returncode not in (0, 1) or not lines or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", lines[0]):
+        raise RuntimeError(f"git merge-tree {head[:10]} {main[:10]} failed: {run.stderr.strip()[-300:]}")
+    return sorted({p for p in lines[1:] if p}) if run.returncode == 1 else []
+
+
+def conflicting(
+    main: str, heads: dict[int, str], cwd: Path | None = None
+) -> tuple[dict[int, list[str]], dict[int, str]]:
+    """(PR number -> the paths its head (`heads`) conflicts in with `main`, for the PRs that conflict; PR number ->
+    why git could not check it). One PR git cannot merge-tree does not stop the check of the others."""
+    found, failed = {}, {}
+    for n, head in heads.items():
+        try:
+            if paths := merge_conflicts(head, main, cwd):
+                found[n] = paths
+        except RuntimeError as exc:
+            failed[n] = str(exc)
+    return found, failed
+
+
+def merge_main(tree: Path, main: str) -> list[str]:
+    """Merge main into the PR head checked out at `tree`, as GitHub's "Update branch" would, with `_merge_rules`.
+    Returns the paths that really conflict (the merge is then aborted), or [] when it merged or was current. Raises
+    RuntimeError when git is too old or the merge failed without a conflict."""
     merge = subprocess.run(
-        ["git", f"--attr-source={main}", *config, "merge", "--no-ff", "--no-edit", main],
+        ["git", *_merge_rules(main), "merge", "--no-ff", "--no-edit", main],
         cwd=tree,
         capture_output=True,
         text=True,
@@ -1084,7 +1138,73 @@ def send_back(pr_number: int, info: dict, main: str, paths: list[str], dry_run: 
     board.gh("pr", "comment", str(pr_number), "-R", board.repo(), "--body", note)
     for n in issues:
         board.block(n, reason)
+    if head := info.get("headRefOid"):
+        _sent_back_file().write_text(json.dumps(_sent_back() | {str(pr_number): head}) + "\n")
     return workers
+
+
+def _sent_back_file() -> Path:
+    """PR number -> the head last sent back, so a PR its worker has not pushed since is not sent back again."""
+    path = state_dir("integrate") / "sent-back.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _sent_back() -> dict[str, str]:
+    try:
+        told = json.loads(_sent_back_file().read_text())
+    except (OSError, ValueError):
+        return {}
+    return told if isinstance(told, dict) else {}  # a corrupt file must not crash integrate after its merge
+
+
+OPEN_PR_LIMIT = 200  # `gh pr list` returns 30 by default
+
+
+def send_back_conflicting(merged: int) -> list[int]:
+    """After PR `merged` landed (#349): check the new main against every other open, non-draft PR into main with
+    `merge_conflicts` and `send_back` each one that conflicts at once, instead of when its own integrate runs (a median
+    30.5 min later, docs/research/issue-pr-automation.md §3.2). A PR already sent back on its current head is skipped.
+    Prints the count and each PR skipped (git cannot check it, or its send-back failed); returns the PRs sent back.
+    Raises BoardError or RuntimeError when listing the PRs or the fetch fails."""
+    listed = board.gh(
+        "pr", "list", "-R", board.repo(), "--base", "main", "--state", "open", "--limit", str(OPEN_PR_LIMIT),
+        "--json", "number,headRefName,headRefOid,body,isDraft",
+    )  # fmt: skip
+    prs = {p["number"]: p for p in json.loads(listed or "[]") if p["number"] != merged and not p.get("isDraft")}
+    if not prs:
+        print("conflict check of the new main: no other open PR into main")
+        return []
+    refs = {n: f"refs/devkit/conflicts/pr-{n}" for n in prs}
+    main_ref = "refs/devkit/conflicts/main"
+    try:
+        pulls = (f"+refs/pull/{n}/head:{r}" for n, r in refs.items())
+        git("fetch", "--no-tags", "origin", f"+refs/heads/main:{main_ref}", *pulls)
+        main = git("rev-parse", main_ref)
+        heads = {n: git("rev-parse", r) for n, r in refs.items()}
+        found, failed = conflicting(main, heads)
+    finally:
+        for ref in (main_ref, *refs.values()):
+            git("update-ref", "-d", ref, check=False)
+    told = _sent_back()
+    again = [n for n in found if told.get(str(n)) == heads[n]]
+    sent: list[int] = []
+    for n in (n for n in found if n not in again):
+        try:  # one PR GitHub refuses must not hide the PRs already commented
+            send_back(n, prs[n] | {"headRefOid": heads[n]}, main, found[n])
+            sent.append(n)
+        except (board.BoardError, RuntimeError, OSError) as exc:
+            failed[n] = f"send-back failed: {exc}"
+    kept = {k: v for k, v in _sent_back().items() if k.isdigit() and int(k) in prs}
+    _sent_back_file().write_text(json.dumps(kept) + "\n")
+    print(
+        f"conflict check of the new main {main[:10]}: sent back {len(sent)} of {len(prs)} open PRs"
+        + (f" ({', '.join(f'#{n}' for n in sent)})" if sent else "")
+        + (f"; already sent back: {', '.join(f'#{n}' for n in again)}" if again else "")
+    )
+    for n, why in failed.items():
+        print(f"  skipped #{n}: {why}")
+    return sent
 
 
 def _head_is(pr_number: int, tip: str) -> bool:
@@ -1175,7 +1295,9 @@ def _integrate(
     tree (`_stand_in`), which posts them as commit statuses only after it passed. A merged tree that empties an Owns
     entry of an open issue other than the PR's own (`deleted_owns`) is refused before the gate, and `override` does
     not lift that: name the issue with `Refs #N` in the PR body, or edit that issue's Owns. A deleting merge whose
-    board cannot be read stops (fail closed). Issues close only after the merge; the last line printed is `result`."""
+    board cannot be read stops (fail closed). Issues close only after the merge; then every other open PR into main
+    that the new main conflicts with is sent back (`send_back_conflicting`, `sent_back` in the result). The last line
+    printed is `result`."""
     info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
     if info["state"] != "OPEN" or info["isDraft"]:
         print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
@@ -1353,10 +1475,15 @@ def _integrate(
             print(f"kept branch {name}: open PR {', '.join(f'#{n}' for n in others)} has it as head")
         else:
             print(drop_branch(name, [tip]))
+    try:  # the merge stands whatever this finds: a failure only skips the check
+        sent = send_back_conflicting(pr_number)
+    except (board.BoardError, RuntimeError, OSError, ValueError) as exc:
+        sent = []
+        print(f"conflict check of the new main skipped ({exc}): each open PR meets it at its own integrate")
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):
         git("-C", str(main_checkout()), "pull", "--ff-only", check=False)
     print(f"RESULT: merged PR #{pr_number}" + (f"; {', '.join(moved)}" if moved else ""))
-    return result(pr_number, 0, "merged", moved=moved, **update)
+    return result(pr_number, 0, "merged", moved=moved, sent_back=sent, **update)
 
 
 def heartbeat(number: int, message: str) -> None:
