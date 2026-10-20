@@ -27,7 +27,7 @@ Per item in review, by priority:
 3. Answer or fix every comment (people and bots; resume the worker for fixes), resolve its thread (outdated ones block too), wait for green checks.
 4. Only Blocking or untagged findings return the PR, with at most 3 Nits; the worker posts a fix-to-finding map. Re-review after a Blocking fix only, passing round number, last reviewed SHA and earlier probes (no confirmation round; a project's security reviewer, if any, re-reviews any code change). After round 3, take "reconsider the approach" to the owner: never merge with an open Blocking finding.
 5. Follow-ups, Pre-existing and Follow-up findings: a fix-now (multi-agent.md §3) or a new-code defect returns to the worker; file the rest as issues.
-6. `uv run dev integrate <pr>`; `--harness-ok` only after reading the harness diff; `--override '<reason>'` only on the owner's word. `RESULT-JSON` outcome `conflict`: resume the named worker; `stopped` or `gate-failed`: comment the failure on the PR; resume or respawn.
+6. `uv run dev integrate <pr>`; `--harness-ok` only after reading the harness diff; `--override '<reason>'` only on the owner's word. `RESULT-JSON` outcome `conflict`: resume the named worker; `stopped` or `gate-failed`: comment it on the PR; resume or respawn.
 
 ## 3. Pick the next wave
 - `uv run dev board next -n 10`: P0 first, then what unblocks most.
@@ -47,9 +47,9 @@ Per item in review, by priority:
 ## 5. Resume after a limit, crash or compaction
 Per worktree in `uv run dev status`:
 - Commits or edits: SendMessage a resume (what it had; "finish, gate, `dev pr`").
-- Neither: respawn with the same prompt.
+- Neither: respawn, same prompt.
 - STALE claim (another machine, idle 6 h): `board claim --force` only after reading its last comment.
 
 ## 6. Keep the record
 Update HANDOFF (`[tool.devkit] handoff`, default `docs/HANDOFF.md`) when agents change and after each integrate batch (before `autoCompactWindow` compaction), under 40 lines: in flight (issue, agent, branch), just merged, next (ranked startable items, why), owner decisions pending (also in open questions).
-Land it with other lead edits via `dev pr`/`dev integrate`.
+Land it with other lead edits on a branch via `dev pr`/`dev integrate`.
