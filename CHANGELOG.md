@@ -9,7 +9,8 @@ file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness
 ### Changed
 - `dev integrate` waits (bounded by `checks_wait_s`) for checks still running on the PR's own head when they are its
   only unfinished feedback, then judges them; a failing check, requested change or open thread still refuses at
-  once, and a timeout ends in `waiting`, which a rerun resumes. Not with `--override`, `--local-ci` or `--dry-run`.
+  once, and a timeout ends in `waiting`, which a rerun resumes. Under `--local-ci` the required checks it stands in
+  for are neither waited for nor judged there; the others (e.g. CodeQL) are. Not with `--override` or `--dry-run`.
   The lead skill no longer asks the lead to wait for green checks by hand. (#321, #322)
 
 ## v0.1.10 (2026-10-19)

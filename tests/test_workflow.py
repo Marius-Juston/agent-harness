@@ -12,7 +12,18 @@ from hypothesis import strategies as st
 
 from devkit import board, workflow
 from tests.test_board import mk
-from tests.test_gate import HEAD, _index, _last_json, _merged, _run, _thread, clock, fake_integrate  # noqa: F401
+from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate are fixtures
+    HEAD,
+    _index,
+    _job,
+    _last_json,
+    _merged,
+    _run,
+    _thread,
+    actions,
+    clock,
+    fake_integrate,
+)
 from tests.test_merge_hygiene import land_on_main, last_json, out, project, sh  # noqa: F401 - project is a fixture
 
 
@@ -494,3 +505,25 @@ def test_an_override_or_a_dry_run_does_not_wait(fake_integrate, clock, capsys): 
     assert _last_json(capsys.readouterr().out)["outcome"] == "refused"
     assert workflow.integrate(7, harness_ok=True, dry_run=False, override="the job never reports, see #9") == 0
     assert clock["sleeps"] == [] and _merged(fake_integrate["events"])
+
+
+CODEQL = {"workflowName": "CodeQL", "name": "Analyze (python)"}
+
+
+@pytest.mark.parametrize("required", [[], [_job("check", 11)]], ids=["not-registered", "billing-blocked"])
+def test_local_ci_waits_on_others_not_stood_in(fake_integrate, actions, clock, monkeypatch, capsys, required):  # noqa: F811
+    """Review on #333: under --local-ci a CodeQL job still running on the head was refused (PR 329). The required
+    `check`, which Actions does not run and the local gate stands in for, is neither waited for nor judged."""
+    running = [*required, _run("x", status="IN_PROGRESS") | CODEQL]
+    _rollups(fake_integrate, monkeypatch, running, running, running, [*required, _run("x") | CODEQL])
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
+    printed = capsys.readouterr().out
+    assert "waiting up to" in printed and _last_json(printed)["outcome"] == "merged"
+    assert [s["context"] for s in actions["statuses"]] == ["check"]
+
+
+def test_local_ci_does_not_wait_on_the_checks_it_stands_in_for(fake_integrate, actions, clock, capsys):  # noqa: F811
+    fake_integrate["checks"] = [_run("check", status="QUEUED")]  # Actions queued it but never runs it
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
+    printed = capsys.readouterr().out
+    assert "waiting up to" not in printed and _last_json(printed)["outcome"] == "merged"
