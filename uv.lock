@@ -10,7 +10,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/33/75/36ee89db39bb3620d
 
 [[package]]
 name = "agent-harness"
-version = "0.1.9"
+version = "0.1.10"
 source = { editable = "." }
 dependencies = [
     { name = "actionlint-py" },

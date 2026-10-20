@@ -4,6 +4,55 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.10 (2026-10-19)
+
+Research-driven harness changes (#254, #282): shorter always-loaded rules, one hand-back and review contract,
+explicit effort per agent, plugin skew detection, squash-only integrate, and a hard limit on hung tests.
+
+### Upgrading a project
+Run `uvx copier update --data harness_ref=v0.1.10`, then `uv sync && uv run dev docs && uv run dev check`. These can
+need attention:
+- **Plugin skew fails `doctor`.** `uv run dev doctor` exits 1 when Claude Code loaded a harness-ops build whose
+  version or content digest differs from the pinned tag's (was a warning). `uv run dev setup` re-pins the plugin to
+  the tag; `dev setup --repin-all` is the last resort and uninstalls the plugin from every other project. The
+  SessionStart and SubagentStart hooks print the skew line. (#296, #310)
+- **integrate squash-merges.** The squash commit is the PR title and body only, so put the trailers a commit needs
+  in the PR body. Open PRs based on the merged branch are retargeted to main, with the `git rebase --onto` to run.
+  In a public repository `dev pr` and `integrate` refuse a Claude session link or `Claude-Session:` trailer in the
+  title, body or commit messages. The repository must allow squash merges; agent-harness itself is now
+  squash-only. (#292, #295)
+- **Compaction at 400k.** The template's `.claude/settings.json` sets `"autoCompactWindow": 400000`. (#258, #304)
+- **Workers withhold tools.** builder sets `disallowedTools: Agent, Artifact`; tester and researcher also withhold
+  `Skill`. The template leaves `enableArtifact` unset, so the lead keeps Artifacts. (#256, #311)
+- **Effort per agent.** Every agent sets `effort` in its frontmatter (builder, reviewer, suite-auditor `medium`; the
+  others `high`); the lead skill escalates per dispatch after a failure. (#259, #306)
+- **One hand-back contract.** Every agent hands back at most 25 lines: Blocked on me, Changed, Found. (#263, #293)
+- **Review verdict contract.** Findings are tagged Blocking, Nit, Pre-existing or Follow-up, and only Blocking
+  returns a PR; from round 3 any Blocking finding means reconsider the approach. Each Blocking finding names a
+  runnable probe that the builder commits as a test and reruns before each fix push. (#260, #309, #257, #315)
+- **`dev lit search` coverage line.** Its first line is `discovery YYYY-MM-DD: OK|OK, partial|DEGRADED (...)` and it
+  exits 1 on DEGRADED; the separate `dev lit status` step is gone from the research agents. (#266, #274)
+- **Test timeout and gate deadline.** `pytest-timeout` is a dependency; `[tool.devkit] test_timeout_s = 300` fails a
+  hung test (mark a slow one `@pytest.mark.timeout(n)`), and `gate_deadline_s = 3600` stops integrate's gate and
+  kills its process group. (#43, #290)
+
+### Added
+- `dev agent-stats --cost`, `--reviews` and `--misses`: cost per merged issue reconciled with the cost records,
+  review rounds per role, and candidate post-merge defects. (#255, #280)
+- `dev eval --model/--effort/--agent/--label` arms with a check that the intended model ran, and a paired A/B
+  report. (#82, #288)
+- guard_bash denies `curl`, `wget` and WebFetch to the literature APIs `dev lit` wraps (`DEVKIT_LIT_RAW=1`
+  overrides). (#227, #285)
+- integrate refuses a merge that deletes a path another open issue owns; board lint reports deleted Owns as errors.
+  (#230, #286)
+
+### Changed
+- HARNESS.md drops lines a hook enforces or another file repeats (543 -> 310 words, budget 320) and builder.md
+  states that Edit and Write need a prior Read. (#267, #278)
+- One-time owner-approved budget raise: lead `SKILL.md` 650 -> 720 words, `builder.md` 600 -> 650. (#267, #317)
+- `dev pr` prints the PR URL and one status line; builders send the body with nothing piped after it. (#261, #273)
+- read_guard windows Reads of persisted `tool-results/*.txt` outputs over 300 lines or 40 KB. (#265, #272)
+
 ## v0.1.9 (2026-10-15)
 
 The owner can change the weekly quota cap on one machine without a PR: `! uv run dev quota-cap <0-100>`.
