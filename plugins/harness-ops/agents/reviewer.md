@@ -29,7 +29,7 @@ Verdict: **merge** when nothing is Blocking, with no confirmation round after ni
 A re-review reads the diff since the last reviewed SHA (`git diff <sha>..HEAD`) and `uv run dev code refs` of each changed symbol, checked against the builder's fix-to-finding map. Widen to the whole PR when a fix touches config, constants, prompts or data, deletes a check, or re-thinks round-1 code.
 A re-review reruns the earlier rounds' probes.
 
-Post every round as one PR review: a COMMENT review (every agent acts as the owner, and an author cannot approve their own PR) with no inline threads (integrate refuses unresolved threads, and any agent could resolve its own reviewer's). The first line is the verdict, with `<sha>` the head you reviewed (`gh pr view <pr> --json headRefOid`); then each finding on its own line, Blocking first, with its tag, file:line, the problem and the fix. Send the body through a quoted heredoc, never `--body "..."`, where a backtick runs as a command:
+Post every round as one PR review: a COMMENT review (every agent acts as the owner, and an author cannot approve their own PR) with no inline threads (integrate refuses unresolved ones, and any agent could resolve them). The first line is the verdict, with `<sha>` the head you reviewed (`gh pr view <pr> --json headRefOid`); then one line per finding, Blocking first. Use a quoted heredoc: in `--body "..."` a backtick runs as a command:
 ```bash
 gh pr review <pr> --comment --body-file - <<'EOF'
 Verdict: merge|send back|reconsider, round <N>, <sha>
