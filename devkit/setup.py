@@ -265,37 +265,70 @@ def plugin_steps() -> list[tuple[str, list[str]]]:
     return steps
 
 
-def repin_steps(plugin: str, source: str) -> list[list[str]]:
+REPIN_ALL_COST = (
+    "removes the marketplace in every scope: uninstalls the plugin from every other project and the user scope on "
+    "this machine and deletes its data, options and secrets"
+)
+
+
+def repin_steps(plugin: str, source: str, everywhere: bool = False) -> list[list[str]]:
     """Commands that put the pinned release of `plugin` in place. Claude Code keeps one marketplace registry per user,
     keyed by name and recording one ref: adding an existing name is a no-op, and `marketplace update` plus `plugin
     update` fetch the registered ref (or the branch head) and keep the cached copy while the version string is
-    unchanged. Only removing the marketplace and adding it at the pin's ref moves it (#296)."""
+    unchanged. So the registry entry is removed and added at the pin's ref (#296). Removed at user scope only, the
+    marketplace stays declared by the projects' settings and their installs survive; `everywhere` removes it in
+    every scope (`REPIN_ALL_COST`), for a marketplace no project settings declare."""
     marketplace = plugin.partition("@")[2]
+    remove = ["claude", "plugin", "marketplace", "remove", marketplace]
     return [
-        ["claude", "plugin", "marketplace", "remove", marketplace],
+        remove if everywhere else [*remove, "--scope", "user"],
         ["claude", "plugin", "marketplace", "add", source],
+        *([] if everywhere else [["claude", "plugin", "uninstall", plugin, "--scope", "project"]]),
         ["claude", "plugin", "install", plugin, "--scope", "project"],
     ]
 
 
-def repin_skewed() -> list[str]:
-    """When the installed plugin is not the pinned build, re-point its marketplace at the pin and reinstall. Removing a
-    marketplace uninstalls its plugins from every project on this machine, so the other projects are named. Returns
-    what still differs afterwards."""
+def _keep_settings(saved: dict[Path, bytes]) -> None:
+    """Undo what the re-pin did to the project's settings files (committed; `marketplace remove` can delete the
+    marketplace there) but keep the `enabledPlugins` entries the install added."""
+    for f, data in saved.items():
+        try:
+            now, before = json.loads(f.read_bytes()), json.loads(data)
+        except (OSError, ValueError):
+            f.write_bytes(data)
+            continue
+        if now == before:
+            continue
+        added = {
+            k: v for k, v in (now.get("enabledPlugins") or {}).items() if k not in (before.get("enabledPlugins") or {})
+        }
+        if added:
+            before["enabledPlugins"] = {**(before.get("enabledPlugins") or {}), **added}
+        f.write_text(json.dumps(before, indent=2) + "\n")
+
+
+def repin_skewed(everywhere: bool = False) -> list[str]:
+    """When the installed plugin is not the pinned build, re-point its marketplace at the pin and reinstall
+    (`repin_steps`). Checks first that the pinned ref exists on the remote and stops at the first failed step, so an
+    unreachable remote leaves the current install in place. Returns what still differs afterwards."""
     plugins, pinned, projects = config.get().plugins, pinned_plugin_root(), _projects()
-    if not (pin := _pin(plugins)) or not build_skew(plugins, before := _installed(), projects, pinned):
+    if not (pin := _pin(plugins)) or not (skew := build_skew(plugins, before := _installed(), projects, pinned)):
         return []
-    others = sorted(
-        {str(p["projectPath"]) for p in before if p.get("id") == pin[0] and p.get("projectPath")} - projects
-    )
-    # `marketplace remove` also deletes the marketplace from the project's settings files, which are committed
-    kept = {f: f.read_bytes() for f in (root() / ".claude").glob("settings*.json")}
-    for cmd in repin_steps(pin[0], plugins[pin[0]]):
-        ok, out = _ok(cmd)
-        print(f"{'ok  ' if ok else 'FAIL'} {' '.join(cmd[1:])}" + ("" if ok else f": {out[-300:]}"))
-    for f, data in kept.items():
-        f.write_bytes(data)
-    if others:
+    repo, _, ref = plugins[pin[0]].partition("@")
+    if not _ok(["git", "ls-remote", "--exit-code", repo_url(repo), ref])[0]:
+        print(f"FAIL {ref} not reachable at {repo_url(repo)}: nothing changed")
+        return skew
+    others = sorted({str(p.get("projectPath") or "the user scope") for p in before if p.get("id") == pin[0]} - projects)
+    saved = {f: f.read_bytes() for f in (root() / ".claude").glob("settings*.json")}
+    try:
+        for cmd in repin_steps(pin[0], plugins[pin[0]], everywhere):
+            ok, out = _ok(cmd)
+            print(f"{'ok  ' if ok else 'FAIL'} {' '.join(cmd[1:])}" + ("" if ok else f": {out[-300:]}"))
+            if not ok:
+                return [*skew, "re-pin stopped at the failed step"]
+    finally:
+        _keep_settings(saved)
+    if everywhere and others:
         print(f"WARN {pin[0]} was uninstalled from {', '.join(others)}  ->  run `uv run dev setup` in each")
     return build_skew(plugins, _installed(), projects, pinned)
 
@@ -313,7 +346,7 @@ def git_steps() -> list[tuple[str, list[str]]]:
     ]
 
 
-def setup() -> int:
+def setup(repin_all: bool = False) -> int:
     inside = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False)
     if inside.returncode != 0:
         subprocess.run(["git", "init", "-q", "-b", "main"], check=True)
@@ -331,8 +364,10 @@ def setup() -> int:
         ok, out = _ok(cmd)
         already = "already" in out.lower()
         print(f"{'ok  ' if ok or already else 'FAIL'} {what}" + ("" if ok or already else f": {out[-300:]}"))
-    if still := repin_skewed():
+    if still := repin_skewed(everywhere=repin_all):
         print("FAIL the plugin is still not the pinned build after a re-pin: " + "; ".join(still))
+        if not repin_all:
+            print(f"     last resort: `uv run dev setup --repin-all` ({REPIN_ALL_COST})")
     print(f"""
 Still to do by hand:
 - run `claude` here once interactively and accept the trust dialog (headless agents need it)

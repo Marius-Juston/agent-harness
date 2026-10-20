@@ -143,19 +143,28 @@ def test_doctor_prints_key_origins_but_not_values(tmp_path, monkeypatch, capsys)
 
 
 FAKE_CLAUDE = """#!{python}
-# A stub `claude` CLI: install records in $FAKE_CLAUDE_STATE, every call logged there.
+# A stub `claude` CLI: install records in $FAKE_CLAUDE_STATE, every call logged there. A call starting with
+# $FAKE_CLAUDE_FAIL fails and changes nothing. Removing a marketplace at user scope leaves the project installs (the
+# projects' settings still declare it); removing it in every scope drops them all.
 import json, os, sys
 path = os.environ["FAKE_CLAUDE_STATE"]
 with open(path) as f:
     state = json.load(f)
 args = sys.argv[1:]
 state["calls"].append(args)
+fail = os.environ.get("FAKE_CLAUDE_FAIL", "").split()
+if fail and args[: len(fail)] == fail:
+    with open(path, "w") as f:
+        json.dump(state, f)
+    sys.exit(1)
 if args[:3] == ["plugin", "list", "--json"]:
     print(json.dumps(state["installed"]))
 elif args[:2] == ["plugin", "list"]:
     print("\\n".join(r["id"] for r in state["installed"]))
-elif args[:3] == ["plugin", "marketplace", "remove"]:
+elif args[:3] == ["plugin", "marketplace", "remove"] and "--scope" not in args:
     state["installed"] = [r for r in state["installed"] if not r["id"].endswith("@" + args[3])]
+elif args[:2] == ["plugin", "uninstall"]:
+    state["installed"] = [r for r in state["installed"] if r.get("projectPath") != os.getcwd()]
 elif args[:2] == ["plugin", "install"] and state["on_install"] not in state["installed"]:
     state["installed"].append(state["on_install"])
 with open(path, "w") as f:
@@ -164,14 +173,24 @@ with open(path, "w") as f:
 RECORD = {"id": "harness-ops@agent-harness", "version": "0.1.1", "scope": "project"}
 
 
+def _git(*args, cwd):
+    subprocess.run(
+        ["git", "-c", "user.email=a@b", "-c", "user.name=a", *args], cwd=cwd, check=True, capture_output=True
+    )
+
+
 @pytest.fixture
 def stub_project(tmp_path, monkeypatch):
-    """A project pinned to v0.1.1 whose doctor checks all pass but the plugin build's, with a stub `claude` on PATH
-    (and `gh`, `uv`, `uvx` stubs that succeed, for setup's other steps). `install(tree)` sets the recorded install;
-    a re-pin's `plugin install` records `pinned`."""
-    project, pinned = tmp_path / "proj", build(tmp_path, "pinned")
+    """A project pinned to v0.1.1 of a local remote, whose doctor checks all pass but the plugin build's, with a stub
+    `claude` on PATH (and `gh`, `uv`, `uvx` stubs that succeed, for setup's other steps). `install(tree)` sets the
+    recorded install; a re-pin's `plugin install` records `pinned`."""
+    project, pinned, remote = tmp_path / "proj", build(tmp_path, "pinned"), tmp_path / "remote"
     (project / ".venv").mkdir(parents=True)
     subprocess.run(["git", "init", "-q", str(project)], check=True)
+    remote.mkdir()
+    _git("init", "-q", cwd=remote)
+    _git("commit", "-q", "--allow-empty", "-m", "release", cwd=remote)
+    _git("tag", "v0.1.1", cwd=remote)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     ok = "#!/bin/sh\nexit 0\n"
@@ -181,12 +200,9 @@ def stub_project(tmp_path, monkeypatch):
     state = tmp_path / "claude.json"
     mine = RECORD | {"projectPath": str(project)}
 
-    def install(tree: Path, others: tuple[str, ...] = ()) -> None:
+    def install(tree: Path, others: tuple[dict, ...] = ()) -> None:
         version = json.loads((tree / ".claude-plugin/plugin.json").read_text())["version"]
-        records = [
-            mine | {"installPath": str(tree), "version": version},
-            *(RECORD | {"projectPath": p} for p in others),
-        ]
+        records = [mine | {"installPath": str(tree), "version": version}, *others]
         state.write_text(
             json.dumps({"calls": [], "installed": records, "on_install": mine | {"installPath": str(pinned)}})
         )
@@ -201,10 +217,25 @@ def stub_project(tmp_path, monkeypatch):
     monkeypatch.setattr(setup.lit, "key_report", lambda env: ({}, ""))
     monkeypatch.setattr(workflow, "quota_reading", lambda: (10, 95))
     monkeypatch.setattr(setup, "remote_tags", lambda url: [])
-    plugins = {"harness-ops@agent-harness": PIN["harness-ops@agent-harness"]}
+    plugins = {"harness-ops@agent-harness": f"{remote}@v0.1.1"}
     monkeypatch.setattr(setup.config, "get", lambda: SimpleNamespace(plugins=plugins))
     monkeypatch.setattr(setup, "pinned_plugin_root", lambda: pinned)
-    return SimpleNamespace(state=state, install=install, pinned=pinned)
+    head = tmp_path / "head"
+    return SimpleNamespace(state=state, install=install, pinned=pinned, head=head, plugins=plugins, remote=remote)
+
+
+def _changes(stub) -> list[list[str]]:
+    """The claude calls that change something, in order."""
+    reads = (["plugin", "list"], ["mcp", "list"])
+    return [c for c in json.loads(stub.state.read_text())["calls"] if c[:2] not in reads]
+
+
+def _installs(stub) -> list[dict]:
+    return json.loads(stub.state.read_text())["installed"]
+
+
+OTHER = RECORD | {"projectPath": "/elsewhere"}
+USER = {"id": "harness-ops@agent-harness", "version": "0.1.1", "scope": "user"}
 
 
 def test_doctor_fails_on_a_skewed_build_and_passes_on_the_pinned_one(stub_project, capsys):
@@ -221,38 +252,86 @@ def test_doctor_fails_on_another_version_string(stub_project, tmp_path, capsys):
     assert setup.doctor() == 1 and "installed 0.1.0, pinned v0.1.1" in capsys.readouterr().out
 
 
-def test_setup_repins_a_skewed_plugin_then_doctor_passes(stub_project, capsys):
-    stub_project.install(stub_project.state.parent / "head", others=("/elsewhere",))
+def test_setup_repins_at_user_scope_keeping_other_projects_installs_then_doctor_passes(stub_project, capsys):
+    stub_project.install(stub_project.head, others=(OTHER,))
     assert setup.setup() == 0
-    calls = json.loads(stub_project.state.read_text())["calls"]
-    assert [c for c in calls if c[:2] != ["plugin", "list"] and c[0] != "mcp"][-3:] == [
-        ["plugin", "marketplace", "remove", "agent-harness"],
-        ["plugin", "marketplace", "add", "Marius-Juston/agent-harness@v0.1.1"],
+    assert _changes(stub_project)[-4:] == [
+        ["plugin", "marketplace", "remove", "agent-harness", "--scope", "user"],
+        ["plugin", "marketplace", "add", f"{stub_project.remote}@v0.1.1"],
+        ["plugin", "uninstall", "harness-ops@agent-harness", "--scope", "project"],
         ["plugin", "install", "harness-ops@agent-harness", "--scope", "project"],
     ]
+    assert OTHER in _installs(stub_project)
     out = capsys.readouterr().out
-    assert "uninstalled from /elsewhere" in out and "still not the pinned build" not in out and "all good" in out
+    assert "uninstalled from" not in out and "still not the pinned build" not in out and "all good" in out
+
+
+def test_repin_all_removes_everywhere_and_names_every_install_it_removed(stub_project, capsys):
+    stub_project.install(stub_project.head, others=(OTHER, USER))
+    assert setup.setup(repin_all=True) == 0
+    assert ["plugin", "marketplace", "remove", "agent-harness"] in _changes(stub_project)
+    out = capsys.readouterr().out
+    assert "uninstalled from /elsewhere, the user scope" in out and "all good" in out
+
+
+def test_repin_changes_nothing_when_the_pinned_tag_is_unreachable(stub_project, monkeypatch, capsys):
+    plugins = {"harness-ops@agent-harness": f"{stub_project.remote}@v9.9.9"}
+    monkeypatch.setattr(setup.config, "get", lambda: SimpleNamespace(plugins=plugins))
+    assert setup.repin_skewed()
+    assert _changes(stub_project) == [] and _installs(stub_project)[0]["installPath"] == str(stub_project.head)
+    assert "v9.9.9 not reachable" in capsys.readouterr().out
+
+
+def test_repin_stops_at_a_failed_add_and_leaves_the_install(stub_project, monkeypatch, capsys):
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL", "plugin marketplace add")
+    still = setup.repin_skewed()
+    assert still and "stopped" in still[-1]
+    assert [c[:3] for c in _changes(stub_project)] == [
+        ["plugin", "marketplace", "remove"],
+        ["plugin", "marketplace", "add"],
+    ]
+    assert _installs(stub_project)[0]["installPath"] == str(stub_project.head)
+    assert "FAIL plugin marketplace add" in capsys.readouterr().out
 
 
 def test_setup_leaves_the_pinned_build_alone(stub_project):
     stub_project.install(stub_project.pinned)
     assert setup.setup() == 0
-    assert not [c for c in json.loads(stub_project.state.read_text())["calls"] if "remove" in c]
+    assert not [c for c in _changes(stub_project) if "remove" in c]
 
 
-def _git(*args, cwd):
-    subprocess.run(
-        ["git", "-c", "user.email=a@b", "-c", "user.name=a", *args], cwd=cwd, check=True, capture_output=True
+def test_settings_are_restored_but_keep_the_enabled_plugins_an_install_added(tmp_path):
+    f = tmp_path / "settings.json"
+    declared = {"extraKnownMarketplaces": {"agent-harness": {"source": {"repo": "o/r", "ref": "v1"}}}, "x": 1}
+    f.write_text(json.dumps(declared))
+    saved = {f: f.read_bytes()}
+    f.write_text(json.dumps({"x": 1, "enabledPlugins": {"harness-ops@agent-harness": True}}))
+    setup._keep_settings(saved)
+    assert json.loads(f.read_text()) == declared | {"enabledPlugins": {"harness-ops@agent-harness": True}}
+    unchanged = f.read_bytes()
+    setup._keep_settings({f: unchanged})
+    assert f.read_bytes() == unchanged
+
+
+def _real_cli_project(path: Path, source: dict) -> Path:
+    """A project whose committed settings declare the marketplace at the pinned ref, as a rendered template does."""
+    path.mkdir()
+    _git("init", "-q", cwd=path)
+    (path / ".claude").mkdir()
+    (path / ".claude/settings.json").write_text(
+        json.dumps({"extraKnownMarketplaces": {"agent-harness": {"source": source}}})
     )
+    return path
 
 
-@pytest.mark.slow  # about 4 s; needs `claude` on PATH, as doctor does
-def test_real_cli_repin_installs_the_tag_commit_not_the_branch_head(tmp_path, monkeypatch):
+@pytest.mark.slow  # about 6 s; needs `claude` on PATH, as doctor does
+def test_real_cli_repin_installs_the_tag_commit_and_keeps_other_projects_installs(tmp_path, monkeypatch):
     """#296 with the real `claude` CLI, offline, in a temporary HOME (the owner's ~/.claude is never touched): a
-    marketplace added at main installs main's head under the tag's version string; setup's re-pin replaces it with
-    the tag's commit and content. A git `insteadOf` serves github.com/fake/ from a local repository."""
-    home, project, repo = tmp_path / "home", tmp_path / "proj", tmp_path / "src.git"
-    for d in (home, project, repo / ".claude-plugin"):
+    marketplace added at main installs main's head under the tag's version string in projects A and B; setup's re-pin
+    in A gives A the tag's commit, and B keeps its install. A git `insteadOf` serves github.com/fake/ (to git and to
+    Claude Code) from a local repository."""
+    home, repo = tmp_path / "home", tmp_path / "src.git"
+    for d in (home, repo / ".claude-plugin"):
         d.mkdir(parents=True)
     (home / ".gitconfig").write_text(f'[url "file://{tmp_path}/"]\n\tinsteadOf = https://github.com/fake/\n')
     for key, value in (("HOME", home), ("CLAUDE_CONFIG_DIR", home / ".claude"), ("CLAUDE_CODE_PLUGIN_PREFER_HTTPS", 1)):
@@ -269,26 +348,22 @@ def test_real_cli_repin_installs_the_tag_commit_not_the_branch_head(tmp_path, mo
     shutil.copytree(repo / "p", pinned)
     (repo / "p/agents/builder.md").write_text("main body")  # main moves on; plugin.json still says 0.1.1
     _git("commit", "-qam", "unreleased", cwd=repo)
-    _git("init", "-q", cwd=project)
-    # the committed project settings a rendered template carries: the marketplace declared at the pinned ref
     source = {"source": "github", "repo": "fake/src", "ref": "v0.1.1"}
-    (project / ".claude").mkdir()
-    settings = project / ".claude/settings.json"
-    settings.write_text(json.dumps({"extraKnownMarketplaces": {"agent-harness": {"source": source}}}))
+    a, b = _real_cli_project(tmp_path / "a", source), _real_cli_project(tmp_path / "b", source)
     plugins = {"harness-ops@agent-harness": "fake/src@v0.1.1"}
-    monkeypatch.setattr(setup, "root", lambda: project)
     monkeypatch.setattr(setup.config, "get", lambda: SimpleNamespace(plugins=plugins))
     monkeypatch.setattr(setup, "pinned_plugin_root", lambda: pinned)
-    for cmd in (
-        ["claude", "plugin", "marketplace", "add", "fake/src"],
-        ["claude", "plugin", "install", "harness-ops@agent-harness", "--scope", "project"],
-    ):
-        assert setup._ok(cmd)[0], cmd
-    projects = setup._projects()
-    assert setup.build_skew(plugins, setup._installed(), projects, pinned)  # skewed although the version matches
-    committed = settings.read_text()
+    install = ["claude", "plugin", "install", "harness-ops@agent-harness", "--scope", "project"]
+    for cwd, cmd in ((a, ["claude", "plugin", "marketplace", "add", "fake/src"]), (a, install), (b, install)):
+        assert subprocess.run(cmd, cwd=cwd, capture_output=True, check=False).returncode == 0, cmd
+    monkeypatch.setattr(setup, "root", lambda: a)
+    assert setup.build_skew(plugins, setup._installed(), setup._projects(), pinned)  # skewed, same version string
+    committed = json.loads((a / ".claude/settings.json").read_text())
 
     assert setup.repin_skewed() == []
     records = json.loads((home / ".claude/plugins/installed_plugins.json").read_text())["plugins"]
-    assert [r["gitCommitSha"] for r in records["harness-ops@agent-harness"]] == [tag]
-    assert settings.read_text() == committed  # the re-pin never edits the committed project settings
+    shas = {r["projectPath"]: r["gitCommitSha"] for r in records["harness-ops@agent-harness"]}
+    assert shas[str(a)] == tag and str(b) in shas
+    after = json.loads((a / ".claude/settings.json").read_text())
+    assert after["extraKnownMarketplaces"] == committed["extraKnownMarketplaces"]
+    assert after.get("enabledPlugins", {}).get("harness-ops@agent-harness") is True
