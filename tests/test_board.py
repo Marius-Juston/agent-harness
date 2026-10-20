@@ -267,6 +267,16 @@ def test_brief_caps_each_section_at_40_lines(monkeypatch):
     assert out.count("more:") >= 2  # Context and the hotspot list
 
 
+def test_brief_commands_give_the_board_new_form_for_follow_ups(fake, monkeypatch):
+    # #324: workers looked the form up with `dev board new --help` in about one run in five
+    monkeypatch.setattr(board, "in_flight_files", lambda: {})
+    monkeypatch.setattr(board, "issue_prs", lambda n: [])
+    commands = board.brief(4).split("\n## Commands\n")[1]
+    [line] = [x for x in commands.splitlines() if "uv run dev board new" in x]
+    for flag in ("--type", "--title", "--done", "--owns", "--refs 4"):
+        assert flag in line, flag
+
+
 def test_orient_is_capped_at_70_lines(monkeypatch, tmp_path):
     issues = [mk(n, ["status:in-progress", "P1"]) for n in range(1, 81)] + [
         mk(n, ["status:ready", "P2"]) for n in range(81, 90)
