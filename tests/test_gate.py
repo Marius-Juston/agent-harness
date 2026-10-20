@@ -583,8 +583,7 @@ def _merged(ev):
     ("knob", "value", "expect"),
     [
         ("checks", [_run("check", conclusion="FAILURE")], "check: failing"),
-        ("checks", [_run("citations", status="IN_PROGRESS", conclusion="")], "citations: pending"),
-        ("checks", [{"__typename": "StatusContext", "context": "ci/x", "state": "PENDING"}], "ci/x: pending"),
+        # a check still pending alone is waited for, not refused (#322): tests/test_workflow.py
         ("checks", [{"__typename": "StatusContext", "context": "ci/x", "state": "ERROR"}], "ci/x: failing"),
         ("reviews", [{"author": {"login": "ann"}, "state": "CHANGES_REQUESTED"}], "changes requested by ann"),
         ("decision", "CHANGES_REQUESTED", "changes requested"),

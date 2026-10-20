@@ -7,6 +7,11 @@ file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness
 ## Unreleased
 
 ### Changed
+- `dev integrate` waits (bounded by `checks_wait_s`) for checks still running on the PR's own head when they are its
+  only unfinished feedback, then judges them; a failing check, requested change or open thread still refuses at
+  once, and a timeout ends in `waiting`, which a rerun resumes. Under `--local-ci` the required checks it stands in
+  for are neither waited for nor judged there; the others (e.g. CodeQL) are. Not with `--override` or `--dry-run`.
+  The lead skill no longer asks the lead to wait for green checks by hand. (#321, #322)
 - researcher checks a repository that is not a registry package with authenticated
   `gh api repos/<o>/<r> --jq '{...}'` instead of curling `api.github.com` into a Python filter (60 requests/hour
   unauthenticated; 7.7 % of those calls failed). (#323)

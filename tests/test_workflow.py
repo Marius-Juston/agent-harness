@@ -12,6 +12,18 @@ from hypothesis import strategies as st
 
 from devkit import board, workflow
 from tests.test_board import mk
+from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate are fixtures
+    HEAD,
+    _index,
+    _job,
+    _last_json,
+    _merged,
+    _run,
+    _thread,
+    actions,
+    clock,
+    fake_integrate,
+)
 from tests.test_merge_hygiene import land_on_main, last_json, out, project, sh  # noqa: F401 - project is a fixture
 
 
@@ -407,3 +419,122 @@ def test_a_deleting_merge_stops_when_the_board_cannot_be_read(project, capsys, m
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     assert last_json(capsys.readouterr().out)["outcome"] == "stopped"
     assert not [e for e in project["events"] if e[:3] == ("gh", "pr", "merge")]
+
+
+# --- integrate: checks still running on the PR's own head are waited for, not refused (#322) ----------------------
+
+
+def _rollups(world: dict, monkeypatch, *rollups: list[dict]) -> None:
+    """The PR's own head shows `rollups` in turn, one per read of its checks; the last one repeats."""
+    queue, gh = list(rollups), board.gh
+
+    def fake(*args, **kw):
+        if args[:2] == ("pr", "view") and "statusCheckRollup" in args[-1]:
+            world["checks"] = queue.pop(0) if len(queue) > 1 else queue[0]
+        return gh(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", fake)
+
+
+def _gated(ev: list) -> int:
+    return _index(ev, lambda e: e[0] == "run" and "check" in e)
+
+
+@pytest.mark.parametrize(
+    "running",
+    [
+        _run("check", status="IN_PROGRESS", conclusion=""),
+        {"__typename": "StatusContext", "context": "x", "state": "PENDING"},
+    ],
+)
+def test_integrate_waits_for_checks_on_the_pr_head_then_merges(fake_integrate, clock, monkeypatch, capsys, running):  # noqa: F811
+    """#322: the lead no longer waits by hand. The wait (bounded, jittered) comes before the gate, then the merge."""
+    _rollups(fake_integrate, monkeypatch, [running], [running], [running], [_run("check"), _run("x")])
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    ev = fake_integrate["events"]
+    assert len(clock["sleeps"]) >= 2 and _gated(ev) < _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
+    assert _last_json(capsys.readouterr().out)["outcome"] == "merged"
+
+
+@pytest.mark.parametrize(
+    ("knob", "value", "expect"),
+    [
+        ("checks", [_run("check", conclusion="FAILURE")], "check check: failing (FAILURE)"),
+        ("reviews", [{"author": {"login": "ann"}, "state": "CHANGES_REQUESTED"}], "changes requested by ann"),
+        ("threads", [_thread("a.py", 4)], "unresolved review thread a.py:4"),
+    ],
+)
+def test_pending_beside_other_feedback_refuses_at_once(fake_integrate, clock, capsys, knob, value, expect):  # noqa: F811
+    fake_integrate[knob] = value
+    fake_integrate["checks"] = [_run("slow", status="QUEUED", conclusion=""), *(value if knob == "checks" else [])]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "refused" and expect in res["feedback"]
+    assert "check slow: pending (QUEUED)" in res["feedback"]
+    assert clock["sleeps"] == [] and not any(e[0] == "run" for e in fake_integrate["events"])
+
+
+def test_a_check_that_fails_while_waiting_refuses(fake_integrate, clock, monkeypatch, capsys):  # noqa: F811
+    running = [_run("check", status="IN_PROGRESS")]
+    _rollups(fake_integrate, monkeypatch, running, running, [_run("check", conclusion="FAILURE")])
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "refused" and res["feedback"] == ["check check: failing (FAILURE)"]
+    assert clock["sleeps"] and not _merged(fake_integrate["events"])
+
+
+def test_checks_running_at_the_deadline_end_in_waiting_then_resume(fake_integrate, clock, monkeypatch, capsys):  # noqa: F811
+    monkeypatch.setattr(workflow.config, "get", lambda: workflow.config.Config(checks_wait_s=120))
+    fake_integrate["checks"] = [_run("check", status="IN_PROGRESS")]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    printed = capsys.readouterr().out
+    res = _last_json(printed)
+    assert (res["outcome"], res["head"], res["pending"]) == ("waiting", HEAD, ["ci/check"])
+    assert "RESULT: waiting" in printed and sum(clock["sleeps"]) == pytest.approx(120)
+    assert not any(e[0] == "run" for e in fake_integrate["events"]) and not _merged(fake_integrate["events"])
+
+    fake_integrate["checks"] = [_run("check")]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert _last_json(capsys.readouterr().out)["outcome"] == "merged"
+    assert not list(workflow.state_dir("integrate").glob("*.waiting.json"))
+
+
+def test_an_override_or_a_dry_run_does_not_wait(fake_integrate, clock, capsys):  # noqa: F811
+    fake_integrate["checks"] = [_run("check", status="IN_PROGRESS")]
+    assert workflow.integrate(7, harness_ok=True, dry_run=True) == 1
+    assert _last_json(capsys.readouterr().out)["outcome"] == "refused"
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, override="the job never reports, see #9") == 0
+    assert clock["sleeps"] == [] and _merged(fake_integrate["events"])
+
+
+CODEQL = {"workflowName": "CodeQL", "name": "Analyze (python)"}
+
+
+@pytest.mark.parametrize("required", [[], [_job("check", 11)]], ids=["not-registered", "billing-blocked"])
+def test_local_ci_waits_on_others_not_stood_in(fake_integrate, actions, clock, monkeypatch, capsys, required):  # noqa: F811
+    """Review on #333: under --local-ci a CodeQL job still running on the head was refused (PR 329). The required
+    `check`, which Actions does not run and the local gate stands in for, is neither waited for nor judged."""
+    running = [*required, _run("x", status="IN_PROGRESS") | CODEQL]
+    _rollups(fake_integrate, monkeypatch, running, running, running, [*required, _run("x") | CODEQL])
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
+    printed = capsys.readouterr().out
+    assert "waiting up to" in printed and _last_json(printed)["outcome"] == "merged"
+    assert [s["context"] for s in actions["statuses"]] == ["check"]
+
+
+def test_local_ci_refuses_another_check_that_fails_in_the_wait(fake_integrate, actions, clock, monkeypatch, capsys):  # noqa: F811
+    """Review on #333: the CodeQL job is judged after the wait; the stood-in `check` gets no status."""
+    running = [_job("check", 11), _run("x", status="IN_PROGRESS") | CODEQL]
+    failed = [_job("check", 11), _run("x", conclusion="FAILURE") | CODEQL]
+    _rollups(fake_integrate, monkeypatch, running, running, running, failed)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "refused" and res["feedback"] == ["check Analyze (python): failing (FAILURE)"]
+    assert clock["sleeps"] and actions["statuses"] == [] and not _merged(fake_integrate["events"])
+
+
+def test_local_ci_does_not_wait_on_the_checks_it_stands_in_for(fake_integrate, actions, clock, capsys):  # noqa: F811
+    fake_integrate["checks"] = [_run("check", status="QUEUED")]  # Actions queued it but never runs it
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
+    printed = capsys.readouterr().out
+    assert "waiting up to" not in printed and _last_json(printed)["outcome"] == "merged"

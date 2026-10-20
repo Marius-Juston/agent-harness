@@ -537,19 +537,32 @@ def unfinished(info: dict, feedback: dict, ignore: frozenset[str] = frozenset())
     return out
 
 
-def pending_checks(info: dict, expected: list[str]) -> list[str]:
+def running(c: dict) -> bool:
+    """A check still queued or running (a status context still pending)."""
+    if c.get("__typename") == "StatusContext":
+        return (c.get("state") or "PENDING") in {"PENDING", "EXPECTED"}
+    return c.get("status") != "COMPLETED"
+
+
+def _named(c: dict) -> str:
+    return c.get("name") or c.get("context") or "?"
+
+
+def only_pending(info: dict, feedback: dict, ignore: frozenset[str] = frozenset()) -> bool:
+    """True when the PR's only unfinished feedback is checks still running (#322): nothing failed, no change is
+    requested, no thread is open. Then integrate waits for the checks instead of refusing. `ignore` (the required
+    contexts `--local-ci` stands in for) neither counts as running nor as unfinished."""
+    runs = [c for c in latest_checks(info.get("statusCheckRollup") or []) if _named(c) not in ignore]
+    settled = info | {"statusCheckRollup": [c for c in runs if not running(c)]}
+    return any(running(c) for c in runs) and not unfinished(settled, feedback)
+
+
+def pending_checks(info: dict, expected: list[str], ignore: frozenset[str] = frozenset()) -> list[str]:
     """Checks on the PR head that are not done: still queued or running, or one of `expected` (`check_key`s the PR
-    had before integrate pushed) not registered on it yet. A failed check is done: `unfinished` judges it."""
-    runs = latest_checks(info.get("statusCheckRollup") or [])
-    out = [
-        check_key(c)
-        for c in runs
-        if (
-            (c.get("state") or "PENDING") in {"PENDING", "EXPECTED"}
-            if c.get("__typename") == "StatusContext"
-            else c.get("status") != "COMPLETED"
-        )
-    ]
+    had before integrate pushed) not registered on it yet. A failed check is done: `unfinished` judges it. Checks
+    named in `ignore` (left to `--local-ci`) are not waited for."""
+    runs = [c for c in latest_checks(info.get("statusCheckRollup") or []) if _named(c) not in ignore]
+    out = [check_key(c) for c in runs if running(c)]
     seen = {check_key(c) for c in runs}
     return out + [f"{k} (not started)" for k in expected if k not in seen]
 
@@ -563,7 +576,9 @@ CHECKS_RNG = random.Random()  # noqa: S311 - poll jitter, not a secret
 CHECKS_CLOCK = time.monotonic
 
 
-def await_checks(pr_number: int, tip: str, expected: list[str], timeout_s: float) -> tuple[str, list[str]]:
+def await_checks(
+    pr_number: int, tip: str, expected: list[str], timeout_s: float, ignore: frozenset[str] = frozenset()
+) -> tuple[str, list[str]]:
     """Poll the PR until every check on `tip` is complete, at most `timeout_s`. Returns ("ready", []), ("moved",
     [new head]) when the head is no longer `tip`, or ("timeout", the checks still pending)."""
     deadline = CHECKS_CLOCK() + timeout_s
@@ -573,7 +588,7 @@ def await_checks(pr_number: int, tip: str, expected: list[str], timeout_s: float
         )
         if info["headRefOid"] != tip:
             return "moved", [info["headRefOid"]]
-        if not (pending := pending_checks(info, expected)):
+        if not (pending := pending_checks(info, expected, ignore)):
             return "ready", []
         if (left := deadline - CHECKS_CLOCK()) <= 0:
             return "timeout", pending
@@ -973,12 +988,14 @@ def result(pr_number: int, code: int, outcome: str, **fields: object) -> int:
     return code
 
 
-def _wait_on_tip(pr_number: int, tip: str, expected: list[str], update: dict) -> int | None:
+def _wait_on_tip(
+    pr_number: int, tip: str, expected: list[str], update: dict, ignore: frozenset[str] = frozenset()
+) -> int | None:
     """`await_checks` on a head integrate pushed. None when every check on it is complete; else the exit code, after
     the result line: `stopped` when the head moved, `waiting` (recorded for a rerun) when the time ran out."""
     timeout_s = config.get().checks_wait_s
     print(f"waiting up to {timeout_s} s for the checks on {tip[:10]} ...", flush=True)
-    state, detail = await_checks(pr_number, tip, expected, timeout_s)
+    state, detail = await_checks(pr_number, tip, expected, timeout_s, ignore)
     if state == "moved":
         _waiting_file(pr_number).unlink(missing_ok=True)
         print(f"RESULT: stopped (the PR head moved to {detail[0][:10]} while waiting for checks); rerun integrate")
@@ -1022,12 +1039,14 @@ def _integrate(
     which is logged on the PR just before the merge. Feedback is read again after the gate: what arrived during it
     refuses the merge, override or not. After a push it waits (bounded, `checks_wait_s`) for every check on the new
     head, whatever the branch protection, and reads feedback once more; a timeout is `waiting`, and a rerun on that
-    head resumes the wait instead of refusing its pending checks. With `local_ci` (no Actions minutes), required checks
-    Actions does not run are left to the local run on the merged tree (`_stand_in`), which posts them as commit statuses
-    only after it passed. A merged tree that empties an Owns entry of an open issue other than the PR's own
-    (`deleted_owns`) is refused before the gate, and `override` does not lift that: name the issue with `Refs #N` in
-    the PR body, or edit that issue's Owns. A deleting merge whose board cannot be read stops (fail closed). Issues
-    close only after the merge; the last line printed is `result`."""
+    head resumes the wait instead of refusing its pending checks. The same bounded wait runs before the gate when the
+    only unfinished feedback is checks still running on the PR's own head (no override, not a dry run; with
+    `local_ci`, apart from the contexts it stands in for); what they conclude is then judged as above. With
+    `local_ci` (no Actions minutes), required checks Actions does not run are left to the local run on the merged
+    tree (`_stand_in`), which posts them as commit statuses only after it passed. A merged tree that empties an Owns
+    entry of an open issue other than the PR's own (`deleted_owns`) is refused before the gate, and `override` does
+    not lift that: name the issue with `Refs #N` in the PR body, or edit that issue's Owns. A deleting merge whose
+    board cannot be read stops (fail closed). Issues close only after the merge; the last line printed is `result`."""
     info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
     if info["state"] != "OPEN" or info["isDraft"]:
         print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
@@ -1059,7 +1078,15 @@ def _integrate(
                 return code
             info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
         waiting.unlink(missing_ok=True)
-    if todo := unfinished(info, board.pr_feedback(pr_number), ignore):
+    feedback = board.pr_feedback(pr_number)
+    if override is None and not dry_run and only_pending(info, feedback, ignore):
+        # checks still running on the PR's own head: wait for them as for a pushed head, then judge them (#322).
+        # Under --local-ci the required contexts it stands in for are neither waited for nor judged here.
+        if (code := _wait_on_tip(pr_number, info["headRefOid"], [], {}, ignore)) is not None:
+            return code
+        info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
+        feedback = board.pr_feedback(pr_number)
+    if todo := unfinished(info, feedback, ignore):
         if override is None:
             print(f"RESULT: refused: PR #{pr_number} has unfinished feedback:\n  " + "\n  ".join(todo))
             print(
