@@ -1102,6 +1102,7 @@ def test_new_never_refuses_when_the_board_cannot_be_read(fake, monkeypatch, answ
 def test_related_still_suggests_issues_closed_as_not_planned(fake, monkeypatch):
     """Regression (#350 review round 2): most known duplicate targets were closed as not planned, and every measured
     number ranked issues in any state."""
+    fake.listed = BOARD
     monkeypatch.setattr(board, "RELATED_MIN", 1e-9)
     first = _shown(_new())[0]
     fake.listed = [{**d, "state": "CLOSED", "stateReason": "NOT_PLANNED"} if d["number"] == first else d for d in BOARD]
