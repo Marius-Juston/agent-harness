@@ -7,6 +7,29 @@ Run from the worktree root (deps are ephemeral, not added to the project):
 dev: Tier B DEV metrics and the per-arm alert threshold (written to dedup_thresholds.json).
 test: everything (Tier B TEST, Tier A, alert rates) with the frozen thresholds; run once.
 Rankings are cached in .scratch/dedup/rank_<arm>.json. Raw issue text never leaves .scratch/.
+
+Ship mode (#350): the ranker `board new` ships, scored by devkit.board's own code. Needs only numpy and the project:
+    REPO_E=<name> uv run --with numpy python docs/research/_scratch/issue-pr-automation/dedup_eval.py ship-dev
+    REPO_E=<name> uv run --with numpy python docs/research/_scratch/issue-pr-automation/dedup_eval.py ship-test
+Pre-registered on 2026-10-20, committed before any ship-mode number was computed:
+- Data: the issues of dedup_labels.json's freeze, i.e. the first n_issues of each repository by creation (later
+  filings are dropped), refetched by `dedup_labels.py fetch`; text is the current text, as in round 1. Every filing is
+  a query, ranked against earlier filings by devkit.board's terms() and bm25() over title + Context + DONE WHEN
+  (full text, as `board new` indexes it).
+- Cells: window W-all (every earlier issue, any state) or W-30 (earlier issues still open when the query was filed,
+  or closed at most 30 days before) x threshold form raw (BM25 score) or ratio (score / the query's self-score).
+- Threshold per cell, on DEV only: the candidate value (tune()'s grid) with the highest F1 of alert precision
+  (labels of both tiers, as tune()) and alert recall@3 (Tier B DEV), among values whose DEV alert rate is at most
+  0.45: DONE WHEN's 0.50 cap less about 1.5 standard errors of a rate over the ~240 TEST filings.
+- Pick: the cell with the highest DEV alert recall@3. Any cell whose paired bootstrap 95% CI of the difference to it
+  includes 0 ties with it; ties go to W-all over W-30 (the setting of every earlier number, and no closing dates to
+  fetch), then ratio over raw (r1-dedup.md F5: a raw score drifts with corpus size). Written to ship_pick.json.
+- Exploratory, never used to pick: the same rule for windows of 1, 3 and 7 days, since the boards were about 10
+  days old at the freeze.
+- TEST, once (refuses when ship_test_output.txt exists): for the pick, Tier B TEST recall@1/3 with CI (no
+  threshold), alert precision (labels), alert recall@3 and alert rate, for both repositories and agent-harness
+  alone, on full text and with the Context sentences that name an issue removed (round 2's leak-removed); Tier A
+  hits; and the unlabelled agent-harness TEST alerts (numbers only) in ship_unlabelled.json for the second rater.
 """
 
 from __future__ import annotations
