@@ -113,7 +113,9 @@ def build() -> None:
             tier_a.append({"query": q, "target": t, "evidence": ev})
         tier_b = []
         for n, i in iss.items():
-            for t in sorted({int(m) for m in REF.findall(i["body"] or "")}):
+            # a Refs line `board new` pre-filled (#350) is the ranker's own guess, not a label
+            body = "\n".join(x for x in (i["body"] or "").splitlines() if "suggested by `board new`" not in x)
+            for t in sorted({int(m) for m in REF.findall(body)}):
                 if t in iss and t != n and created[t] < created[n]:
                     tier_b.append({"query": n, "target": t, "split": "TEST" if is_test(repo, n) else "DEV"})
         labels["repos"][repo] = {
