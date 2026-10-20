@@ -27,6 +27,7 @@ import sys
 from collections import Counter, defaultdict
 from itertools import pairwise
 from multiprocessing import Pool
+from urllib.parse import urlsplit
 
 PRICE = {"out": 20.0, "cr": 0.20, "cw": 8.0}  # $ per M tokens
 HIDDEN_OUT = 233  # output tokens per turn not visible in the transcript (harness-efficiency.md section 2)
@@ -698,21 +699,43 @@ def labs(c):
     return [lb for _, lb, _ in c.get("steps", [])]
 
 
-CURL_KIND = [
-    ("GitHub REST API", r"api\.github\.com"),
-    ("package registry (PyPI, npm, crates)", r"pypi\.org|registry\.npmjs\.org|crates\.io|ecosyste\.ms|deps\.dev"),
+CURL_KIND = [  # (kind, registrable domains): a URL's host matches a domain or one of its subdomains
+    ("GitHub REST API", ("api.github.com",)),
+    (
+        "package registry (PyPI, npm, crates)",
+        ("pypi.org", "registry.npmjs.org", "crates.io", "ecosyste.ms", "deps.dev"),
+    ),
     (
         "literature API (OpenAlex, Crossref, Europe PMC, S2, arXiv)",
-        r"openalex\.org|crossref\.org|ebi\.ac\.uk|semanticscholar\.org|arxiv\.org",
+        ("openalex.org", "crossref.org", "ebi.ac.uk", "semanticscholar.org", "arxiv.org"),
     ),
-    ("Hugging Face API", r"huggingface\.co"),
-    ("raw GitHub file", r"raw\.githubusercontent\.com"),
+    ("Hugging Face API", ("huggingface.co",)),
+    ("raw GitHub file", ("raw.githubusercontent.com",)),
 ]
+URL = re.compile(r"https?://[^\s'\"<>`|;)]+")
+
+
+def url_hosts(cmd):
+    """The hostnames of the http(s) URLs written in a command, parsed rather than matched as substrings."""
+    out = set()
+    for u in URL.findall(cmd):
+        try:
+            host = urlsplit(u).hostname
+        except ValueError:
+            continue
+        if host:
+            out.add(host.lower())
+    return out
+
+
+def on_domain(host, domain):
+    return host == domain or host.endswith("." + domain)
 
 
 def curl_kind(cmd):
-    for name, pat in CURL_KIND:
-        if re.search(pat, cmd):
+    hosts = url_hosts(cmd)
+    for name, domains in CURL_KIND:
+        if any(on_domain(h, d) for h in hosts for d in domains):
             return name
     return "other host"
 
@@ -755,7 +778,7 @@ def detectors(tr, D):
             D[f"A json filter ({b}) <- {prod}"].add(tr, [c])
             D[f"A json filter ({b}): all calls"].add(tr, [c])
             D["A json filter: all calls"].add(tr, [c])
-        if "curl" in lb and "api.github.com" in cmd:
+        if "curl" in lb and "api.github.com" in url_hosts(cmd):
             D["A curl to the GitHub REST API: all calls"].add(tr, [c])
             if re.search(r"rate limit|API rate|\b403\b", c.get("head", "") + c.get("tail", "")):
                 D["A curl to the GitHub REST API: rate-limit message or 403 in output"].add(tr, [c])
