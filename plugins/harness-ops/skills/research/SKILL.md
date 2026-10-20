@@ -49,8 +49,8 @@ evidence strength (a meta-analysis beats a single study; a replication beats a c
 stated as such. It runs `uv run dev cite-check` until it passes and files follow-up issues for the gaps it left open.
 
 ## 3. Audit, then integrate
-- Spawn a `harness-ops:research-auditor` on the note. On "return" or "accept after fixes", send the findings to the synthesis
-  researcher (SendMessage) and audit again: at most 2 cycles, then put the rest in the note's open-issues section.
+- Spawn a `harness-ops:research-auditor` on the note and its issue. On "send back", SendMessage the synthesis
+  researcher the comment URL (`gh issue view <n> --comments`) and audit again: at most 2 cycles, then put the rest in the note's open-issues section.
 - The synthesis researcher opens the PR (`uv run dev pr <n>`). The lead integrates it.
 - The scratch folder stays in git as the audit trail. It merges with the union driver.
 
