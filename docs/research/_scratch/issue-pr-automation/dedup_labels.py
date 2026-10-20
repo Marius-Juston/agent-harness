@@ -2,7 +2,7 @@
 
 Run from the worktree root:
     python3 docs/research/_scratch/issue-pr-automation/dedup_labels.py fetch   # read-only gh issue list
-    python3 docs/research/_scratch/issue-pr-automation/dedup_labels.py build   # writes dedup_labels.json
+    uv run python docs/research/_scratch/issue-pr-automation/dedup_labels.py build   # writes dedup_labels.json
 
 Raw issue text stays in .scratch/dedup/ (gitignored): repo-E is a private repository, so no repo-E title or
 body may land in this public repo. dedup_labels.json holds issue numbers only.
@@ -100,6 +100,19 @@ def is_test(repo: str, q: int) -> bool:
     return hashlib.sha256(f"{SLUG[repo].split('/')[1]}#{q}".encode()).digest()[0] % 10 < 3
 
 
+def human_refs(body: str | None) -> str:
+    """The body less the Refs line `board new` pre-fills (#350): that line is the ranker's own guess, not a label."""
+    from devkit.board import RELATED_NOTE
+
+    out, section = [], ""
+    for line in (body or "").splitlines():
+        if m := SECTION.match(line):
+            section = m.group(1).strip()
+        if not (section == "Refs" and RELATED_NOTE in line):
+            out.append(line)
+    return "\n".join(out)
+
+
 def build() -> None:
     labels: dict = {"split_rule": "TEST iff sha256('<repo name>#<query>')[0] % 10 < 3", "repos": {}}
     for repo in REPOS:
@@ -113,7 +126,7 @@ def build() -> None:
             tier_a.append({"query": q, "target": t, "evidence": ev})
         tier_b = []
         for n, i in iss.items():
-            for t in sorted({int(m) for m in REF.findall(i["body"] or "")}):
+            for t in sorted({int(m) for m in REF.findall(human_refs(i["body"]))}):
                 if t in iss and t != n and created[t] < created[n]:
                     tier_b.append({"query": n, "target": t, "split": "TEST" if is_test(repo, n) else "DEV"})
         labels["repos"][repo] = {

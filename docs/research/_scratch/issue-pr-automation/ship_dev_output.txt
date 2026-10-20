@@ -1,0 +1,29 @@
+W-all: Tier B DEV 476 queries, R@1 0.359 R@3 0.567 [0.521,0.611]
+  raw   tau 30.2598 alertP 0.354 alertR3 0.305 rate 0.431 shown 0.89
+  ratio tau 0.3347 alertP 0.374 alertR3 0.244 rate 0.449 shown 0.61
+W-30: Tier B DEV 476 queries, R@1 0.359 R@3 0.567 [0.521,0.611]
+  raw   tau 30.2598 alertP 0.354 alertR3 0.305 rate 0.431 shown 0.89
+  ratio tau 0.3347 alertP 0.374 alertR3 0.244 rate 0.449 shown 0.61
+W-7: Tier B DEV 476 queries, R@1 0.361 R@3 0.567 [0.521,0.611]
+  raw   tau 30.2826 alertP 0.358 alertR3 0.305 rate 0.431 shown 0.89
+  ratio tau 0.3384 alertP 0.380 alertR3 0.242 rate 0.437 shown 0.60
+W-3: Tier B DEV 476 queries, R@1 0.366 R@3 0.574 [0.527,0.616]
+  raw   tau 32.0950 alertP 0.400 alertR3 0.286 rate 0.402 shown 0.75
+  ratio tau 0.3362 alertP 0.380 alertR3 0.246 rate 0.449 shown 0.61
+W-1: Tier B DEV 476 queries, R@1 0.366 R@3 0.582 [0.536,0.626]
+  raw   tau 31.9533 alertP 0.414 alertR3 0.284 rate 0.388 shown 0.72
+  ratio tau 0.3384 alertP 0.390 alertR3 0.246 rate 0.446 shown 0.59
+best DEV alert recall@3: ('W-all', 'raw'); paired bootstrap (cell - best):
+  ('W-all', 'raw') +0.000 [+0.000,+0.000]
+  ('W-all', 'ratio') -0.061 [-0.095,-0.027]
+  ('W-30', 'raw') +0.000 [+0.000,+0.000]
+  ('W-30', 'ratio') -0.061 [-0.095,-0.027]
+tied with best: [('W-all', 'raw'), ('W-30', 'raw')]; pick ('W-all', 'raw') at tau 30.259753
+  exploratory ('W-7', 'raw') minus pick +0.000 [+0.000,+0.000]
+  exploratory ('W-7', 'ratio') minus pick -0.063 [-0.099,-0.029]
+  exploratory ('W-3', 'raw') minus pick -0.019 [-0.032,-0.006]
+  exploratory ('W-3', 'ratio') minus pick -0.059 [-0.092,-0.023]
+  exploratory ('W-1', 'raw') minus pick -0.021 [-0.036,-0.008]
+  exploratory ('W-1', 'ratio') minus pick -0.059 [-0.092,-0.025]
+agent-harness: 235 issues; (query, candidate) pairs per window {'W-all': 27495, 'W-30': 27495, 'W-7': 25554, 'W-3': 23221, 'W-1': 20748}
+repo-E: 556 issues; (query, candidate) pairs per window {'W-all': 154290, 'W-30': 154290, 'W-7': 154010, 'W-3': 130257, 'W-1': 118382}

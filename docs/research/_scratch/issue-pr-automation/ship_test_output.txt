@@ -1,0 +1,8 @@
+pick W-all raw, shipped RELATED_MIN 30.26
+[full text] both repositories: Tier B TEST 196 queries, 239 filings | R@1 0.327 R@3 0.536 [0.464,0.602] R@5 0.607 | alertP 0.315 alertR3 0.250 rate 0.385 shown 0.74 (178)
+[full text] agent-harness: Tier B TEST 49 queries, 76 filings | R@1 0.367 R@3 0.612 [0.469,0.755] R@5 0.653 | alertP 0.327 alertR3 0.306 rate 0.342 shown 0.72 (55)
+[full text] Tier A: 9/10 in top 3, 5/10 shown
+[leak-removed] both repositories: Tier B TEST 196 queries, 239 filings | R@1 0.321 R@3 0.505 [0.439,0.571] R@5 0.571 | alertP 0.278 alertR3 0.163 rate 0.285 shown 0.56 (133)
+[leak-removed] agent-harness: Tier B TEST 49 queries, 76 filings | R@1 0.429 R@3 0.571 [0.429,0.714] R@5 0.633 | alertP 0.275 alertR3 0.184 rate 0.237 shown 0.53 (40)
+[leak-removed] Tier A: 8/10 in top 3, 4/10 shown
+agent-harness TEST alerts: 18 labelled, 37 unlabelled, 37 of them judged by rater 1
