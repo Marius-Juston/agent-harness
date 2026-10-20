@@ -15,6 +15,10 @@ file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness
 - researcher checks a repository that is not a registry package with authenticated
   `gh api repos/<o>/<r> --jq '{...}'` instead of curling `api.github.com` into a Python filter (60 requests/hour
   unauthenticated; 7.7 % of those calls failed). (#323)
+- A second `waiting` on the same head carries `"again": true`, and its `RESULT` line points to `--local-ci` or the
+  owner instead of another rerun. (#305)
+- A stacked PR retargeted to main gets a route auto mode allows instead of `git rebase --onto` plus a force push: a
+  `<branch>-v2` from main, its own commits cherry-picked by sha, a new PR via `dev pr`, the old one closed. (#305)
 
 ## v0.1.10 (2026-10-19)
 

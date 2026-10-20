@@ -851,7 +851,8 @@ def _merge_if_unchanged(
 def retarget_stacked(branch: str, tip: str, dry_run: bool = False) -> list[int]:
     """Stacked PRs: point every open PR based on `branch` (about to be squash-merged and deleted, which would close
     them) at main, and say how each stacked PR drops its parent's commits, which the squash commit already carries on
-    main under another sha. Returns the retargeted PR numbers."""
+    main under another sha. Returns the retargeted PR numbers. The route it prints carries the stacked PR's own commits
+    to a new branch from main: auto mode refuses a rebase plus a force push as destructive (#305)."""
     found = board.gh(
         "pr", "list", "-R", board.repo(), "--base", branch, "--state", "open", "--json", "number,headRefName"
     )
@@ -862,12 +863,29 @@ def retarget_stacked(branch: str, tip: str, dry_run: bool = False) -> list[int]:
             print(f"would retarget stacked PR #{n} ({name}) from {branch} to main")
             continue
         board.gh("pr", "edit", str(n), "-R", board.repo(), "--base", "main")
-        print(
-            f"retargeted stacked PR #{n} ({name}) from {branch} to main. Before its integrate, in its worktree: "
-            f"`git rebase --onto origin/main {tip[:12]} {name}` then push with --force-with-lease (drops the "
-            f"parent's commits; integrate merging main in instead can conflict wherever the parent changed after {name} left it)"
-        )
+        print(f"retargeted stacked PR #{n} ({name}) from {branch} to main. {stacked_route(n, name, tip)}")
     return [c["number"] for c in stacked]
+
+
+def stacked_route(pr_number: int, name: str, tip: str) -> str:
+    """How a stacked PR leaves its squash-merged parent's commits behind without a rebase or a force push: its own
+    commits (those after the parent's `tip`) cherry-picked onto a new branch from main, a new PR, the old one closed.
+    The commits are listed by sha when GitHub can compare them, else by the command that lists them."""
+    try:
+        shas = board.gh("api", f"repos/{board.repo()}/compare/{tip}...{name}", "--jq", ".commits[].sha").split()
+    except board.BoardError:
+        shas = []
+    own = (
+        f"`git cherry-pick {' '.join(s[:12] for s in shas)}`"
+        if shas
+        else f"`git cherry-pick` each commit `git log --reverse --format=%h {tip[:12]}..origin/{name}` lists"
+    )
+    issue = m[1] if (m := re.match(r"(\d+)-", name)) else "<issue>"
+    return (
+        f"Before its integrate, carry its own commits to a new branch (no history rewrite: auto mode refuses that): "
+        f"`git fetch origin && git switch -c {name}-v2 origin/main`, then {own}, gate it (`uv run dev check`), open "
+        f"the new PR with `uv run dev pr {issue}`, and close the old one: `gh pr close {pr_number}`"
+    )
 
 
 def _pr_state(pr_number: int, ignore: frozenset[str] = frozenset()) -> tuple[dict, list[str]]:
@@ -989,10 +1007,16 @@ def result(pr_number: int, code: int, outcome: str, **fields: object) -> int:
 
 
 def _wait_on_tip(
-    pr_number: int, tip: str, expected: list[str], update: dict, ignore: frozenset[str] = frozenset()
+    pr_number: int,
+    tip: str,
+    expected: list[str],
+    update: dict,
+    ignore: frozenset[str] = frozenset(),
+    again: bool = False,
 ) -> int | None:
     """`await_checks` on a head integrate pushed. None when every check on it is complete; else the exit code, after
-    the result line: `stopped` when the head moved, `waiting` (recorded for a rerun) when the time ran out."""
+    the result line: `stopped` when the head moved, `waiting` (recorded for a rerun) when the time ran out. `again`
+    (the last run already timed out on this head): the result says a rerun waits the same and carries `again`."""
     timeout_s = config.get().checks_wait_s
     print(f"waiting up to {timeout_s} s for the checks on {tip[:10]} ...", flush=True)
     state, detail = await_checks(pr_number, tip, expected, timeout_s, ignore)
@@ -1002,8 +1026,15 @@ def _wait_on_tip(
         return result(pr_number, 1, "stopped", reason="the PR head moved while waiting for checks", **update)
     if state == "timeout":
         _waiting_file(pr_number).write_text(json.dumps({"tip": tip, "expected": expected}) + "\n")
-        print(f"RESULT: waiting (checks on {tip[:10]} still pending after {timeout_s} s: {', '.join(detail)}); rerun")
-        return result(pr_number, 1, "waiting", pending=detail, **({"head": tip} | update))
+        pending = f"checks on {tip[:10]} still pending after {timeout_s} s: {', '.join(detail)}"
+        if not again:
+            print(f"RESULT: waiting ({pending}); rerun")
+            return result(pr_number, 1, "waiting", pending=detail, **({"head": tip} | update))
+        print(
+            f"RESULT: waiting ({pending}, again on this head); another call waits the same: a required check Actions "
+            "cannot run (e.g. billing-blocked) wants --local-ci, anything else the owner"
+        )
+        return result(pr_number, 1, "waiting", pending=detail, again=True, **({"head": tip} | update))
     return None
 
 
@@ -1069,12 +1100,12 @@ def _integrate(
             return result(pr_number, 1, "refused", reason=f"--local-ci: {why}")
         now = standing(info.get("statusCheckRollup") or [], contexts, actions_enabled(), {})
         ignore = frozenset(c for c, s in now.items() if s != "failed")  # judged on the gated head, after the run
+    again = False  # the last run timed out waiting on this same head (#305)
     if (waiting := _waiting_file(pr_number)).exists():
         mark = json.loads(waiting.read_text())
-        if (
-            mark.get("tip") == info["headRefOid"] and not local_ci
-        ):  # a rerun after `waiting`: resume on the head integrate pushed
-            if (code := _wait_on_tip(pr_number, mark["tip"], mark.get("expected") or [], {})) is not None:
+        again = mark.get("tip") == info["headRefOid"]
+        if again and not local_ci:  # a rerun after `waiting`: resume on the head integrate pushed
+            if (code := _wait_on_tip(pr_number, mark["tip"], mark.get("expected") or [], {}, again=True)) is not None:
                 return code
             info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
         waiting.unlink(missing_ok=True)
@@ -1082,7 +1113,7 @@ def _integrate(
     if override is None and not dry_run and only_pending(info, feedback, ignore):
         # checks still running on the PR's own head: wait for them as for a pushed head, then judge them (#322).
         # Under --local-ci the required contexts it stands in for are neither waited for nor judged here.
-        if (code := _wait_on_tip(pr_number, info["headRefOid"], [], {}, ignore)) is not None:
+        if (code := _wait_on_tip(pr_number, info["headRefOid"], [], {}, ignore, again)) is not None:
             return code
         info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
         feedback = board.pr_feedback(pr_number)
