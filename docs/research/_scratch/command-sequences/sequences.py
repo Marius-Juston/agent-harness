@@ -778,7 +778,7 @@ def detectors(tr, D):
             D[f"A json filter ({b}) <- {prod}"].add(tr, [c])
             D[f"A json filter ({b}): all calls"].add(tr, [c])
             D["A json filter: all calls"].add(tr, [c])
-        if "curl" in lb and "api.github.com" in url_hosts(cmd):
+        if "curl" in lb and any(on_domain(h, "api.github.com") for h in url_hosts(cmd)):
             D["A curl to the GitHub REST API: all calls"].add(tr, [c])
             if re.search(r"rate limit|API rate|\b403\b", c.get("head", "") + c.get("tail", "")):
                 D["A curl to the GitHub REST API: rate-limit message or 403 in output"].add(tr, [c])
