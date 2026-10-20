@@ -25,7 +25,7 @@ from pathlib import Path, PurePosixPath
 
 from devkit import backoff, board, checks, config, consolidation
 from devkit.gate import free_gb, tree_key
-from devkit.paths import git, main_checkout, root, state_dir
+from devkit.paths import default_branch, git, main_checkout, root, state_dir
 from devkit.suite_audit import orient_lines
 
 # Every path is harness (it can change what the gate or an agent does, and the gate that judges a branch is the
@@ -179,6 +179,75 @@ def worktrees() -> list[dict]:
         last = git("-C", str(p), "log", "-1", "--format=%cr", check=False) if p.exists() else "?"
         rows.append({"path": str(p), "branch": b, "ahead": int(ahead or 0), "dirty": dirty, "last": last})
     return rows
+
+
+SHA = re.compile(r"[0-9a-f]{40}")
+
+
+def checked_out() -> dict[str, str]:
+    """Branch -> path of the worktree (the main checkout included) that has it checked out."""
+    rows = {}
+    for block in git("worktree", "list", "--porcelain").split("\n\n"):
+        path, branch = re.search(r"^worktree (.+)$", block, re.M), re.search(r"^branch refs/heads/(.+)$", block, re.M)
+        if path and branch:
+            rows[branch.group(1)] = path.group(1)
+    return rows
+
+
+def drop_branch(branch: str, heads: list[str], dry_run: bool = False) -> str:
+    """Delete the local `branch` when its tip is contained in `heads` (a merged PR's head, or an ancestor of it) and
+    no worktree has it checked out; one line saying what happened and why. A squash merge never makes a branch
+    'merged' for `git branch -d`, so agents would need `-D` (which guard_bash refuses) without this (#340). The ref is
+    deleted only if it still points at the tip checked (`update-ref -d <ref> <old>`), so a concurrent push keeps it."""
+    tip = git("rev-parse", "--verify", "--quiet", f"refs/heads/{branch}", check=False)
+    if not tip:
+        return f"no local branch {branch}"
+    if path := checked_out().get(branch):
+        return f"kept branch {branch}: checked out in {path}"
+    if not (heads := [h for h in heads if SHA.fullmatch(h)]):
+        return f"kept branch {branch}: no merged head in this clone to compare it with"
+    # commits of the tip that no head reaches; a head this clone lacks is a git error: "" (fail closed)
+    ahead = git("rev-list", "--count", tip, *(f"^{h}" for h in heads), check=False)
+    if not ahead:
+        return f"kept branch {branch}: this clone lacks the merged head, so nothing proves {tip[:10]} is in it"
+    if ahead != "0":
+        return f"kept branch {branch}: its tip {tip[:10]} has {ahead} commit(s) the merged head does not"
+    if dry_run:
+        return f"would delete branch {branch} (at {tip[:10]})"
+    try:
+        git("update-ref", "-d", f"refs/heads/{branch}", tip)
+    except RuntimeError as exc:
+        return f"kept branch {branch}: {exc}"
+    git("config", "--remove-section", f"branch.{branch}", check=False)
+    return f"deleted branch {branch} (was {tip[:10]})"
+
+
+PRUNE_LIMIT = 1000  # PRs read per prune: plenty for one repository's local branches
+
+
+def prune_branches(dry_run: bool = False) -> list[str]:
+    """`dev worktree prune`: local branches whose PR is merged, or closed (superseded) with no open PR on the branch.
+    Each is deleted when `drop_branch` finds its tip contained in the merged PR heads this clone has (its own, or for
+    a superseded one another's); otherwise kept with the reason. One line per such branch."""
+    fields, limit = "number,state,headRefName,headRefOid,isCrossRepository", str(PRUNE_LIMIT)
+    prs = json.loads(board.gh("pr", "list", "-R", board.repo(), "--state", "all", "--limit", limit, "--json", fields))
+    prs = [p for p in prs if not p.get("isCrossRepository")]
+    merged = [p["headRefOid"] for p in prs if p["state"] == "MERGED" and SHA.fullmatch(p["headRefOid"] or "")]
+    check = subprocess.run(
+        ["git", "cat-file", "--batch-check"], input="\n".join(merged), capture_output=True, text=True, check=False
+    )
+    heads = [line.split()[0] for line in check.stdout.splitlines() if not line.endswith(" missing")]
+    local = git("for-each-ref", "--format=%(refname:lstrip=2)", "refs/heads/").splitlines()
+    lines = []
+    for branch in local:
+        if branch == default_branch():
+            continue
+        own = [p for p in prs if p["headRefName"] == branch]
+        if not own or any(p["state"] == "OPEN" for p in own):
+            continue
+        which = ", ".join(f"#{p['number']} {p['state'].lower()}" for p in own)
+        lines.append(f"{drop_branch(branch, heads, dry_run)} (PR {which})")
+    return lines
 
 
 def gate_holder() -> str:
@@ -1248,6 +1317,8 @@ def _integrate(
     for w in worktrees():
         if w["branch"] == info["headRefName"] and w["dirty"] == 0:
             git("worktree", "remove", w["path"], check=False)
+    if info.get("headRefName"):
+        print(drop_branch(info["headRefName"], [tip]))
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):
         git("-C", str(main_checkout()), "pull", "--ff-only", check=False)
     print(f"RESULT: merged PR #{pr_number}" + (f"; {', '.join(moved)}" if moved else ""))

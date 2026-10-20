@@ -56,6 +56,8 @@
 |---|---|
 | `orient` | session start: handoff, board, worktrees, gate, memory, quota (~60 lines) |
 | `status` | this machine: gate, agent worktrees, free memory, quota |
+| `worktree` | local branches: prune those of merged or superseded PRs |
+| `worktree prune` | delete local branches whose merged or closed PR's head contains their tip |
 | `check` | the gate: drift checks, budgets, lint, tests (one per machine; cached per tree) |
 | `test` | pytest with workers scaled to free memory; --affected runs the change's tests |
 | `docs` | regenerate the generated references and the research INDEX.md |

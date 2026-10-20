@@ -24,7 +24,16 @@ from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate 
     clock,
     fake_integrate,
 )
-from tests.test_merge_hygiene import land_on_main, last_json, out, project, sh  # noqa: F401 - project is a fixture
+from tests.test_merge_hygiene import (  # noqa: F401 - project is a fixture
+    commit,
+    land_on_main,
+    last_json,
+    note,
+    open_pr,
+    out,
+    project,
+    sh,
+)
 
 
 @pytest.fixture
@@ -601,3 +610,138 @@ def test_the_stacked_hint_without_a_readable_compare_still_names_the_route(monke
     said = capsys.readouterr().out
     assert "rebase" not in said and "git switch -c 13-stacked-v2 origin/main" in said
     assert f"git log --reverse --format=%h {'c' * 12}..origin/13-stacked" in said and "gh pr close 8" in said
+
+
+def _local(repo, branch: str) -> str:
+    return sh(repo, "git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}", check=False).stdout.strip()
+
+
+@pytest.mark.parametrize("behind", [False, True])
+def test_integrate_deletes_the_local_branch_the_merged_head_contains(project, capsys, behind):  # noqa: F811
+    """#340: a squash merge leaves the local branch unmerged for `git branch -d`; integrate deletes it when its tip is
+    the merged head or (main merged in and pushed) an ancestor of it."""
+    clone = project["clone"]
+    tip = open_pr(project, note(clone, "c"))
+    sh(clone, "git", "config", "branch.12-c.remote", "origin")
+    if behind:
+        land_on_main(project, note(clone, "b"))
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    said = capsys.readouterr().out
+    assert last_json(said)["updated"] is behind
+    assert not _local(clone, "12-c") and f"deleted branch 12-c (was {tip[:10]})" in said
+    assert sh(clone, "git", "config", "--get-regexp", r"^branch\.12-c\.", check=False).stdout == ""
+
+
+def test_integrate_keeps_a_local_branch_with_commits_the_pr_lacks(project, capsys):  # noqa: F811
+    clone = project["clone"]
+    open_pr(project, note(clone, "c"))
+    sh(clone, "git", "checkout", "-q", "12-c")
+    extra = commit(clone, {"later.md": "not pushed\n"}, "unpushed")
+    sh(clone, "git", "checkout", "-q", "main")
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    said = capsys.readouterr().out
+    assert _local(clone, "12-c") == extra
+    assert f"kept branch 12-c: its tip {extra[:10]} has 1 commit(s) the merged head does not" in said
+
+
+def test_integrate_keeps_a_branch_checked_out_in_a_dirty_worktree(project, capsys, tmp_path):  # noqa: F811
+    clone = project["clone"]
+    tip = open_pr(project, note(clone, "c"))
+    wt = tmp_path / "wt"
+    sh(clone, "git", "worktree", "add", "-q", str(wt), "12-c")
+    (wt / "scratch.txt").write_text("unsaved\n")
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    said = capsys.readouterr().out
+    assert _local(clone, "12-c") == tip and wt.exists()
+    assert f"kept branch 12-c: checked out in {wt}" in said
+
+
+@pytest.fixture
+def branches(tmp_path, monkeypatch):
+    """A temp repository with local branches and a faked `gh pr list`; returns (repo, prs): tests append PR rows."""
+    from devkit import paths
+
+    repo = tmp_path / "r"
+    sh(tmp_path, "git", "init", "-q", "-b", "main", str(repo))
+    sh(repo, "git", "config", "user.email", "t@t")
+    sh(repo, "git", "config", "user.name", "t")
+    commit(repo, {"a.txt": "a\n"}, "init")
+    prs: list[dict] = []
+    paths.root.cache_clear()
+    paths.common_dir.cache_clear()
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board, "gh", lambda *a, **k: json.dumps(prs) if a[:2] == ("pr", "list") else "")
+    yield repo, prs
+    paths.root.cache_clear()
+    paths.common_dir.cache_clear()
+
+
+def _branch(repo, name: str, *files: str) -> str:
+    """A branch off main with one commit per file; returns its tip."""
+    sh(repo, "git", "checkout", "-q", "-b", name, "main")
+    tip = ""
+    for f in files:
+        tip = commit(repo, {f: f"{name}\n"}, f"{name} {f}")
+    sh(repo, "git", "checkout", "-q", "main")
+    return tip
+
+
+def _pr(number: int, branch: str, state: str, head: str) -> dict:
+    return {"number": number, "state": state, "headRefName": branch, "headRefOid": head, "isCrossRepository": False}
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_worktree_prune_deletes_branches_their_merged_or_superseding_pr_contains(branches, dry_run, tmp_path):
+    """#340: `dev worktree prune` deletes a squash-merged branch (tip at or behind its PR head) and a closed PR's
+    branch another merged PR's head contains; it keeps one with unpushed commits, one checked out, and one whose merged
+    head this clone lacks, and does not touch main, a branch with an open PR, or one with no PR."""
+    repo, prs = branches
+    merged = _branch(repo, "1-merged", "x")
+    later = _branch(repo, "2-behind", "y1", "y2")
+    behind = out(repo, "git", "rev-parse", f"{later}~1")
+    sh(repo, "git", "branch", "-f", "2-behind", behind)
+    sh(repo, "git", "branch", "3-superseded", behind)
+    ahead = _branch(repo, "4-ahead", "z")
+    sh(repo, "git", "checkout", "-q", "4-ahead")
+    extra = commit(repo, {"z2": "unpushed\n"}, "unpushed")
+    sh(repo, "git", "checkout", "-q", "main")
+    busy = _branch(repo, "5-busy", "w")
+    sh(repo, "git", "worktree", "add", "-q", str(tmp_path / "wt"), "5-busy")
+    open_ = _branch(repo, "6-open", "o")
+    lost = _branch(repo, "7-lost", "l")
+    _branch(repo, "8-nopr", "n")
+    prs += [
+        _pr(1, "1-merged", "MERGED", merged),
+        _pr(2, "2-behind", "MERGED", later),
+        _pr(3, "3-superseded", "CLOSED", behind),
+        _pr(4, "4-ahead", "MERGED", ahead),
+        _pr(5, "5-busy", "MERGED", busy),
+        _pr(6, "6-open", "CLOSED", open_),
+        _pr(16, "6-open", "OPEN", open_),
+        _pr(7, "7-lost", "MERGED", "f" * 40),
+        _pr(9, "main", "MERGED", merged),
+    ]
+    lines = workflow.prune_branches(dry_run)
+    said = "\n".join(lines)
+    gone = "would delete branch" if dry_run else "deleted branch"
+    for name in ("1-merged", "2-behind", "3-superseded"):
+        assert f"{gone} {name} " in said
+        assert bool(_local(repo, name)) is dry_run
+    assert f"kept branch 4-ahead: its tip {extra[:10]} has 1 commit(s)" in said and _local(repo, "4-ahead") == extra
+    assert f"kept branch 5-busy: checked out in {tmp_path / 'wt'}" in said and _local(repo, "5-busy") == busy
+    assert f"kept branch 7-lost: its tip {lost[:10]} has 1 commit(s)" in said and _local(repo, "7-lost") == lost
+    assert _local(repo, "6-open") == open_ and _local(repo, "8-nopr") and _local(repo, "main")
+    assert "6-open" not in said and "8-nopr" not in said and "main" not in said
+    assert len(lines) == 6
+
+
+def test_dev_worktree_prune_is_a_command(branches, capsys):
+    from devkit import cli
+
+    repo, prs = branches
+    prs.append(_pr(1, "1-merged", "MERGED", _branch(repo, "1-merged", "x")))
+    assert cli.run(cli.parse(["worktree", "prune", "--dry-run"])) in (None, 0)
+    assert "would delete branch 1-merged" in capsys.readouterr().out and _local(repo, "1-merged")
+    assert cli.run(cli.parse(["worktree", "prune"])) in (None, 0)
+    assert "deleted branch 1-merged" in capsys.readouterr().out and not _local(repo, "1-merged")
