@@ -143,17 +143,21 @@ def test_doctor_prints_key_origins_but_not_values(tmp_path, monkeypatch, capsys)
 
 
 FAKE_CLAUDE = """#!{python}
-# A stub `claude` CLI: install records in $FAKE_CLAUDE_STATE, every call logged there. A call starting with
-# $FAKE_CLAUDE_FAIL fails and changes nothing. Removing a marketplace at user scope leaves the project installs (the
-# projects' settings still declare it); removing it in every scope drops them all.
+# A stub `claude` CLI: install records in $FAKE_CLAUDE_STATE, every call logged there with its working directory. A
+# call starting with $FAKE_CLAUDE_FAIL fails, prints $FAKE_CLAUDE_FAIL_MSG and changes nothing. Removing a marketplace
+# at user scope leaves the project installs (the projects' settings still declare it); removing it in every scope
+# drops them all. A project-scope uninstall fails, as the real one does, where no install is recorded for the cwd.
 import json, os, sys
 path = os.environ["FAKE_CLAUDE_STATE"]
 with open(path) as f:
     state = json.load(f)
 args = sys.argv[1:]
 state["calls"].append(args)
+state.setdefault("cwds", []).append(os.getcwd())
 fail = os.environ.get("FAKE_CLAUDE_FAIL", "").split()
-if fail and args[: len(fail)] == fail:
+here = [r for r in state["installed"] if r.get("projectPath") == os.getcwd()]
+if (fail and args[: len(fail)] == fail) or (args[:2] == ["plugin", "uninstall"] and not here):
+    print(os.environ.get("FAKE_CLAUDE_FAIL_MSG", "is not installed in project scope"), file=sys.stderr)
     with open(path, "w") as f:
         json.dump(state, f)
     sys.exit(1)
@@ -221,7 +225,9 @@ def stub_project(tmp_path, monkeypatch):
     monkeypatch.setattr(setup.config, "get", lambda: SimpleNamespace(plugins=plugins))
     monkeypatch.setattr(setup, "pinned_plugin_root", lambda: pinned)
     head = tmp_path / "head"
-    return SimpleNamespace(state=state, install=install, pinned=pinned, head=head, plugins=plugins, remote=remote)
+    return SimpleNamespace(
+        state=state, install=install, pinned=pinned, head=head, plugins=plugins, remote=remote, project=project
+    )
 
 
 def _changes(stub) -> list[list[str]]:
@@ -292,6 +298,68 @@ def test_repin_stops_at_a_failed_add_and_leaves_the_install(stub_project, monkey
     ]
     assert _installs(stub_project)[0]["installPath"] == str(stub_project.head)
     assert "FAIL plugin marketplace add" in capsys.readouterr().out
+
+
+def test_repin_skips_a_user_scope_remove_when_only_project_settings_declare_the_marketplace(
+    stub_project, monkeypatch, capsys
+):
+    """#310 review: after a trust prompt registered the marketplace from the project's settings, the user-scope remove
+    exits 1 "not declared in user settings"; `add` still re-points it, and other projects keep their installs."""
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL", "plugin marketplace remove agent-harness --scope user")
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL_MSG", 'Marketplace "agent-harness" is not declared in user settings')
+    stub_project.install(stub_project.head, others=(OTHER,))
+    assert setup.setup() == 0
+    assert [c[:3] for c in _changes(stub_project)[-3:]] == [
+        ["plugin", "marketplace", "add"],
+        ["plugin", "uninstall", "harness-ops@agent-harness"],
+        ["plugin", "install", "harness-ops@agent-harness"],
+    ]
+    assert OTHER in _installs(stub_project)
+    out = capsys.readouterr().out
+    assert "skip plugin marketplace remove" in out and "--repin-all" not in out and "all good" in out
+
+
+def test_repin_from_a_worktree_runs_in_the_main_checkout_and_keeps_both_settings(stub_project, tmp_path, monkeypatch):
+    """#310 review: Claude Code records the project install by the main checkout, so a project-scope uninstall from a
+    worktree finds nothing; the re-pin runs its commands in the main checkout and guards both checkouts' settings."""
+    worktree = tmp_path / "wt"
+    (worktree / ".claude").mkdir(parents=True)
+    for d in (worktree, stub_project.project):
+        (d / ".claude").mkdir(exist_ok=True)
+        (d / ".claude/settings.json").write_text('{"extraKnownMarketplaces": {"agent-harness": {}}}\n')
+    monkeypatch.setattr(setup, "root", lambda: worktree)
+    assert setup.repin_skewed() == []
+    state = json.loads(stub_project.state.read_text())
+    repin = [cwd for call, cwd in zip(state["calls"], state["cwds"], strict=True) if call[:2] != ["plugin", "list"]]
+    assert repin and set(repin) == {str(stub_project.project)}
+    for d in (worktree, stub_project.project):
+        assert "extraKnownMarketplaces" in json.loads((d / ".claude/settings.json").read_text())
+
+
+def test_setup_names_the_failed_step_when_it_suggests_repin_all(stub_project, monkeypatch, capsys):
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL", "plugin install")
+    monkeypatch.setenv("FAKE_CLAUDE_FAIL_MSG", "network error")
+    assert setup.setup() == 1
+    assert "`plugin install harness-ops@agent-harness --scope project` failed; last resort" in capsys.readouterr().out
+
+
+def test_settings_that_are_not_an_object_are_restored_without_raising(tmp_path, capsys):
+    f = tmp_path / "settings.json"
+    f.write_text("[]\n")
+    saved = {f: f.read_bytes()}
+    f.write_text('{"enabledPlugins": {"x@y": true}}')
+    setup._keep_settings(saved)
+    assert f.read_text() == "[]\n" and "not a JSON object" in capsys.readouterr().out
+
+
+def test_settings_restore_keeps_non_ascii_text(tmp_path):
+    f = tmp_path / "settings.json"
+    f.write_text('{\n  "note": "réglages ✓",\n  "extraKnownMarketplaces": {"m": {}}\n}\n', encoding="utf-8")
+    saved = {f: f.read_bytes()}
+    f.write_text('{"note": "réglages ✓"}', encoding="utf-8")
+    setup._keep_settings(saved)
+    text = f.read_text(encoding="utf-8")
+    assert "réglages ✓" in text and text.endswith("}\n") and json.loads(text)["extraKnownMarketplaces"] == {"m": {}}
 
 
 def test_setup_leaves_the_pinned_build_alone(stub_project):

@@ -30,9 +30,9 @@ TOOLS = {
 }
 
 
-def _ok(cmd: list[str]) -> tuple[bool, str]:
+def _ok(cmd: list[str], cwd: Path | None = None) -> tuple[bool, str]:
     try:
-        out = subprocess.run(cmd, cwd=root(), capture_output=True, text=True, check=False, timeout=60)
+        out = subprocess.run(cmd, cwd=cwd or root(), capture_output=True, text=True, check=False, timeout=60)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return False, str(exc)
     return out.returncode == 0, (out.stdout + out.stderr).strip()
@@ -175,10 +175,15 @@ def build_skew(plugins: dict[str, str], installed: list[dict], projects: set[str
     return out
 
 
+def _main_checkout() -> Path:
+    """The main checkout, also from a worktree: Claude Code records project installs by it."""
+    common = git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=root(), check=False)
+    return Path(common).parent if common else root()
+
+
 def _projects() -> set[str]:
-    """This checkout and, from a worktree, the main checkout: Claude Code records project installs by the latter."""
-    common = git("rev-parse", "--path-format=absolute", "--git-common-dir", check=False)
-    return {str(root()), *([str(Path(common).parent)] if common else [])}
+    """This checkout and, from a worktree, the main checkout."""
+    return {str(root()), str(_main_checkout())}
 
 
 def _installed() -> list[dict]:
@@ -271,6 +276,13 @@ REPIN_ALL_COST = (
 )
 
 
+# What `marketplace remove --scope user` says when only project settings declare the marketplace (a trust prompt
+# registered it from the template's extraKnownMarketplaces): nothing to remove there, and `add` still re-points it.
+# Claude Code 2.1.304, verified in the #310 review. A project-scope remove instead would uninstall other projects.
+NOT_IN_USER_SETTINGS = "not declared in user settings"
+STOPPED = "re-pin stopped at: "
+
+
 def repin_steps(plugin: str, source: str, everywhere: bool = False) -> list[list[str]]:
     """Commands that put the pinned release of `plugin` in place. Claude Code keeps one marketplace registry per user,
     keyed by name and recording one ref: adding an existing name is a no-op, and `marketplace update` plus `plugin
@@ -290,21 +302,29 @@ def repin_steps(plugin: str, source: str, everywhere: bool = False) -> list[list
 
 def _keep_settings(saved: dict[Path, bytes]) -> None:
     """Undo what the re-pin did to the project's settings files (committed; `marketplace remove` can delete the
-    marketplace there) but keep the `enabledPlugins` entries the install added."""
+    marketplace there) but keep the `enabledPlugins` entries the install added. A file that is not a JSON object
+    gets its bytes back. Never raises: it runs in the re-pin's `finally`."""
     for f, data in saved.items():
         try:
             now, before = json.loads(f.read_bytes()), json.loads(data)
         except (OSError, ValueError):
-            f.write_bytes(data)
-            continue
-        if now == before:
-            continue
-        added = {
-            k: v for k, v in (now.get("enabledPlugins") or {}).items() if k not in (before.get("enabledPlugins") or {})
-        }
-        if added:
-            before["enabledPlugins"] = {**(before.get("enabledPlugins") or {}), **added}
-        f.write_text(json.dumps(before, indent=2) + "\n")
+            now = before = None
+        try:
+            if not (isinstance(now, dict) and isinstance(before, dict)):
+                if not f.exists() or f.read_bytes() != data:
+                    f.write_bytes(data)
+                    print(f"WARN {f} is not a JSON object: restored as it was")
+                continue
+            if now == before:
+                continue
+            had, got = before.get("enabledPlugins"), now.get("enabledPlugins")
+            had, got = (had if isinstance(had, dict) else {}), (got if isinstance(got, dict) else {})
+            if added := {k: v for k, v in got.items() if k not in had}:
+                before["enabledPlugins"] = {**had, **added}
+            text = json.dumps(before, indent=2 if b"\n" in data.strip() else None, ensure_ascii=False)
+            f.write_text(text + ("\n" if data.endswith(b"\n") else ""), encoding="utf-8")
+        except OSError as exc:
+            print(f"WARN could not restore {f}: {exc}")
 
 
 def repin_skewed(everywhere: bool = False) -> list[str]:
@@ -319,13 +339,18 @@ def repin_skewed(everywhere: bool = False) -> list[str]:
         print(f"FAIL {ref} not reachable at {repo_url(repo)}: nothing changed")
         return skew
     others = sorted({str(p.get("projectPath") or "the user scope") for p in before if p.get("id") == pin[0]} - projects)
-    saved = {f: f.read_bytes() for f in (root() / ".claude").glob("settings*.json")}
+    main = _main_checkout()  # a project install is recorded by the main checkout, so its commands run there
+    saved = {f: f.read_bytes() for d in {root(), main} for f in (d / ".claude").glob("settings*.json")}
     try:
         for cmd in repin_steps(pin[0], plugins[pin[0]], everywhere):
-            ok, out = _ok(cmd)
-            print(f"{'ok  ' if ok else 'FAIL'} {' '.join(cmd[1:])}" + ("" if ok else f": {out[-300:]}"))
+            ok, out = _ok(cmd, cwd=main)
+            step = " ".join(cmd[1:])
+            if not ok and "--scope" in cmd and NOT_IN_USER_SETTINGS in out:
+                print(f"skip {step}: only project settings declare it (they keep it; add re-points it)")
+                continue
+            print(f"{'ok  ' if ok else 'FAIL'} {step}" + ("" if ok else f": {out[-300:]}"))
             if not ok:
-                return [*skew, "re-pin stopped at the failed step"]
+                return [*skew, f"{STOPPED}{step}"]
     finally:
         _keep_settings(saved)
     if everywhere and others:
@@ -366,8 +391,8 @@ def setup(repin_all: bool = False) -> int:
         print(f"{'ok  ' if ok or already else 'FAIL'} {what}" + ("" if ok or already else f": {out[-300:]}"))
     if still := repin_skewed(everywhere=repin_all):
         print("FAIL the plugin is still not the pinned build after a re-pin: " + "; ".join(still))
-        if not repin_all:
-            print(f"     last resort: `uv run dev setup --repin-all` ({REPIN_ALL_COST})")
+        if not repin_all and (failed := [s.removeprefix(STOPPED) for s in still if s.startswith(STOPPED)]):
+            print(f"     `{failed[0]}` failed; last resort: `uv run dev setup --repin-all` ({REPIN_ALL_COST})")
     print(f"""
 Still to do by hand:
 - run `claude` here once interactively and accept the trust dialog (headless agents need it)
