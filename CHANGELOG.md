@@ -184,7 +184,7 @@ attention:
   coverage (#58). `xfail_strict` on and higher floors in this repository (#136). Per-test JUnit outcome and
   duration history for audits (#121).
 - Frontmatter allowlists match the documented agent and skill fields, with value and injection checks (#153).
-- The word budget counts `.claude/rules` and `.claude/commands` (#44).
+- The word budget counts the rules and commands files under a project's `.claude/` (#44).
 - Free secret and code scanning: a gitleaks hook and ruff `S` rules (#15).
 - cite-check no longer reads DOI fragments as arXiv ids and resolves DataCite (Zenodo) DOIs (#35).
 
