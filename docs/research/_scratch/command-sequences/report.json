@@ -809,6 +809,28 @@
    "save_usd_upper": 155.05,
    "out_chars_per": 8079
   },
+  "C grep -n -> sed -n, same file, grep output over 800 chars": {
+   "n": 3172,
+   "transcripts": 829,
+   "roles": {
+    "builder": 1641,
+    "researcher": 853,
+    "reviewer": 402,
+    "lead": 127,
+    "other": 107,
+    "tester": 42
+   },
+   "projects": {
+    "L1": 1665,
+    "repo-E": 1502,
+    "H": 5
+   },
+   "calls_per": 2.0,
+   "err_rate": 0.013,
+   "usd": 391.65,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 9795
+  },
   "D pytest direct (not dev test)": {
    "n": 4870,
    "transcripts": 537,
@@ -1004,27 +1026,6 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 31425
   },
-  "A json filter: all": {
-   "n": 1146,
-   "transcripts": 312,
-   "roles": {
-    "researcher": 842,
-    "reviewer": 131,
-    "builder": 56,
-    "other": 53,
-    "lead": 49,
-    "tester": 15
-   },
-   "projects": {
-    "repo-E": 1072,
-    "L1": 74
-   },
-   "calls_per": 1.0,
-   "err_rate": 0.051,
-   "usd": 48.09,
-   "save_usd_upper": 0.0,
-   "out_chars_per": 1612
-  },
   "D dev cite-check: all": {
    "n": 796,
    "transcripts": 284,
@@ -1045,6 +1046,27 @@
    "usd": 42.04,
    "save_usd_upper": 0.0,
    "out_chars_per": 1027
+  },
+  "A json filter: all calls": {
+   "n": 890,
+   "transcripts": 312,
+   "roles": {
+    "researcher": 639,
+    "reviewer": 105,
+    "builder": 46,
+    "lead": 43,
+    "other": 43,
+    "tester": 14
+   },
+   "projects": {
+    "repo-E": 820,
+    "L1": 70
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.045,
+   "usd": 37.89,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 1717
   },
   "F bare sleep": {
    "n": 587,
@@ -1067,6 +1089,27 @@
    "usd": 37.8,
    "save_usd_upper": 0.0,
    "out_chars_per": 650
+  },
+  "A json filter (python -c json<stdin): all calls": {
+   "n": 876,
+   "transcripts": 307,
+   "roles": {
+    "researcher": 630,
+    "reviewer": 105,
+    "builder": 45,
+    "lead": 41,
+    "other": 41,
+    "tester": 14
+   },
+   "projects": {
+    "repo-E": 808,
+    "L1": 68
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.046,
+   "usd": 37.22,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 1730
   },
   "D dev integrate: all": {
    "n": 365,
@@ -1397,25 +1440,6 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 314
   },
-  "A json filter <- curl (GitHub REST API)": {
-   "n": 360,
-   "transcripts": 124,
-   "roles": {
-    "researcher": 321,
-    "other": 20,
-    "builder": 12,
-    "reviewer": 7
-   },
-   "projects": {
-    "repo-E": 350,
-    "L1": 10
-   },
-   "calls_per": 1.0,
-   "err_rate": 0.083,
-   "usd": 13.86,
-   "save_usd_upper": 0.0,
-   "out_chars_per": 1067
-  },
   "D dev pr | tail": {
    "n": 249,
    "transcripts": 146,
@@ -1508,24 +1532,24 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 427
   },
-  "A json filter <- curl (literature API (OpenAlex, Crossref, Europe PMC, S2, arXiv))": {
-   "n": 258,
-   "transcripts": 90,
+  "A curl to the GitHub REST API: all calls": {
+   "n": 257,
+   "transcripts": 131,
    "roles": {
-    "researcher": 182,
-    "reviewer": 66,
-    "other": 5,
-    "builder": 4,
-    "lead": 1
+    "researcher": 219,
+    "other": 17,
+    "builder": 14,
+    "reviewer": 7
    },
    "projects": {
-    "repo-E": 258
+    "repo-E": 243,
+    "L1": 14
    },
    "calls_per": 1.0,
-   "err_rate": 0.035,
-   "usd": 9.69,
+   "err_rate": 0.078,
+   "usd": 10.02,
    "save_usd_upper": 0.0,
-   "out_chars_per": 1616
+   "out_chars_per": 1193
   },
   "F poll loop on ?": {
    "n": 158,
@@ -1546,6 +1570,44 @@
    "usd": 9.64,
    "save_usd_upper": 0.0,
    "out_chars_per": 431
+  },
+  "A json filter (python -c json<stdin) <- curl (GitHub REST API)": {
+   "n": 231,
+   "transcripts": 123,
+   "roles": {
+    "researcher": 204,
+    "other": 15,
+    "builder": 7,
+    "reviewer": 5
+   },
+   "projects": {
+    "repo-E": 222,
+    "L1": 9
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.078,
+   "usd": 9.0,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 1181
+  },
+  "A json filter (python -c json<stdin) <- curl (literature API (OpenAlex, Crossref, Europe PMC, S2, arXiv))": {
+   "n": 220,
+   "transcripts": 90,
+   "roles": {
+    "researcher": 156,
+    "reviewer": 55,
+    "builder": 4,
+    "other": 4,
+    "lead": 1
+   },
+   "projects": {
+    "repo-E": 220
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.032,
+   "usd": 8.29,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 1694
   },
   "E persisted, producer git diff": {
    "n": 55,
@@ -1700,26 +1762,6 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 27381
   },
-  "A json filter <- curl (package registry (PyPI, npm, crates))": {
-   "n": 154,
-   "transcripts": 81,
-   "roles": {
-    "researcher": 98,
-    "reviewer": 26,
-    "builder": 17,
-    "lead": 7,
-    "other": 6
-   },
-   "projects": {
-    "repo-E": 148,
-    "L1": 6
-   },
-   "calls_per": 1.0,
-   "err_rate": 0.039,
-   "usd": 5.66,
-   "save_usd_upper": 0.0,
-   "out_chars_per": 1307
-  },
   "I gh pr view -> gh pr diff": {
    "n": 94,
    "transcripts": 89,
@@ -1737,25 +1779,6 @@
    "usd": 5.32,
    "save_usd_upper": 2.68,
    "out_chars_per": 10464
-  },
-  "A json filter <- curl (Hugging Face API)": {
-   "n": 79,
-   "transcripts": 26,
-   "roles": {
-    "researcher": 65,
-    "lead": 11,
-    "builder": 2,
-    "reviewer": 1
-   },
-   "projects": {
-    "repo-E": 73,
-    "L1": 6
-   },
-   "calls_per": 1.0,
-   "err_rate": 0.038,
-   "usd": 4.71,
-   "save_usd_upper": 0.0,
-   "out_chars_per": 2134
   },
   "F poll loop on cat": {
    "n": 63,
@@ -1795,6 +1818,26 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 470
   },
+  "A json filter (python -c json<stdin) <- curl (package registry (PyPI, npm, crates))": {
+   "n": 109,
+   "transcripts": 79,
+   "roles": {
+    "researcher": 68,
+    "reviewer": 17,
+    "builder": 13,
+    "lead": 6,
+    "other": 5
+   },
+   "projects": {
+    "repo-E": 103,
+    "L1": 6
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.046,
+   "usd": 4.08,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 1252
+  },
   "G checks read -> integrate in a later call (<=3)": {
    "n": 25,
    "transcripts": 6,
@@ -1809,26 +1852,6 @@
    "usd": 3.9,
    "save_usd_upper": 2.0,
    "out_chars_per": 1772
-  },
-  "A json filter <- curl (other host)": {
-   "n": 94,
-   "transcripts": 53,
-   "roles": {
-    "researcher": 73,
-    "reviewer": 12,
-    "lead": 6,
-    "builder": 2,
-    "other": 1
-   },
-   "projects": {
-    "repo-E": 86,
-    "L1": 8
-   },
-   "calls_per": 1.0,
-   "err_rate": 0.021,
-   "usd": 3.61,
-   "save_usd_upper": 0.0,
-   "out_chars_per": 1732
   },
   "D dev cite-check | grep": {
    "n": 55,
@@ -1847,26 +1870,24 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 482
   },
-  "A json filter <- other": {
-   "n": 56,
-   "transcripts": 23,
+  "A json filter (python -c json<stdin) <- curl (Hugging Face API)": {
+   "n": 59,
+   "transcripts": 26,
    "roles": {
-    "researcher": 27,
-    "other": 15,
-    "lead": 10,
-    "builder": 2,
-    "reviewer": 1,
-    "tester": 1
+    "researcher": 50,
+    "lead": 7,
+    "builder": 1,
+    "reviewer": 1
    },
    "projects": {
-    "repo-E": 46,
-    "L1": 10
+    "repo-E": 55,
+    "L1": 4
    },
    "calls_per": 1.0,
-   "err_rate": 0.018,
-   "usd": 3.44,
+   "err_rate": 0.017,
+   "usd": 3.47,
    "save_usd_upper": 0.0,
-   "out_chars_per": 4322
+   "out_chars_per": 2367
   },
   "G integrate outcome refused": {
    "n": 39,
@@ -1899,6 +1920,47 @@
    "usd": 3.21,
    "save_usd_upper": 2.49,
    "out_chars_per": 2527
+  },
+  "A json filter (python -c json<stdin) <- curl (other host)": {
+   "n": 80,
+   "transcripts": 53,
+   "roles": {
+    "researcher": 61,
+    "reviewer": 10,
+    "lead": 6,
+    "builder": 2,
+    "other": 1
+   },
+   "projects": {
+    "repo-E": 72,
+    "L1": 8
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.025,
+   "usd": 3.16,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 1838
+  },
+  "A json filter (python -c json<stdin) <- other": {
+   "n": 49,
+   "transcripts": 23,
+   "roles": {
+    "researcher": 23,
+    "other": 12,
+    "lead": 10,
+    "builder": 2,
+    "reviewer": 1,
+    "tester": 1
+   },
+   "projects": {
+    "repo-E": 39,
+    "L1": 10
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.02,
+   "usd": 3.09,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 4065
   },
   "D dev cite-check | head": {
    "n": 63,
@@ -2254,23 +2316,23 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 370
   },
-  "A json filter <- grep": {
-   "n": 23,
+  "A json filter (python -c json<stdin) <- grep": {
+   "n": 21,
    "transcripts": 12,
    "roles": {
-    "tester": 12,
+    "tester": 11,
     "builder": 7,
-    "researcher": 4
+    "researcher": 3
    },
    "projects": {
-    "L1": 19,
-    "repo-E": 4
+    "L1": 18,
+    "repo-E": 3
    },
    "calls_per": 1.0,
-   "err_rate": 0.13,
-   "usd": 1.24,
+   "err_rate": 0.095,
+   "usd": 1.17,
    "save_usd_upper": 0.0,
-   "out_chars_per": 2281
+   "out_chars_per": 2361
   },
   "G integrate refused for unfinished feedback: pending check": {
    "n": 15,
@@ -2356,23 +2418,23 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 449
   },
-  "A json filter <- gh issue list": {
-   "n": 17,
+  "A json filter (python -c json<stdin) <- gh issue list": {
+   "n": 16,
    "transcripts": 15,
    "roles": {
-    "researcher": 13,
+    "researcher": 12,
     "builder": 2,
     "lead": 1,
     "tester": 1
    },
    "projects": {
-    "repo-E": 17
+    "repo-E": 16
    },
    "calls_per": 1.0,
    "err_rate": 0.0,
-   "usd": 0.95,
+   "usd": 0.92,
    "save_usd_upper": 0.0,
-   "out_chars_per": 3982
+   "out_chars_per": 4131
   },
   "E persisted, producer fold": {
    "n": 2,
@@ -2422,26 +2484,6 @@
    "usd": 0.88,
    "save_usd_upper": 0.0,
    "out_chars_per": 35988
-  },
-  "A json filter <- cat": {
-   "n": 15,
-   "transcripts": 12,
-   "roles": {
-    "researcher": 6,
-    "lead": 6,
-    "other": 1,
-    "reviewer": 1,
-    "builder": 1
-   },
-   "projects": {
-    "repo-E": 9,
-    "L1": 6
-   },
-   "calls_per": 1.0,
-   "err_rate": 0.0,
-   "usd": 0.86,
-   "save_usd_upper": 0.0,
-   "out_chars_per": 1167
   },
   "E persisted, producer python -c json": {
    "n": 5,
@@ -2555,6 +2597,45 @@
    "save_usd_upper": 0.39,
    "out_chars_per": 3415
   },
+  "A json filter (jq): all calls": {
+   "n": 14,
+   "transcripts": 6,
+   "roles": {
+    "researcher": 9,
+    "other": 2,
+    "lead": 2,
+    "builder": 1
+   },
+   "projects": {
+    "repo-E": 12,
+    "L1": 2
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.0,
+   "usd": 0.67,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 896
+  },
+  "A json filter (python -c json<stdin) <- cat": {
+   "n": 14,
+   "transcripts": 11,
+   "roles": {
+    "researcher": 6,
+    "lead": 5,
+    "other": 1,
+    "reviewer": 1,
+    "builder": 1
+   },
+   "projects": {
+    "repo-E": 9,
+    "L1": 5
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.0,
+   "usd": 0.66,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 1192
+  },
   "K dev reuse --help: all": {
    "n": 17,
    "transcripts": 16,
@@ -2621,7 +2702,7 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 1399
   },
-  "A json filter <- curl (raw GitHub file)": {
+  "A json filter (python -c json<stdin) <- curl (raw GitHub file)": {
    "n": 12,
    "transcripts": 8,
    "roles": {
@@ -2687,24 +2768,21 @@
    "save_usd_upper": 0.33,
    "out_chars_per": 2070
   },
-  "A json filter <- npm": {
-   "n": 6,
-   "transcripts": 5,
+  "A curl to the GitHub REST API: rate-limit message or 403 in output": {
+   "n": 13,
+   "transcripts": 11,
    "roles": {
-    "lead": 2,
-    "builder": 1,
-    "tester": 1,
-    "researcher": 1,
-    "reviewer": 1
+    "researcher": 10,
+    "other": 3
    },
    "projects": {
-    "repo-E": 6
+    "repo-E": 13
    },
    "calls_per": 1.0,
    "err_rate": 0.0,
    "usd": 0.47,
    "save_usd_upper": 0.0,
-   "out_chars_per": 2458
+   "out_chars_per": 1686
   },
   "G integrate refused for unfinished feedback: review thread": {
    "n": 5,
@@ -2753,23 +2831,6 @@
    "save_usd_upper": 0.38,
    "out_chars_per": 1193
   },
-  "A json filter <- claude": {
-   "n": 12,
-   "transcripts": 8,
-   "roles": {
-    "researcher": 6,
-    "builder": 3,
-    "reviewer": 3
-   },
-   "projects": {
-    "repo-E": 12
-   },
-   "calls_per": 1.0,
-   "err_rate": 0.083,
-   "usd": 0.44,
-   "save_usd_upper": 0.0,
-   "out_chars_per": 702
-  },
   "E persisted, producer mkdir": {
    "n": 5,
    "transcripts": 5,
@@ -2817,7 +2878,7 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 4592
   },
-  "A json filter <- head": {
+  "A json filter (python -c json<stdin) <- head": {
    "n": 9,
    "transcripts": 4,
    "roles": {
@@ -2831,6 +2892,23 @@
    "usd": 0.39,
    "save_usd_upper": 0.0,
    "out_chars_per": 1543
+  },
+  "A json filter (python -c json<stdin) <- claude": {
+   "n": 10,
+   "transcripts": 7,
+   "roles": {
+    "researcher": 6,
+    "builder": 2,
+    "reviewer": 2
+   },
+   "projects": {
+    "repo-E": 10
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.1,
+   "usd": 0.38,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 725
   },
   "F poll loop on cut": {
    "n": 3,
@@ -2978,24 +3056,26 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 300
   },
-  "A json filter <- git show": {
-   "n": 9,
+  "A json filter (python -c json<stdin) <- npm": {
+   "n": 5,
    "transcripts": 5,
    "roles": {
-    "reviewer": 5,
-    "researcher": 4
+    "builder": 1,
+    "tester": 1,
+    "researcher": 1,
+    "reviewer": 1,
+    "lead": 1
    },
    "projects": {
-    "repo-E": 5,
-    "L1": 4
+    "repo-E": 5
    },
    "calls_per": 1.0,
    "err_rate": 0.0,
-   "usd": 0.29,
+   "usd": 0.3,
    "save_usd_upper": 0.0,
-   "out_chars_per": 3176
+   "out_chars_per": 2391
   },
-  "A json filter <- tail": {
+  "A json filter (python -c json<stdin) <- tail": {
    "n": 7,
    "transcripts": 4,
    "roles": {
@@ -3012,6 +3092,23 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 1205
   },
+  "A json filter (python -c json<stdin) <- git show": {
+   "n": 8,
+   "transcripts": 5,
+   "roles": {
+    "researcher": 4,
+    "reviewer": 4
+   },
+   "projects": {
+    "repo-E": 4,
+    "L1": 4
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.0,
+   "usd": 0.27,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 3563
+  },
   "E persisted, producer find": {
    "n": 1,
    "transcripts": 1,
@@ -3026,24 +3123,6 @@
    "usd": 0.26,
    "save_usd_upper": 0.0,
    "out_chars_per": 27668
-  },
-  "A json filter <- python script": {
-   "n": 3,
-   "transcripts": 3,
-   "roles": {
-    "researcher": 1,
-    "other": 1,
-    "lead": 1
-   },
-   "projects": {
-    "repo-E": 2,
-    "L1": 1
-   },
-   "calls_per": 1.0,
-   "err_rate": 0.0,
-   "usd": 0.26,
-   "save_usd_upper": 0.0,
-   "out_chars_per": 686
   },
   "E persisted, producer dev lit get": {
    "n": 1,
@@ -3076,6 +3155,23 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 1278
   },
+  "A json filter (python -c json<stdin) <- python script": {
+   "n": 2,
+   "transcripts": 2,
+   "roles": {
+    "researcher": 1,
+    "lead": 1
+   },
+   "projects": {
+    "repo-E": 1,
+    "L1": 1
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.0,
+   "usd": 0.22,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 794
+  },
   "E persisted, producer other": {
    "n": 2,
    "transcripts": 2,
@@ -3106,6 +3202,21 @@
    "usd": 0.2,
    "save_usd_upper": 0.19,
    "out_chars_per": 1094
+  },
+  "A json filter (jq) <- cat": {
+   "n": 1,
+   "transcripts": 1,
+   "roles": {
+    "lead": 1
+   },
+   "projects": {
+    "L1": 1
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.0,
+   "usd": 0.19,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 816
   },
   "E persisted, producer head": {
    "n": 1,
@@ -3152,7 +3263,7 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 323
   },
-  "A json filter <- script": {
+  "A json filter (jq) <- script": {
    "n": 1,
    "transcripts": 1,
    "roles": {
@@ -3167,23 +3278,22 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 44
   },
-  "A json filter <- gh pr list": {
-   "n": 6,
-   "transcripts": 3,
+  "A json filter (jq) <- curl (package registry (PyPI, npm, crates))": {
+   "n": 7,
+   "transcripts": 2,
    "roles": {
-    "other": 3,
-    "researcher": 3
+    "researcher": 7
    },
    "projects": {
-    "repo-E": 6
+    "repo-E": 7
    },
    "calls_per": 1.0,
    "err_rate": 0.0,
-   "usd": 0.17,
+   "usd": 0.16,
    "save_usd_upper": 0.0,
-   "out_chars_per": 856
+   "out_chars_per": 813
   },
-  "A json filter <- echo": {
+  "A json filter (python -c json<stdin) <- echo": {
    "n": 1,
    "transcripts": 1,
    "roles": {
@@ -3248,6 +3358,22 @@
    "save_usd_upper": 0.12,
    "out_chars_per": 1665
   },
+  "A json filter (python -c json<stdin) <- gh pr list": {
+   "n": 5,
+   "transcripts": 3,
+   "roles": {
+    "other": 3,
+    "researcher": 2
+   },
+   "projects": {
+    "repo-E": 5
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.0,
+   "usd": 0.14,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 710
+  },
   "F poll loop on gh run list": {
    "n": 3,
    "transcripts": 2,
@@ -3264,22 +3390,7 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 156
   },
-  "A json filter <- gh issue view": {
-   "n": 3,
-   "transcripts": 2,
-   "roles": {
-    "researcher": 3
-   },
-   "projects": {
-    "repo-E": 3
-   },
-   "calls_per": 1.0,
-   "err_rate": 0.0,
-   "usd": 0.14,
-   "save_usd_upper": 0.0,
-   "out_chars_per": 3530
-  },
-  "A json filter <- diff": {
+  "A json filter (python -c json<stdin) <- diff": {
    "n": 1,
    "transcripts": 1,
    "roles": {
@@ -3325,21 +3436,6 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 314
   },
-  "A json filter <- gh pr view": {
-   "n": 3,
-   "transcripts": 3,
-   "roles": {
-    "researcher": 3
-   },
-   "projects": {
-    "repo-E": 3
-   },
-   "calls_per": 1.0,
-   "err_rate": 0.0,
-   "usd": 0.11,
-   "save_usd_upper": 0.0,
-   "out_chars_per": 2638
-  },
   "F poll loop on read": {
    "n": 2,
    "transcripts": 2,
@@ -3356,7 +3452,7 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 9702
   },
-  "A json filter <- paste": {
+  "A json filter (python -c json<stdin) <- paste": {
    "n": 4,
    "transcripts": 2,
    "roles": {
@@ -3509,7 +3605,7 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 12962
   },
-  "A json filter <- cut": {
+  "A json filter (python -c json<stdin) <- cut": {
    "n": 1,
    "transcripts": 1,
    "roles": {
@@ -3523,6 +3619,21 @@
    "usd": 0.08,
    "save_usd_upper": 0.0,
    "out_chars_per": 200
+  },
+  "A json filter (python -c json<stdin) <- gh pr view": {
+   "n": 2,
+   "transcripts": 2,
+   "roles": {
+    "researcher": 2
+   },
+   "projects": {
+    "repo-E": 2
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.0,
+   "usd": 0.08,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 2706
   },
   "E persisted -> read back by python -c": {
    "n": 1,
@@ -3586,7 +3697,7 @@
    "save_usd_upper": 0.06,
    "out_chars_per": 919
   },
-  "A json filter <- xargs cat": {
+  "A json filter (python -c json<stdin) <- xargs cat": {
    "n": 2,
    "transcripts": 2,
    "roles": {
@@ -3616,7 +3727,7 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 442
   },
-  "A json filter <- base64": {
+  "A json filter (python -c json<stdin) <- base64": {
    "n": 2,
    "transcripts": 1,
    "roles": {
@@ -3691,7 +3802,7 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 127
   },
-  "A json filter <- ruff": {
+  "A json filter (python -c json<stdin) <- ruff": {
    "n": 1,
    "transcripts": 1,
    "roles": {
@@ -3720,6 +3831,21 @@
    "usd": 0.06,
    "save_usd_upper": 0.05,
    "out_chars_per": 407
+  },
+  "A json filter (python -c json<stdin) <- gh issue view": {
+   "n": 1,
+   "transcripts": 1,
+   "roles": {
+    "researcher": 1
+   },
+   "projects": {
+    "repo-E": 1
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.0,
+   "usd": 0.05,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 4043
   },
   "K dev check --help: all": {
    "n": 1,
@@ -3858,7 +3984,22 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 34
   },
-  "A json filter <- gh api graphql": {
+  "A json filter (jq) <- python script": {
+   "n": 1,
+   "transcripts": 1,
+   "roles": {
+    "other": 1
+   },
+   "projects": {
+    "repo-E": 1
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.0,
+   "usd": 0.04,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 468
+  },
+  "A json filter (python -c json<stdin) <- gh api graphql": {
    "n": 1,
    "transcripts": 1,
    "roles": {
@@ -3934,7 +4075,22 @@
    "save_usd_upper": 0.02,
    "out_chars_per": 2276
   },
-  "A json filter <- bash": {
+  "A json filter (jq) <- gh issue view": {
+   "n": 1,
+   "transcripts": 1,
+   "roles": {
+    "researcher": 1
+   },
+   "projects": {
+    "repo-E": 1
+   },
+   "calls_per": 1.0,
+   "err_rate": 0.0,
+   "usd": 0.03,
+   "save_usd_upper": 0.0,
+   "out_chars_per": 2503
+  },
+  "A json filter (python -c json<stdin) <- bash": {
    "n": 1,
    "transcripts": 1,
    "roles": {
@@ -3949,7 +4105,7 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 455
   },
-  "A json filter <- gh search issues": {
+  "A json filter (jq) <- gh search issues": {
    "n": 1,
    "transcripts": 1,
    "roles": {
@@ -3964,20 +4120,20 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 1485
   },
-  "A json filter <- gh search prs": {
+  "A json filter (jq) <- claude": {
    "n": 1,
    "transcripts": 1,
    "roles": {
-    "researcher": 1
+    "builder": 1
    },
    "projects": {
     "repo-E": 1
    },
    "calls_per": 1.0,
    "err_rate": 0.0,
-   "usd": 0.03,
+   "usd": 0.02,
    "save_usd_upper": 0.0,
-   "out_chars_per": 1485
+   "out_chars_per": 712
   },
   "K dev code --help: all": {
    "n": 1,
@@ -3994,7 +4150,7 @@
    "save_usd_upper": 0.01,
    "out_chars_per": 1562
   },
-  "A json filter <- dev board list": {
+  "A json filter (jq) <- dev board list": {
    "n": 1,
    "transcripts": 1,
    "roles": {
@@ -4009,7 +4165,7 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 829
   },
-  "A json filter <- dev consolidation status": {
+  "A json filter (python -c json<stdin) <- dev consolidation status": {
    "n": 1,
    "transcripts": 1,
    "roles": {
@@ -4039,7 +4195,7 @@
    "save_usd_upper": 0.0,
    "out_chars_per": 1060
   },
-  "A json filter <- sed -n": {
+  "A json filter (python -c json<stdin) <- sed -n": {
    "n": 1,
    "transcripts": 1,
    "roles": {

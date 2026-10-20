@@ -747,12 +747,18 @@ def detectors(tr, D):
         if c["tool"] != "Bash":
             continue
         cmd, lb = c.get("cmd", ""), labs(c)
-        # A. ad-hoc JSON filters over a command's output, by producer
-        for a, b, _ in c["pipes"]:
-            if b in ("python -c json<stdin", "jq"):
-                prod = f"curl ({curl_kind(cmd)})" if a == "curl" else a
-                D[f"A json filter <- {prod}"].add(tr, [c])
-                D["A json filter: all"].add(tr, [c])
+        # A. ad-hoc JSON filters over a command's output: counted once per call, by first producer and consumer
+        fl = [(a, b) for a, b, _ in c["pipes"] if b in ("python -c json<stdin", "jq")]
+        if fl:
+            a, b = fl[0]
+            prod = f"curl ({curl_kind(cmd)})" if a == "curl" else a
+            D[f"A json filter ({b}) <- {prod}"].add(tr, [c])
+            D[f"A json filter ({b}): all calls"].add(tr, [c])
+            D["A json filter: all calls"].add(tr, [c])
+        if "curl" in lb and "api.github.com" in cmd:
+            D["A curl to the GitHub REST API: all calls"].add(tr, [c])
+            if re.search(r"rate limit|API rate|\b403\b", c.get("head", "") + c.get("tail", "")):
+                D["A curl to the GitHub REST API: rate-limit message or 403 in output"].add(tr, [c])
         if re.search(r"\bgh\b.*--json", cmd):
             D["A gh --json: all"].add(tr, [c])
             if re.search(r"(-q|--jq)\s", cmd):
@@ -771,7 +777,7 @@ def detectors(tr, D):
                 if n["tool"] == "Read" and any(n.get("path", "").endswith(p.lstrip("./")) for p in ps):
                     D["B outline -> Read, same file"].add(tr, [c, n], save=0.0)
                     break
-        # C. grep -n FILE, then sed -n a,bp on the same file around a hit, in the next call
+        # C. grep -n FILE (hits are parsed from the first 400 output characters only: a lower bound), then sed -n a,bp on the same file around a hit, in the next call
         if (
             "grep" in lb
             and i + 1 < len(calls)
@@ -781,6 +787,8 @@ def detectors(tr, D):
             n = calls[i + 1]
             win = sed_window(n.get("cmd", ""))
             if win and paths_in(cmd) & paths_in(n["cmd"]):
+                if c["out"] > 800:
+                    D["C grep -n -> sed -n, same file, grep output over 800 chars"].add(tr, [c, n], save=0.0)
                 D["C grep -n -> sed -n, same file"].add(tr, [c, n], save=n["turn_usd"])
                 if any(win[0] <= h <= win[1] for h in grep_hits(c)):
                     D["C grep -n -> sed -n, same file, window holds a hit"].add(tr, [c, n], save=n["turn_usd"])
@@ -906,6 +914,8 @@ def report(args):
     retries = defaultdict(Counter)
     flags = Counter()
     for tr in load(args.cache):
+        if args.projects and tr["project"] not in args.projects.split(","):
+            continue
         tr = annotate(tr)
         r = tr["role"]
         overview[tr["project"]][r] += 1
@@ -997,6 +1007,7 @@ def main():
     e.add_argument("projects", nargs="+", help="NAME=DIR, e.g. repo-E=<path to its Claude Code project folder>")
     r = sub.add_parser("report")
     r.add_argument("--cache", required=True)
+    r.add_argument("--projects", help="comma-separated NAMEs to keep (default: all)")
     a = ap.parse_args()
     extract(a) if a.cmd == "extract" else report(a)
 
