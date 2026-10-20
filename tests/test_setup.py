@@ -411,7 +411,7 @@ def test_clash_warning_matches_github_shorthand_and_url_forms():
     assert "at v0.1.10" in str(setup.clash_warning("Marius-Juston/agent-harness", registered))
     assert setup.clash_warning(f"{SRC}.git@v0.1.9", registered)
     assert setup.clash_warning("Marius-Juston/agent-harness@v0.1.10", registered) is None  # same ref: not this clash
-    assert setup.clash_warning("Marius-Juston/other", registered) is None
+    assert setup.clash_warning("someone/agent-harness", registered) is None
     assert setup.clash_warning("Marius-Juston/agent-harness", {}) is None
 
 
