@@ -736,6 +736,18 @@ def test_worktree_prune_deletes_branches_their_merged_or_superseding_pr_contains
     assert len(lines) == 6
 
 
+def test_drop_branch_fails_closed_without_a_head_to_compare(branches):
+    repo, _ = branches
+    tip = _branch(repo, "1-x", "x")
+    assert workflow.drop_branch("2-gone", [tip]) == "no local branch 2-gone"
+    assert (
+        workflow.drop_branch("1-x", ["--all", "HEAD"])
+        == "kept branch 1-x: no merged head in this clone to compare it with"
+    )
+    assert "this clone lacks the merged head" in workflow.drop_branch("1-x", ["f" * 40])
+    assert _local(repo, "1-x") == tip
+
+
 def test_dev_worktree_prune_is_a_command(branches, capsys):
     from devkit import cli
 
