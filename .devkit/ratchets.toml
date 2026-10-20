@@ -12,12 +12,26 @@ context = 600    # CLAUDE.md/AGENTS.md plus the files they @-import: loaded into
 
 [words]
 "template/.devkit/HARNESS.md.jinja" = 320   # loads into every agent of every project; tests/test_template.py checks it
+"plugins/harness-ops/skills/lead/SKILL.md" = 720
+"plugins/harness-ops/agents/builder.md" = 650
 
 # [[raise]]
 # key = "words..claude/agents/builder.md"   # "<section>.<key>"
 # to = 800
 # reason = "why the text is needed and what it replaces"
 # approved_by = "<owner GitHub login>"   # must equal the repository owner's login; the budget may rise up to `to`
+
+[[raise]]
+key = "words.plugins/harness-ops/skills/lead/SKILL.md"
+to = 720
+reason = "three PRs in a row (#309 twice, #315) cut wording reviewers then restored: https://github.com/Marius-Juston/agent-harness/issues/267#issuecomment-6280289476"
+approved_by = "Marius-Juston"
+
+[[raise]]
+key = "words.plugins/harness-ops/agents/builder.md"
+to = 650
+reason = "at 598/600, same evidence as the lead SKILL.md raise: https://github.com/Marius-Juston/agent-harness/issues/267#issuecomment-6280289476"
+approved_by = "Marius-Juston"
 
 # Test floors only rise; lowering one needs a [[raise]] (key "tests.<name>") whose `to` is the lowest value allowed.
 # Coverage is a floor against a large drop, never a target; diff coverage is printed, never gated.
