@@ -259,6 +259,18 @@ def test_doctor_fails_on_another_version_string(stub_project, tmp_path, capsys):
     assert setup.doctor() == 1 and "installed 0.1.0, pinned v0.1.1" in capsys.readouterr().out
 
 
+def test_doctor_plugin_installed_only_counts_this_projects_or_a_user_scope_install(stub_project, capsys):
+    """#3: `claude plugin list` names every install on the machine; only this project's or a user-scope one loads."""
+    elsewhere = OTHER | {"installPath": str(stub_project.pinned)}
+    stub_project.state.write_text(json.dumps({"calls": [], "installed": [elsewhere], "on_install": elsewhere}))
+    assert setup.doctor() == 1
+    assert "FIX  Claude Code plugin harness-ops@agent-harness installed" in capsys.readouterr().out
+    user = USER | {"installPath": str(stub_project.pinned)}
+    stub_project.state.write_text(json.dumps({"calls": [], "installed": [elsewhere, user], "on_install": user}))
+    assert setup.doctor() == 0
+    assert "ok   Claude Code plugin harness-ops@agent-harness installed" in capsys.readouterr().out
+
+
 def test_setup_repins_at_user_scope_keeping_other_projects_installs_then_doctor_passes(stub_project, capsys):
     stub_project.install(stub_project.head, others=(OTHER,))
     assert setup.setup() == 0
