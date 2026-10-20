@@ -956,6 +956,17 @@ def test_merge_conflicts_matches_what_merge_main_finds(remote):
     assert workflow.merge_main(clone, main) == ["src/a.py", "src/c.py"]
 
 
+def test_dev_pr_fails_closed_when_it_cannot_check_against_main(remote, monkeypatch):
+    """No fetch, or a merge-tree git cannot run, is no proof the branch merges: nothing is pushed."""
+    with pytest.raises(RuntimeError, match="merge-tree"):
+        workflow.merge_conflicts("HEAD", "f" * 40)
+    sh(remote["clone"], "git", "remote", "set-url", "origin", str(remote["clone"].parent / "gone.git"))
+    monkeypatch.setattr("sys.stdin", io.StringIO("done\n"))
+    with pytest.raises(board.BoardError, match="cannot check this branch for conflicts"):
+        workflow.pr(9, "-", draft=False)
+    assert remote["sent"] == []
+
+
 def _other_pr(world: dict, number: int, name: str, files: dict[str, str], draft: bool = False) -> dict:
     """Open PR `number` on branch `name`, cut from the current main, as `gh pr list` shows it."""
     clone = world["clone"]

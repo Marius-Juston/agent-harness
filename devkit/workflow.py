@@ -1049,9 +1049,11 @@ def merge_conflicts(head: str, main: str, cwd: Path | None = None) -> list[str]:
         text=True,
         check=False,
     )
-    if run.returncode not in (0, 1):
+    lines = run.stdout.splitlines()
+    # exit 1 is a conflict, but also "not something we can merge": only a tree id on the first line says it merged
+    if run.returncode not in (0, 1) or not lines or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", lines[0]):
         raise RuntimeError(f"git merge-tree {head[:10]} {main[:10]} failed: {run.stderr.strip()[-300:]}")
-    return sorted({p for p in run.stdout.splitlines()[1:] if p}) if run.returncode == 1 else []
+    return sorted({p for p in lines[1:] if p}) if run.returncode == 1 else []
 
 
 def conflicting(main: str, heads: dict[int, str], cwd: Path | None = None) -> dict[int, list[str]]:
