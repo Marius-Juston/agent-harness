@@ -110,12 +110,12 @@
 |---|---|---|
 | CLAUDE.md | 277 | 600 |
 | plugins/harness-ops/agents/architect.md | 426 | 600 |
-| plugins/harness-ops/agents/builder.md | 598 | 600 |
+| plugins/harness-ops/agents/builder.md | 598 | 650 |
 | plugins/harness-ops/agents/research-auditor.md | 412 | 600 |
 | plugins/harness-ops/agents/researcher.md | 597 | 600 |
 | plugins/harness-ops/agents/reviewer.md | 427 | 600 |
 | plugins/harness-ops/agents/suite-auditor.md | 272 | 600 |
 | plugins/harness-ops/agents/tester.md | 263 | 600 |
 | plugins/harness-ops/skills/harness/SKILL.md | 558 | 650 |
-| plugins/harness-ops/skills/lead/SKILL.md | 649 | 650 |
+| plugins/harness-ops/skills/lead/SKILL.md | 649 | 720 |
 | plugins/harness-ops/skills/research/SKILL.md | 642 | 650 |
