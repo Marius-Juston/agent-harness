@@ -1041,12 +1041,12 @@ def _integrate(
     head, whatever the branch protection, and reads feedback once more; a timeout is `waiting`, and a rerun on that
     head resumes the wait instead of refusing its pending checks. The same bounded wait runs before the gate when the
     only unfinished feedback is checks still running on the PR's own head (no override, not a dry run; with
-    `local_ci`, apart from the contexts it stands in for); what they conclude is then judged as above. With `local_ci` (no Actions minutes), required checks
-    Actions does not run are left to the local run on the merged tree (`_stand_in`), which posts them as commit statuses
-    only after it passed. A merged tree that empties an Owns entry of an open issue other than the PR's own
-    (`deleted_owns`) is refused before the gate, and `override` does not lift that: name the issue with `Refs #N` in
-    the PR body, or edit that issue's Owns. A deleting merge whose board cannot be read stops (fail closed). Issues
-    close only after the merge; the last line printed is `result`."""
+    `local_ci`, apart from the contexts it stands in for); what they conclude is then judged as above. With
+    `local_ci` (no Actions minutes), required checks Actions does not run are left to the local run on the merged
+    tree (`_stand_in`), which posts them as commit statuses only after it passed. A merged tree that empties an Owns
+    entry of an open issue other than the PR's own (`deleted_owns`) is refused before the gate, and `override` does
+    not lift that: name the issue with `Refs #N` in the PR body, or edit that issue's Owns. A deleting merge whose
+    board cannot be read stops (fail closed). Issues close only after the merge; the last line printed is `result`."""
     info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
     if info["state"] != "OPEN" or info["isDraft"]:
         print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")

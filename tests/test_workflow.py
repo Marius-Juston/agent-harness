@@ -522,6 +522,17 @@ def test_local_ci_waits_on_others_not_stood_in(fake_integrate, actions, clock, m
     assert [s["context"] for s in actions["statuses"]] == ["check"]
 
 
+def test_local_ci_refuses_another_check_that_fails_in_the_wait(fake_integrate, actions, clock, monkeypatch, capsys):  # noqa: F811
+    """Review on #333: the CodeQL job is judged after the wait; the stood-in `check` gets no status."""
+    running = [_job("check", 11), _run("x", status="IN_PROGRESS") | CODEQL]
+    failed = [_job("check", 11), _run("x", conclusion="FAILURE") | CODEQL]
+    _rollups(fake_integrate, monkeypatch, running, running, running, failed)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "refused" and res["feedback"] == ["check Analyze (python): failing (FAILURE)"]
+    assert clock["sleeps"] and actions["statuses"] == [] and not _merged(fake_integrate["events"])
+
+
 def test_local_ci_does_not_wait_on_the_checks_it_stands_in_for(fake_integrate, actions, clock, capsys):  # noqa: F811
     fake_integrate["checks"] = [_run("check", status="QUEUED")]  # Actions queued it but never runs it
     assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
