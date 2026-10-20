@@ -4,7 +4,28 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
-## Unreleased
+## v0.1.11 (2026-10-20)
+
+`dev integrate` waits for checks still running instead of refusing, a stacked-PR route auto mode allows, and setup
+and doc-drift fixes (#321 follow-ups).
+
+### Upgrading a project
+Run `uvx copier update --data harness_ref=v0.1.11`, then `uv sync && uv run dev docs && uv run dev check`. These can
+need attention:
+- **integrate waits.** A lead no longer waits for green checks by hand: `integrate` waits up to `checks_wait_s` and
+  ends in `waiting` on timeout; a second `waiting` on the same head carries `"again": true` and points to
+  `--local-ci` or the owner. (#322, #305)
+- **Stacked PRs.** A PR retargeted to main after its parent merged gets a cherry-pick route to a `<branch>-v2`
+  instead of a rebase plus force push. (#305)
+
+### Added
+- `dev board brief` lists the `dev board new` form for out-of-scope follow-ups in its Commands section. (#324)
+
+### Fixed
+- `dev setup` prints WARN, not FAIL, when user settings register the same marketplace repository at another
+  project's ref, naming both refs; another repository under that name still fails. (#327)
+- agent-harness tracks its own `.claude/settings.json`, so the generated agent surface no longer depends on whether
+  this machine ran `dev setup`. (#328)
 
 ### Changed
 - `dev integrate` waits (bounded by `checks_wait_s`) for checks still running on the PR's own head when they are its
