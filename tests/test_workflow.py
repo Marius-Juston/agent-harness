@@ -1076,7 +1076,62 @@ def test_the_conflict_check_takes_under_50_ms_per_open_pr(tmp_path):
     sh(repo, "git", "checkout", "-q", "main")
     main = commit(repo, {"src/m5.py": "main\n"}, "main moves")
     started = time.perf_counter()
-    found = workflow.conflicting(main, heads, cwd=repo)
+    found, failed = workflow.conflicting(main, heads, cwd=repo)
     per_pr = (time.perf_counter() - started) / len(heads)
-    assert found == {4: ["src/m5.py"], 5: ["src/m5.py"]}
+    assert found == {4: ["src/m5.py"], 5: ["src/m5.py"]} and failed == {}
     assert per_pr < 0.05, f"{per_pr * 1000:.1f} ms per open PR"
+
+
+def _orphan_pr(world: dict, number: int) -> dict:
+    """An open PR whose head shares no history with main: git cannot merge-tree it."""
+    clone = world["clone"]
+    sh(clone, "git", "checkout", "-q", "--orphan", "16-g")
+    tip = commit(clone, {"g.txt": "g\n"}, "orphan")
+    sh(clone, "git", "push", "-q", "origin", "16-g")
+    sh(world["origin"], "git", "update-ref", f"refs/pull/{number}/head", tip)
+    sh(clone, "git", "checkout", "-q", "-f", "main")
+    sh(clone, "git", "clean", "-qfd")
+    return {"number": number, "headRefName": "16-g", "headRefOid": tip, "body": "Closes #16", "isDraft": False}
+
+
+def test_one_pr_git_cannot_check_is_skipped_and_the_others_are_still_sent_back(project, capsys, monkeypatch):  # noqa: F811
+    """Review of #352: a merge-tree error on one PR disabled the whole sweep."""
+    listed = [_orphan_pr(project, 11), _other_pr(project, 8, "13-d", {"docs/research/a.md": "one\nTWO by d\nthree\n"})]
+    open_pr(project, {"docs/research/a.md": "one\nTWO by c\nthree\n"})
+    _merging(project, monkeypatch, listed)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    said = capsys.readouterr().out
+    assert last_json(said)["sent_back"] == [8] and "skipped #11: git merge-tree" in said
+
+
+def test_a_send_back_github_refuses_still_reports_those_already_sent(project, capsys, monkeypatch):  # noqa: F811
+    """Review of #352: the PRs commented before a gh failure are reported, the failed one is printed as skipped."""
+    listed = [
+        _other_pr(project, 8, "13-d", {"docs/research/a.md": "one\nTWO by d\nthree\n"}),
+        _other_pr(project, 9, "14-e", {"docs/research/a.md": "one\nTWO by e\nthree\n"}),
+    ]
+    open_pr(project, {"docs/research/a.md": "one\nTWO by c\nthree\n"})
+    _merging(project, monkeypatch, listed)
+    fake = board.gh
+
+    def gh(*args, **kw):
+        if args[:4] == ("pr", "comment", "9", "-R"):
+            raise board.BoardError("gh: 502")
+        return fake(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    said = capsys.readouterr().out
+    assert last_json(said)["sent_back"] == [8] and "skipped #9: send-back failed: gh: 502" in said
+
+
+@pytest.mark.parametrize("stored", ["[]", '"x"', "{bad json", '{"x": "y"}'])
+def test_a_corrupt_sent_back_file_does_not_crash_integrate_after_its_merge(project, capsys, monkeypatch, stored):  # noqa: F811
+    listed = [_other_pr(project, 8, "13-d", {"docs/research/a.md": "one\nTWO by d\nthree\n"})]
+    open_pr(project, {"docs/research/a.md": "one\nTWO by c\nthree\n"})
+    _merging(project, monkeypatch, listed)
+    state = project["clone"].parent / "state/integrate"
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sent-back.json").write_text(stored)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert last_json(capsys.readouterr().out)["sent_back"] == [8]

@@ -1056,9 +1056,19 @@ def merge_conflicts(head: str, main: str, cwd: Path | None = None) -> list[str]:
     return sorted({p for p in lines[1:] if p}) if run.returncode == 1 else []
 
 
-def conflicting(main: str, heads: dict[int, str], cwd: Path | None = None) -> dict[int, list[str]]:
-    """PR number -> the paths its head (`heads`) conflicts in with `main`, for the PRs that conflict."""
-    return {n: paths for n, head in heads.items() if (paths := merge_conflicts(head, main, cwd))}
+def conflicting(
+    main: str, heads: dict[int, str], cwd: Path | None = None
+) -> tuple[dict[int, list[str]], dict[int, str]]:
+    """(PR number -> the paths its head (`heads`) conflicts in with `main`, for the PRs that conflict; PR number ->
+    why git could not check it). One PR git cannot merge-tree does not stop the check of the others."""
+    found, failed = {}, {}
+    for n, head in heads.items():
+        try:
+            if paths := merge_conflicts(head, main, cwd):
+                found[n] = paths
+        except RuntimeError as exc:
+            failed[n] = str(exc)
+    return found, failed
 
 
 def merge_main(tree: Path, main: str) -> list[str]:
@@ -1142,9 +1152,10 @@ def _sent_back_file() -> Path:
 
 def _sent_back() -> dict[str, str]:
     try:
-        return json.loads(_sent_back_file().read_text())
+        told = json.loads(_sent_back_file().read_text())
     except (OSError, ValueError):
         return {}
+    return told if isinstance(told, dict) else {}  # a corrupt file must not crash integrate after its merge
 
 
 OPEN_PR_LIMIT = 200  # `gh pr list` returns 30 by default
@@ -1154,7 +1165,8 @@ def send_back_conflicting(merged: int) -> list[int]:
     """After PR `merged` landed (#349): check the new main against every other open, non-draft PR into main with
     `merge_conflicts` and `send_back` each one that conflicts at once, instead of when its own integrate runs (a median
     30.5 min later, docs/research/issue-pr-automation.md §3.2). A PR already sent back on its current head is skipped.
-    Prints the count; returns the PRs sent back. Raises BoardError or RuntimeError when GitHub or git fails."""
+    Prints the count and each PR skipped (git cannot check it, or its send-back failed); returns the PRs sent back.
+    Raises BoardError or RuntimeError when listing the PRs or the fetch fails."""
     listed = board.gh(
         "pr", "list", "-R", board.repo(), "--base", "main", "--state", "open", "--limit", str(OPEN_PR_LIMIT),
         "--json", "number,headRefName,headRefOid,body,isDraft",
@@ -1170,21 +1182,28 @@ def send_back_conflicting(merged: int) -> list[int]:
         git("fetch", "--no-tags", "origin", f"+refs/heads/main:{main_ref}", *pulls)
         main = git("rev-parse", main_ref)
         heads = {n: git("rev-parse", r) for n, r in refs.items()}
-        found = conflicting(main, heads)
+        found, failed = conflicting(main, heads)
     finally:
         for ref in (main_ref, *refs.values()):
             git("update-ref", "-d", ref, check=False)
     told = _sent_back()
     again = [n for n in found if told.get(str(n)) == heads[n]]
-    sent = [n for n in found if n not in again]
-    for n in sent:
-        send_back(n, prs[n] | {"headRefOid": heads[n]}, main, found[n])
-    _sent_back_file().write_text(json.dumps({k: v for k, v in _sent_back().items() if int(k) in prs}) + "\n")
+    sent: list[int] = []
+    for n in (n for n in found if n not in again):
+        try:  # one PR GitHub refuses must not hide the PRs already commented
+            send_back(n, prs[n] | {"headRefOid": heads[n]}, main, found[n])
+            sent.append(n)
+        except (board.BoardError, RuntimeError, OSError) as exc:
+            failed[n] = f"send-back failed: {exc}"
+    kept = {k: v for k, v in _sent_back().items() if k.isdigit() and int(k) in prs}
+    _sent_back_file().write_text(json.dumps(kept) + "\n")
     print(
         f"conflict check of the new main {main[:10]}: sent back {len(sent)} of {len(prs)} open PRs"
         + (f" ({', '.join(f'#{n}' for n in sent)})" if sent else "")
         + (f"; already sent back: {', '.join(f'#{n}' for n in again)}" if again else "")
     )
+    for n, why in failed.items():
+        print(f"  skipped #{n}: {why}")
     return sent
 
 
