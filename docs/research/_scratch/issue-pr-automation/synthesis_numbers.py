@@ -30,12 +30,20 @@ R134 = {
     "PR not found": 1,
 }
 total = sum(R134.values())
-pending = 15  # of the 34, the try before was a pending-check refusal; #322 (v0.1.11) now waits instead
-lo, hi = R134["same head+feedback+flags"] - pending, R134["same head+feedback+flags"]
-print(f"\nretries {total} (session count); cache hits {lo}-{hi}; saving ${lo * turn_int:.2f}-{hi * turn_int:.2f}")
 print(
-    f"  same head and feedback {R134['same head+feedback+flags'] + R134['same head+feedback, new flag']} of {total}"
-    f" = {(R134['same head+feedback+flags'] + R134['same head+feedback, new flag']) / total:.0%}"
+    f"\nsession count (retries134.py): {total} retries; same head, feedback and flags {R134['same head+feedback+flags']}"
+)
+# The cache estimate uses the cross-session classification, the only one split by the outcome of the try before:
+# report-bookkeeping.json integrate.outcome_before_a_retry_where_nothing_changed (36 of 115 cross-session retries).
+nc = r["integrate"]["outcome_before_a_retry_where_nothing_changed"]
+n36 = sum(nc.values())
+pending, unseen = nc["refused: pending check"], nc["?"]  # #322 now waits; '?' = an output the lead never saw
+other = nc.get("merged", 0) + nc.get("stopped", 0)  # neither is cached (merged is final, stopped is transient)
+hi = n36 - pending  # every remaining unchanged retry, incl. those after an unseen output
+lo = hi - unseen - other  # only retries after a cacheable outcome the lead had seen
+print(
+    f"cross-session nothing-changed retries {n36}: pending {pending}, unseen {unseen}, merged/stopped {other}; "
+    f"cache answers {lo}-{hi}, ${lo * turn_int:.2f}-{hi * turn_int:.2f}"
 )
 merged = r["integrate"]["prs_merged_in_these_tries"]
 print(
@@ -47,8 +55,9 @@ print(
 rr = r["review_relay_per_pr"]
 print(f"\nreview relay n-gram basis: 10 x 3 x $0.077 = ${10 * 3 * 0.077:.2f}")
 print(
-    f"  per-PR basis: {rr.get('prs')} PRs; lead relay $ {r['categories']['lead']['2 review relay']['usd']:.1f} "
-    f"over {r['categories']['lead']['2 review relay']['turns']} turns"
+    f"  per-PR basis (review_relay_per_pr, used in the note): {rr['prs']} PRs, {rr['relay_turns_total']} relay turns, "
+    f"${rr['relay_usd']:.1f}; {rr['lead_posted_review_comments']} verdict posts, "
+    f"{rr['findings_messages_to_author']} findings messages"
 )
 
 # 5. conflicts: avoided resumes at dev pr, and send-back delay a post-merge sweep removes
@@ -76,10 +85,17 @@ print(
     f"share of lead turns {lead_any['turns'] / r['overview']['lead']['turns']:.1%}"
 )
 
-# Bounds of the four filed changes together (§6): lower and upper per window, from §4's rows
+# Bounds of the four filed changes together (§6): lower and upper per window; #347, #349, #350 from rank.py
 LOWER = {"#347": 3.11, "#348": lo * turn_int, "#349": 0.75, "#350": 1.73}
-UPPER = {"#347": 23.89, "#348": hi * turn_int, "#349": c["of_those_sent_back"] * FIX_RESUME, "#350": 8.37}
+UPPER = {"#347": 23.89, "#348": hi * turn_int, "#349": 4.86, "#350": 8.37}
 print(
     f"\nfiled four together: ${sum(LOWER.values()):.1f}-{sum(UPPER.values()):.1f} per window "
     f"({sum(UPPER.values()) / spend:.1%} of spend at the upper bound)"
+)
+
+# §0: the 12 upper bounds printed by rank.py, summed (they overlap, and include the rejected merging loop's 29.89)
+UPPER12 = [29.89, 23.89, 8.37, 6.33, 5.92, 4.86, 3.50, 3.13, 2.87, 2.81, 2.33, 0.66]
+print(
+    f"sum of rank.py's 12 upper bounds ${sum(UPPER12):.1f} ({sum(UPPER12) / spend:.1%}); "
+    f"without the merging loop ${sum(UPPER12) - 29.89:.1f}"
 )

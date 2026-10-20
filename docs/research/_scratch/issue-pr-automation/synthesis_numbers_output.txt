@@ -1,12 +1,12 @@
 window spend $2,291; integrate-call turn $0.094
 break-even $6.43/window (stopgap $9.65); = 69 integrate turns
 
-retries 141 (session count); cache hits 19-34; saving $1.78-3.19
-  same head and feedback 61 of 141 = 43%
+session count (retries134.py): 141 retries; same head, feedback and flags 34
+cross-session nothing-changed retries 36: pending 15, unseen 13, merged/stopped 2; cache answers 6-21, $0.56-1.97
   lead integrate-loop turns per merged PR 1.77 (calls only), 2.07 (with check reads)
 
 review relay n-gram basis: 10 x 3 x $0.077 = $2.31
-  per-PR basis: 164 PRs; lead relay $ 44.5 over 409 turns
+  per-PR basis (review_relay_per_pr, used in the note): 164 PRs, 396 relay turns, $43.7; 155 verdict posts, 193 findings messages
 
 conflicts: 19 pairs of 581; PRs 19 of 297; dev-pr check avoids up to 4 send-backs = $5.08
   send-back delay after A merged: median 30.5 min (n=10)
@@ -16,4 +16,5 @@ duplicate base rate 13/791 = 1.6%; alerts on 48% of filings -> 29 alerts per dup
 
 lead bookkeeping 1288 turns $118; share of lead turns 31.9%
 
-filed four together: $7.4-40.5 per window (1.8% of spend at the upper bound)
+filed four together: $6.2-39.1 per window (1.7% of spend at the upper bound)
+sum of rank.py's 12 upper bounds $94.6 (4.1%); without the merging loop $64.7
