@@ -11,49 +11,45 @@ allowed-tools:
 
 Rules:
 - Never build while workers run: the lead plans, dispatches, integrates.
-- A worker's report is not evidence: `uv run dev integrate` re-gates the merged tree; check PR numbers against data.
+- A worker's report is not evidence: `dev integrate` re-gates the merged tree; check PR numbers against data.
 - At the quota cap: start nothing; commit, update HANDOFF, stop.
 
 ## 1. Where things stand
 !`uv run dev status 2>/dev/null | head -20 || true`
 
-Then `uv run dev orient` if the SessionStart context is old, and `uv run dev board list --status review`.
+Then `uv run dev orient` if SessionStart context is old; `uv run dev board list --status review`.
 `Suite audit due` in orient: run what it names; `harness-ops:suite-auditor` takes its judgement items.
 
 ## 2. Close the loop first
-For each item in review, in priority order:
-1. `gh pr view <pr>`, `gh pr diff <pr> --name-only` and `uv run dev board feedback <pr>` (new comments, unresolved threads).
-2. Spawn a `harness-ops:reviewer` for PRs touching harness files, several Owns, or anything a user sees; a `harness-ops:research-auditor` for decision-driving research PRs.
-3. Answer or fix every comment, from people and bots (resume the worker for fixes), resolve its thread (outdated threads block too), and wait for green checks.
-4. Triage the PR's follow-ups: a fix-now (multi-agent.md §3) or a defect in its own new code returns to the worker; the rest need a reason.
-5. `uv run dev integrate <pr>`; add `--harness-ok` only after reading the harness diff. `--override '<reason>'` only on the owner's word (logged on the PR). Its `RESULT-JSON` outcome `conflict`: resume the named worker; `stopped` or `gate-failed`: comment the failure on the PR, then resume or respawn it.
+Per item in review, by priority:
+1. `gh pr view <pr>`, `gh pr diff <pr> --name-only` and `uv run dev board feedback <pr>`.
+2. Spawn a `harness-ops:reviewer` for PRs touching harness files, several Owns, or anything a user sees; a `harness-ops:research-auditor` for decision-driving research.
+3. Answer or fix every comment (people and bots; resume the worker for fixes), resolve its thread (outdated ones block too), wait for green checks.
+4. Only Blocking or untagged findings return the PR, with at most 3 Nits; the worker posts a fix-to-finding map. Re-review after a Blocking fix only, passing round number, last reviewed SHA and earlier probes (no confirmation round; a project's security reviewer, if any, re-reviews any code change). After round 3, take "reconsider the approach" to the owner: never merge with an open Blocking finding.
+5. Follow-ups, Pre-existing and Follow-up findings: a fix-now (multi-agent.md §3) or a new-code defect returns to the worker; file the rest as issues.
+6. `uv run dev integrate <pr>`; `--harness-ok` only after reading the harness diff; `--override '<reason>'` only on the owner's word. `RESULT-JSON` outcome `conflict`: resume the named worker; `stopped` or `gate-failed`: comment it on the PR; resume or respawn.
 
 ## 3. Pick the next wave
-- `uv run dev board next -n 10`. Prefer P0, then what unblocks most.
-- Research comes first: a build issue whose Refs has no note waits for its research issue.
-- Run builders in parallel only when `board brief` shows no overlap in Owns. Researchers fan out wide.
-- Orient says `Consolidation review due`: spawn a `harness-ops:architect`. Feature cuts wait for the owner. Only the lead resets the trigger: `dev integrate <pr> --consolidation-review <epic>`.
-- New work found: `uv run dev board new --title ... --type ... --prio ... --done "<measurable>" [--owns ...] [--blocked-by N]`. Split an item when its DONE WHEN would need two different measurements.
+- `uv run dev board next -n 10`: P0 first, then what unblocks most.
+- A build issue whose Refs has no note waits for research.
+- Parallel builders only when `board brief` shows no Owns overlap. Researchers fan out wide.
+- `Consolidation review due` in orient: spawn a `harness-ops:architect`; feature cuts wait for the owner. Only the lead resets it: `dev integrate <pr> --consolidation-review <epic>`.
+- New work: `uv run dev board new` with a measurable `--done`, `--owns`, and `--blocked-by` when it waits. Split an item whose DONE WHEN needs two measurements.
 
 ## 4. Dispatch
-- Issue researchers need `isolation: worktree` (builders and testers set it). Prompt `Work on #N. Start with uv run dev board brief N.`, plus only what the repository cannot know: the owner's words or your decisions.
-- Plugin agent types are `harness-ops:<name>` (`docs/generated/agent-surface.md`); a project's own agents in
-  `.claude/agents/` keep bare names. Agent files changed during a session register only at the next session start.
-- Claim for them first: `uv run dev board claim N --agent <type> --branch N-<slug>`.
-- Another repository's issue: claim it and add its worktree there, then prompt `Work on <repo> #N in <abs path>; prefix every command with cd <abs path> &&`. Same guard rules, but recursive `rm` is refused. Keep the agent's empty isolation worktree until it stops.
-- A broad research question takes the `harness-ops:research` skill, not one researcher.
+- Issue researchers need `isolation: worktree` (builders, testers set it). Prompt `Work on #N. Start with uv run dev board brief N.`, plus only owner words or your decisions.
+- Effort `high` for brownfield bugs, security or cross-layer issues. After a gate failure or `board block`, respawn one level up (`high`, then `xhigh`; resume keeps the old level); after two `xhigh` failures, `model: fable`. Log every dispatch: `board beat N "effort <level>"`.
+- Agent types: `harness-ops:<name>` for plugin agents, bare for `.claude/agents/`; new or edited agents load next session.
+- Claim first: `uv run dev board claim N --agent <type> --branch N-<slug>`.
+- Another repository's issue: claim it, add its worktree there, prompt `Work on <repo> #N in <abs path>; prefix every command with cd <abs path> &&`. Same guards; recursive `rm` refused. Keep its empty isolation worktree until it stops.
+- Broad research: the `harness-ops:research` skill.
 
 ## 5. Resume after a limit, crash or compaction
-`uv run dev status` shows each worktree's commits ahead and dirty files.
-- A worker with commits or edits: SendMessage it a resume (what it had; "finish, gate, `dev pr`").
-- A worker with no commits and no files: respawn it with the same one-line prompt.
-- A STALE claim (another machine, idle 6 h): take it over with `board claim --force` only after reading its last comment.
+Per worktree in `uv run dev status`:
+- Commits or edits: SendMessage a resume (what it had; "finish, gate, `dev pr`").
+- Neither: respawn, same prompt.
+- STALE claim (another machine, idle 6 h): `board claim --force` only after reading its last comment.
 
 ## 6. Keep the record
-Update the handoff file (`[tool.devkit] handoff`, default `docs/HANDOFF.md`) whenever the set of agents changes, in under 40 lines:
-- In flight: issue, agent, branch.
-- Just merged.
-- Next: the ranked startable items, and why.
-- Decisions waiting on the owner (also in the open-questions file).
-
-Commit HANDOFF with your other lead edits on a branch; land them via `dev pr`/`dev integrate`.
+Update HANDOFF (`[tool.devkit] handoff`, default `docs/HANDOFF.md`) when agents change and after each integrate batch (before `autoCompactWindow` compaction), under 40 lines: in flight (issue, agent, branch), just merged, next (ranked startable items, why), owner decisions pending (also in open questions).
+Land it with other lead edits on a branch via `dev pr`/`dev integrate`.

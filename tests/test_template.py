@@ -318,6 +318,23 @@ def test_the_project_carries_the_agent_surface_evals(rendered):
     assert "uv run dev eval" in (rendered / "evals/README.md").read_text()
 
 
+def test_the_settings_compact_near_400k(rendered):
+    # #258: the lead compacted at 501-966k; 150-400k cut its simulated cost 42-47 % (harness-efficiency.md, change 3).
+    # 400k, not 300k: subagents inherit the window, and only ~5 of 672 worker runs exceed 400k (32 exceed 300k).
+    # A plain int in Claude Code's 100000-1000000 range; `claude --autocompact auto` restores the default per launch.
+    window = json.loads((rendered / ".claude/settings.json").read_text())["autoCompactWindow"]
+    assert window == 400000
+    assert type(window) is int
+    lead = (ROOT / "plugins/harness-ops/skills/lead/SKILL.md").read_text()
+    assert "`autoCompactWindow`" in lead  # the lead knows when compaction comes and keeps HANDOFF ahead of it
+
+
+def test_the_settings_leave_the_artifact_tool_to_the_lead(rendered):
+    # #256, owner decision: only the workers withhold the ~12.9k-token Artifact schema (tests/test_plugin.py). A
+    # `false` here would also take Artifacts from the lead, and no other settings file could turn it back on.
+    assert "enableArtifact" not in json.loads((rendered / ".claude/settings.json").read_text())
+
+
 def test_the_settings_allow_the_read_only_board_commands(rendered):
     allow = json.loads((rendered / ".claude/settings.json").read_text())["permissions"]["allow"]
     for rule in (

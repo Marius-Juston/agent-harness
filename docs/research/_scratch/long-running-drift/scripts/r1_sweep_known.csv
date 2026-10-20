@@ -1,0 +1,12 @@
+# Stale claims known before the sweep (mechanical replay T labels, or the in-the-wild audit), by run and line.
+# caught = the sweep returned STALE on that line (or the claim group); kind = how it is known
+run,line,kind,caught
+A,14,audit-git-branch,no
+A,134,audit-unticked-symbol,no
+B,22,replay,yes
+B,5,replay,yes
+C,26,replay,yes
+C,125,replay,yes
+C,9,replay,yes
+D,209,replay,yes
+D,210,replay,yes

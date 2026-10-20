@@ -94,12 +94,25 @@ def test_every_plugin_agent_bounds_its_turns():
         assert isinstance(meta.get("maxTurns"), int) and meta["maxTurns"] > 0, p.name
 
 
-def test_only_the_research_agents_override_the_session_effort():
-    """#153: effort is set only where a role's evidence justifies it (agent-harness.md §10); the rest inherit the
-    owner's session level."""
-    metas = {p.stem: frontmatter.read(p)[0] for p in (PLUGIN / "agents").glob("*.md")}
-    assert {n for n, m in metas.items() if "effort" in m} == {"researcher", "research-auditor"}
-    assert all(m["effort"] in checks.EFFORTS for m in metas.values() if "effort" in m)
+# #259: every agent pins its effort, so one /effort in the lead no longer moves every worker. Values from
+# harness-efficiency.md §3, judged for one model on one date: a model change means re-measuring them (#82).
+EFFORT = {
+    "architect": "high",
+    "builder": "medium",
+    "research-auditor": "high",
+    "researcher": "high",
+    "reviewer": "medium",
+    "suite-auditor": "medium",
+    "tester": "high",
+}
+EFFORT_JUDGED = re.compile(r"^effort: (\S+) +# judged for Opus 5\.5 on 2026-10-19 \(harness-efficiency\.md §3\)$", re.M)
+
+
+def test_every_plugin_agent_sets_its_effort_and_the_model_it_was_judged_for():
+    texts = {p.stem: p.read_text(encoding="utf-8") for p in (PLUGIN / "agents").glob("*.md")}
+    assert {n: frontmatter.split(t)[0].get("effort") for n, t in texts.items()} == EFFORT
+    assert {n: EFFORT_JUDGED.findall(t) for n, t in texts.items()} == {n: [e] for n, e in EFFORT.items()}
+    assert set(EFFORT.values()) <= set(checks.EFFORTS)
 
 
 @pytest.mark.parametrize("agent", ["architect", "builder", "suite-auditor", "tester"])
@@ -118,6 +131,17 @@ def test_the_lead_skill_documents_cross_repo_dispatch():
     """#170: the pattern tested in test_hooks.py (cross_repo) is the one the lead is told to use."""
     _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
     assert "Another repository's issue" in body and "prefix every command with cd <abs path> &&" in body
+
+
+def test_the_lead_skill_dispatch_escalates_effort_in_order():
+    """#259: the escalation ladder lives in section 4 (Dispatch), in the order high, xhigh, fable."""
+    _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
+    dispatch = body.split("## 4. Dispatch", 1)[1].split("\n## ", 1)[0]
+    rungs = [dispatch.find(s) for s in ("`high`", "`xhigh`", "`model: fable`")]
+    assert -1 not in rungs and rungs == sorted(rungs), rungs
+    # a resume keeps the old effort, so escalation is a respawn; the log covers the first dispatch too
+    assert "gate failure" in dispatch and "respawn one level up" in dispatch
+    assert "Log every dispatch: `board beat" in dispatch
 
 
 def test_the_lead_skill_preloads_dev_status_without_aborting():
@@ -149,3 +173,88 @@ def test_the_builder_sends_the_pr_body_as_a_heredoc_with_nothing_piped_after_it(
     finish = body.split("## Finish", 1)[1]
     assert "--summary - <<'EOF'" in finish and "nothing piped after" in finish
     assert "`| tail` makes worktree isolation refuse the call" in finish
+
+
+TAGS = ("Blocking", "Nit", "Pre-existing", "Follow-up")
+
+
+@pytest.mark.parametrize("agent", ["reviewer", "research-auditor"])
+def test_review_agents_tag_every_finding_and_only_blocking_sends_back(agent):
+    """#260: report every finding, tagged, because a "report only high severity" prompt makes the model report less;
+    only Blocking returns the PR, so nits stop costing fix resumes and confirmation rounds (harness-efficiency.md §4,
+    change 5)."""
+    _, body = frontmatter.read(PLUGIN / "agents" / f"{agent}.md")
+    assert all(f"**{t}**" in body for t in TAGS)
+    assert "Report every finding" in body and "only report" not in body.lower()
+    assert "Only **Blocking** findings send" in body and "At most 3 **Nit**" in body
+    assert "no confirmation round" in body
+    # a re-review starts from what changed; the builder's map says which push fixed what
+    assert "since the last reviewed SHA" in body and "fix-to-finding map" in body
+    assert "not the whole PR" not in body
+    # round 3 blocked by any finding, new or old: question the approach instead of another fix list
+    assert "From round 3, any Blocking finding" in body and "**reconsider the approach**" in body
+
+
+def test_the_reviewer_re_review_follows_the_changed_symbols_and_widens_on_risky_fixes():
+    """#260 review: a diff-only re-review misses fixes whose effect is outside the diff (config, constants, prompts,
+    data, a deleted check) and round-1 code a later round re-thinks."""
+    _, body = frontmatter.read(PLUGIN / "agents/reviewer.md")
+    line = body.split("since the last reviewed SHA", 1)[1].split("\n", 1)[0]
+    assert "`uv run dev code refs`" in line
+    assert "Widen to the whole PR" in line
+    assert all(w in line for w in ("config", "constants", "prompts", "data", "deletes a check", "round-1 code"))
+
+
+def test_each_blocking_finding_leaves_a_probe_the_builder_commits_and_every_fix_push_reruns():
+    """#257: of 51 later review rounds that did not pass, 22 were bugs the previous fix introduced and 13 more
+    instances of a class already flagged (harness-efficiency.md change 2; r2-review-convergence.md F2, F5). A class
+    name and a runnable probe per Blocking finding, committed as a test and rerun before each fix push, targets both."""
+    _, reviewer = frontmatter.read(PLUGIN / "agents/reviewer.md")
+    blocking = reviewer.split("- **Blocking**", 1)[1].split("\n", 1)[0]
+    assert "bug class" in blocking and "runnable probe" in blocking
+    assert all(w in blocking for w in ("table", "generator", "command", "every instance"))
+    assert "A re-review reruns the earlier rounds' probes." in reviewer
+    _, builder = frontmatter.read(PLUGIN / "agents/builder.md")
+    method = builder.split("## Method", 1)[1].split("\n## ", 1)[0]
+    line = next(x for x in method.splitlines() if "probe" in x)
+    assert "commit its probe as a test" in line and "every instance of its class" in line
+    assert "rerun every earlier round's probe before pushing the fix" in line
+
+
+def test_the_auditor_re_audit_rechecks_the_recommendation_on_changed_claims():
+    _, body = frontmatter.read(PLUGIN / "agents/research-auditor.md")
+    line = body.split("since the last reviewed SHA", 1)[1].split("\n", 1)[0]
+    assert "re-checks the Recommendation" in line
+
+
+def test_the_lead_skill_carries_the_review_verdict_contract():
+    """#260: the lead acts on the tags, skips confirmation rounds after nit-only fixes (security re-reviews any code
+    change), and escalates after round 3 instead of merging an open blocker."""
+    _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
+    loop = body.split("## 2. Close the loop first", 1)[1].split("\n## ", 1)[0]
+    assert all(t in loop for t in TAGS)
+    # a project reviewer (a security reviewer) may not tag: its findings must not slip through as non-blocking
+    assert "Only Blocking or untagged findings return the PR" in loop and "at most 3 Nits" in loop
+    assert "resume the worker for fixes" in loop and "fix-to-finding map" in loop
+    assert "passing round number, last reviewed SHA and earlier probes" in loop
+    assert "no confirmation round" in loop
+    assert "a project's security reviewer, if any, re-reviews any code change" in loop
+    assert "file the rest as issues" in loop
+    assert "reconsider the approach" in loop and "never merge with an open Blocking finding" in loop
+
+
+# #256: a tool schema is re-read on every call whether the agent uses it or not (harness-efficiency.md, change 1).
+# In 410 worker runs Artifact was called 4 times, Skill 3 and Agent never. The builder keeps Skill because HARNESS.md
+# sends harness-file work through the harness skill.
+WITHHELD = {
+    "builder": {"Agent", "Artifact"},
+    "researcher": {"Agent", "Artifact", "Skill"},
+    "tester": {"Agent", "Artifact", "Skill"},
+}
+
+
+@pytest.mark.parametrize("agent", sorted(WITHHELD))
+def test_the_workers_withhold_the_tools_they_never_call(agent):
+    meta, _ = frontmatter.read(PLUGIN / f"agents/{agent}.md")
+    assert "tools" not in meta  # an allowlist would also drop the MCP tools researchers use; trim the pool instead
+    assert {t.strip() for t in str(meta["disallowedTools"]).split(",")} == WITHHELD[agent]

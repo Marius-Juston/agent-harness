@@ -4,7 +4,9 @@ description: Writes adversarial, property-based and regression tests for one iss
 model: opus
 maxTurns: 300
 color: green
+effort: high  # judged for Opus 5.5 on 2026-10-19 (harness-efficiency.md §3)
 isolation: worktree
+disallowedTools: Agent, Artifact, Skill
 experimental:
   cacheTtl: 1h
 ---

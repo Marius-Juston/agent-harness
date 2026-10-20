@@ -1,0 +1,54 @@
+# Hand labels (one rater) of every STALE verdict of r1_llm_sweep.sh (claude-sonnet-5-5, 2026-10-19), verified by grep/read
+# in the same snapshot. T = the code contradicts a current-tense claim; H = historical, proposal or dated-record text;
+# E = the model's search was wrong (the thing exists); S = the model misread the claim's scope; U = ambiguous.
+# Runs: A = L3 CLAUDE.md before the in-the-wild audit (merge 77); B = L3 architecture doc (merge 88); C = L3 spec (merge 88);
+# D = L1 proposal doc (HEAD); E = L1 AGENTS.md (HEAD); F = L2 CLAUDE.md (HEAD); G = L3 CLAUDE.md (HEAD, rewritten 2026-10-18)
+run,line,label
+A,31,U
+A,158,H
+A,166,H
+A,169,E
+B,5,T
+B,14,T
+B,25,T
+B,22,T
+B,50,T
+B,51,U
+B,53,T
+B,57,T
+B,125,H
+B,128,T
+B,132,T
+B,140,T
+B,170,T
+C,9,T
+C,22,T
+C,23,T
+C,26,T
+C,71,T
+C,78,T
+C,83,T
+C,87,T
+C,91,T
+C,93,T
+C,98,T
+C,112,T
+C,120,T
+C,122,T
+C,124,T
+C,125,T
+C,127,T
+C,134,T
+C,144,T
+C,145,T
+C,154,H
+D,79,T
+D,85,U
+D,148,H
+D,209,T
+D,210,T
+F,57,E
+F,57,E
+F,114,S
+G,90,T
+G,107,T
