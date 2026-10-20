@@ -6,6 +6,7 @@ import json
 import shutil
 import subprocess
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -16,6 +17,7 @@ from devkit import board, workflow
 from tests.test_board import mk
 from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate are fixtures
     HEAD,
+    FinishedGate,
     _index,
     _job,
     _last_json,
@@ -1135,3 +1137,176 @@ def test_a_corrupt_sent_back_file_does_not_crash_integrate_after_its_merge(proje
     (state / "sent-back.json").write_text(stored)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     assert last_json(capsys.readouterr().out)["sent_back"] == [8]
+
+
+# --- integrate --why: the last recorded outcome, read without re-running integrate (#348) ------------------------
+
+GATE_OUT = """ok   ruff lint: 3 checked, 0 problem(s)
+     warning: an ok stage's warning is not a failure
+FAIL tests: 120 checked, 2 problem(s)
+     tests/test_x.py::test_a FAILED
+     tests/test_x.py::test_b FAILED
+ok   lock: 1 checked, 0 problem(s)
+FAIL ruff format: 2 checked, 1 problem(s)
+     would reformat devkit/x.py
+RESULT: failed (2 stage(s), 30 s)
+"""
+
+
+def _gate_says(monkeypatch, text, code):
+    """The gate integrate starts writes `text` to the log it is given and exits with `code`."""
+
+    def popen(cmd, **kw):
+        kw["stdout"].write(text)
+        return FinishedGate(code)
+
+    monkeypatch.setattr(workflow.subprocess, "Popen", popen)
+
+
+def _record(n=7):
+    return json.loads((workflow.state_dir("integrate") / f"pr-{n}.outcome.json").read_text())
+
+
+def _writes(events):
+    """Every call that changes GitHub, runs the gate or merges: what `--why` must never make."""
+    reads = {("gh", "pr", "view"), ("gh", "api", "graphql")}
+    return [e for e in events if (e[0] == "gh" and e[:3] not in reads) or e[0] == "run" or e[:2] == ("git", "push")]
+
+
+def test_integrate_records_a_gate_failure_with_its_failing_lines(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    _gate_says(monkeypatch, GATE_OUT, 1)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    out = capsys.readouterr().out
+    assert "FAIL tests" in out  # the gate's output is still printed
+    rec = _record()
+    assert rec["outcome"] == "gate-failed" and rec["judged"] == HEAD and rec["exit"] == 1
+    assert rec["gate"] == [
+        "FAIL tests: 120 checked, 2 problem(s)",
+        "     tests/test_x.py::test_a FAILED",
+        "     tests/test_x.py::test_b FAILED",
+        "FAIL ruff format: 2 checked, 1 problem(s)",
+        "     would reformat devkit/x.py",
+        "RESULT: failed (2 stage(s), 30 s)",
+    ]
+    assert rec["reason"] and Path(rec["log"]).read_text().endswith(GATE_OUT)
+    assert _last_json(out)["gate"] == rec["gate"]
+
+
+def test_integrate_records_a_refusal_with_its_unfinished_feedback(fake_integrate, capsys):  # noqa: F811
+    fake_integrate["threads"] = [_thread("devkit/x.py", 9)]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    rec = _record()
+    assert rec["outcome"] == "refused" and rec["judged"] == HEAD and rec["reason"] == "unfinished feedback"
+    assert [f for f in rec["feedback"] if "unresolved review thread devkit/x.py:9" in f]
+
+
+def test_each_integrate_replaces_the_record_of_its_pr_only(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    _gate_says(monkeypatch, GATE_OUT, 1)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert workflow.integrate(8, harness_ok=True, dry_run=False) == 1
+    _gate_says(monkeypatch, "RESULT: passed\n", 0)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert _record(7)["outcome"] == "merged" and "gate" not in _record(7)
+    assert _record(8)["outcome"] == "gate-failed"
+
+
+def test_a_crash_is_recorded_as_stopped(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    monkeypatch.setattr(workflow, "changed_paths", lambda *a: 1 / 0)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    rec = _record()
+    assert rec["outcome"] == "stopped" and "ZeroDivisionError" in rec["reason"]
+
+
+def test_why_prints_the_record_and_that_the_head_has_not_moved(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    _gate_says(monkeypatch, GATE_OUT, 1)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    capsys.readouterr()
+    fake_integrate["events"].clear()
+    assert workflow.why(7) == 0
+    out = capsys.readouterr().out
+    assert "gate-failed" in out and HEAD[:10] in out
+    assert "FAIL tests: 120 checked" in out and "would reformat devkit/x.py" in out
+    assert "unchanged since" in out and "moved since" not in out
+    ev = fake_integrate["events"]
+    assert not _writes(ev) and not _merged(ev) and all(e[0] == "gh" for e in ev)
+
+
+def test_why_says_when_the_head_has_moved_since(fake_integrate, capsys):  # noqa: F811
+    fake_integrate["threads"] = [_thread("devkit/x.py", 9)]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    capsys.readouterr()
+    fake_integrate["remote_head"] = "n" * 40
+    fake_integrate["events"].clear()
+    assert workflow.why(7) == 0
+    out = capsys.readouterr().out
+    assert "refused" in out and "devkit/x.py:9" in out
+    assert f"moved since: {HEAD[:10]} -> {'n' * 10}" in out
+    assert not _writes(fake_integrate["events"])
+
+
+def test_why_without_a_record_says_so_and_touches_nothing(fake_integrate, capsys):  # noqa: F811
+    assert workflow.why(7) == 1
+    assert "no integrate outcome recorded for PR #7" in capsys.readouterr().out
+    assert fake_integrate["events"] == []
+
+
+def test_why_still_prints_the_record_when_github_cannot_be_read(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    fake_integrate["threads"] = [_thread("devkit/x.py", 9)]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    capsys.readouterr()
+
+    def down(*a, **k):
+        raise board.BoardError("gh: 502")
+
+    monkeypatch.setattr(board, "gh", down)
+    assert workflow.why(7) == 0
+    out = capsys.readouterr().out
+    assert "refused" in out and "cannot read the PR head" in out
+
+
+def test_dev_integrate_why_reads_the_record_and_never_integrates(fake_integrate, capsys):  # noqa: F811
+    from devkit import cli
+
+    fake_integrate["threads"] = [_thread("devkit/x.py", 9)]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    capsys.readouterr()
+    fake_integrate["events"].clear()
+    fake_integrate["threads"] = []  # a real integrate would now merge
+    args = cli.build().parse_args(["integrate", "7", "--why", "--override", "x", "--harness-ok"])
+    assert cli.run(args) == 0
+    assert "refused" in capsys.readouterr().out
+    ev = fake_integrate["events"]
+    assert not _writes(ev) and not _merged(ev) and not any(e[:2] == ("git", "fetch") for e in ev)
+
+
+def test_failing_lines_keeps_failed_stages_and_the_result_line():
+    lines = workflow.failing_lines(GATE_OUT)
+    assert lines[0] == "FAIL tests: 120 checked, 2 problem(s)" and lines[-1].startswith("RESULT: failed")
+    assert not [ln for ln in lines if "warning" in ln or ln.startswith("ok")]
+
+
+def test_failing_lines_falls_back_to_the_tail_when_no_stage_failed():
+    """A stand-in command (--local-ci) or a killed gate prints no FAIL line: the end of the output says why."""
+    text = "\n".join(f"line {i}" for i in range(50)) + "\n\n"
+    assert workflow.failing_lines(text) == [f"line {i}" for i in range(50 - workflow.WHY_TAIL, 50)]
+    assert workflow.failing_lines("") == []
+
+
+_stage = st.tuples(
+    st.booleans(), st.lists(st.text("abc:/.", min_size=1, max_size=8).map(lambda t: f"     {t}"), max_size=5)
+)
+
+
+@given(st.lists(_stage, max_size=12))
+def test_failing_lines_is_every_failed_stage_with_its_problems_in_order_and_bounded(stages):
+    text = "".join(
+        f"{'FAIL' if failed else 'ok  '} s{i}: 1 checked\n" + "".join(p + "\n" for p in problems)
+        for i, (failed, problems) in enumerate(stages)
+    )
+    want = [ln for i, (failed, ps) in enumerate(stages) if failed for ln in [f"FAIL s{i}: 1 checked", *ps]]
+    got = workflow.failing_lines(text)
+    assert len(got) <= workflow.WHY_LINES + 1
+    if want and len(want) <= workflow.WHY_LINES:
+        assert got == want
+    elif want:
+        assert got[: workflow.WHY_LINES] == want[: workflow.WHY_LINES] and "more" in got[-1]

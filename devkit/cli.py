@@ -184,6 +184,11 @@ def build() -> argparse.ArgumentParser:
         metavar="EPIC",
         help="the merge commit records a consolidation review (Consolidation-Review: #EPIC), resetting its trigger",
     )
+    x.add_argument(
+        "--why",
+        action="store_true",
+        help="only print the PR's last integrate outcome and whether its head moved since: no gate, no merge, no write",
+    )
 
     x = sub.add_parser(
         "cite-check", help="resolve every source in research notes; flag dead links and title mismatches"
@@ -396,6 +401,8 @@ def run(a: argparse.Namespace) -> int:
             return run_board(a)
         case "pr":
             print(workflow.pr(a.number, a.summary, a.draft, a.partial))
+        case "integrate" if a.why:  # read-only, whatever other flags came with it
+            return workflow.why(a.pr)
         case "integrate":
             return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
         case "cite-check":
