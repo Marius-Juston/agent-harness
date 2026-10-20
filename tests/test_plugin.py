@@ -175,6 +175,58 @@ def test_the_builder_sends_the_pr_body_as_a_heredoc_with_nothing_piped_after_it(
     assert "`| tail` makes worktree isolation refuse the call" in finish
 
 
+TAGS = ("Blocking", "Nit", "Pre-existing", "Follow-up")
+
+
+@pytest.mark.parametrize("agent", ["reviewer", "research-auditor"])
+def test_review_agents_tag_every_finding_and_only_blocking_sends_back(agent):
+    """#260: report every finding, tagged, because a "report only high severity" prompt makes the model report less;
+    only Blocking returns the PR, so nits stop costing fix resumes and confirmation rounds (harness-efficiency.md §4,
+    change 5)."""
+    _, body = frontmatter.read(PLUGIN / "agents" / f"{agent}.md")
+    assert all(f"**{t}**" in body for t in TAGS)
+    assert "Report every finding" in body and "only report" not in body.lower()
+    assert "Only **Blocking** findings send" in body and "At most 3 **Nit**" in body
+    assert "no confirmation round" in body
+    # a re-review starts from what changed; the builder's map says which push fixed what
+    assert "since the last reviewed SHA" in body and "fix-to-finding map" in body
+    assert "not the whole PR" not in body
+    # round 3 blocked by any finding, new or old: question the approach instead of another fix list
+    assert "From round 3, any Blocking finding" in body and "**reconsider the approach**" in body
+
+
+def test_the_reviewer_re_review_follows_the_changed_symbols_and_widens_on_risky_fixes():
+    """#260 review: a diff-only re-review misses fixes whose effect is outside the diff (config, constants, prompts,
+    data, a deleted check) and round-1 code a later round re-thinks."""
+    _, body = frontmatter.read(PLUGIN / "agents/reviewer.md")
+    line = body.split("since the last reviewed SHA", 1)[1].split("\n", 1)[0]
+    assert "`uv run dev code refs`" in line
+    assert "Widen to the whole PR" in line
+    assert all(w in line for w in ("config", "constants", "prompts", "data", "deletes a check", "round-1 code"))
+
+
+def test_the_auditor_re_audit_rechecks_the_recommendation_on_changed_claims():
+    _, body = frontmatter.read(PLUGIN / "agents/research-auditor.md")
+    line = body.split("since the last reviewed SHA", 1)[1].split("\n", 1)[0]
+    assert "re-checks the Recommendation" in line
+
+
+def test_the_lead_skill_carries_the_review_verdict_contract():
+    """#260: the lead acts on the tags, skips confirmation rounds after nit-only fixes (security re-reviews any code
+    change), and escalates after round 3 instead of merging an open blocker."""
+    _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
+    loop = body.split("## 2. Close the loop first", 1)[1].split("\n## ", 1)[0]
+    assert all(t in loop for t in TAGS)
+    # a project reviewer (a security reviewer) may not tag: its findings must not slip through as non-blocking
+    assert "Only Blocking or untagged findings return the PR" in loop and "at most 3 Nits" in loop
+    assert "resume the worker for fixes" in loop and "fix-to-finding map" in loop
+    assert "passing round number and last reviewed SHA" in loop
+    assert "no confirmation round" in loop
+    assert "a project's security reviewer, if any, re-reviews any code change" in loop
+    assert "file the rest as issues" in loop
+    assert "reconsider the approach" in loop and "never merge with an open Blocking finding" in loop
+
+
 # #256: a tool schema is re-read on every call whether the agent uses it or not (harness-efficiency.md, change 1).
 # In 410 worker runs Artifact was called 4 times, Skill 3 and Agent never. The builder keeps Skill because HARNESS.md
 # sends harness-file work through the harness skill.
