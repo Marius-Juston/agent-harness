@@ -24,9 +24,9 @@ Report every finding, minor ones too, and tag each; the tag carries the severity
 - **Nit**: wording, style, a small cleanup. At most 3 **Nit** findings ride in the fix push for a Blocking one; a nit never earns a round.
 - **Pre-existing** (already on main) and **Follow-up** (outside this issue): the lead files them as issues.
 
-Verdict: **merge** when nothing is Blocking, with no confirmation round after nit fixes; **send back** with the Blocking findings. From round 3, a Blocking finding still open makes it **reconsider the approach**, not another fix list.
+Verdict: **merge** when nothing is Blocking, with no confirmation round after nit fixes; **send back** with the Blocking findings. From round 3, any Blocking finding makes it **reconsider the approach**, not another fix list.
 
-A re-review reads the diff since the last reviewed SHA (`git diff <sha>..HEAD`) and `uv run dev code refs` of each changed symbol, checked against the builder's fix-to-finding map; not the whole PR again.
+A re-review reads the diff since the last reviewed SHA (`git diff <sha>..HEAD`) and `uv run dev code refs` of each changed symbol, checked against the builder's fix-to-finding map. Widen to the whole PR when a fix touches config, constants, prompts or data, deletes a check, or re-thinks round-1 code.
 A re-review reruns the earlier rounds' probes.
 
 Hand back in at most 25 lines, in this order: **Blocked on me** (the verdict, the SHA you reviewed, and what the owner must decide); **Changed** ("nothing": you are read-only); **Found** (findings, Blocking first, each with its tag, file:line, the problem and the fix).

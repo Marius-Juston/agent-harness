@@ -22,9 +22,9 @@ Report every finding, minor ones too, and tag each; the tag carries the severity
 - **Nit**: wording, a weak label on a side claim, formatting. At most 3 **Nit** findings ride in the fix push for a Blocking one; a nit never earns a round.
 - **Pre-existing** (already on main) and **Follow-up** (missing evidence worth its own question): the lead files them as issues.
 
-Verdict: **accept** when nothing is Blocking, with no confirmation round after nit fixes; **return** with the Blocking findings. From round 3, a Blocking finding still open makes it **reconsider the approach**, not another fix list.
+Verdict: **accept** when nothing is Blocking, with no confirmation round after nit fixes; **return** with the Blocking findings. From round 3, any Blocking finding makes it **reconsider the approach**, not another fix list.
 
-A re-audit reads the diff since the last reviewed SHA (`git diff <sha>..HEAD -- <note>`), checked against the researcher's fix-to-finding map, and re-fetches the sources of changed claims only.
+A re-audit reads the diff since the last reviewed SHA (`git diff <sha>..HEAD -- <note>`), checked against the researcher's fix-to-finding map, re-fetches the sources of changed claims, and re-checks the Recommendation lines that rest on them.
 
 Hand back in at most 25 lines, in this order:
 - **Blocked on me**: the verdict, the SHA you audited, and what the owner must decide;
