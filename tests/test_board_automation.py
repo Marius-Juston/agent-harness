@@ -361,6 +361,7 @@ def test_dev_pr_labels_the_pr_from_its_changed_paths(fake, monkeypatch, tmp_path
     git = {"diff": "devkit/board.py\ntests/test_x.py", "branch": "33-x"}
     monkeypatch.setattr(workflow, "git", lambda *a, **k: git.get(a[0], ""))
     monkeypatch.setattr(workflow, "_gate_passed", lambda: True)
+    monkeypatch.setattr(workflow, "main_conflicts", lambda: [])  # git is faked: no main to merge-tree against
     fake.add(33, ["status:in-progress"])
     fake.labels.discard("area:devkit")  # a repo before `board init`: the label gets created first
     summary = tmp_path / "s.md"

@@ -3,7 +3,9 @@ The PR summary's `Reuse:` line (#173), which the completion gate checks."""
 
 import io
 import json
+import shutil
 import subprocess
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -25,6 +27,8 @@ from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate 
     fake_integrate,
 )
 from tests.test_merge_hygiene import (  # noqa: F401 - project is a fixture
+    ATTRIBUTES,
+    INDEX,
     commit,
     land_on_main,
     last_json,
@@ -42,6 +46,7 @@ def opened(monkeypatch):
     sent = []
     monkeypatch.setattr(workflow, "git", lambda *a: "33-x" if a[0] == "branch" else "")
     monkeypatch.setattr(workflow, "_gate_passed", lambda: True)
+    monkeypatch.setattr(workflow, "main_conflicts", lambda: [])
     monkeypatch.setattr(board, "get", lambda n: SimpleNamespace(title="t"))
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "comment", lambda n, text: None)
@@ -848,3 +853,285 @@ def test_integrate_deletes_the_branch_when_a_stale_list_still_shows_the_merged_p
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     said = capsys.readouterr().out
     assert not _local(clone, "12-c") and f"deleted branch 12-c (was {tip[:10]})" in said
+
+
+# --- conflicts with main: `dev pr` refuses them, integrate sends them back right after each merge (#349) ----------
+
+
+@pytest.fixture
+def remote(tmp_path, monkeypatch):
+    """A bare origin whose main carries the template's .gitattributes, and a worker's clone (cwd) on issue branch
+    9-x. GitHub is faked; returns a world dict: clone, origin, sent (the bodies `gh pr create` got)."""
+    origin, clone = tmp_path / "origin.git", tmp_path / "clone"
+    sh(tmp_path, "git", "init", "-q", "--bare", "-b", "main", str(origin))
+    sh(tmp_path, "git", "clone", "-q", str(origin), str(clone))
+    sh(clone, "git", "config", "user.email", "t@t")
+    sh(clone, "git", "config", "user.name", "t")
+    shutil.copy(ATTRIBUTES, clone / ".gitattributes")
+    commit(clone, {"src/a.py": "one\ntwo\nthree\n", INDEX: "# Index\n- a\n"}, "init")
+    sh(clone, "git", "push", "-q", "origin", "main")
+    sh(clone, "git", "checkout", "-q", "-b", "9-x")
+    world = {"clone": clone, "origin": origin, "sent": []}
+    monkeypatch.chdir(clone)
+    monkeypatch.setattr(workflow, "_gate_passed", lambda: True)
+    monkeypatch.setattr(workflow, "pr_areas", lambda: [])
+    monkeypatch.setattr(board, "get", lambda n: SimpleNamespace(title="t"))
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board, "comment", lambda n, text: None)
+    monkeypatch.setattr(board, "set_status", lambda n, s: None)
+    monkeypatch.setattr(board, "gh", lambda *a, input=None: world["sent"].append(input) or "https://example/pr/1\n")
+    return world
+
+
+def _main_moves(world: dict, files: dict[str, str]) -> None:
+    """Another PR lands on origin's main while this branch is open (the clone's own main stays behind)."""
+    other = world["clone"].parent / "other"
+    if not other.exists():
+        sh(world["clone"].parent, "git", "clone", "-q", str(world["origin"]), str(other))
+        sh(other, "git", "config", "user.email", "t@t")
+        sh(other, "git", "config", "user.name", "t")
+    sh(other, "git", "pull", "-q", "--ff-only")
+    commit(other, files, "another PR")
+    sh(other, "git", "push", "-q", "origin", "main")
+
+
+def _pushed(world: dict) -> bool:
+    return bool(out(world["origin"], "git", "branch", "--list", "9-x"))
+
+
+def test_dev_pr_refuses_a_branch_that_conflicts_with_main_and_names_the_paths(remote, monkeypatch):
+    """#349: 7 of 19 conflicting hand-backs already conflicted with main at `dev pr`. Nothing is pushed; once main is
+    merged in (and the branch re-gated) the same call opens the PR."""
+    commit(remote["clone"], {"src/a.py": "one\nTWO by x\nthree\n"}, "x")
+    _main_moves(remote, {"src/a.py": "one\nTWO by main\nthree\n"})
+    monkeypatch.setattr("sys.stdin", io.StringIO("done\n"))
+    with pytest.raises(board.BoardError) as refused:
+        workflow.pr(9, "-", draft=False)
+    assert "src/a.py" in str(refused.value) and "merge main, re-gate" in str(refused.value)
+    assert not _pushed(remote) and remote["sent"] == []
+    clone = remote["clone"]
+    sh(clone, "git", "merge", "-q", "origin/main", check=False)
+    (clone / "src/a.py").write_text("one\nTWO by both\nthree\n")
+    sh(clone, "git", "commit", "-qam", "merge main")
+    monkeypatch.setattr("sys.stdin", io.StringIO("done\n"))
+    assert workflow.pr(9, "-", draft=False).startswith("https://example/pr/1")
+    assert _pushed(remote)
+
+
+def test_dev_pr_lets_a_branch_main_merges_into_cleanly_through(remote, monkeypatch):
+    commit(remote["clone"], {"src/b.py": "new\n"}, "x")
+    _main_moves(remote, {"src/a.py": "one\nTWO by main\nthree\n"})
+    monkeypatch.setattr("sys.stdin", io.StringIO("done\n"))
+    workflow.pr(9, "-", draft=False)
+    assert _pushed(remote)
+
+
+def test_dev_pr_merges_with_mains_attributes_and_the_generated_file_driver(remote, monkeypatch):
+    """Both sides rewrote the generated index: integrate's driver keeps one side (`dev docs` regenerates it), so it is
+    no conflict, even though this old branch dropped the rule from its own .gitattributes (`--attr-source`). A union
+    rule the branch adds is not main's, so its file still conflicts."""
+    clone = remote["clone"]
+    attributes = (clone / ".gitattributes").read_text()
+    kept = "".join(line for line in attributes.splitlines(keepends=True) if "devkit-generated" not in line)
+    commit(clone, {".gitattributes": kept, INDEX: "# Index\n- a\n- x\n"}, "x")
+    _main_moves(remote, {INDEX: "# Index\n- a\n- m\n"})
+    monkeypatch.setattr("sys.stdin", io.StringIO("done\n"))
+    workflow.pr(9, "-", draft=False)
+    assert _pushed(remote)
+    commit(clone, {".gitattributes": kept + "src/*.py merge=union\n", "src/a.py": "one\nTWO by x\nthree\n"}, "u")
+    _main_moves(remote, {"src/a.py": "one\nTWO by main\nthree\n"})
+    monkeypatch.setattr("sys.stdin", io.StringIO("done\n"))
+    with pytest.raises(board.BoardError, match=r"src/a\.py"):
+        workflow.pr(9, "-", draft=False)
+
+
+def test_merge_conflicts_matches_what_merge_main_finds(remote):
+    """The pre-check and integrate's own merge agree: the same paths conflict, through the same driver and rules."""
+    clone = remote["clone"]
+    commit(clone, {"src/a.py": "one\nTWO by x\nthree\n", "src/c.py": "c\n", INDEX: "# Index\n- x\n"}, "x")
+    _main_moves(remote, {"src/a.py": "one\nTWO by main\nthree\n", "src/c.py": "main c\n", INDEX: "# Index\n- m\n"})
+    sh(clone, "git", "fetch", "-q", "origin")
+    main = out(clone, "git", "rev-parse", "origin/main")
+    assert workflow.merge_conflicts("HEAD", main) == ["src/a.py", "src/c.py"]
+    assert workflow.merge_main(clone, main) == ["src/a.py", "src/c.py"]
+
+
+def test_dev_pr_fails_closed_when_it_cannot_check_against_main(remote, monkeypatch):
+    """No fetch, or a merge-tree git cannot run, is no proof the branch merges: nothing is pushed."""
+    with pytest.raises(RuntimeError, match="merge-tree"):
+        workflow.merge_conflicts("HEAD", "f" * 40)
+    sh(remote["clone"], "git", "remote", "set-url", "origin", str(remote["clone"].parent / "gone.git"))
+    monkeypatch.setattr("sys.stdin", io.StringIO("done\n"))
+    with pytest.raises(board.BoardError, match="cannot check this branch for conflicts"):
+        workflow.pr(9, "-", draft=False)
+    assert remote["sent"] == []
+
+
+def _other_pr(world: dict, number: int, name: str, files: dict[str, str], draft: bool = False) -> dict:
+    """Open PR `number` on branch `name`, cut from the current main, as `gh pr list` shows it."""
+    clone = world["clone"]
+    sh(clone, "git", "checkout", "-q", "-b", name, "main")
+    tip = commit(clone, files, name)
+    sh(clone, "git", "push", "-q", "origin", name)
+    sh(world["origin"], "git", "update-ref", f"refs/pull/{number}/head", tip)
+    sh(clone, "git", "checkout", "-q", "-f", "main")
+    sh(clone, "git", "clean", "-qfd")
+    issue = name.split("-")[0]
+    return {"number": number, "headRefName": name, "headRefOid": tip, "body": f"Closes #{issue}", "isDraft": draft}
+
+
+def _into_main(args: tuple) -> bool:
+    """`gh pr list --base main`: the open PRs into main (`--base <branch>` lists the PRs stacked on a branch)."""
+    return args[:2] == ("pr", "list") and "--base" in args and args[args.index("--base") + 1] == "main"
+
+
+def _merging(world: dict, monkeypatch, listed: list[dict]) -> None:
+    """GitHub's squash merge lands the gated head on origin's main; `gh pr list --base main` shows `listed`."""
+    fake = board.gh
+
+    def gh(*args, **kw):
+        if args[:2] == ("pr", "merge"):
+            tip = args[args.index("--match-head-commit") + 1]
+            sh(world["origin"], "git", "update-ref", "refs/heads/main", tip)
+        if _into_main(args):
+            return json.dumps(listed)
+        return fake(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+
+
+def test_integrate_sends_back_each_open_pr_the_new_main_conflicts_with(project, capsys, monkeypatch):  # noqa: F811
+    """#349: integrate sent back 10 conflicting PRs a median 30.5 min after the PR they conflict with merged. Now the
+    merge itself checks every open PR into main: 13-d conflicts and is sent back at once; 14-e only touches the
+    generated index (the driver absorbs it); a draft and the PR just merged (a stale list) are not checked."""
+    clone = project["clone"]
+    listed = [
+        _other_pr(project, 8, "13-d", {"docs/research/a.md": "one\nTWO by d\nthree\n"}),
+        _other_pr(project, 9, "14-e", note(clone, "e")),
+        _other_pr(project, 10, "15-f", {"docs/research/a.md": "one\nTWO by f\nthree\n"}, draft=True),
+    ]
+    open_pr(project, {"docs/research/a.md": "one\nTWO by c\nthree\n", **note(clone, "c")})
+    listed.append({"number": 7, "headRefName": "12-c", "headRefOid": "", "body": "Closes #12", "isDraft": False})
+    _merging(project, monkeypatch, listed)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    said = capsys.readouterr().out
+    res = last_json(said)
+    assert res["outcome"] == "merged" and res["sent_back"] == [8]
+    assert "sent back 1 of 2 open PRs" in said
+    assert [n for n, _ in project["blocked"]] == [13]
+    comments = [e for e in project["events"] if e[:3] == ("gh", "pr", "comment")]
+    assert [e[3] for e in comments] == ["8"] and "docs/research/a.md" in comments[0][-1]
+    assert not out(clone, "git", "for-each-ref", "refs/devkit")  # no fetched refs left behind
+
+
+def test_a_pr_already_sent_back_on_the_same_head_is_not_sent_back_again(project, capsys, monkeypatch):  # noqa: F811
+    """After the next merge the PR still conflicts, but its worker was told and has not pushed: no second comment.
+    A new head that still conflicts is sent back again."""
+    clone = project["clone"]
+    d = _other_pr(project, 8, "13-d", {"docs/research/a.md": "one\nTWO by d\nthree\n"})
+    open_pr(project, {"docs/research/a.md": "one\nTWO by c\nthree\n"})
+    _merging(project, monkeypatch, [d])
+    workflow.integrate(7, harness_ok=True, dry_run=False)
+    assert last_json(capsys.readouterr().out)["sent_back"] == [8]
+    assert workflow.send_back_conflicting(7) == []
+    assert "already sent back: #8" in capsys.readouterr().out
+    sh(clone, "git", "checkout", "-q", "13-d")
+    d["headRefOid"] = commit(clone, {"docs/research/a.md": "one\nTWO by d, again\nthree\n"}, "again")
+    sh(clone, "git", "push", "-q", "origin", "13-d")
+    sh(project["origin"], "git", "update-ref", "refs/pull/8/head", d["headRefOid"])
+    sh(clone, "git", "checkout", "-q", "main")
+    assert workflow.send_back_conflicting(7) == [8]
+    assert len([e for e in project["events"] if e[:3] == ("gh", "pr", "comment")]) == 2
+
+
+def test_the_post_merge_check_failing_does_not_turn_a_merge_into_a_stop(project, capsys, monkeypatch):  # noqa: F811
+    clone = project["clone"]
+    open_pr(project, note(clone, "c"))
+    fake = board.gh
+
+    def gh(*args, **kw):
+        if _into_main(args):
+            raise board.BoardError("gh: offline")
+        return fake(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    said = capsys.readouterr().out
+    assert last_json(said)["outcome"] == "merged" and "conflict check of the new main skipped" in said
+
+
+def test_the_conflict_check_takes_under_50_ms_per_open_pr(tmp_path):
+    """The budget the DONE WHEN sets, excluding the fetch: one `git merge-tree` per open PR (3.7 ms measured on a real
+    pack, docs/research/issue-pr-automation.md §3.2)."""
+    repo = tmp_path / "r"
+    sh(tmp_path, "git", "init", "-q", "-b", "main", str(repo))
+    sh(repo, "git", "config", "user.email", "t@t")
+    sh(repo, "git", "config", "user.name", "t")
+    shutil.copy(ATTRIBUTES, repo / ".gitattributes")
+    commit(repo, {f"src/m{i}.py": "".join(f"x{j} = {j}\n" for j in range(200)) for i in range(40)}, "init")
+    heads = {}
+    for n in range(20):
+        sh(repo, "git", "checkout", "-q", "-b", f"{n}-x", "main")
+        heads[n] = commit(repo, {f"src/m{n}.py": f"changed {n}\n", f"src/m{n + 1}.py": f"also {n}\n"}, f"pr {n}")
+    sh(repo, "git", "checkout", "-q", "main")
+    main = commit(repo, {"src/m5.py": "main\n"}, "main moves")
+    started = time.perf_counter()
+    found, failed = workflow.conflicting(main, heads, cwd=repo)
+    per_pr = (time.perf_counter() - started) / len(heads)
+    assert found == {4: ["src/m5.py"], 5: ["src/m5.py"]} and failed == {}
+    assert per_pr < 0.05, f"{per_pr * 1000:.1f} ms per open PR"
+
+
+def _orphan_pr(world: dict, number: int) -> dict:
+    """An open PR whose head shares no history with main: git cannot merge-tree it."""
+    clone = world["clone"]
+    sh(clone, "git", "checkout", "-q", "--orphan", "16-g")
+    tip = commit(clone, {"g.txt": "g\n"}, "orphan")
+    sh(clone, "git", "push", "-q", "origin", "16-g")
+    sh(world["origin"], "git", "update-ref", f"refs/pull/{number}/head", tip)
+    sh(clone, "git", "checkout", "-q", "-f", "main")
+    sh(clone, "git", "clean", "-qfd")
+    return {"number": number, "headRefName": "16-g", "headRefOid": tip, "body": "Closes #16", "isDraft": False}
+
+
+def test_one_pr_git_cannot_check_is_skipped_and_the_others_are_still_sent_back(project, capsys, monkeypatch):  # noqa: F811
+    """Review of #352: a merge-tree error on one PR disabled the whole sweep."""
+    listed = [_orphan_pr(project, 11), _other_pr(project, 8, "13-d", {"docs/research/a.md": "one\nTWO by d\nthree\n"})]
+    open_pr(project, {"docs/research/a.md": "one\nTWO by c\nthree\n"})
+    _merging(project, monkeypatch, listed)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    said = capsys.readouterr().out
+    assert last_json(said)["sent_back"] == [8] and "skipped #11: git merge-tree" in said
+
+
+def test_a_send_back_github_refuses_still_reports_those_already_sent(project, capsys, monkeypatch):  # noqa: F811
+    """Review of #352: the PRs commented before a gh failure are reported, the failed one is printed as skipped."""
+    listed = [
+        _other_pr(project, 8, "13-d", {"docs/research/a.md": "one\nTWO by d\nthree\n"}),
+        _other_pr(project, 9, "14-e", {"docs/research/a.md": "one\nTWO by e\nthree\n"}),
+    ]
+    open_pr(project, {"docs/research/a.md": "one\nTWO by c\nthree\n"})
+    _merging(project, monkeypatch, listed)
+    fake = board.gh
+
+    def gh(*args, **kw):
+        if args[:4] == ("pr", "comment", "9", "-R"):
+            raise board.BoardError("gh: 502")
+        return fake(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    said = capsys.readouterr().out
+    assert last_json(said)["sent_back"] == [8] and "skipped #9: send-back failed: gh: 502" in said
+
+
+@pytest.mark.parametrize("stored", ["[]", '"x"', "{bad json", '{"x": "y"}'])
+def test_a_corrupt_sent_back_file_does_not_crash_integrate_after_its_merge(project, capsys, monkeypatch, stored):  # noqa: F811
+    listed = [_other_pr(project, 8, "13-d", {"docs/research/a.md": "one\nTWO by d\nthree\n"})]
+    open_pr(project, {"docs/research/a.md": "one\nTWO by c\nthree\n"})
+    _merging(project, monkeypatch, listed)
+    state = project["clone"].parent / "state/integrate"
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sent-back.json").write_text(stored)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert last_json(capsys.readouterr().out)["sent_back"] == [8]
