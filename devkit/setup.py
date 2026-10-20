@@ -262,6 +262,59 @@ def doctor() -> int:
     return 1 if problems else 0
 
 
+# What `marketplace add` says when user (or managed) settings register the marketplace's name at another source.
+# Claude Code 2.1.x, verified in #327.
+SOURCE_MISMATCH = "extraKnownMarketplaces"
+
+
+def user_marketplace(name: str) -> dict:
+    """The source user settings register marketplace `name` at, or {} when they register none."""
+    base = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    try:
+        source = json.loads((base / "settings.json").read_text())["extraKnownMarketplaces"][name]["source"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+    return source if isinstance(source, dict) else {}
+
+
+def _repo(source: dict) -> str:
+    where = repo_url(str(source["repo"])) if source.get("repo") else str(source.get("url") or source.get("path") or "")
+    return where.rstrip("/").removesuffix(".git")
+
+
+def clash_warning(source: str, registered: dict) -> str | None:
+    """#327: Claude Code keeps one marketplace registry per user, keyed by name, so `marketplace add` fails when
+    another project registered the same repository at another ref. That is a warning naming both refs: the install
+    uses the registered one, and `repin_skewed` re-points it when this project's pin needs another build. None when
+    the registry names another repository, or the same ref: then the failure stands."""
+    repo, _, ref = source.partition("@")
+    have = str(registered.get("ref") or "")
+    if not registered or _repo(registered) != _repo({"url": repo_url(repo)}) or have == ref:
+        return None
+    return (
+        f"user settings register {repo} at {have or 'its default branch'} (another project's pin); "
+        f"this project pins {ref or 'no ref'}"
+    )
+
+
+def _clash(source: str) -> str | None:
+    names = [plugin.partition("@")[2] for plugin, s in config.get().plugins.items() if s == source]
+    return next((warn for name in names if (warn := clash_warning(source, user_marketplace(name)))), None)
+
+
+def run_steps(steps: list[tuple[str, list[str]]]) -> None:
+    """Run each step and print ok, WARN or FAIL. A marketplace another project registered at another ref of the same
+    repository is a WARN (`clash_warning`), not a FAIL."""
+    for what, cmd in steps:
+        ok, out = _ok(cmd)
+        if ok or "already" in out.lower():
+            print(f"ok   {what}")
+        elif cmd[1:4] == ["plugin", "marketplace", "add"] and SOURCE_MISMATCH in out and (warn := _clash(cmd[4])):
+            print(f"WARN {what}: {warn}")
+        else:
+            print(f"FAIL {what}: {out[-300:]}")
+
+
 def plugin_steps() -> list[tuple[str, list[str]]]:
     steps = []
     for plugin, source in config.get().plugins.items():
@@ -387,10 +440,7 @@ def setup(repin_all: bool = False) -> int:
         ("pre-commit hooks (prek)", ["uvx", "prek", "install"]),
         *plugin_steps(),
     ]
-    for what, cmd in steps:
-        ok, out = _ok(cmd)
-        already = "already" in out.lower()
-        print(f"{'ok  ' if ok or already else 'FAIL'} {what}" + ("" if ok or already else f": {out[-300:]}"))
+    run_steps(steps)
     if still := repin_skewed(everywhere=repin_all):
         print("FAIL the plugin is still not the pinned build after a re-pin: " + "; ".join(still))
         if not repin_all and (failed := [s.removeprefix(STOPPED) for s in still if s.startswith(STOPPED)]):
