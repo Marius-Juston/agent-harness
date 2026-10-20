@@ -35,7 +35,7 @@ python_version:
 harness_ref:
   type: str
   help: The agent-harness release (git tag) the devkit and the harness-ops plugin are pinned to
-  default: v0.1.11
+  default: v0.1.12
 
 # For testing a harness checkout before release (its CI does): install the devkit from this local path instead of
 # the tag. Never asked; pass it with --data harness_path=/abs/path.

@@ -4,6 +4,30 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.12 (2026-10-20)
+
+`dev integrate` deletes a merged PR's local branch, a new `dev worktree prune` cleans up the rest, and two board and
+doctor fixes.
+
+### Upgrading a project
+Run `uvx copier update --data harness_ref=v0.1.12`, then `uv sync && uv run dev docs && uv run dev check`. These can
+need attention:
+- **Merged branches are deleted.** After a merge, `integrate` deletes the PR's local branch when its tip is the merged
+  head or an ancestor of it and no worktree has it checked out (rebases and bisects count); otherwise it keeps the
+  branch and says why. Branches left from earlier merges: `uv run dev worktree prune --dry-run`, then without
+  `--dry-run`. guard_bash's `git branch -D` refusal now points there. (#340)
+
+### Added
+- `dev worktree prune [--dry-run]`: deletes local branches whose merged PR (or a merged PR that replaced a closed one)
+  contains every commit on them; skips main, branches with no PR or an open PR, and refuses when the PR list may be
+  cut off. (#340)
+
+### Fixed
+- Issue keywords (`Closes`, `Refs`) inside inline code spans and fenced code blocks no longer link, close or move
+  issues, in `board lint` and in integrate's board update. (#339)
+- `dev doctor`'s "plugin installed" check counts only an install for this project (or user scope), not one for any
+  other project on the machine. (#3)
+
 ## v0.1.11 (2026-10-20)
 
 `dev integrate` waits for checks still running instead of refusing, a stacked-PR route auto mode allows, and setup
