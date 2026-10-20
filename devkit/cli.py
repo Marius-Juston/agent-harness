@@ -67,6 +67,10 @@ def build() -> argparse.ArgumentParser:
     sub.add_parser("orient", help="session start: handoff, board, worktrees, gate, memory, quota (~60 lines)")
     s = sub.add_parser("status", help="this machine: gate, agent worktrees, free memory, quota")
     s.add_argument("--json", action="store_true")
+    s = sub.add_parser("worktree", help="local branches: prune those of merged or superseded PRs")
+    ws = s.add_subparsers(dest="sub", required=True, metavar="<sub>")
+    x = ws.add_parser("prune", help="delete local branches whose merged or closed PR's head contains their tip")
+    x.add_argument("--dry-run", action="store_true", help="only list what would be deleted and what is kept, and why")
     s = sub.add_parser("check", help="the gate: drift checks, budgets, lint, tests (one per machine; cached per tree)")
     s.add_argument("--full", action="store_true", help="include slow tests")
     s.add_argument("--no-cache", action="store_true")
@@ -370,6 +374,8 @@ def run(a: argparse.Namespace) -> int:
             print(workflow.orient())
         case "status":
             print(workflow.status(a.json))
+        case "worktree":
+            print("\n".join(workflow.prune_branches(a.dry_run)) or "no local branches of merged or closed PRs")
         case "check":
             return gate.check(command_map(), command_help(), full=a.full, use_cache=not a.no_cache)
         case "test":

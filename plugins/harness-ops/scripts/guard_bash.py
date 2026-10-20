@@ -53,7 +53,8 @@ WORKTREE = (
 )
 BRANCH_D = (
     "`git branch -D` deletes an unmerged branch, maybe another worker's. Use `git branch -d`; for a squash-merged "
-    "branch, check `gh pr view <branch>` first and leave the deletion to `uv run dev integrate`."
+    "branch, run `uv run dev worktree prune` (integrate already does for the PR it merges): it "
+    "deletes only a branch whose merged PR head contains its tip."
 )
 QUOTA = (
     "the quota cap is the owner's: agents never change it. `uv run dev quota-cap` prints it; ask the owner to run "
