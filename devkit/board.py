@@ -1162,11 +1162,33 @@ def sync() -> list[str]:
 ISSUE_LIST = r"#\d+(?:\s*(?:,|and|&)\s*#\d+)*"  # `#1`, `#1, #2`, `#1 and #2`
 CLOSES = re.compile(rf"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s*({ISSUE_LIST})", re.I)
 REFS = re.compile(rf"\brefs?:?\s*({ISSUE_LIST})", re.I)
+FENCE = re.compile(r" {0,3}(`{3,}(?=[^`]*$)|~{3,})")  # CommonMark: a backtick fence's info string has no backtick
+# A span closes at a backtick run of the same length, within one paragraph (no blank line inside).
+CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)((?:(?!\n[ \t]*\n).)+?)(?<!`)\1(?!`)", re.S)
+
+
+def prose(text: str) -> str:
+    """Markdown `text` without its fenced code blocks and inline code spans, so a quoted example links nothing.
+    Code becomes a NUL, which ends a keyword's list. An unclosed fence runs to the end, as in CommonMark; an
+    unmatched backtick run stays literal text."""
+    kept, fence = [], ""
+    for line in text.splitlines():
+        if fence:
+            if re.fullmatch(rf" {{0,3}}{re.escape(fence[0])}{{{len(fence)},}}\s*", line):
+                fence = ""
+        elif m := FENCE.match(line):
+            fence = m.group(1)
+            kept.append("\0")
+        else:
+            kept.append(line)
+    return CODE_SPAN.sub("\0", "\n".join(kept))
 
 
 def keyword_numbers(rx: re.Pattern[str], text: str | None) -> list[int]:
-    """Issue numbers after a keyword of `rx` (CLOSES, REFS), lists and `Keyword: #n` included, once each in order."""
-    return list(dict.fromkeys(int(n) for found in rx.findall(text or "") for n in re.findall(r"#(\d+)", found)))
+    """Issue numbers after a keyword of `rx` (CLOSES, REFS), lists and `Keyword: #n` included, once each in order.
+    Code is not read: GitHub links no issue from a code span or block."""
+    found = rx.findall(prose(text or ""))
+    return list(dict.fromkeys(int(n) for f in found for n in re.findall(r"#(\d+)", f)))
 
 
 def linked(body: str, branch: str) -> tuple[list[int], list[int]]:
