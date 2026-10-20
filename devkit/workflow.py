@@ -862,24 +862,48 @@ def _kill_group(proc: subprocess.Popen) -> None:
 
 def run_gate(tree: Path, contexts: list[str], log: Path) -> bool | None:
     """The gate, then (`--local-ci`) each required context's own stand-in commands, in the merged tree; all output
-    goes to `log` (printed after, and kept for `--why`). True when every one passed, None when the gate ran past
-    `gate_deadline_s`."""
+    goes to `log` (kept for `--why`) and, as it comes, to stdout (`_follow`). True when every one passed, None when
+    the gate ran past `gate_deadline_s`."""
     commands = config.get().local_ci
+    stop = threading.Event()
     with log.open("w") as out:
-        out.write(f"## gate: uv run dev check --no-cache in {tree}\n")
-        out.flush()
-        code = bounded_run(GATE, config.get().gate_deadline_s, cwd=tree, stdout=out, stderr=subprocess.STDOUT)
-        ok = None if code is None else code == 0
-        for argv in [a for c in contexts for a in commands.get(c, [])] if ok else []:
-            with tempfile.TemporaryDirectory(prefix="local-ci-") as tmpdir:
-                cmd = [a.replace("{tmpdir}", tmpdir) for a in argv]
-                out.write(f"## {' '.join(cmd)}\n")
-                out.flush()
-                if subprocess.run(cmd, cwd=tree, stdout=out, stderr=subprocess.STDOUT, check=False).returncode:
-                    ok = False
-                    break
-    print(log.read_text(errors="replace"), end="", flush=True)
+        follower = threading.Thread(target=_follow, args=(log, stop), daemon=True)
+        follower.start()
+        try:
+            out.write(f"## gate: uv run dev check --no-cache in {tree}\n")
+            out.flush()
+            code = bounded_run(GATE, config.get().gate_deadline_s, cwd=tree, stdout=out, stderr=subprocess.STDOUT)
+            ok = None if code is None else code == 0
+            for argv in [a for c in contexts for a in commands.get(c, [])] if ok else []:
+                with tempfile.TemporaryDirectory(prefix="local-ci-") as tmpdir:
+                    cmd = [a.replace("{tmpdir}", tmpdir) for a in argv]
+                    out.write(f"## {' '.join(cmd)}\n")
+                    out.flush()
+                    if subprocess.run(cmd, cwd=tree, stdout=out, stderr=subprocess.STDOUT, check=False).returncode:
+                        ok = False
+                        break
+        finally:
+            out.flush()
+            stop.set()
+            follower.join()
     return ok
+
+
+FOLLOW_S = 0.2  # how often the gate's log is copied to stdout while it runs
+
+
+def _follow(log: Path, stop: threading.Event) -> None:
+    """Copy what is appended to `log` to stdout until `stop` is set, then the rest: the lead sees the gate's stages
+    and any wait for the machine's gate lock while it runs."""
+    with log.open(errors="replace") as f:
+        while True:
+            last = stop.is_set()
+            if chunk := f.read():
+                sys.stdout.write(chunk)
+                sys.stdout.flush()
+            if last:
+                return
+            stop.wait(FOLLOW_S)
 
 
 def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: list[str], update: dict) -> int | None:
@@ -1247,53 +1271,83 @@ def _outcome_file(pr_number: int) -> Path:
 
 WHY_LINES = 30  # gate lines a record keeps from the failed stages; the log keeps the rest
 WHY_TAIL = 10  # lines kept from the end of a run that printed no failed stage (a stand-in command, a killed gate)
+WHY_END = 5  # lines kept from the end of each failed stage once the stages run over WHY_LINES
+KEY_LINE = re.compile(r"(?:FAILED|ERROR|E) |\d+ (?:failed|passed|errors?)\b")  # pytest's verdict and count lines
 
 
 def failing_lines(text: str) -> list[str]:
-    """What a gate run says failed: each `FAIL` stage line with the indented problem lines under it and the `RESULT`
-    line, at most WHY_LINES (then a count of the rest); without a failed stage, its last WHY_TAIL non-blank lines."""
-    kept, inside = [], False
-    for line in text.splitlines():
+    """What a gate run says failed: each `FAIL` stage line with the indented problem lines under it (blank ones too:
+    pytest's output has them) and the `RESULT` line. Over WHY_LINES, each stage keeps its own line, its pytest
+    verdict and count lines (KEY_LINE) and, while they fit, its last WHY_END lines, then a count of the rest. Without
+    a failed stage, the run's last WHY_TAIL non-blank lines."""
+    stages: list[list[str]] = []
+    results, inside = [], False
+    for raw in text.splitlines():
+        line = raw.rstrip()
         if line.startswith("FAIL "):
+            stages.append([line])
             inside = True
-        elif not (inside and line[:1].isspace() and line.strip()):
+        elif inside and (not line or raw[:1].isspace()):
+            stages[-1].append(line)
+        else:
             inside = False
-        if inside or line.startswith("RESULT: failed"):
-            kept.append(line.rstrip())
-    if not kept:
+            if line.startswith("RESULT: failed"):
+                results.append(line)
+    if not stages and not results:
         return [ln.rstrip() for ln in text.splitlines() if ln.strip()][-WHY_TAIL:]
-    return kept if len(kept) <= WHY_LINES else [*kept[:WHY_LINES], f"... {len(kept) - WHY_LINES} more in the log"]
+    full = [ln for s in stages for ln in s]
+    if len(full) <= WHY_LINES:
+        return full + results
+    for end in (WHY_END, 0):  # the stages' ends go first when the verdict lines alone fill the record
+        kept = [
+            ln for s in stages for i, ln in enumerate(s) if not i or KEY_LINE.match(ln.strip()) or i >= len(s) - end
+        ]
+        if len(kept) <= WHY_LINES:
+            break
+    kept = kept[:WHY_LINES]
+    return [*kept, f"... {len(full) - len(kept)} more lines in the log", *results]
+
+
+def _shown(value: object, pad: str) -> str:
+    """A recorded value on screen: continuation lines indented by `pad`, so no text in it can pose as a RESULT line."""
+    return re.sub(r"\r\n?|\n", "\n" + pad, str(value))
 
 
 def why(pr_number: int) -> int:
     """`dev integrate <pr> --why`: print the PR's last recorded integrate outcome and whether its head has moved since.
-    Reads only: one `gh pr view`, no GitHub write, no gate, no merge. 1 when this machine has no record."""
+    Reads only: one `gh pr view`, no GitHub write, no gate, no merge. 1 when this machine has no readable record."""
     path = _outcome_file(pr_number)
-    try:
-        rec = json.loads(path.read_text())
-    except (OSError, ValueError):
+    if not path.exists():
         print(
             f"no integrate outcome recorded for PR #{pr_number} on this machine ({path}); read the PR's comments "
             f"(`uv run dev board feedback {pr_number}`) instead of rerunning integrate to see a failure"
         )
         return 1
-    judged = rec.get("judged") or ""
+    try:
+        rec = json.loads(path.read_text(errors="replace"))
+    except (OSError, ValueError):
+        rec = None
+    if not isinstance(rec, dict):
+        print(f"no integrate outcome for PR #{pr_number}: its record {path} is unreadable")
+        return 1
+    judged = str(rec.get("judged") or "")
     print(
-        f"PR #{pr_number}: last integrate here at {rec.get('when', '?')}: {rec.get('outcome')} (exit {rec.get('exit')})"
-        f", judged head {judged[:10] or 'unknown'}"
+        f"PR #{pr_number}: last integrate here at {_shown(rec.get('when', '?'), '  ')}: "
+        f"{_shown(rec.get('outcome'), '  ')} (exit {_shown(rec.get('exit'), '  ')}), judged head "
+        + _shown(judged[:10] or "unknown", "  ")
     )
     for key, value in rec.items():
         if key in ("pr", "outcome", "exit", "judged", "when"):
             continue
         if isinstance(value, list) and value:
-            print(f"  {key}:\n" + "\n".join(f"    {v}" for v in value))
+            print(f"  {_shown(key, '    ')}:\n" + "\n".join(f"    {_shown(v, '      ')}" for v in value))
         else:
-            print(f"  {key}: {value}")
+            print(f"  {_shown(key, '    ')}: {_shown(value, '    ')}")
     try:
         now = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", "headRefOid"))
         head = now["headRefOid"]
-    except (board.BoardError, OSError, ValueError, KeyError) as exc:
-        print(f"cannot read the PR head from GitHub ({exc}): whether it moved since is unknown")
+    except (board.BoardError, OSError, ValueError, KeyError, TypeError) as exc:
+        print(f"cannot read the PR head from GitHub ({_shown(exc, '  ')}): whether it moved since is unknown")
         return 0
     if not judged:
         print(f"PR head now {head[:10]}; the record names no judged head, so whether it moved is unknown")
@@ -1346,13 +1400,18 @@ def integrate(
     local_ci: bool = False,
     review: int | None = None,
 ) -> int:
-    """`_integrate`, but every exit ends with a `result` line: a crash (even after a push) is `stopped` with its reason."""
+    """`_integrate`, but every exit ends with a `result` line: a crash (even after a push) is `stopped` with its reason.
+    An interrupt (Ctrl-C, or a signal `bounded_run` turned into SystemExit) is recorded as `stopped`, then raised on,
+    so `--why` never shows an older outcome as this PR's last."""
     try:
         return _integrate(pr_number, harness_ok, dry_run, override, local_ci, review)
     except Exception as exc:  # the lead branches on the last line, whatever failed
         traceback.print_exc()
         print(f"RESULT: stopped (integrate failed: {exc}); check the PR branch and the board, then rerun")
         return result(pr_number, 1, "stopped", reason=f"integrate failed: {type(exc).__name__}: {exc}")
+    except BaseException as exc:
+        result(pr_number, 1, "stopped", reason=f"integrate interrupted: {type(exc).__name__} {exc}".rstrip())
+        raise
 
 
 def _integrate(
@@ -1477,7 +1536,7 @@ def _integrate(
         )
         run_log = state_dir("integrate") / f"pr-{pr_number}-{tip[:12]}.log"
         deadline = config.get().gate_deadline_s
-        print(f"gate output goes to {run_log}, printed when it ends", flush=True)
+        print(f"gate output (also kept in {run_log}):", flush=True)
         passed = run_gate(tmp, contexts if local_ci else [], run_log)
         said = {"gate": failing_lines(run_log.read_text(errors="replace")), "log": str(run_log)}
         if passed is None:
