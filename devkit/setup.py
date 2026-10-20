@@ -225,9 +225,10 @@ def doctor() -> int:
     report(ok, "gh authenticated", "gh auth login")
     report(bool(git("remote", "get-url", "origin", check=False)), "origin remote", "see README: clone from GitHub")
     report(git("config", "--get", "rerere.enabled", check=False) == "true", "git rerere enabled", "uv run dev setup")
-    ok, out = _ok(["claude", "plugin", "list"])
+    installed, projects = _installed(), _projects()  # every install on the machine; only this project's loads (#3)
     for plugin in config.get().plugins:
-        report(ok and plugin.partition("@")[0] in out, f"Claude Code plugin {plugin} installed", "uv run dev setup")
+        here = _install_record(installed, plugin, projects) is not None
+        report(here, f"Claude Code plugin {plugin} installed", "uv run dev setup")
     ok, out = _ok(["claude", "mcp", "list"])
     mcp_file = root() / ".mcp.json"
     mcp = json.loads(mcp_file.read_text()).get("mcpServers", {}) if mcp_file.exists() else {}
@@ -251,7 +252,7 @@ def doctor() -> int:
     from devkit.workflow import POLLER, quota_reading
 
     report(quota_reading()[0] is not None, "quota reading under 30 min old (spawn guard enforces the cap)", POLLER)
-    skew = build_skew(config.get().plugins, _installed(), _projects(), pinned_plugin_root())
+    skew = build_skew(config.get().plugins, installed, projects, pinned_plugin_root())
     detail = f" ({'; '.join(skew)})" if skew else ""
     report(not skew, f"installed plugin is the pinned release's build{detail}", "uv run dev setup")
     answers_file = root() / ".copier-answers.yml"
