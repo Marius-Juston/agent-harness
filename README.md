@@ -13,13 +13,23 @@ back a gated pull request. It is one source of truth in three parts, so projects
 The design and its evidence: [docs/research/agent-harness.md](docs/research/agent-harness.md). The protocol agents
 follow: [docs/specs/multi-agent.md](docs/specs/multi-agent.md).
 
+<p align="center">
+  <img src="docs/assets/demo.svg" width="100%" alt="A terminal walkthrough in six scenes: copier copy creates my-project; uv run dev setup prints ok for each step; the repository goes on GitHub and uv run dev board new files issue #1 with a DONE WHEN; claude starts and the /goal prompt is pasted; the lead dispatches harness-ops:builder, which opens PR #2, harness-ops:reviewer approves it and uv run dev integrate re-gates and merges it; gh issue list shows #1 closed.">
+</p>
+<p align="center"><sub>A condensed replay of a real session: the shell output is captured, the Claude Code part is shortened.
+The commands are the quickstart below.</sub></p>
+
 ## Quickstart
 ```bash
 uvx copier copy gh:Marius-Juston/agent-harness my-project
 cd my-project
 uv run dev setup      # git init, uv sync, generated docs, git config, prek hooks, the Claude Code plugins
 ```
-Then commit, create the GitHub repository (`gh repo create`), run `uv run dev board init` once, and start `claude`.
+Then commit, create the GitHub repository (`gh repo create`), run `uv run dev board init` once, and file work with
+`uv run dev board new` (each item gets a measurable `--done`). Start `claude` and paste the `/goal` prompt from the
+new project's [docs/SESSION.md](template/docs/SESSION.md), or type `continue` for one pass that stops at the first
+decision. The session is the lead: it gives each startable issue to a worker in its own worktree, and every PR is
+re-gated and merged only by `uv run dev integrate`. It stops when the board needs you.
 
 Prerequisites: git, [uv](https://docs.astral.sh/uv/), [gh](https://cli.github.com) (authenticated), jq, Node.js 20+
 and [Claude Code](https://code.claude.com/docs).

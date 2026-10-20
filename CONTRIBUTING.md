@@ -21,6 +21,9 @@ Every command and what it does: `uv run dev --help` (and `--help` on each comman
 4. Run `uv run dev check` once on the committed tip, then open the pull request. Fill in its template: what changed,
    the evidence, and a verdict for each DONE WHEN item.
 5. A design change needs evidence first, in [docs/research/agent-harness.md](docs/research/agent-harness.md).
+6. A change to a command the README demo shows also updates
+   [docs/assets/demo/storyboard.toml](docs/assets/demo/storyboard.toml) and re-renders the SVG: the two commands are
+   in [scripts/demo_cast.py](scripts/demo_cast.py).
 
 ## Conduct, security, license
 - Everyone here follows the [code of conduct](CODE_OF_CONDUCT.md).

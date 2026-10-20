@@ -1,0 +1,132 @@
+# The README demo (docs/assets/demo.svg), one scene per screen. `uv run python scripts/demo_cast.py` turns it into
+# demo.cast; the render command is in that script's docstring. Shell output was captured from a scratch render of the
+# template; the Claude Code and GitHub scenes replay real `board`, `pr` and `integrate` output from this repository,
+# condensed and renamed to the demo project. tests/test_demo.py checks every `uv run dev` command shown here parses.
+#
+# Tags in `output` and `cmd`: {dim} {ok} {warn} {issue} {agent} {cmd} {b}, closed by {/}. A line that starts with a
+# devkit status word (`ok`, `WARN`, `FIX`, `FAIL`) has that word coloured automatically. A newline in `cmd` is typed
+# as a shell line continuation. Keep lines under `width` columns: the SVG clips, it does not wrap.
+
+width = 100
+height = 26
+prompt = "{cmd}~/my-project{/} $ "
+type_s = 0.035    # per typed character (typed a word at a time)
+line_s = 0.06     # per output line
+scene_pause_s = 2.2
+end_pause_s = 6.0
+
+[[scene]]
+caption = "Create a project from the template"
+[[scene.step]]
+prompt = "{cmd}~{/} $ "
+cmd = "uvx copier copy gh:Marius-Juston/agent-harness my-project"
+output = """
+🎤 Project name (a Python distribution name, e.g. my-project)
+   my-project
+🎤 One sentence on what the project is for
+   A project worked on by many Claude Code agents.
+🎤 Minimum Python version
+   3.13
+{dim}Copying from template version 0.1.13{/}
+{ok}    create{/}  CLAUDE.md  .claude/  .devkit/  .github/  docs/  tests/  pyproject.toml ...
+"""
+[[scene.step]]
+prompt = "{cmd}~{/} $ "
+cmd = "cd my-project"
+output = ""
+
+[[scene]]
+caption = "One command sets up git, uv, hooks and the plugin, then says what is left"
+[[scene.step]]
+cmd = "uv run dev setup"
+output = """
+ok   git init (branch main)
+ok   uv sync
+ok   generated references (dev docs)
+ok   git rerere (replays conflict resolutions across worktrees)
+ok   pre-commit hooks (prek)
+ok   plugin marketplace Marius-Juston/agent-harness@v0.1.13
+ok   plugin harness-ops@agent-harness
+
+Still to do by hand:
+- once per repository: create it on GitHub (`gh repo create`), then `uv run dev board init`
+ok   gh authenticated
+ok   MCP server playwright connected
+ok   installed plugin is the pinned release's build
+"""
+
+[[scene]]
+caption = "The board is GitHub issues, and every item has a measurable DONE WHEN"
+[[scene.step]]
+cmd = "git add -A && git commit -qm init"
+output = ""
+[[scene.step]]
+cmd = "gh repo create my-project --private --source . --push"
+output = "{ok}✓{/} Created repository you/my-project on GitHub"
+[[scene.step]]
+cmd = "uv run dev board init"
+output = "created labels: status:ready, status:in-progress, status:review, status:blocked, P0, P1, ..."
+[[scene.step]]
+cmd = """uv run dev board new --type build --prio P1
+--title "GET /health returns the version"
+--done "tests/test_health.py passes\""""
+output = "https://github.com/you/my-project/issues/1 {ok}(ready){/}"
+
+[[scene]]
+caption = "Start Claude Code, then paste the /goal prompt from docs/SESSION.md"
+[[scene.step]]
+cmd = "claude"
+output = """
+{agent}✻{/} {b}Welcome to Claude Code{/}   {dim}plugin harness-ops loaded{/}
+{dim}SessionStart hook: the handoff, the board and this machine{/}
+  ## Board   next startable:
+  {issue}#1{/}   P1 build ready   GET /health returns the version
+  ## This machine   gate idle · 21 GB free · quota: 12% of weekly used, cap 95%
+"""
+[[scene.step]]
+prompt = "{b}>{/} "
+cmd = "/goal You are the lead for this repository on this machine: follow the harness-ops:lead ..."
+output = "{dim}(the full prompt, with its stop rule, is in docs/SESSION.md){/}"
+
+[[scene]]
+caption = "The lead dispatches a worker per issue; only `dev integrate` merges, after re-gating"
+[[scene.step]]
+prompt = ""
+cmd = ""
+output = """
+⏺ Bash(uv run dev board next)
+  ⎿  {issue}#1{/}  P1 build ready  GET /health returns the version  [P1, unblocks 0]
+
+⏺ {agent}harness-ops:builder{/}(#1 GET /health returns the version)
+  ⎿  own worktree 1-health · test first · uv run dev check {ok}passed{/}
+     https://github.com/you/my-project/pull/2
+     {issue}#1{/} status:review
+
+⏺ {agent}harness-ops:reviewer{/}(PR #2)
+  ⎿  approved: DONE WHEN met (tests/test_health.py passes), no findings
+
+⏺ Bash(uv run dev integrate 2)
+  ⎿  {dim}re-gates PR #2 merged onto main in a throwaway worktree{/}
+     ok   tests: 12 checked, 0 problem(s)
+     RESULT: passed (19 s)
+     {ok}RESULT: merged PR #2{/}
+
+⏺ Nothing startable is left; docs/HANDOFF.md is current. Done.
+"""
+
+[[scene]]
+caption = "The issue was closed by a gated PR, with no merge done by hand"
+[[scene.step]]
+cmd = "gh issue list --state closed"
+output = """
+{issue}#1{/}  {dim}CLOSED{/}  GET /health returns the version   P1, type:build   less than a minute ago
+"""
+[[scene.step]]
+prompt = ""
+cmd = ""
+output = """
+{b}You:{/}      copier copy  →  dev setup  →  board new  →  claude + /goal
+{b}Harness:{/}  builder (own worktree)  →  gated PR  →  reviewer  →  integrate re-gates and merges
+
+{dim}More prompts: docs/SESSION.md and docs/PROMPTS.md in your new project{/}
+"""
