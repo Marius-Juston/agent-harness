@@ -381,23 +381,52 @@ def test_settings_are_restored_but_keep_the_enabled_plugins_an_install_added(tmp
     assert f.read_bytes() == unchanged
 
 
-def _real_cli_project(path: Path, source: dict) -> Path:
-    """A project whose committed settings declare the marketplace at the pinned ref, as a rendered template does."""
+def test_settings_with_reordered_keys_get_their_committed_bytes_back(tmp_path):
+    f = tmp_path / "settings.json"
+    f.write_text('{\n  "b": 1,\n  "a": 2\n}\n')
+    saved = {f: f.read_bytes()}
+    f.write_text('{"a": 2, "b": 1}')
+    setup._keep_settings(saved)
+    assert f.read_bytes() == saved[f]
+
+
+GIT_REDIRECTS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")
+
+
+def _isolation_problem(tmp_path: Path) -> str | None:
+    """Why running the real `claude` here could touch something outside the test's directory, or None."""
+    if set_ := [k for k in GIT_REDIRECTS if k in os.environ]:
+        return f"{', '.join(set_)} set"
+    places = {
+        "HOME": os.environ.get("HOME", "/"),
+        "CLAUDE_CONFIG_DIR": os.environ.get("CLAUDE_CONFIG_DIR", "/"),
+        "root()": setup.root(),
+        "main checkout": setup._main_checkout(),
+    }
+    outside = [f"{k}={v}" for k, v in places.items() if not Path(v).resolve().is_relative_to(tmp_path.resolve())]
+    return f"outside {tmp_path}: {', '.join(outside)}" if outside else None
+
+
+def _project(path: Path, settings: dict | None = None) -> Path:
+    """A git project, its settings (when given) committed."""
     path.mkdir()
-    _git("init", "-q", cwd=path)
-    (path / ".claude").mkdir()
-    (path / ".claude/settings.json").write_text(
-        json.dumps({"extraKnownMarketplaces": {"agent-harness": {"source": source}}})
-    )
+    _git("init", "-q", "-b", "main", cwd=path)
+    if settings is not None:
+        (path / ".claude").mkdir()
+        (path / ".claude/settings.json").write_text(json.dumps(settings))
+    _git("add", "-A", cwd=path)
+    _git("commit", "-q", "--allow-empty", "-m", "init", cwd=path)
     return path
 
 
-@pytest.mark.slow  # about 6 s; needs `claude` on PATH, as doctor does
-def test_real_cli_repin_installs_the_tag_commit_and_keeps_other_projects_installs(tmp_path, monkeypatch):
-    """#296 with the real `claude` CLI, offline, in a temporary HOME (the owner's ~/.claude is never touched): a
-    marketplace added at main installs main's head under the tag's version string in projects A and B; setup's re-pin
-    in A gives A the tag's commit, and B keeps its install. A git `insteadOf` serves github.com/fake/ (to git and to
-    Claude Code) from a local repository."""
+@pytest.fixture
+def real_cli(tmp_path, monkeypatch):
+    """The real `claude` CLI, offline, in a temporary HOME: the owner's ~/.claude and repositories are never touched.
+    A git `insteadOf` serves github.com/fake/ (to git and to Claude Code) from a local marketplace repository whose
+    tag v0.1.1 is the pinned release and whose main has moved on under the same version string. `claude(cwd, *args)`
+    refuses to run unless `_isolation_problem` finds nothing."""
+    for key in GIT_REDIRECTS:
+        monkeypatch.delenv(key, raising=False)
     home, repo = tmp_path / "home", tmp_path / "src.git"
     for d in (home, repo / ".claude-plugin"):
         d.mkdir(parents=True)
@@ -414,24 +443,84 @@ def test_real_cli_repin_installs_the_tag_commit_and_keeps_other_projects_install
     tag = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True).stdout.strip()
     pinned = tmp_path / "pinned"
     shutil.copytree(repo / "p", pinned)
-    (repo / "p/agents/builder.md").write_text("main body")  # main moves on; plugin.json still says 0.1.1
+    (repo / "p/agents/builder.md").write_text("main body")
     _git("commit", "-qam", "unreleased", cwd=repo)
-    source = {"source": "github", "repo": "fake/src", "ref": "v0.1.1"}
-    a, b = _real_cli_project(tmp_path / "a", source), _real_cli_project(tmp_path / "b", source)
     plugins = {"harness-ops@agent-harness": "fake/src@v0.1.1"}
     monkeypatch.setattr(setup.config, "get", lambda: SimpleNamespace(plugins=plugins))
     monkeypatch.setattr(setup, "pinned_plugin_root", lambda: pinned)
-    install = ["claude", "plugin", "install", "harness-ops@agent-harness", "--scope", "project"]
-    for cwd, cmd in ((a, ["claude", "plugin", "marketplace", "add", "fake/src"]), (a, install), (b, install)):
-        assert subprocess.run(cmd, cwd=cwd, capture_output=True, check=False).returncode == 0, cmd
+
+    def claude(cwd: Path, *args: str) -> None:
+        if problem := _isolation_problem(tmp_path):
+            pytest.fail(f"refusing to run the real claude CLI: {problem}")
+        assert subprocess.run(["claude", *args], cwd=cwd, capture_output=True, check=False).returncode == 0, args
+
+    def shas() -> dict[str, str]:
+        records = json.loads((home / ".claude/plugins/installed_plugins.json").read_text())["plugins"]
+        return {r["projectPath"]: r["gitCommitSha"] for r in records["harness-ops@agent-harness"]}
+
+    return SimpleNamespace(tag=tag, pinned=pinned, plugins=plugins, claude=claude, shas=shas)
+
+
+def test_the_real_cli_guard_refuses_a_decoy_git_dir(real_cli, tmp_path, tmp_path_factory, monkeypatch):
+    """A GIT_DIR left in the environment would point git, and so the re-pin's main checkout, at another repository."""
+    a = _project(tmp_path / "a")
     monkeypatch.setattr(setup, "root", lambda: a)
-    assert setup.build_skew(plugins, setup._installed(), setup._projects(), pinned)  # skewed, same version string
-    committed = json.loads((a / ".claude/settings.json").read_text())
+    assert _isolation_problem(tmp_path) is None
+    decoy = _project(tmp_path_factory.mktemp("decoy") / "repo")
+    monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
+    assert "GIT_DIR" in str(_isolation_problem(tmp_path))
+    with pytest.raises(pytest.fail.Exception, match="refusing"):
+        real_cli.claude(tmp_path, "--version")
+    monkeypatch.delenv("GIT_DIR")
+    monkeypatch.setattr(setup, "root", lambda: decoy)
+    assert "outside" in str(_isolation_problem(tmp_path))
+
+
+INSTALL = ("plugin", "install", "harness-ops@agent-harness", "--scope", "project")
+
+
+@pytest.mark.slow  # about 6 s; needs `claude` on PATH, as doctor does
+def test_real_cli_repin_installs_the_tag_commit_and_keeps_other_projects_installs(real_cli, tmp_path, monkeypatch):
+    """#296: projects A and B, whose committed settings declare the marketplace at the pinned ref as a rendered
+    template does, install main's head under the tag's version string; setup's re-pin in A gives A the tag's commit,
+    B keeps its install, and A's committed settings are left as they were."""
+    source = {"source": "github", "repo": "fake/src", "ref": "v0.1.1"}
+    settings = {"extraKnownMarketplaces": {"agent-harness": {"source": source}}}
+    a, b = _project(tmp_path / "a", settings), _project(tmp_path / "b", settings)
+    monkeypatch.setattr(setup, "root", lambda: a)
+    real_cli.claude(a, "plugin", "marketplace", "add", "fake/src")
+    real_cli.claude(a, *INSTALL)
+    real_cli.claude(b, *INSTALL)
+    _git("commit", "-qam", "enable the plugin", cwd=a)  # the install's enabledPlugins entry, committed
+    assert setup.build_skew(real_cli.plugins, setup._installed(), setup._projects(), real_cli.pinned)
 
     assert setup.repin_skewed() == []
-    records = json.loads((home / ".claude/plugins/installed_plugins.json").read_text())["plugins"]
-    shas = {r["projectPath"]: r["gitCommitSha"] for r in records["harness-ops@agent-harness"]}
-    assert shas[str(a)] == tag and str(b) in shas
-    after = json.loads((a / ".claude/settings.json").read_text())
-    assert after["extraKnownMarketplaces"] == committed["extraKnownMarketplaces"]
-    assert after["enabledPlugins"]["harness-ops@agent-harness"] is True
+    shas = real_cli.shas()
+    assert shas[str(a)] == real_cli.tag and str(b) in shas
+    status = subprocess.run(["git", "status", "--porcelain", ".claude"], cwd=a, capture_output=True, text=True)
+    assert status.stdout == ""
+
+
+@pytest.mark.slow  # about 5 s
+def test_real_cli_repin_from_a_worktree_with_the_marketplace_in_project_settings_only(
+    real_cli, tmp_path, monkeypatch, capsys
+):
+    """#310 review: only the project's settings declare the marketplace, and setup runs in a worktree. The user-scope
+    remove is skipped, the commands run in the main checkout, and the main checkout gets the tag's commit."""
+    a = _project(tmp_path / "a")
+    monkeypatch.setattr(setup, "root", lambda: a)
+    real_cli.claude(a, "plugin", "marketplace", "add", "fake/src", "--scope", "project")
+    real_cli.claude(a, *INSTALL)
+    _git("add", "-A", cwd=a)
+    _git("commit", "-qm", "declare and enable the plugin", cwd=a)
+    worktree = tmp_path / "wt"
+    _git("worktree", "add", "-q", str(worktree), "-b", "wt", cwd=a)
+    monkeypatch.setattr(setup, "root", lambda: worktree)
+    assert _isolation_problem(tmp_path) is None and setup._main_checkout().resolve() == a.resolve()
+
+    assert setup.repin_skewed() == []
+    assert real_cli.shas()[str(a)] == real_cli.tag
+    assert "skip plugin marketplace remove" in capsys.readouterr().out
+    for d in (a, worktree):
+        status = subprocess.run(["git", "status", "--porcelain", ".claude"], cwd=d, capture_output=True, text=True)
+        assert status.stdout == "", d

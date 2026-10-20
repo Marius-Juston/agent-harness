@@ -315,7 +315,9 @@ def _keep_settings(saved: dict[Path, bytes]) -> None:
                     f.write_bytes(data)
                     print(f"WARN {f} is not a JSON object: restored as it was")
                 continue
-            if now == before:
+            if now == before:  # same content, maybe reordered or reformatted: the committed bytes win
+                if f.read_bytes() != data:
+                    f.write_bytes(data)
                 continue
             had, got = before.get("enabledPlugins"), now.get("enabledPlugins")
             had, got = (had if isinstance(had, dict) else {}), (got if isinstance(got, dict) else {})
