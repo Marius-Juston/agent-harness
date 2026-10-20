@@ -19,7 +19,7 @@ need attention:
 - **Reviewers post, the lead points.** `harness-ops:reviewer` and `harness-ops:research-auditor` post one COMMENT review
   whose first line is `Verdict: merge|send back|reconsider, round <N>, <sha>` and hand back at most 5 lines; the
   research auditor's verdict words changed from accept/return to merge/send back. With no PR yet, the auditor posts
-  on the issue. A project's own reviewer agents under `.claude/agents/` still hand back findings: give them the same
+  on the issue. A project's own reviewer agents (its `.claude` agents directory) still hand back findings: give them the same
   posting step, or the lead relays text as before. (#347)
 - **Only the `gh` user's verdict review shows in full** in `board feedback` and `board brief`; anyone else's is cut to
   200 characters as before. (#347)
