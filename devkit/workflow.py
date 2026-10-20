@@ -860,25 +860,50 @@ def _kill_group(proc: subprocess.Popen) -> None:
     proc.wait()
 
 
-def local_ci_run(tree: Path, contexts: list[str], log: Path) -> bool | None:
-    """The gate, then each required context's own stand-in commands, in the merged tree; all output goes to `log`
-    (printed after). True when every one passed, None when the gate ran past `gate_deadline_s`."""
+def run_gate(tree: Path, contexts: list[str], log: Path) -> bool | None:
+    """The gate, then (`--local-ci`) each required context's own stand-in commands, in the merged tree; all output
+    goes to `log` (kept for `--why`) and, as it comes, to stdout (`_follow`). True when every one passed, None when
+    the gate ran past `gate_deadline_s`."""
     commands = config.get().local_ci
+    stop = threading.Event()
     with log.open("w") as out:
-        out.write(f"## gate: uv run dev check --no-cache in {tree}\n")
-        out.flush()
-        code = bounded_run(GATE, config.get().gate_deadline_s, cwd=tree, stdout=out, stderr=subprocess.STDOUT)
-        ok = None if code is None else code == 0
-        for argv in [a for c in contexts for a in commands.get(c, [])] if ok else []:
-            with tempfile.TemporaryDirectory(prefix="local-ci-") as tmpdir:
-                cmd = [a.replace("{tmpdir}", tmpdir) for a in argv]
-                out.write(f"## {' '.join(cmd)}\n")
-                out.flush()
-                if subprocess.run(cmd, cwd=tree, stdout=out, stderr=subprocess.STDOUT, check=False).returncode:
-                    ok = False
-                    break
-    print(log.read_text(errors="replace"), end="", flush=True)
+        follower = threading.Thread(target=_follow, args=(log, stop), daemon=True)
+        follower.start()
+        try:
+            out.write(f"## gate: uv run dev check --no-cache in {tree}\n")
+            out.flush()
+            code = bounded_run(GATE, config.get().gate_deadline_s, cwd=tree, stdout=out, stderr=subprocess.STDOUT)
+            ok = None if code is None else code == 0
+            for argv in [a for c in contexts for a in commands.get(c, [])] if ok else []:
+                with tempfile.TemporaryDirectory(prefix="local-ci-") as tmpdir:
+                    cmd = [a.replace("{tmpdir}", tmpdir) for a in argv]
+                    out.write(f"## {' '.join(cmd)}\n")
+                    out.flush()
+                    if subprocess.run(cmd, cwd=tree, stdout=out, stderr=subprocess.STDOUT, check=False).returncode:
+                        ok = False
+                        break
+        finally:
+            out.flush()
+            stop.set()
+            follower.join()
     return ok
+
+
+FOLLOW_S = 0.2  # how often the gate's log is copied to stdout while it runs
+
+
+def _follow(log: Path, stop: threading.Event) -> None:
+    """Copy what is appended to `log` to stdout until `stop` is set, then the rest: the lead sees the gate's stages
+    and any wait for the machine's gate lock while it runs."""
+    with log.open(errors="replace") as f:
+        while True:
+            last = stop.is_set()
+            if chunk := f.read():
+                sys.stdout.write(chunk)
+                sys.stdout.flush()
+            if last:
+                return
+            stop.wait(FOLLOW_S)
 
 
 def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: list[str], update: dict) -> int | None:
@@ -889,11 +914,13 @@ def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: li
     state, now = await_actions(pr_number, tip, contexts)
     if state == "moved":
         print(f"RESULT: stopped (the PR head moved away from {tip[:10]} while waiting for Actions); rerun integrate")
-        return result(pr_number, 1, "stopped", reason="the PR head moved while waiting for Actions", **update)
+        return result(
+            pr_number, 1, "stopped", judged=tip, reason="the PR head moved while waiting for Actions", **update
+        )
     if state == "timeout":
         running = [c for c, s in now.items() if s in ("running", "queued")]
         print(f"RESULT: waiting (Actions still run {', '.join(running)} on {tip[:10]}); rerun integrate")
-        return result(pr_number, 1, "waiting", pending=running, **({"head": tip} | update))
+        return result(pr_number, 1, "waiting", judged=tip, pending=running, **({"head": tip} | update))
     if stood := [c for c, s in now.items() if s == "never-ran"]:
         digest = hashlib.sha256(log.read_bytes()).hexdigest()
         note = f"dev integrate --local-ci: passed on this commit; log sha256 {digest[:16]}"
@@ -916,7 +943,9 @@ def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: li
     if arrived := [t for t in _pr_state(pr_number, frozenset(stood))[1] if t not in todo]:
         print(f"RESULT: refused: unfinished feedback on {tip[:10]}:\n  " + "\n  ".join(arrived))
         print(f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate.")
-        return result(pr_number, 1, "refused", reason="feedback on the gated head", feedback=arrived, **update)
+        return result(
+            pr_number, 1, "refused", judged=tip, reason="feedback on the gated head", feedback=arrived, **update
+        )
     return None
 
 
@@ -1217,11 +1246,116 @@ def _head_is(pr_number: int, tip: str) -> bool:
     return False
 
 
-def result(pr_number: int, code: int, outcome: str, **fields: object) -> int:
+def result(pr_number: int, code: int, outcome: str, *, judged: str | None = None, **fields: object) -> int:
     """The last line integrate prints, for the lead to branch on: `RESULT-JSON: {"pr", "outcome", "exit", ...}`.
-    Outcomes: merged, would-merge, conflict, gate-failed, harness-review, refused, stopped, not-open, waiting."""
-    print("RESULT-JSON: " + json.dumps({"pr": pr_number, "outcome": outcome, "exit": code, **fields}))
+    Outcomes: merged, would-merge, conflict, gate-failed, harness-review, refused, stopped, not-open, waiting.
+    The same fields, with the PR head this run `judged` and the time, become the PR's record for `--why` (#348)."""
+    payload = {"pr": pr_number, "outcome": outcome, "exit": code, **fields}
+    print("RESULT-JSON: " + json.dumps(payload))
+    record = payload | {"judged": judged, "when": time.strftime("%Y-%m-%d %H:%M")}
+    try:  # a record that cannot be written costs `--why`, never the outcome
+        path = _outcome_file(pr_number)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(record, indent=1) + "\n")
+        tmp.replace(path)
+    except OSError as exc:
+        print(f"warning: integrate --why will not see this outcome: {exc}")
     return code
+
+
+def _outcome_file(pr_number: int) -> Path:
+    """The last integrate outcome of a PR on this machine (`result`), what `--why` prints."""
+    return state_dir("integrate") / f"pr-{pr_number}.outcome.json"
+
+
+WHY_LINES = 30  # gate lines a record keeps from the failed stages; the log keeps the rest
+WHY_TAIL = 10  # lines kept from the end of a run that printed no failed stage (a stand-in command, a killed gate)
+WHY_END = 5  # lines kept from the end of each failed stage once the stages run over WHY_LINES
+KEY_LINE = re.compile(r"(?:FAILED|ERROR|E) |\d+ (?:failed|passed|errors?)\b")  # pytest's verdict and count lines
+
+
+def failing_lines(text: str) -> list[str]:
+    """What a gate run says failed: each `FAIL` stage line with the indented problem lines under it (blank ones too:
+    pytest's output has them) and the `RESULT` line. Over WHY_LINES, each stage keeps its own line, its pytest
+    verdict and count lines (KEY_LINE) and, while they fit, its last WHY_END lines, then a count of the rest. Without
+    a failed stage, the run's last WHY_TAIL non-blank lines."""
+    stages: list[list[str]] = []
+    results, inside = [], False
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        if line.startswith("FAIL "):
+            stages.append([line])
+            inside = True
+        elif inside and (not line or raw[:1].isspace()):
+            stages[-1].append(line)
+        else:
+            inside = False
+            if line.startswith("RESULT: failed"):
+                results.append(line)
+    if not stages and not results:
+        return [ln.rstrip() for ln in text.splitlines() if ln.strip()][-WHY_TAIL:]
+    full = [ln for s in stages for ln in s]
+    if len(full) <= WHY_LINES:
+        return full + results
+    for end in (WHY_END, 0):  # the stages' ends go first when the verdict lines alone fill the record
+        kept = [
+            ln for s in stages for i, ln in enumerate(s) if not i or KEY_LINE.match(ln.strip()) or i >= len(s) - end
+        ]
+        if len(kept) <= WHY_LINES:
+            break
+    kept = kept[:WHY_LINES]
+    return [*kept, f"... {len(full) - len(kept)} more lines in the log", *results]
+
+
+def _shown(value: object, pad: str) -> str:
+    """A recorded value on screen: continuation lines indented by `pad`, so no text in it can pose as a RESULT line."""
+    return re.sub(r"\r\n?|\n", "\n" + pad, str(value))
+
+
+def why(pr_number: int) -> int:
+    """`dev integrate <pr> --why`: print the PR's last recorded integrate outcome and whether its head has moved since.
+    Reads only: one `gh pr view`, no GitHub write, no gate, no merge. 1 when this machine has no readable record."""
+    path = _outcome_file(pr_number)
+    if not path.exists():
+        print(
+            f"no integrate outcome recorded for PR #{pr_number} on this machine ({path}); read the PR's comments "
+            f"(`uv run dev board feedback {pr_number}`) instead of rerunning integrate to see a failure"
+        )
+        return 1
+    try:
+        rec = json.loads(path.read_text(errors="replace"))
+    except (OSError, ValueError):
+        rec = None
+    if not isinstance(rec, dict):
+        print(f"no integrate outcome for PR #{pr_number}: its record {path} is unreadable")
+        return 1
+    judged = str(rec.get("judged") or "")
+    print(
+        f"PR #{pr_number}: last integrate here at {_shown(rec.get('when', '?'), '  ')}: "
+        f"{_shown(rec.get('outcome'), '  ')} (exit {_shown(rec.get('exit'), '  ')}), judged head "
+        + _shown(judged[:10] or "unknown", "  ")
+    )
+    for key, value in rec.items():
+        if key in ("pr", "outcome", "exit", "judged", "when"):
+            continue
+        if isinstance(value, list) and value:
+            print(f"  {_shown(key, '    ')}:\n" + "\n".join(f"    {_shown(v, '      ')}" for v in value))
+        else:
+            print(f"  {_shown(key, '    ')}: {_shown(value, '    ')}")
+    try:
+        now = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", "headRefOid"))
+        head = now["headRefOid"]
+    except (board.BoardError, OSError, ValueError, KeyError, TypeError) as exc:
+        print(f"cannot read the PR head from GitHub ({_shown(exc, '  ')}): whether it moved since is unknown")
+        return 0
+    if not judged:
+        print(f"PR head now {head[:10]}; the record names no judged head, so whether it moved is unknown")
+    elif head == judged:
+        print(f"PR head unchanged since ({head[:10]}): a rerun judges the same commit")
+    else:
+        print(f"PR head moved since: {judged[:10]} -> {head[:10]}: a rerun judges the new head")
+    return 0
 
 
 def _wait_on_tip(
@@ -1241,18 +1375,20 @@ def _wait_on_tip(
     if state == "moved":
         _waiting_file(pr_number).unlink(missing_ok=True)
         print(f"RESULT: stopped (the PR head moved to {detail[0][:10]} while waiting for checks); rerun integrate")
-        return result(pr_number, 1, "stopped", reason="the PR head moved while waiting for checks", **update)
+        return result(
+            pr_number, 1, "stopped", judged=tip, reason="the PR head moved while waiting for checks", **update
+        )
     if state == "timeout":
         _waiting_file(pr_number).write_text(json.dumps({"tip": tip, "expected": expected}) + "\n")
         pending = f"checks on {tip[:10]} still pending after {timeout_s} s: {', '.join(detail)}"
         if not again:
             print(f"RESULT: waiting ({pending}); rerun")
-            return result(pr_number, 1, "waiting", pending=detail, **({"head": tip} | update))
+            return result(pr_number, 1, "waiting", judged=tip, pending=detail, **({"head": tip} | update))
         print(
             f"RESULT: waiting ({pending}, again on this head); another call waits the same: a required check Actions "
             "cannot run (e.g. billing-blocked) wants --local-ci, anything else the owner"
         )
-        return result(pr_number, 1, "waiting", pending=detail, again=True, **({"head": tip} | update))
+        return result(pr_number, 1, "waiting", judged=tip, pending=detail, again=True, **({"head": tip} | update))
     return None
 
 
@@ -1264,13 +1400,18 @@ def integrate(
     local_ci: bool = False,
     review: int | None = None,
 ) -> int:
-    """`_integrate`, but every exit ends with a `result` line: a crash (even after a push) is `stopped` with its reason."""
+    """`_integrate`, but every exit ends with a `result` line: a crash (even after a push) is `stopped` with its reason.
+    An interrupt (Ctrl-C, or a signal `bounded_run` turned into SystemExit) is recorded as `stopped`, then raised on,
+    so `--why` never shows an older outcome as this PR's last."""
     try:
         return _integrate(pr_number, harness_ok, dry_run, override, local_ci, review)
     except Exception as exc:  # the lead branches on the last line, whatever failed
         traceback.print_exc()
         print(f"RESULT: stopped (integrate failed: {exc}); check the PR branch and the board, then rerun")
         return result(pr_number, 1, "stopped", reason=f"integrate failed: {type(exc).__name__}: {exc}")
+    except BaseException as exc:
+        result(pr_number, 1, "stopped", reason=f"integrate interrupted: {type(exc).__name__} {exc}".rstrip())
+        raise
 
 
 def _integrate(
@@ -1297,27 +1438,32 @@ def _integrate(
     not lift that: name the issue with `Refs #N` in the PR body, or edit that issue's Owns. A deleting merge whose
     board cannot be read stops (fail closed). Issues close only after the merge; then every other open PR into main
     that the new main conflicts with is sent back (`send_back_conflicting`, `sent_back` in the result). The last line
-    printed is `result`."""
+    printed is `result`, which also records the outcome for `--why`."""
     info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
+    pushed = None  # the merged tree, once pushed onto the PR branch: from then on the head this run judges
+
+    def done(code: int, outcome: str, **fields: object) -> int:
+        return result(pr_number, code, outcome, judged=pushed or info["headRefOid"], **fields)
+
     if info["state"] != "OPEN" or info["isDraft"]:
         print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
-        return result(pr_number, 1, "not-open")
+        return done(1, "not-open")
     if reason := refusal(info):
         print(f"RESULT: refused: {reason}")
-        return result(pr_number, 1, "refused", reason=reason)
+        return done(1, "refused", reason=reason)
     if (leaks := session_leaks(**{"PR title": info.get("title"), "PR body": info.get("body")})) and repo_public():
         reason = f"{SESSION_RULE}: the {' and '.join(leaks)} carry one; edit the PR, then rerun integrate"
         print(f"RESULT: refused: {reason}")
-        return result(pr_number, 1, "refused", reason=reason)
+        return done(1, "refused", reason=reason)
     if override is not None and not override.strip():
         print("RESULT: refused: --override needs a reason")
-        return result(pr_number, 1, "refused", reason="--override needs a reason")
+        return done(1, "refused", reason="--override needs a reason")
     contexts, ignore = [], frozenset()
     if local_ci:
         contexts, bound = required_contexts()
         if why := local_ci_refusal(contexts, bound):
             print(f"RESULT: refused: --local-ci: {why}")
-            return result(pr_number, 1, "refused", reason=f"--local-ci: {why}")
+            return done(1, "refused", reason=f"--local-ci: {why}")
         now = standing(info.get("statusCheckRollup") or [], contexts, actions_enabled(), {})
         ignore = frozenset(c for c, s in now.items() if s != "failed")  # judged on the gated head, after the run
     again = False  # the last run timed out waiting on this same head (#305)
@@ -1344,7 +1490,7 @@ def _integrate(
                 f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, resolve the threads and "
                 "wait for the checks; or rerun with --override '<reason>' (logged on the PR)."
             )
-            return result(pr_number, 1, "refused", reason="unfinished feedback", feedback=todo)
+            return done(1, "refused", reason="unfinished feedback", feedback=todo)
         print(f"overriding unfinished feedback ({override}):\n  " + "\n  ".join(todo))
     head_ref, main_ref = f"refs/devkit/integrate/pr-{pr_number}", f"refs/devkit/integrate/main-{pr_number}"
     try:
@@ -1353,15 +1499,15 @@ def _integrate(
         touched = changed_paths(main, head)
     except RuntimeError as exc:
         print(f"RESULT: stopped (cannot fetch or diff PR #{pr_number} against main): {exc}")
-        return result(pr_number, 1, "stopped", reason=f"cannot fetch or diff: {exc}")
+        return done(1, "stopped", reason=f"cannot fetch or diff: {exc}")
     if head != info["headRefOid"]:
         print(f"RESULT: stopped (the PR head moved while fetching: {info['headRefOid'][:10]} -> {head[:10]}); rerun")
-        return result(pr_number, 1, "stopped", reason="the PR head moved while fetching")
+        return done(1, "stopped", reason="the PR head moved while fetching")
     harness = [f for f in touched if is_harness(f)]
     if harness and not harness_ok:
         print("PR changes the harness (rules agents are judged by):\n  " + "\n  ".join(harness))
         print(f"Read that diff yourself (`git diff {main[:10]}...{head[:10]}`), then rerun with --harness-ok.")
-        return result(pr_number, 2, "harness-review", harness=harness)
+        return done(2, "harness-review", harness=harness)
     tmp = state_dir("integrate") / f"pr-{pr_number}"
     _add_worktree(tmp, head)
     try:
@@ -1370,31 +1516,29 @@ def _integrate(
                 workers = send_back(pr_number, info, main, conflicts, dry_run=dry_run)
                 who = ", ".join(workers) or "its worker"
                 print(f"RESULT: conflict with main in {', '.join(conflicts)}; sent back, resume {who}")
-                return result(pr_number, 1, "conflict", conflicts=conflicts, resume=workers, branch=info["headRefName"])
+                return done(1, "conflict", conflicts=conflicts, resume=workers, branch=info["headRefName"])
             regenerated = regenerate(tmp)
             gone = deleted_owns(tmp, main, info)
         except OSError as exc:  # no gh at all; a gh failure is a BoardError, a RuntimeError
             print(f"RESULT: stopped (cannot read the board to check deleted Owns: {exc})")
-            return result(pr_number, 1, "stopped", reason=f"cannot read the board: {exc}")
+            return done(1, "stopped", reason=f"cannot read the board: {exc}")
         except RuntimeError as exc:
             print(f"RESULT: stopped ({exc})")
-            return result(pr_number, 1, "stopped", reason=str(exc))
+            return done(1, "stopped", reason=str(exc))
         if gone:
             rows = [f"#{n}: {', '.join(paths)}" for n, paths in gone.items()]
             print(f"RESULT: refused: PR #{pr_number} deletes what open issues own:\n  " + "\n  ".join(rows))
             print("--override does not lift this: name each issue with `Refs #N` in the PR body, or edit its Owns.")
-            return result(pr_number, 1, "refused", reason="deletes paths open issues own", owns=gone)
+            return done(1, "refused", reason="deletes paths open issues own", owns=gone)
         tip = git("rev-parse", "HEAD", cwd=tmp)
         print(
             f"gating PR #{pr_number} ({head[:10]}) merged with main {main[:10]} as {tip[:10]} in {tmp} ...", flush=True
         )
         run_log = state_dir("integrate") / f"pr-{pr_number}-{tip[:12]}.log"
         deadline = config.get().gate_deadline_s
-        if local_ci:
-            passed = local_ci_run(tmp, contexts, run_log)
-        else:
-            code = bounded_run(GATE, deadline, cwd=tmp)
-            passed = None if code is None else code == 0
+        print(f"gate output (also kept in {run_log}):", flush=True)
+        passed = run_gate(tmp, contexts if local_ci else [], run_log)
+        said = {"gate": failing_lines(run_log.read_text(errors="replace")), "log": str(run_log)}
         if passed is None:
             # the deadline also counts any wait for this machine's gate lock, so the output, not this line, says why
             reason = f"the gate, counting any wait for the machine's gate lock, ran past {deadline} s (gate_deadline_s)"
@@ -1402,10 +1546,10 @@ def _integrate(
                 f"RESULT: stopped ({reason}) and was killed; its output shows a hung stage or a wait on another gate "
                 "(`uv run dev status` names the holder), then rerun integrate"
             )
-            return result(pr_number, 1, "stopped", reason=reason)
+            return done(1, "stopped", reason=reason, **said)
         if not passed:
             print(f"RESULT: stopped (merged tree fails the gate); comment on PR #{pr_number} and send it back")
-            return result(pr_number, 1, "gate-failed")
+            return done(1, "gate-failed", reason="the merged tree fails the gate", **said)
     finally:
         git("worktree", "remove", "--force", str(tmp), check=False)
         git("update-ref", "-d", head_ref, check=False)
@@ -1414,7 +1558,7 @@ def _integrate(
     if arrived := [t for t in now if t not in todo]:
         print(f"RESULT: refused: feedback arrived on PR #{pr_number} during the gate:\n  " + "\n  ".join(arrived))
         print(f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate.")
-        return result(pr_number, 1, "refused", reason="feedback arrived during the gate", feedback=arrived)
+        return done(1, "refused", reason="feedback arrived during the gate", feedback=arrived)
     if todo:
         log = f"`dev integrate --override`: {override}\n\nOverriding:\n" + "\n".join(f"- {t}" for t in todo)
         if dry_run:
@@ -1430,10 +1574,11 @@ def _integrate(
                 git("push", "origin", f"{tip}:refs/heads/{info['headRefName']}")
             except RuntimeError as exc:
                 print(f"RESULT: stopped (cannot update the PR branch; did the worker push? rerun): {exc}")
-                return result(pr_number, 1, "stopped", reason=f"cannot update the PR branch: {exc}", **update)
+                return done(1, "stopped", reason=f"cannot update the PR branch: {exc}", **update)
+            pushed = tip
             if not _head_is(pr_number, tip):
                 print(f"RESULT: stopped (GitHub does not show the pushed head {tip[:10]} yet); rerun integrate")
-                return result(pr_number, 1, "stopped", reason="pushed head not visible on GitHub", **update)
+                return done(1, "stopped", reason="pushed head not visible on GitHub", **update)
             expected = [check_key(c) for c in latest_checks(state.get("statusCheckRollup") or [])]
             if not local_ci and (code := _wait_on_tip(pr_number, tip, expected, update)) is not None:
                 return code
@@ -1442,7 +1587,7 @@ def _integrate(
                 print(
                     f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate."
                 )
-                return result(pr_number, 1, "refused", reason="feedback on the pushed head", feedback=arrived, **update)
+                return done(1, "refused", reason="feedback on the pushed head", feedback=arrived, **update)
     if local_ci and dry_run:
         print(f"would wait for Actions on {tip[:10]} and post what it does not run as statuses: {', '.join(contexts)}")
     elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update)) is not None:
@@ -1453,18 +1598,18 @@ def _integrate(
         )
     except board.BoardError as exc:  # e.g. branch protection waiting for checks on the update just pushed
         print(f"RESULT: stopped (GitHub refused the merge: {exc}); rerun integrate once its checks pass")
-        return result(pr_number, 1, "stopped", reason=f"GitHub refused the merge: {exc}", **update)
+        return done(1, "stopped", reason=f"GitHub refused the merge: {exc}", **update)
     if reason:
         print(f"RESULT: stopped ({reason})")
-        return result(pr_number, 1, "stopped", reason=reason, **update)
+        return done(1, "stopped", reason=reason, **update)
     if dry_run:
         print("RESULT: would merge (dry run)")
-        return result(pr_number, 0, "would-merge", **update)
+        return done(0, "would-merge", **update)
     try:  # issues close only now, after the merge
         moved = board.merged_pr(pr_number, info["body"] or "", info.get("headRefName", ""), info["baseRefName"])
     except board.BoardError as exc:
         print(f"RESULT: merged PR #{pr_number}, but the board update failed ({exc}): move its issue by hand")
-        return result(pr_number, 0, "merged", moved=[], board_error=str(exc), **update)
+        return done(0, "merged", moved=[], board_error=str(exc), **update)
     for w in worktrees():
         if w["branch"] == info["headRefName"] and w["dirty"] == 0:
             git("worktree", "remove", w["path"], check=False)
@@ -1483,7 +1628,7 @@ def _integrate(
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):
         git("-C", str(main_checkout()), "pull", "--ff-only", check=False)
     print(f"RESULT: merged PR #{pr_number}" + (f"; {', '.join(moved)}" if moved else ""))
-    return result(pr_number, 0, "merged", moved=moved, sent_back=sent, **update)
+    return done(0, "merged", moved=moved, sent_back=sent, **update)
 
 
 def heartbeat(number: int, message: str) -> None:
