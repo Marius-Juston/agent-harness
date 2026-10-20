@@ -437,7 +437,7 @@ def test_stacked_prs_are_retargeted_to_main_before_the_parent_merges(monkeypatch
     edit = calls.index(("pr", "edit", "8", "-R", "o/r", "--base", "main"))
     assert edit < next(i for i, c in enumerate(calls) if c[:2] == ("pr", "merge"))
     said = capsys.readouterr().out
-    assert "#8" in said and f"git rebase --onto origin/main {('h1' * 10)[:12]} 13-stacked" in said
+    assert "#8" in said and f"--format=%h {('h1' * 10)[:12]}..origin/13-stacked" in said  # the #305 route
     calls.clear()
     assert workflow._merge_if_unchanged(7, "h1" * 10, "m1", dry_run=True, info=info) is None
     assert not [c for c in calls if c[:2] in (("pr", "edit"), ("pr", "merge"))]

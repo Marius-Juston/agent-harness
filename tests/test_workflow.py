@@ -538,3 +538,66 @@ def test_local_ci_does_not_wait_on_the_checks_it_stands_in_for(fake_integrate, a
     assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
     printed = capsys.readouterr().out
     assert "waiting up to" not in printed and _last_json(printed)["outcome"] == "merged"
+
+
+@pytest.mark.parametrize("local_ci", [False, True])
+def test_waiting_twice_on_one_head_points_past_a_rerun(fake_integrate, actions, clock, monkeypatch, capsys, local_ci):  # noqa: F811
+    """Review on #333 (#305): a check stuck QUEUED forever costs a full wait per call. The second `waiting` on one
+    head says so and names --local-ci or the owner instead of another rerun."""
+    monkeypatch.setattr(workflow.config, "get", lambda: workflow.config.Config(checks_wait_s=60))
+    fake_integrate["checks"] = [_run("x", status="QUEUED", conclusion="") | CODEQL]  # never stood in for
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=local_ci) == 1
+    printed = capsys.readouterr().out
+    first = _last_json(printed)
+    assert first["outcome"] == "waiting" and "again" not in first
+    assert printed.splitlines()[-2].endswith("rerun")
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=local_ci) == 1
+    printed = capsys.readouterr().out
+    again = _last_json(printed)
+    assert (again["outcome"], again["head"], again["again"]) == ("waiting", HEAD, True)
+    line = printed.splitlines()[-2]
+    assert line.startswith("RESULT: waiting") and "again" in line and not line.endswith("rerun")
+    assert "--local-ci" in line and "owner" in line
+    assert not any(e[0] == "run" for e in fake_integrate["events"]) and not _merged(fake_integrate["events"])
+
+
+def test_a_retargeted_stacked_pr_gets_the_cherry_pick_route_not_a_force_push(monkeypatch, capsys):
+    """#305: auto mode refuses `git rebase --onto` plus --force-with-lease ('Git Destructive'). The hint names the
+    route that worked (#281 -> #304): a new branch from main, the stacked PR's own commits cherry-picked by sha, a new PR
+    via `dev pr`, the old PR closed."""
+    calls = []
+
+    def gh(*a, **k):
+        calls.append(a)
+        if a[:2] == ("pr", "list"):
+            return json.dumps([{"number": 8, "headRefName": "13-stacked"}])
+        if a[0] == "api":
+            return "a" * 40 + "\n" + "b" * 40 + "\n"
+        return ""
+
+    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    tip = "c" * 40
+    assert workflow.retarget_stacked("12-parent", tip) == [8]
+    assert next(c for c in calls if c[0] == "api")[1] == f"repos/o/r/compare/{tip}...13-stacked"
+    said = capsys.readouterr().out
+    assert "rebase" not in said and "force" not in said
+    assert "git switch -c 13-stacked-v2 origin/main" in said
+    assert f"git cherry-pick {'a' * 12} {'b' * 12}" in said
+    assert "uv run dev pr 13" in said and "gh pr close 8" in said
+
+
+def test_the_stacked_hint_without_a_readable_compare_still_names_the_route(monkeypatch, capsys):
+    def gh(*a, **k):
+        if a[:2] == ("pr", "list"):
+            return json.dumps([{"number": 8, "headRefName": "13-stacked"}])
+        if a[0] == "api":
+            raise board.BoardError("gh api: offline")
+        return ""
+
+    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    assert workflow.retarget_stacked("12-parent", "c" * 40) == [8]
+    said = capsys.readouterr().out
+    assert "rebase" not in said and "git switch -c 13-stacked-v2 origin/main" in said
+    assert f"git log --reverse --format=%h {'c' * 12}..origin/13-stacked" in said and "gh pr close 8" in said
