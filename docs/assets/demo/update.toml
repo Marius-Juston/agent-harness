@@ -1,0 +1,76 @@
+# README demo: updating a project to a newer release. Format: scripts/demo_cast.py. Output was captured from a scratch
+# project rendered at v0.1.12 and updated to v0.1.13 with copier, then gated.
+
+[[scene]]
+caption = "Is a newer release out?"
+[[scene.step]]
+cmd = "uvx copier check-update"
+run_s = 1.5
+output = """
+New template version available.
+Current version is 0.1.12, latest version is 0.1.13.
+"""
+
+[[scene]]
+caption = "Update on a branch: a three-way merge keeps your edits and moves every pin"
+[[scene.step]]
+cmd = "git switch -c harness-v0.1.13"
+output = "Switched to a new branch 'harness-v0.1.13'"
+[[scene.step]]
+cmd = "uvx copier update --data harness_ref=v0.1.13"
+run_s = 2.5
+output = "{dim}Updating to template version 0.1.13{/}"
+[[scene.step]]
+cmd = "git diff --stat"
+output = """
+ .claude/settings.json     | 2 {ok}+{/}{del}-{/}
+ .copier-answers.yml       | 4 {ok}++{/}{del}--{/}
+ .devkit/HARNESS.md        | 2 {ok}+{/}{del}-{/}
+ docs/specs/multi-agent.md | 6 {ok}++++{/}{del}--{/}
+ pyproject.toml            | 6 {ok}+++{/}{del}---{/}
+"""
+[[scene.step]]
+cmd = "git diff pyproject.toml | grep v0.1.1"
+output = """
+{del}-dev = ["agent-harness @ git+https://github.com/Marius-Juston/agent-harness@v0.1.12"]{/}
+{ok}+dev = ["agent-harness @ git+https://github.com/Marius-Juston/agent-harness@v0.1.13"]{/}
+{del}-agent-harness = { git = "https://github.com/Marius-Juston/agent-harness", tag = "v0.1.12" }{/}
+{ok}+agent-harness = { git = "https://github.com/Marius-Juston/agent-harness", tag = "v0.1.13" }{/}
+{del}-"harness-ops@agent-harness" = "Marius-Juston/agent-harness@v0.1.12"{/}
+{ok}+"harness-ops@agent-harness" = "Marius-Juston/agent-harness@v0.1.13"{/}
+"""
+
+[[scene]]
+caption = "Sync, regenerate the generated docs, gate"
+[[scene.step]]
+cmd = "uv sync && uv run dev docs && uv run dev check"
+run_s = 3.0
+output = """
+updated: docs/generated/agent-surface.md, docs/research/INDEX.md
+ok   generated docs fresh: 2 checked, 0 problem(s)
+ok   ruff lint: 3 checked, 0 problem(s)
+ok   tests: 1 checked, 0 problem(s)
+{ok}RESULT: passed{/} (2 s)
+"""
+
+[[scene]]
+caption = "Move the plugin to the new pin, then land the branch like any change"
+[[scene.step]]
+cmd = "uv run dev setup"
+run_s = 3.0
+output = """
+ok   plugin marketplace Marius-Juston/agent-harness@v0.1.13
+ok   plugin harness-ops@agent-harness
+ok   installed plugin is the pinned release's build
+"""
+[[scene.step]]
+cmd = "git commit -qam \"agent-harness v0.1.13\" && git push -u origin HEAD"
+run_s = 1.5
+output = "branch 'harness-v0.1.13' set up to track 'origin/harness-v0.1.13'."
+[[scene.step]]
+prompt = ""
+cmd = ""
+output = """
+{b}Never touched by an update:{/}  CLAUDE.md, README.md, CHANGELOG.md (yours)
+{b}Arrives with it:{/}             .devkit/HARNESS.md, the generic rules your CLAUDE.md imports
+"""

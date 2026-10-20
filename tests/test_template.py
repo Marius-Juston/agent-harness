@@ -240,6 +240,15 @@ def test_contributing_links_setup_and_help_and_readme_links_contributing(rendere
         assert f"({name})" in (ROOT / "CONTRIBUTING.md").read_text(), name
 
 
+def test_template_owned_files_link_no_heading_of_a_project_owned_file(rendered):
+    """Copied into an existing repository, the project keeps its own README.md and CLAUDE.md (#368): a template-owned
+    page that links one of their headings fails that project's gate."""
+    owned = yaml.safe_load((ROOT / "copier.yml").read_text())["_skip_if_exists"]
+    pages = [p for p in rendered.rglob("*.md") if ".git" not in p.parts and p.name not in owned]
+    hits = [f"{p.relative_to(rendered)}: {name}" for p in pages for name in owned if f"{name}#" in p.read_text()]
+    assert hits == []
+
+
 def test_the_changelog_is_project_owned():
     """release-please (#60) writes CHANGELOG.md; a `copier update` must never overwrite a project's release notes."""
     assert "CHANGELOG.md" in yaml.safe_load((ROOT / "copier.yml").read_text())["_skip_if_exists"]

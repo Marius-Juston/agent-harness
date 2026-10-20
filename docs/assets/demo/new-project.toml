@@ -1,25 +1,13 @@
-# The README demo (docs/assets/demo.svg), one scene per screen. `uv run python scripts/demo_cast.py` turns it into
-# demo.cast; the render command is in that script's docstring. Shell output was captured from a scratch render of the
-# template; the Claude Code and GitHub scenes replay real `board`, `pr` and `integrate` output from this repository,
-# condensed and renamed to the demo project. tests/test_demo.py checks every `uv run dev` command shown here parses.
-#
-# Tags in `output` and `cmd`: {dim} {ok} {warn} {issue} {agent} {cmd} {b}, closed by {/}. A line that starts with a
-# devkit status word (`ok`, `WARN`, `FIX`, `FAIL`) has that word coloured automatically. A newline in `cmd` is typed
-# as a shell line continuation. Keep lines under `width` columns: the SVG clips, it does not wrap.
-
-width = 100
-height = 26
-prompt = "{cmd}~/my-project{/} $ "
-type_s = 0.035    # per typed character (typed a word at a time)
-line_s = 0.06     # per output line
-scene_pause_s = 2.2
-end_pause_s = 6.0
+# README demo: a new project, from `copier copy` to an issue closed by a gated PR. Format: scripts/demo_cast.py.
+# Shell output was captured from a scratch render of the template; the Claude Code and GitHub scenes replay real
+# `board`, `pr` and `integrate` output from this repository, condensed and renamed to the demo project.
 
 [[scene]]
 caption = "Create a project from the template"
 [[scene.step]]
 prompt = "{cmd}~{/} $ "
 cmd = "uvx copier copy gh:Marius-Juston/agent-harness my-project"
+run_s = 2.0
 output = """
 🎤 Project name (a Python distribution name, e.g. my-project)
    my-project
@@ -39,6 +27,7 @@ output = ""
 caption = "One command sets up git, uv, hooks and the plugin, then says what is left"
 [[scene.step]]
 cmd = "uv run dev setup"
+run_s = 3.0
 output = """
 ok   git init (branch main)
 ok   uv sync
@@ -62,6 +51,7 @@ cmd = "git add -A && git commit -qm init"
 output = ""
 [[scene.step]]
 cmd = "gh repo create my-project --private --source . --push"
+run_s = 2.0
 output = "{ok}✓{/} Created repository you/my-project on GitHub"
 [[scene.step]]
 cmd = "uv run dev board init"
@@ -76,6 +66,7 @@ output = "https://github.com/you/my-project/issues/1 {ok}(ready){/}"
 caption = "Start Claude Code, then paste the /goal prompt from docs/SESSION.md"
 [[scene.step]]
 cmd = "claude"
+run_s = 1.5
 output = """
 {agent}✻{/} {b}Welcome to Claude Code{/}   {dim}plugin harness-ops loaded{/}
 {dim}SessionStart hook: the handoff, the board and this machine{/}
@@ -96,23 +87,40 @@ cmd = ""
 output = """
 ⏺ Bash(uv run dev board next)
   ⎿  {issue}#1{/}  P1 build ready  GET /health returns the version  [P1, unblocks 0]
-
+"""
+[[scene.step]]
+prompt = ""
+cmd = ""
+run_s = 2.5
+output = """
 ⏺ {agent}harness-ops:builder{/}(#1 GET /health returns the version)
   ⎿  own worktree 1-health · test first · uv run dev check {ok}passed{/}
      https://github.com/you/my-project/pull/2
      {issue}#1{/} status:review
-
+"""
+[[scene.step]]
+prompt = ""
+cmd = ""
+run_s = 2.0
+output = """
 ⏺ {agent}harness-ops:reviewer{/}(PR #2)
   ⎿  approved: DONE WHEN met (tests/test_health.py passes), no findings
-
+"""
+[[scene.step]]
+prompt = ""
+cmd = ""
+run_s = 2.0
+output = """
 ⏺ Bash(uv run dev integrate 2)
   ⎿  {dim}re-gates PR #2 merged onto main in a throwaway worktree{/}
      ok   tests: 12 checked, 0 problem(s)
      RESULT: passed (19 s)
      {ok}RESULT: merged PR #2{/}
-
-⏺ Nothing startable is left; docs/HANDOFF.md is current. Done.
 """
+[[scene.step]]
+prompt = ""
+cmd = ""
+output = "⏺ Nothing startable is left; docs/HANDOFF.md is current. Done."
 
 [[scene]]
 caption = "The issue was closed by a gated PR, with no merge done by hand"

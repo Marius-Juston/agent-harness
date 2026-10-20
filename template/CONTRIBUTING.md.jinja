@@ -4,7 +4,8 @@ The rules that agents and people follow alike are in [CLAUDE.md](CLAUDE.md) and 
 [.devkit/HARNESS.md](.devkit/HARNESS.md) it imports; this page is the path from a clone to a merged pull request.
 
 ## From a clone to a green gate
-1. Install the prerequisites listed in the [README](README.md#quickstart).
+1. Install git, [uv](https://docs.astral.sh/uv/), [gh](https://cli.github.com) (authenticated), jq, Node.js 20+ and
+   [Claude Code](https://code.claude.com/docs).
 2. Clone the repository, then in the clone run `uv run dev setup` and `uv run dev check`. The gate ends with
    `RESULT: passed`.
 3. Machine steps that cannot be scripted, such as the research API keys: [docs/SETUP.md](docs/SETUP.md).
