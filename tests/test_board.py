@@ -5,6 +5,8 @@ No test calls GitHub: `board.gh`, `board.get` and `board.repo` are replaced by a
 
 import graphlib
 import json
+import math
+import re
 import subprocess
 from itertools import pairwise
 
@@ -29,9 +31,13 @@ class FakeGitHub:
         self.labels = set(board.LABELS) if labels is None else set(labels)
         self.calls: list[tuple] = []
         self.next_id = 1000
+        self.listed: list[dict] = []  # what `gh issue list` answers: the board `board new` ranks related issues on
+        self.created = ""
 
     def gh(self, *args, input=None):
         self.calls.append(args)
+        if args[:2] == ("issue", "list"):
+            return json.dumps(self.listed)
         if args[:2] == ("issue", "comment"):
             self.next_id += 1
             url = f"https://github.com/o/r/issues/{args[2]}#issuecomment-{self.next_id}"
@@ -40,6 +46,7 @@ class FakeGitHub:
         if args[:2] == ("label", "list"):
             return json.dumps([{"name": n} for n in sorted(self.labels)])
         if args[:2] == ("issue", "create"):
+            self.created = input
             return "https://github.com/o/r/issues/50\n"
         if args[:2] == ("api", "graphql"):  # every issue exists, open, with no native links
             return json.dumps({"data": {"repository": {"issue": {"id": "I_1", "state": "OPEN", "blockedBy": None}}}})
@@ -986,3 +993,107 @@ def test_path_history_lists_every_path_ever_committed_and_the_tracked_ones(tmp_p
     assert board.path_history() == ({"a.py", "b.py"}, {"b.py"})
     monkeypatch.chdir(tmp_path.parent)  # outside a checkout: nothing to compare
     assert board.path_history() is None
+
+
+# --- #350: board new suggests related issues (docs/research/issue-pr-automation.md §3.3) ---------------------------
+
+
+def _listed(n, title, context, done, state="OPEN"):
+    body = f"## Context\n{context}\n\n## DONE WHEN\n- [ ] {done}\n"
+    return {"number": n, "title": title, "labels": [], "body": body, "state": state, "updatedAt": T0}
+
+
+SCHOLAR = {1, 3, 5, 6}  # the fixture issues about Semantic Scholar rate limits; 2 and 4 share no word with the query
+BOARD = [
+    _listed(1, "Retry the Semantic Scholar search on HTTP 429", "the key cools down", "lit search retries 429"),
+    _listed(2, "Release v0.1.3", "tag and changelog", "the tag is pushed"),
+    _listed(3, "Semantic Scholar cooldown ignored", "429 answers repeat", "lit search waits out cooldown", "CLOSED"),
+    _listed(4, "Lint the board titles", "conventions", "board lint reports a long title"),
+    _listed(5, "Semantic Scholar 429 storms", "retries pile up", "no 429 storm", "CLOSED"),
+    _listed(6, "Semantic Scholar backoff jitter", "429 retries", "jitter on cooldown"),
+]
+QUERY = ("Semantic Scholar answers 429 during lit search", "the key cooldown is short", ["lit search backs off on 429"])
+
+
+def _new(refs=()):
+    title, context, done = QUERY
+    return board.new(title, "build", "P2", context, done, [], [], list(refs), None)
+
+
+def _shown(out):
+    return [int(x) for x in re.findall(r"#(\d+)", out.splitlines()[1])]
+
+
+def test_terms_drop_issue_numbers_checkboxes_code_marks_and_stop_words():
+    text = "Fix #12 and o/r#3 in `devkit/board.py`\n- [ ] the retry is done"
+    assert board.terms(text) == ["fix", "devkit", "board", "py", "retry"]
+
+
+def test_bm25_matches_the_lucene_formula_on_a_hand_case():
+    scores = board.bm25([["aa", "bb"], ["bb", "cc", "cc"]], ["cc", "cc"])
+    idf, avg = math.log(1 + (2 - 1 + 0.5) / (1 + 0.5)), 2.5
+    assert scores[0] == 0
+    assert scores[1] == pytest.approx(2 * idf * 2 / (2 + 1.5 * (1 - 0.75 + 0.75 * 3 / avg)))
+
+
+WORD_LISTS = st.lists(st.sampled_from(["alpha", "beta", "gamma", "delta", "eps"]), max_size=8)
+
+
+@given(st.lists(WORD_LISTS, min_size=1, max_size=8), WORD_LISTS, st.randoms(use_true_random=False))
+def test_bm25_is_order_free_and_scores_only_shared_words(docs, query, rnd):
+    scores = board.bm25(docs, query)
+    order = list(range(len(docs)))
+    rnd.shuffle(order)
+    assert board.bm25([docs[k] for k in order], query) == pytest.approx([scores[k] for k in order])
+    assert all(s >= 0 for s in scores)
+    assert all((s > 0) == bool(set(d) & set(query)) for d, s in zip(docs, scores, strict=True))
+
+
+def test_new_prints_up_to_three_related_issues_and_prefills_refs(fake, monkeypatch):
+    fake.listed = BOARD
+    monkeypatch.setattr(board, "RELATED_MIN", 1e-9)
+    out = _new(refs=["346"])
+    url, related, *titles = out.splitlines()
+    assert url.endswith("(ready)")
+    assert re.fullmatch(r"Related: #\d+ #\d+ #\d+", related)
+    shown = _shown(out)
+    assert set(shown) < SCHOLAR
+    assert [int(t.split()[0][1:]) for t in titles] == shown
+    refs = board.sections(fake.created)["Refs"].splitlines()
+    assert refs[0] == "- 346"
+    assert refs[1].startswith("- " + " ".join(f"#{n}" for n in shown) + " (")
+
+
+def test_new_suggests_nothing_the_filer_already_names(fake, monkeypatch):
+    fake.listed = BOARD
+    monkeypatch.setattr(board, "RELATED_MIN", 1e-9)
+    first = _shown(_new())[0]
+    again = _shown(_new(refs=[f"#{first}"]))
+    assert first not in again and set(again) < SCHOLAR
+
+
+def test_new_shows_only_issues_at_or_above_the_threshold(fake, monkeypatch):
+    fake.listed = BOARD
+    ranked = board.related(*QUERY, board.fetch("all", links=""), set(), minimum=1e-9)
+    assert len(ranked) == 3 and ranked[0][1] > ranked[1][1]
+    monkeypatch.setattr(board, "RELATED_MIN", (ranked[0][1] + ranked[1][1]) / 2)
+    assert _new().splitlines()[1] == f"Related: #{ranked[0][0].number}"
+    monkeypatch.setattr(board, "RELATED_MIN", math.inf)
+    assert _new() == "https://github.com/o/r/issues/50 (ready)"
+    assert "Refs" not in board.sections(fake.created)
+
+
+@pytest.mark.parametrize("answer", ["error", "not json"])
+def test_new_never_refuses_when_the_board_cannot_be_read(fake, monkeypatch, answer):
+    real = fake.gh
+
+    def gh(*args, input=None):
+        if args[:2] != ("issue", "list"):
+            return real(*args, input=input)
+        if answer == "error":
+            raise board.BoardError("gh issue list: HTTP 502")
+        return "<html>"
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert _new() == "https://github.com/o/r/issues/50 (ready)"
+    assert board.sections(fake.created)["DONE WHEN"] == "- [ ] lit search backs off on 429"

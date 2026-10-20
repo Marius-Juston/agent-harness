@@ -35,8 +35,10 @@ Pre-registered on 2026-10-20, committed before any ship-mode number was computed
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -240,7 +242,7 @@ def split_queries(split: str) -> list[tuple[str, int]]:
 
     out = []
     for repo in REPOS:
-        for q in load(repo):
+        for q in frozen(repo):
             if (split == "TEST") == is_test(repo, q):
                 out.append((repo, q))
     return out
@@ -310,5 +312,244 @@ def main(mode: str) -> None:
                 )
 
 
+# --- ship mode (#350): the shipped ranker, its candidate window and its threshold form ----------------------------
+
+SHIP_PICK = HERE / "ship_pick.json"
+SHIP_DEV = HERE / "ship_dev_output.txt"
+SHIP_TEST = HERE / "ship_test_output.txt"
+SHIP_UNLABELLED = HERE / "ship_unlabelled.json"
+WINDOWS = {"W-all": None, "W-30": 30}
+EXPLORE = {"W-7": 7, "W-3": 3, "W-1": 1}
+FORMS = ("raw", "ratio")
+RATE_CAP = 0.45
+SENT = re.compile(r"(?<=[.;:!?])\s+|\n+")  # as dedup_explore.py leak
+HASREF = re.compile(r"#\d+")
+
+
+def frozen(repo: str) -> dict[int, dict]:
+    """The issues of the freeze: the first n_issues by creation (filings since then are not in the labels)."""
+    iss = load(repo)
+    keep = sorted(iss, key=lambda n: iss[n]["createdAt"])[: LABELS["repos"][repo]["n_issues"]]
+    return {n: iss[n] for n in keep}
+
+
+def when(s: str) -> float:
+    from datetime import datetime
+
+    return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+
+
+def ship_rankings(window: int | None, leak_removed: bool = False) -> dict[str, dict[int, list]]:
+    """repo -> query -> top TOPN [candidate, raw, ratio], by devkit.board's terms() and bm25()."""
+    from devkit import board
+
+    path = RAW / f"ship_{window or 'all'}{'_leak' if leak_removed else ''}.json"
+    if path.exists():
+        raw = json.loads(path.read_text())
+        return {r: {int(q): v for q, v in d.items()} for r, d in raw.items()}
+    out = {}
+    for repo in REPOS:
+        iss = frozen(repo)
+        seq = order(iss)
+        toks = {}
+        for n in seq:
+            sec = board.sections(iss[n]["body"])
+            ctx = sec.get("Context", "")
+            if leak_removed:
+                ctx = " ".join(s for s in SENT.split(ctx) if not HASREF.search(s))
+            toks[n] = board.issue_terms(iss[n]["title"], ctx, sec.get("DONE WHEN", ""))
+        res: dict[int, list] = {}
+        for k, q in enumerate(seq):
+            t = when(iss[q]["createdAt"])
+            cands = [
+                c
+                for c in seq[:k]
+                if window is None or not iss[c]["closedAt"] or when(iss[c]["closedAt"]) >= t - window * 86400
+            ]
+            if not cands:
+                continue
+            docs = [toks[c] for c in cands]
+            scores, own = board.bm25(docs, toks[q]), self_score(docs, toks[q])
+            top = sorted(range(len(cands)), key=lambda j: (-scores[j], j))[:TOPN]
+            res[q] = [[cands[j], scores[j], scores[j] / own if own else 0.0] for j in top]
+        out[repo] = res
+    path.write_text(json.dumps(out))
+    return out
+
+
+def self_score(docs: list[list[str]], query: list[str]) -> float:
+    """The query's BM25 score as a document under the candidates' statistics (the same terms its candidates can
+    match), so score / self-score does not grow with the corpus the way a raw score does. board.bm25's formula."""
+    from devkit import board
+
+    n, k1, b = len(docs), board.BM25_K1, board.BM25_B
+    avg = sum(map(len, docs)) / n or 1.0
+    df = Counter(w for d in docs for w in set(d))
+    tf, norm = Counter(query), k1 * (1 - b + b * len(query) / avg)
+    return sum(math.log(1 + (n - df[w] + 0.5) / (df[w] + 0.5)) * tf[w] / (tf[w] + norm) for w in query if df[w])
+
+
+def form(rk: dict, f: str) -> dict:
+    """Rankings with the score of threshold form f: raw BM25 or score / self-score (ranking order is the same)."""
+    col = 1 if f == "raw" else 2
+    return {r: {q: [[x[0], x[col]] for x in lst] for q, lst in d.items()} for r, d in rk.items()}
+
+
+def tune_capped(rk: dict) -> float:
+    """tune() with the pre-registered alert-rate cap on DEV."""
+    g_dev, g_all, qs = gold("B", "DEV"), all_gold(), split_queries("DEV")
+    scores = sorted({round(s, 6) for repo in rk for lst in rk[repo].values() for _, s in lst[:3]})
+    cand = scores[:: max(1, len(scores) // 400)]
+    best, best_f = math.inf, -1.0
+    for t in cand:
+        m = alerts(rk, g_all, t, qs, g_dev)
+        if m["alert_rate"] > RATE_CAP:
+            continue
+        p, r = m["precision"], m["recall3"]
+        f = 2 * p * r / (p + r) if p == p and p + r > 0 else 0.0
+        if f > best_f:
+            best, best_f = t, f
+    return best
+
+
+def alert_hits(rk: dict, tau: float, g: dict) -> list[float]:
+    return [float(any(d in tg for d, s in rk[repo].get(q, [])[:3] if s >= tau)) for (repo, q), tg in g.items()]
+
+
+def ship_dev() -> None:
+    g, qs, out = gold("B", "DEV"), split_queries("DEV"), []
+    cells, hits = {}, {}
+    for wname, days in {**WINDOWS, **EXPLORE}.items():
+        rk = ship_rankings(days)
+        r3 = boot(per_query(form(rk, "raw"), g, 3))
+        out.append(
+            f"{wname}: Tier B DEV {len(g)} queries, R@1 {np.mean(per_query(form(rk, 'raw'), g, 1)):.3f} "
+            f"R@3 {r3[0]:.3f} [{r3[1]:.3f},{r3[2]:.3f}]"
+        )
+        for f in FORMS:
+            rf = form(rk, f)
+            tau = tune_capped(rf)
+            m = alerts(rf, all_gold(), tau, qs, g)
+            cells[(wname, f)] = {"tau": tau, **m}
+            hits[(wname, f)] = alert_hits(rf, tau, g)
+            out.append(
+                f"  {f:5s} tau {tau:.4f} alertP {m['precision']:.3f} alertR3 {m['recall3']:.3f} "
+                f"rate {m['alert_rate']:.3f} shown {m['shown_per_filing']:.2f}"
+            )
+    pre = [(w, f) for w in WINDOWS for f in FORMS]
+    best = max(pre, key=lambda c: cells[c]["recall3"])
+    out.append(f"best DEV alert recall@3: {best}; paired bootstrap (cell - best):")
+    tied = []
+    for c in pre:
+        d = boot([x - y for x, y in zip(hits[c], hits[best], strict=True)])
+        out.append(f"  {c} {d[0]:+.3f} [{d[1]:+.3f},{d[2]:+.3f}]")
+        if c == best or d[1] <= 0 <= d[2]:
+            tied.append(c)
+    pick = min(tied, key=lambda c: (list(WINDOWS).index(c[0]), -FORMS.index(c[1])))
+    out.append(f"tied with best: {tied}; pick {pick} at tau {cells[pick]['tau']:.6f}")
+    for c in [(w, f) for w in EXPLORE for f in FORMS]:
+        d = boot([x - y for x, y in zip(hits[c], hits[pick], strict=True)])
+        out.append(f"  exploratory {c} minus pick {d[0]:+.3f} [{d[1]:+.3f},{d[2]:+.3f}]")
+    for repo in REPOS:
+        iss = frozen(repo)
+        seq = order(iss)
+        kept = {
+            w: sum(
+                1
+                for k, q in enumerate(seq)
+                for c in seq[:k]
+                if d is None
+                or not iss[c]["closedAt"]
+                or when(iss[c]["closedAt"]) >= when(iss[q]["createdAt"]) - d * 86400
+            )
+            for w, d in {**WINDOWS, **EXPLORE}.items()
+        }
+        out.append(f"{repo}: {len(iss)} issues; (query, candidate) pairs per window {kept}")
+    text = "\n".join(out)
+    print(text)
+    SHIP_DEV.write_text(text + "\n")
+    SHIP_PICK.write_text(
+        json.dumps(
+            {
+                "window": pick[0],
+                "form": pick[1],
+                "tau": cells[pick]["tau"],
+                "cells": {f"{w} {f}": cells[(w, f)] for w, f in cells},
+            },
+            indent=1,
+        )
+        + "\n"
+    )
+
+
+def ship_test() -> None:
+    from devkit import board
+
+    if SHIP_TEST.exists():
+        sys.exit(f"{SHIP_TEST.name} exists: TEST is scored once")
+    pick = json.loads(SHIP_PICK.read_text())
+    # the shipped code ranks every fetched issue (W-all) by raw score, at RELATED_MIN: score exactly that line
+    if (pick["window"], pick["form"]) != ("W-all", "raw") or abs(board.RELATED_MIN - pick["tau"]) >= 0.01:
+        sys.exit(f"devkit.board ships W-all raw at {board.RELATED_MIN}, not the DEV pick {pick}")
+    tau, out = board.RELATED_MIN, [f"pick {pick['window']} {pick['form']}, shipped RELATED_MIN {board.RELATED_MIN}"]
+    g_all, qs_all = all_gold(), split_queries("TEST")
+    for text, leak in (("full text", False), ("leak-removed", True)):
+        rk = form(ship_rankings(WINDOWS[pick["window"]], leak), pick["form"])
+        for scope in ("both repositories", "agent-harness"):
+            keep = (lambda r: True) if scope == "both repositories" else (lambda r: r == "agent-harness")
+            g = {k: v for k, v in gold("B", "TEST").items() if keep(k[0])}
+            qs = [k for k in qs_all if keep(k[0])]
+            r3 = boot(per_query(rk, g, 3))
+            m = alerts(rk, g_all, tau, qs, g)
+            out.append(
+                f"[{text}] {scope}: Tier B TEST {len(g)} queries, {len(qs)} filings | R@1 "
+                f"{np.mean(per_query(rk, g, 1)):.3f} R@3 {r3[0]:.3f} [{r3[1]:.3f},{r3[2]:.3f}] "
+                f"R@5 {np.mean(per_query(rk, g, 5)):.3f} | alertP {m['precision']:.3f} alertR3 {m['recall3']:.3f} "
+                f"rate {m['alert_rate']:.3f} shown {m['shown_per_filing']:.2f} ({round(m['shown_per_filing'] * len(qs))})"
+            )
+        ga = gold("A", None)
+        out.append(
+            f"[{text}] Tier A: {int(sum(per_query(rk, ga, 3)))}/{len(ga)} in top 3, "
+            f"{int(sum(alert_hits(rk, tau, ga)))}/{len(ga)} shown"
+        )
+    rk = form(ship_rankings(WINDOWS[pick["window"]]), pick["form"])
+    repo = "agent-harness"
+    rows = [
+        {"query": q, "suggested": d}
+        for r, q in qs_all
+        if r == repo
+        for d, s in rk[repo].get(q, [])[:3]
+        if s >= tau and d not in g_all.get((repo, q), set())
+    ]
+    labelled = sum(
+        d in g_all.get((repo, q), set()) for r, q in qs_all if r == repo for d, s in rk[repo].get(q, [])[:3] if s >= tau
+    )
+    first = {(p["query"], p["suggested"]) for p in json.loads((HERE / "dedup_judged.json").read_text())["pairs"]}
+    out.append(
+        f"agent-harness TEST alerts: {labelled} labelled, {len(rows)} unlabelled, "
+        f"{sum((p['query'], p['suggested']) in first for p in rows)} of them judged by rater 1"
+    )
+    SHIP_UNLABELLED.write_text(
+        json.dumps(
+            {
+                "what": "Unlabelled shipped-line alerts on agent-harness TEST (dedup_eval.py ship-test)",
+                "labelled_alerts": labelled,
+                "pairs": rows,
+            },
+            indent=1,
+        )
+        + "\n"
+    )
+    text = "\n".join(out)
+    print(text)
+    SHIP_TEST.write_text(text + "\n")
+
+
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "dev")
+    mode = sys.argv[1] if len(sys.argv) > 1 else "dev"
+    if mode == "ship-dev":
+        ship_dev()
+    elif mode == "ship-test":
+        ship_test()
+    else:
+        main(mode)
