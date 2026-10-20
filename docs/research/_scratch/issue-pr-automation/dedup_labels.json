@@ -1,0 +1,6304 @@
+{
+ "repos": {
+  "agent-harness": {
+   "n_issues": 235,
+   "tier_a": [
+    {
+     "evidence": "#37 closing comment: 'Duplicate of #240'",
+     "query": 240,
+     "target": 37
+    },
+    {
+     "evidence": "#10 closing comment: 'Duplicate of #104'",
+     "query": 104,
+     "target": 10
+    },
+    {
+     "evidence": "PR for #74: 'Supersedes #10 except its cron-comment and board new parts'",
+     "query": 74,
+     "target": 10
+    },
+    {
+     "evidence": "#308 closing comment: 'Folded into #338'",
+     "query": 338,
+     "target": 308
+    },
+    {
+     "evidence": "#275 closing comment: 'Folded into #338'",
+     "query": 338,
+     "target": 275
+    },
+    {
+     "evidence": "#66 comment: 'Implementation is folded into #255'",
+     "query": 255,
+     "target": 66
+    }
+   ],
+   "tier_b": [
+    {
+     "query": 23,
+     "split": "DEV",
+     "target": 8
+    },
+    {
+     "query": 25,
+     "split": "TEST",
+     "target": 23
+    },
+    {
+     "query": 38,
+     "split": "DEV",
+     "target": 11
+    },
+    {
+     "query": 39,
+     "split": "DEV",
+     "target": 12
+    },
+    {
+     "query": 43,
+     "split": "DEV",
+     "target": 38
+    },
+    {
+     "query": 47,
+     "split": "DEV",
+     "target": 44
+    },
+    {
+     "query": 50,
+     "split": "TEST",
+     "target": 15
+    },
+    {
+     "query": 54,
+     "split": "DEV",
+     "target": 46
+    },
+    {
+     "query": 56,
+     "split": "DEV",
+     "target": 38
+    },
+    {
+     "query": 64,
+     "split": "TEST",
+     "target": 38
+    },
+    {
+     "query": 65,
+     "split": "DEV",
+     "target": 11
+    },
+    {
+     "query": 65,
+     "split": "DEV",
+     "target": 15
+    },
+    {
+     "query": 65,
+     "split": "DEV",
+     "target": 38
+    },
+    {
+     "query": 65,
+     "split": "DEV",
+     "target": 46
+    },
+    {
+     "query": 65,
+     "split": "DEV",
+     "target": 52
+    },
+    {
+     "query": 65,
+     "split": "DEV",
+     "target": 53
+    },
+    {
+     "query": 65,
+     "split": "DEV",
+     "target": 55
+    },
+    {
+     "query": 65,
+     "split": "DEV",
+     "target": 64
+    },
+    {
+     "query": 66,
+     "split": "TEST",
+     "target": 53
+    },
+    {
+     "query": 72,
+     "split": "DEV",
+     "target": 38
+    },
+    {
+     "query": 72,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 74,
+     "split": "TEST",
+     "target": 10
+    },
+    {
+     "query": 74,
+     "split": "TEST",
+     "target": 64
+    },
+    {
+     "query": 74,
+     "split": "TEST",
+     "target": 67
+    },
+    {
+     "query": 75,
+     "split": "TEST",
+     "target": 64
+    },
+    {
+     "query": 75,
+     "split": "TEST",
+     "target": 67
+    },
+    {
+     "query": 76,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 77,
+     "split": "TEST",
+     "target": 67
+    },
+    {
+     "query": 77,
+     "split": "TEST",
+     "target": 74
+    },
+    {
+     "query": 78,
+     "split": "TEST",
+     "target": 44
+    },
+    {
+     "query": 78,
+     "split": "TEST",
+     "target": 67
+    },
+    {
+     "query": 79,
+     "split": "DEV",
+     "target": 64
+    },
+    {
+     "query": 79,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 80,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 82,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 83,
+     "split": "DEV",
+     "target": 38
+    },
+    {
+     "query": 83,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 84,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 85,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 86,
+     "split": "TEST",
+     "target": 67
+    },
+    {
+     "query": 88,
+     "split": "DEV",
+     "target": 57
+    },
+    {
+     "query": 88,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 90,
+     "split": "TEST",
+     "target": 67
+    },
+    {
+     "query": 90,
+     "split": "TEST",
+     "target": 81
+    },
+    {
+     "query": 93,
+     "split": "DEV",
+     "target": 64
+    },
+    {
+     "query": 95,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 95,
+     "split": "DEV",
+     "target": 83
+    },
+    {
+     "query": 96,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 97,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 97,
+     "split": "DEV",
+     "target": 82
+    },
+    {
+     "query": 98,
+     "split": "TEST",
+     "target": 67
+    },
+    {
+     "query": 98,
+     "split": "TEST",
+     "target": 81
+    },
+    {
+     "query": 99,
+     "split": "TEST",
+     "target": 67
+    },
+    {
+     "query": 100,
+     "split": "DEV",
+     "target": 60
+    },
+    {
+     "query": 100,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 101,
+     "split": "DEV",
+     "target": 54
+    },
+    {
+     "query": 101,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 102,
+     "split": "DEV",
+     "target": 54
+    },
+    {
+     "query": 102,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 102,
+     "split": "DEV",
+     "target": 85
+    },
+    {
+     "query": 104,
+     "split": "DEV",
+     "target": 10
+    },
+    {
+     "query": 104,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 104,
+     "split": "DEV",
+     "target": 74
+    },
+    {
+     "query": 105,
+     "split": "DEV",
+     "target": 58
+    },
+    {
+     "query": 108,
+     "split": "TEST",
+     "target": 67
+    },
+    {
+     "query": 108,
+     "split": "TEST",
+     "target": 76
+    },
+    {
+     "query": 110,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 113,
+     "split": "DEV",
+     "target": 111
+    },
+    {
+     "query": 114,
+     "split": "DEV",
+     "target": 112
+    },
+    {
+     "query": 117,
+     "split": "TEST",
+     "target": 112
+    },
+    {
+     "query": 118,
+     "split": "DEV",
+     "target": 112
+    },
+    {
+     "query": 119,
+     "split": "TEST",
+     "target": 112
+    },
+    {
+     "query": 120,
+     "split": "DEV",
+     "target": 112
+    },
+    {
+     "query": 121,
+     "split": "TEST",
+     "target": 112
+    },
+    {
+     "query": 121,
+     "split": "TEST",
+     "target": 114
+    },
+    {
+     "query": 122,
+     "split": "DEV",
+     "target": 111
+    },
+    {
+     "query": 123,
+     "split": "DEV",
+     "target": 111
+    },
+    {
+     "query": 124,
+     "split": "DEV",
+     "target": 111
+    },
+    {
+     "query": 124,
+     "split": "DEV",
+     "target": 122
+    },
+    {
+     "query": 125,
+     "split": "DEV",
+     "target": 111
+    },
+    {
+     "query": 125,
+     "split": "DEV",
+     "target": 113
+    },
+    {
+     "query": 127,
+     "split": "DEV",
+     "target": 112
+    },
+    {
+     "query": 131,
+     "split": "DEV",
+     "target": 127
+    },
+    {
+     "query": 132,
+     "split": "DEV",
+     "target": 127
+    },
+    {
+     "query": 138,
+     "split": "DEV",
+     "target": 113
+    },
+    {
+     "query": 139,
+     "split": "DEV",
+     "target": 138
+    },
+    {
+     "query": 140,
+     "split": "DEV",
+     "target": 138
+    },
+    {
+     "query": 141,
+     "split": "DEV",
+     "target": 113
+    },
+    {
+     "query": 141,
+     "split": "DEV",
+     "target": 125
+    },
+    {
+     "query": 141,
+     "split": "DEV",
+     "target": 138
+    },
+    {
+     "query": 143,
+     "split": "DEV",
+     "target": 97
+    },
+    {
+     "query": 146,
+     "split": "TEST",
+     "target": 113
+    },
+    {
+     "query": 146,
+     "split": "TEST",
+     "target": 114
+    },
+    {
+     "query": 147,
+     "split": "TEST",
+     "target": 114
+    },
+    {
+     "query": 147,
+     "split": "TEST",
+     "target": 134
+    },
+    {
+     "query": 154,
+     "split": "DEV",
+     "target": 149
+    },
+    {
+     "query": 154,
+     "split": "DEV",
+     "target": 153
+    },
+    {
+     "query": 155,
+     "split": "TEST",
+     "target": 149
+    },
+    {
+     "query": 155,
+     "split": "TEST",
+     "target": 154
+    },
+    {
+     "query": 157,
+     "split": "DEV",
+     "target": 153
+    },
+    {
+     "query": 159,
+     "split": "TEST",
+     "target": 149
+    },
+    {
+     "query": 159,
+     "split": "TEST",
+     "target": 154
+    },
+    {
+     "query": 159,
+     "split": "TEST",
+     "target": 155
+    },
+    {
+     "query": 163,
+     "split": "DEV",
+     "target": 65
+    },
+    {
+     "query": 169,
+     "split": "DEV",
+     "target": 29
+    },
+    {
+     "query": 170,
+     "split": "TEST",
+     "target": 29
+    },
+    {
+     "query": 172,
+     "split": "DEV",
+     "target": 29
+    },
+    {
+     "query": 172,
+     "split": "DEV",
+     "target": 169
+    },
+    {
+     "query": 173,
+     "split": "TEST",
+     "target": 169
+    },
+    {
+     "query": 174,
+     "split": "DEV",
+     "target": 30
+    },
+    {
+     "query": 174,
+     "split": "DEV",
+     "target": 169
+    },
+    {
+     "query": 175,
+     "split": "DEV",
+     "target": 29
+    },
+    {
+     "query": 175,
+     "split": "DEV",
+     "target": 169
+    },
+    {
+     "query": 176,
+     "split": "TEST",
+     "target": 169
+    },
+    {
+     "query": 177,
+     "split": "DEV",
+     "target": 169
+    },
+    {
+     "query": 177,
+     "split": "DEV",
+     "target": 172
+    },
+    {
+     "query": 179,
+     "split": "DEV",
+     "target": 169
+    },
+    {
+     "query": 180,
+     "split": "DEV",
+     "target": 169
+    },
+    {
+     "query": 180,
+     "split": "DEV",
+     "target": 172
+    },
+    {
+     "query": 182,
+     "split": "DEV",
+     "target": 180
+    },
+    {
+     "query": 183,
+     "split": "DEV",
+     "target": 172
+    },
+    {
+     "query": 183,
+     "split": "DEV",
+     "target": 173
+    },
+    {
+     "query": 185,
+     "split": "TEST",
+     "target": 173
+    },
+    {
+     "query": 187,
+     "split": "DEV",
+     "target": 172
+    },
+    {
+     "query": 188,
+     "split": "DEV",
+     "target": 172
+    },
+    {
+     "query": 192,
+     "split": "DEV",
+     "target": 169
+    },
+    {
+     "query": 194,
+     "split": "TEST",
+     "target": 169
+    },
+    {
+     "query": 196,
+     "split": "DEV",
+     "target": 169
+    },
+    {
+     "query": 198,
+     "split": "DEV",
+     "target": 169
+    },
+    {
+     "query": 198,
+     "split": "DEV",
+     "target": 173
+    },
+    {
+     "query": 199,
+     "split": "DEV",
+     "target": 173
+    },
+    {
+     "query": 206,
+     "split": "DEV",
+     "target": 30
+    },
+    {
+     "query": 206,
+     "split": "DEV",
+     "target": 65
+    },
+    {
+     "query": 206,
+     "split": "DEV",
+     "target": 170
+    },
+    {
+     "query": 206,
+     "split": "DEV",
+     "target": 172
+    },
+    {
+     "query": 206,
+     "split": "DEV",
+     "target": 173
+    },
+    {
+     "query": 206,
+     "split": "DEV",
+     "target": 174
+    },
+    {
+     "query": 206,
+     "split": "DEV",
+     "target": 193
+    },
+    {
+     "query": 206,
+     "split": "DEV",
+     "target": 194
+    },
+    {
+     "query": 206,
+     "split": "DEV",
+     "target": 195
+    },
+    {
+     "query": 208,
+     "split": "TEST",
+     "target": 205
+    },
+    {
+     "query": 209,
+     "split": "DEV",
+     "target": 172
+    },
+    {
+     "query": 209,
+     "split": "DEV",
+     "target": 183
+    },
+    {
+     "query": 211,
+     "split": "DEV",
+     "target": 175
+    },
+    {
+     "query": 212,
+     "split": "DEV",
+     "target": 192
+    },
+    {
+     "query": 213,
+     "split": "DEV",
+     "target": 192
+    },
+    {
+     "query": 215,
+     "split": "TEST",
+     "target": 176
+    },
+    {
+     "query": 215,
+     "split": "TEST",
+     "target": 182
+    },
+    {
+     "query": 217,
+     "split": "DEV",
+     "target": 196
+    },
+    {
+     "query": 218,
+     "split": "DEV",
+     "target": 196
+    },
+    {
+     "query": 220,
+     "split": "DEV",
+     "target": 174
+    },
+    {
+     "query": 220,
+     "split": "DEV",
+     "target": 176
+    },
+    {
+     "query": 220,
+     "split": "DEV",
+     "target": 179
+    },
+    {
+     "query": 220,
+     "split": "DEV",
+     "target": 196
+    },
+    {
+     "query": 220,
+     "split": "DEV",
+     "target": 208
+    },
+    {
+     "query": 220,
+     "split": "DEV",
+     "target": 209
+    },
+    {
+     "query": 222,
+     "split": "TEST",
+     "target": 169
+    },
+    {
+     "query": 223,
+     "split": "DEV",
+     "target": 176
+    },
+    {
+     "query": 225,
+     "split": "DEV",
+     "target": 176
+    },
+    {
+     "query": 226,
+     "split": "DEV",
+     "target": 220
+    },
+    {
+     "query": 227,
+     "split": "DEV",
+     "target": 7
+    },
+    {
+     "query": 227,
+     "split": "DEV",
+     "target": 45
+    },
+    {
+     "query": 227,
+     "split": "DEV",
+     "target": 174
+    },
+    {
+     "query": 227,
+     "split": "DEV",
+     "target": 220
+    },
+    {
+     "query": 228,
+     "split": "TEST",
+     "target": 84
+    },
+    {
+     "query": 228,
+     "split": "TEST",
+     "target": 196
+    },
+    {
+     "query": 228,
+     "split": "TEST",
+     "target": 220
+    },
+    {
+     "query": 229,
+     "split": "DEV",
+     "target": 220
+    },
+    {
+     "query": 230,
+     "split": "DEV",
+     "target": 220
+    },
+    {
+     "query": 231,
+     "split": "DEV",
+     "target": 220
+    },
+    {
+     "query": 232,
+     "split": "DEV",
+     "target": 143
+    },
+    {
+     "query": 232,
+     "split": "DEV",
+     "target": 174
+    },
+    {
+     "query": 232,
+     "split": "DEV",
+     "target": 220
+    },
+    {
+     "query": 233,
+     "split": "DEV",
+     "target": 80
+    },
+    {
+     "query": 233,
+     "split": "DEV",
+     "target": 220
+    },
+    {
+     "query": 234,
+     "split": "TEST",
+     "target": 220
+    },
+    {
+     "query": 235,
+     "split": "TEST",
+     "target": 47
+    },
+    {
+     "query": 235,
+     "split": "TEST",
+     "target": 220
+    },
+    {
+     "query": 236,
+     "split": "TEST",
+     "target": 220
+    },
+    {
+     "query": 238,
+     "split": "DEV",
+     "target": 220
+    },
+    {
+     "query": 239,
+     "split": "DEV",
+     "target": 175
+    },
+    {
+     "query": 243,
+     "split": "TEST",
+     "target": 241
+    },
+    {
+     "query": 244,
+     "split": "TEST",
+     "target": 175
+    },
+    {
+     "query": 244,
+     "split": "TEST",
+     "target": 196
+    },
+    {
+     "query": 244,
+     "split": "TEST",
+     "target": 206
+    },
+    {
+     "query": 244,
+     "split": "TEST",
+     "target": 215
+    },
+    {
+     "query": 244,
+     "split": "TEST",
+     "target": 241
+    },
+    {
+     "query": 252,
+     "split": "TEST",
+     "target": 62
+    },
+    {
+     "query": 253,
+     "split": "TEST",
+     "target": 56
+    },
+    {
+     "query": 255,
+     "split": "DEV",
+     "target": 66
+    },
+    {
+     "query": 255,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 256,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 256,
+     "split": "DEV",
+     "target": 255
+    },
+    {
+     "query": 257,
+     "split": "DEV",
+     "target": 95
+    },
+    {
+     "query": 257,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 257,
+     "split": "DEV",
+     "target": 255
+    },
+    {
+     "query": 258,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 258,
+     "split": "DEV",
+     "target": 255
+    },
+    {
+     "query": 259,
+     "split": "TEST",
+     "target": 82
+    },
+    {
+     "query": 259,
+     "split": "TEST",
+     "target": 254
+    },
+    {
+     "query": 259,
+     "split": "TEST",
+     "target": 255
+    },
+    {
+     "query": 260,
+     "split": "TEST",
+     "target": 83
+    },
+    {
+     "query": 260,
+     "split": "TEST",
+     "target": 95
+    },
+    {
+     "query": 260,
+     "split": "TEST",
+     "target": 254
+    },
+    {
+     "query": 260,
+     "split": "TEST",
+     "target": 255
+    },
+    {
+     "query": 261,
+     "split": "TEST",
+     "target": 205
+    },
+    {
+     "query": 261,
+     "split": "TEST",
+     "target": 254
+    },
+    {
+     "query": 262,
+     "split": "DEV",
+     "target": 82
+    },
+    {
+     "query": 262,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 262,
+     "split": "DEV",
+     "target": 255
+    },
+    {
+     "query": 263,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 263,
+     "split": "DEV",
+     "target": 255
+    },
+    {
+     "query": 264,
+     "split": "TEST",
+     "target": 254
+    },
+    {
+     "query": 265,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 266,
+     "split": "DEV",
+     "target": 227
+    },
+    {
+     "query": 266,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 267,
+     "split": "DEV",
+     "target": 208
+    },
+    {
+     "query": 267,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 268,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 268,
+     "split": "DEV",
+     "target": 255
+    },
+    {
+     "query": 269,
+     "split": "DEV",
+     "target": 82
+    },
+    {
+     "query": 269,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 275,
+     "split": "DEV",
+     "target": 267
+    },
+    {
+     "query": 276,
+     "split": "DEV",
+     "target": 267
+    },
+    {
+     "query": 277,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 277,
+     "split": "DEV",
+     "target": 261
+    },
+    {
+     "query": 282,
+     "split": "TEST",
+     "target": 163
+    },
+    {
+     "query": 282,
+     "split": "TEST",
+     "target": 220
+    },
+    {
+     "query": 282,
+     "split": "TEST",
+     "target": 229
+    },
+    {
+     "query": 282,
+     "split": "TEST",
+     "target": 233
+    },
+    {
+     "query": 282,
+     "split": "TEST",
+     "target": 235
+    },
+    {
+     "query": 283,
+     "split": "TEST",
+     "target": 255
+    },
+    {
+     "query": 287,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 287,
+     "split": "DEV",
+     "target": 82
+    },
+    {
+     "query": 287,
+     "split": "DEV",
+     "target": 255
+    },
+    {
+     "query": 289,
+     "split": "DEV",
+     "target": 43
+    },
+    {
+     "query": 289,
+     "split": "DEV",
+     "target": 67
+    },
+    {
+     "query": 291,
+     "split": "DEV",
+     "target": 230
+    },
+    {
+     "query": 294,
+     "split": "DEV",
+     "target": 292
+    },
+    {
+     "query": 296,
+     "split": "DEV",
+     "target": 163
+    },
+    {
+     "query": 296,
+     "split": "DEV",
+     "target": 282
+    },
+    {
+     "query": 297,
+     "split": "DEV",
+     "target": 282
+    },
+    {
+     "query": 298,
+     "split": "TEST",
+     "target": 282
+    },
+    {
+     "query": 299,
+     "split": "DEV",
+     "target": 282
+    },
+    {
+     "query": 300,
+     "split": "TEST",
+     "target": 282
+    },
+    {
+     "query": 301,
+     "split": "DEV",
+     "target": 282
+    },
+    {
+     "query": 301,
+     "split": "DEV",
+     "target": 296
+    },
+    {
+     "query": 302,
+     "split": "DEV",
+     "target": 292
+    },
+    {
+     "query": 305,
+     "split": "TEST",
+     "target": 292
+    },
+    {
+     "query": 307,
+     "split": "DEV",
+     "target": 102
+    },
+    {
+     "query": 307,
+     "split": "DEV",
+     "target": 282
+    },
+    {
+     "query": 308,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 308,
+     "split": "DEV",
+     "target": 255
+    },
+    {
+     "query": 308,
+     "split": "DEV",
+     "target": 260
+    },
+    {
+     "query": 314,
+     "split": "TEST",
+     "target": 296
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 43
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 256
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 257
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 258
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 259
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 260
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 263
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 266
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 267
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 292
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 296
+    },
+    {
+     "query": 321,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 322,
+     "split": "DEV",
+     "target": 321
+    },
+    {
+     "query": 323,
+     "split": "DEV",
+     "target": 321
+    },
+    {
+     "query": 324,
+     "split": "DEV",
+     "target": 321
+    },
+    {
+     "query": 325,
+     "split": "TEST",
+     "target": 321
+    },
+    {
+     "query": 334,
+     "split": "DEV",
+     "target": 322
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 305
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 316
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 321
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 322
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 323
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 324
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 327
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 328
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 143
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 174
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 256
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 257
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 258
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 259
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 261
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 263
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 265
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 266
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 267
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 275
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 308
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 322
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 323
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 324
+    },
+    {
+     "query": 339,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 339,
+     "split": "DEV",
+     "target": 230
+    },
+    {
+     "query": 340,
+     "split": "DEV",
+     "target": 292
+    },
+    {
+     "query": 344,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 344,
+     "split": "TEST",
+     "target": 336
+    },
+    {
+     "query": 344,
+     "split": "TEST",
+     "target": 339
+    },
+    {
+     "query": 344,
+     "split": "TEST",
+     "target": 340
+    },
+    {
+     "query": 346,
+     "split": "TEST",
+     "target": 60
+    },
+    {
+     "query": 346,
+     "split": "TEST",
+     "target": 62
+    },
+    {
+     "query": 346,
+     "split": "TEST",
+     "target": 79
+    },
+    {
+     "query": 346,
+     "split": "TEST",
+     "target": 80
+    },
+    {
+     "query": 346,
+     "split": "TEST",
+     "target": 99
+    },
+    {
+     "query": 346,
+     "split": "TEST",
+     "target": 100
+    },
+    {
+     "query": 346,
+     "split": "TEST",
+     "target": 104
+    },
+    {
+     "query": 346,
+     "split": "TEST",
+     "target": 110
+    },
+    {
+     "query": 346,
+     "split": "TEST",
+     "target": 232
+    },
+    {
+     "query": 346,
+     "split": "TEST",
+     "target": 321
+    }
+   ]
+  },
+  "repo-E": {
+   "n_issues": 556,
+   "tier_a": [
+    {
+     "evidence": "#661 closing comment: 'Duplicate of #647'",
+     "query": 661,
+     "target": 647
+    },
+    {
+     "evidence": "#658 closing comment: 'Duplicate of #647'",
+     "query": 658,
+     "target": 647
+    },
+    {
+     "evidence": "same bucket: both duplicates of #647",
+     "query": 661,
+     "target": 658
+    },
+    {
+     "evidence": "#349 closing comment: 'Duplicate of #341 (same test)'",
+     "query": 349,
+     "target": 341
+    },
+    {
+     "evidence": "PR for #565: 'Closes #535 (folded in ...)'",
+     "query": 565,
+     "target": 535
+    },
+    {
+     "evidence": "#57 closing comment: 'Covered by #36'",
+     "query": 57,
+     "target": 36
+    }
+   ],
+   "tier_b": [
+    {
+     "query": 5,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 6,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 7,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 8,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 9,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 10,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 11,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 12,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 13,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 14,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 14,
+     "split": "TEST",
+     "target": 5
+    },
+    {
+     "query": 14,
+     "split": "TEST",
+     "target": 6
+    },
+    {
+     "query": 14,
+     "split": "TEST",
+     "target": 7
+    },
+    {
+     "query": 14,
+     "split": "TEST",
+     "target": 8
+    },
+    {
+     "query": 14,
+     "split": "TEST",
+     "target": 9
+    },
+    {
+     "query": 14,
+     "split": "TEST",
+     "target": 10
+    },
+    {
+     "query": 14,
+     "split": "TEST",
+     "target": 11
+    },
+    {
+     "query": 14,
+     "split": "TEST",
+     "target": 12
+    },
+    {
+     "query": 14,
+     "split": "TEST",
+     "target": 13
+    },
+    {
+     "query": 15,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 17,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 19,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 20,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 21,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 22,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 23,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 25,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 27,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 27,
+     "split": "DEV",
+     "target": 23
+    },
+    {
+     "query": 28,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 28,
+     "split": "DEV",
+     "target": 20
+    },
+    {
+     "query": 32,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 33,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 33,
+     "split": "TEST",
+     "target": 20
+    },
+    {
+     "query": 33,
+     "split": "TEST",
+     "target": 21
+    },
+    {
+     "query": 33,
+     "split": "TEST",
+     "target": 23
+    },
+    {
+     "query": 34,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 34,
+     "split": "DEV",
+     "target": 21
+    },
+    {
+     "query": 35,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 35,
+     "split": "DEV",
+     "target": 21
+    },
+    {
+     "query": 36,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 36,
+     "split": "TEST",
+     "target": 20
+    },
+    {
+     "query": 37,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 37,
+     "split": "TEST",
+     "target": 22
+    },
+    {
+     "query": 38,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 38,
+     "split": "DEV",
+     "target": 22
+    },
+    {
+     "query": 40,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 41,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 41,
+     "split": "DEV",
+     "target": 40
+    },
+    {
+     "query": 42,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 42,
+     "split": "DEV",
+     "target": 27
+    },
+    {
+     "query": 45,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 45,
+     "split": "TEST",
+     "target": 11
+    },
+    {
+     "query": 46,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 46,
+     "split": "DEV",
+     "target": 36
+    },
+    {
+     "query": 47,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 47,
+     "split": "DEV",
+     "target": 45
+    },
+    {
+     "query": 48,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 50,
+     "split": "TEST",
+     "target": 34
+    },
+    {
+     "query": 51,
+     "split": "DEV",
+     "target": 34
+    },
+    {
+     "query": 51,
+     "split": "DEV",
+     "target": 50
+    },
+    {
+     "query": 52,
+     "split": "DEV",
+     "target": 34
+    },
+    {
+     "query": 53,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 53,
+     "split": "TEST",
+     "target": 36
+    },
+    {
+     "query": 54,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 54,
+     "split": "DEV",
+     "target": 36
+    },
+    {
+     "query": 56,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 57,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 57,
+     "split": "DEV",
+     "target": 34
+    },
+    {
+     "query": 58,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 58,
+     "split": "DEV",
+     "target": 34
+    },
+    {
+     "query": 59,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 60,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 60,
+     "split": "DEV",
+     "target": 36
+    },
+    {
+     "query": 61,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 62,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 64,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 68,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 68,
+     "split": "DEV",
+     "target": 5
+    },
+    {
+     "query": 68,
+     "split": "DEV",
+     "target": 45
+    },
+    {
+     "query": 69,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 69,
+     "split": "DEV",
+     "target": 40
+    },
+    {
+     "query": 69,
+     "split": "DEV",
+     "target": 41
+    },
+    {
+     "query": 70,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 70,
+     "split": "DEV",
+     "target": 40
+    },
+    {
+     "query": 71,
+     "split": "DEV",
+     "target": 34
+    },
+    {
+     "query": 72,
+     "split": "DEV",
+     "target": 34
+    },
+    {
+     "query": 72,
+     "split": "DEV",
+     "target": 71
+    },
+    {
+     "query": 73,
+     "split": "TEST",
+     "target": 68
+    },
+    {
+     "query": 76,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 77,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 77,
+     "split": "TEST",
+     "target": 5
+    },
+    {
+     "query": 78,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 78,
+     "split": "DEV",
+     "target": 5
+    },
+    {
+     "query": 79,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 79,
+     "split": "DEV",
+     "target": 5
+    },
+    {
+     "query": 80,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 80,
+     "split": "DEV",
+     "target": 5
+    },
+    {
+     "query": 81,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 81,
+     "split": "TEST",
+     "target": 5
+    },
+    {
+     "query": 82,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 82,
+     "split": "DEV",
+     "target": 5
+    },
+    {
+     "query": 83,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 85,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 86,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 89,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 89,
+     "split": "TEST",
+     "target": 83
+    },
+    {
+     "query": 91,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 94,
+     "split": "DEV",
+     "target": 93
+    },
+    {
+     "query": 95,
+     "split": "TEST",
+     "target": 93
+    },
+    {
+     "query": 95,
+     "split": "TEST",
+     "target": 94
+    },
+    {
+     "query": 96,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 97,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 97,
+     "split": "TEST",
+     "target": 7
+    },
+    {
+     "query": 97,
+     "split": "TEST",
+     "target": 45
+    },
+    {
+     "query": 98,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 99,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 100,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 101,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 101,
+     "split": "DEV",
+     "target": 47
+    },
+    {
+     "query": 102,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 103,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 104,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 104,
+     "split": "DEV",
+     "target": 41
+    },
+    {
+     "query": 105,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 106,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 108,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 109,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 110,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 111,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 112,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 113,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 113,
+     "split": "DEV",
+     "target": 83
+    },
+    {
+     "query": 114,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 114,
+     "split": "DEV",
+     "target": 83
+    },
+    {
+     "query": 116,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 117,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 118,
+     "split": "DEV",
+     "target": 93
+    },
+    {
+     "query": 118,
+     "split": "DEV",
+     "target": 95
+    },
+    {
+     "query": 119,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 119,
+     "split": "DEV",
+     "target": 5
+    },
+    {
+     "query": 119,
+     "split": "DEV",
+     "target": 45
+    },
+    {
+     "query": 119,
+     "split": "DEV",
+     "target": 83
+    },
+    {
+     "query": 119,
+     "split": "DEV",
+     "target": 96
+    },
+    {
+     "query": 119,
+     "split": "DEV",
+     "target": 97
+    },
+    {
+     "query": 119,
+     "split": "DEV",
+     "target": 116
+    },
+    {
+     "query": 120,
+     "split": "DEV",
+     "target": 4
+    },
+    {
+     "query": 121,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 121,
+     "split": "DEV",
+     "target": 5
+    },
+    {
+     "query": 121,
+     "split": "DEV",
+     "target": 119
+    },
+    {
+     "query": 122,
+     "split": "DEV",
+     "target": 93
+    },
+    {
+     "query": 122,
+     "split": "DEV",
+     "target": 95
+    },
+    {
+     "query": 123,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 123,
+     "split": "TEST",
+     "target": 116
+    },
+    {
+     "query": 125,
+     "split": "TEST",
+     "target": 4
+    },
+    {
+     "query": 128,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 130,
+     "split": "TEST",
+     "target": 8
+    },
+    {
+     "query": 130,
+     "split": "TEST",
+     "target": 93
+    },
+    {
+     "query": 130,
+     "split": "TEST",
+     "target": 119
+    },
+    {
+     "query": 132,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 132,
+     "split": "DEV",
+     "target": 41
+    },
+    {
+     "query": 133,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 134,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 135,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 136,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 137,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 138,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 139,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 141,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 141,
+     "split": "DEV",
+     "target": 132
+    },
+    {
+     "query": 148,
+     "split": "TEST",
+     "target": 119
+    },
+    {
+     "query": 149,
+     "split": "TEST",
+     "target": 119
+    },
+    {
+     "query": 150,
+     "split": "DEV",
+     "target": 119
+    },
+    {
+     "query": 151,
+     "split": "DEV",
+     "target": 119
+    },
+    {
+     "query": 151,
+     "split": "DEV",
+     "target": 148
+    },
+    {
+     "query": 155,
+     "split": "DEV",
+     "target": 9
+    },
+    {
+     "query": 158,
+     "split": "TEST",
+     "target": 96
+    },
+    {
+     "query": 159,
+     "split": "DEV",
+     "target": 81
+    },
+    {
+     "query": 159,
+     "split": "DEV",
+     "target": 96
+    },
+    {
+     "query": 162,
+     "split": "TEST",
+     "target": 97
+    },
+    {
+     "query": 163,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 163,
+     "split": "DEV",
+     "target": 96
+    },
+    {
+     "query": 163,
+     "split": "DEV",
+     "target": 151
+    },
+    {
+     "query": 166,
+     "split": "DEV",
+     "target": 97
+    },
+    {
+     "query": 167,
+     "split": "DEV",
+     "target": 97
+    },
+    {
+     "query": 168,
+     "split": "DEV",
+     "target": 78
+    },
+    {
+     "query": 168,
+     "split": "DEV",
+     "target": 97
+    },
+    {
+     "query": 173,
+     "split": "DEV",
+     "target": 97
+    },
+    {
+     "query": 173,
+     "split": "DEV",
+     "target": 136
+    },
+    {
+     "query": 174,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 174,
+     "split": "DEV",
+     "target": 6
+    },
+    {
+     "query": 174,
+     "split": "DEV",
+     "target": 7
+    },
+    {
+     "query": 174,
+     "split": "DEV",
+     "target": 8
+    },
+    {
+     "query": 175,
+     "split": "DEV",
+     "target": 121
+    },
+    {
+     "query": 176,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 176,
+     "split": "DEV",
+     "target": 121
+    },
+    {
+     "query": 177,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 177,
+     "split": "DEV",
+     "target": 121
+    },
+    {
+     "query": 178,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 178,
+     "split": "TEST",
+     "target": 121
+    },
+    {
+     "query": 179,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 179,
+     "split": "TEST",
+     "target": 121
+    },
+    {
+     "query": 180,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 180,
+     "split": "DEV",
+     "target": 121
+    },
+    {
+     "query": 182,
+     "split": "DEV",
+     "target": 121
+    },
+    {
+     "query": 185,
+     "split": "DEV",
+     "target": 175
+    },
+    {
+     "query": 187,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 187,
+     "split": "DEV",
+     "target": 174
+    },
+    {
+     "query": 188,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 188,
+     "split": "DEV",
+     "target": 174
+    },
+    {
+     "query": 189,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 189,
+     "split": "DEV",
+     "target": 174
+    },
+    {
+     "query": 191,
+     "split": "DEV",
+     "target": 174
+    },
+    {
+     "query": 191,
+     "split": "DEV",
+     "target": 187
+    },
+    {
+     "query": 197,
+     "split": "DEV",
+     "target": 37
+    },
+    {
+     "query": 197,
+     "split": "DEV",
+     "target": 193
+    },
+    {
+     "query": 198,
+     "split": "DEV",
+     "target": 193
+    },
+    {
+     "query": 202,
+     "split": "DEV",
+     "target": 194
+    },
+    {
+     "query": 205,
+     "split": "DEV",
+     "target": 171
+    },
+    {
+     "query": 205,
+     "split": "DEV",
+     "target": 173
+    },
+    {
+     "query": 205,
+     "split": "DEV",
+     "target": 174
+    },
+    {
+     "query": 205,
+     "split": "DEV",
+     "target": 178
+    },
+    {
+     "query": 208,
+     "split": "DEV",
+     "target": 8
+    },
+    {
+     "query": 209,
+     "split": "DEV",
+     "target": 8
+    },
+    {
+     "query": 209,
+     "split": "DEV",
+     "target": 79
+    },
+    {
+     "query": 210,
+     "split": "DEV",
+     "target": 8
+    },
+    {
+     "query": 211,
+     "split": "TEST",
+     "target": 8
+    },
+    {
+     "query": 212,
+     "split": "DEV",
+     "target": 8
+    },
+    {
+     "query": 212,
+     "split": "DEV",
+     "target": 81
+    },
+    {
+     "query": 213,
+     "split": "DEV",
+     "target": 8
+    },
+    {
+     "query": 214,
+     "split": "TEST",
+     "target": 7
+    },
+    {
+     "query": 215,
+     "split": "DEV",
+     "target": 7
+    },
+    {
+     "query": 216,
+     "split": "DEV",
+     "target": 7
+    },
+    {
+     "query": 217,
+     "split": "DEV",
+     "target": 7
+    },
+    {
+     "query": 217,
+     "split": "DEV",
+     "target": 166
+    },
+    {
+     "query": 218,
+     "split": "TEST",
+     "target": 7
+    },
+    {
+     "query": 220,
+     "split": "DEV",
+     "target": 6
+    },
+    {
+     "query": 221,
+     "split": "DEV",
+     "target": 6
+    },
+    {
+     "query": 222,
+     "split": "TEST",
+     "target": 6
+    },
+    {
+     "query": 223,
+     "split": "DEV",
+     "target": 6
+    },
+    {
+     "query": 223,
+     "split": "DEV",
+     "target": 210
+    },
+    {
+     "query": 224,
+     "split": "DEV",
+     "target": 6
+    },
+    {
+     "query": 225,
+     "split": "TEST",
+     "target": 6
+    },
+    {
+     "query": 226,
+     "split": "DEV",
+     "target": 6
+    },
+    {
+     "query": 230,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 231,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 232,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 233,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 233,
+     "split": "DEV",
+     "target": 210
+    },
+    {
+     "query": 234,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 235,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 236,
+     "split": "TEST",
+     "target": 10
+    },
+    {
+     "query": 237,
+     "split": "DEV",
+     "target": 10
+    },
+    {
+     "query": 238,
+     "split": "TEST",
+     "target": 10
+    },
+    {
+     "query": 238,
+     "split": "TEST",
+     "target": 237
+    },
+    {
+     "query": 239,
+     "split": "TEST",
+     "target": 10
+    },
+    {
+     "query": 240,
+     "split": "TEST",
+     "target": 10
+    },
+    {
+     "query": 240,
+     "split": "TEST",
+     "target": 14
+    },
+    {
+     "query": 241,
+     "split": "TEST",
+     "target": 10
+    },
+    {
+     "query": 242,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 242,
+     "split": "DEV",
+     "target": 11
+    },
+    {
+     "query": 243,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 243,
+     "split": "DEV",
+     "target": 11
+    },
+    {
+     "query": 244,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 244,
+     "split": "DEV",
+     "target": 11
+    },
+    {
+     "query": 245,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 245,
+     "split": "DEV",
+     "target": 11
+    },
+    {
+     "query": 248,
+     "split": "DEV",
+     "target": 10
+    },
+    {
+     "query": 250,
+     "split": "DEV",
+     "target": 12
+    },
+    {
+     "query": 251,
+     "split": "DEV",
+     "target": 12
+    },
+    {
+     "query": 252,
+     "split": "DEV",
+     "target": 12
+    },
+    {
+     "query": 252,
+     "split": "DEV",
+     "target": 167
+    },
+    {
+     "query": 253,
+     "split": "DEV",
+     "target": 12
+    },
+    {
+     "query": 254,
+     "split": "TEST",
+     "target": 12
+    },
+    {
+     "query": 255,
+     "split": "DEV",
+     "target": 12
+    },
+    {
+     "query": 256,
+     "split": "DEV",
+     "target": 12
+    },
+    {
+     "query": 256,
+     "split": "DEV",
+     "target": 237
+    },
+    {
+     "query": 257,
+     "split": "TEST",
+     "target": 12
+    },
+    {
+     "query": 258,
+     "split": "DEV",
+     "target": 12
+    },
+    {
+     "query": 259,
+     "split": "DEV",
+     "target": 12
+    },
+    {
+     "query": 261,
+     "split": "DEV",
+     "target": 97
+    },
+    {
+     "query": 261,
+     "split": "DEV",
+     "target": 166
+    },
+    {
+     "query": 261,
+     "split": "DEV",
+     "target": 211
+    },
+    {
+     "query": 262,
+     "split": "DEV",
+     "target": 45
+    },
+    {
+     "query": 262,
+     "split": "DEV",
+     "target": 247
+    },
+    {
+     "query": 263,
+     "split": "TEST",
+     "target": 209
+    },
+    {
+     "query": 263,
+     "split": "TEST",
+     "target": 247
+    },
+    {
+     "query": 264,
+     "split": "DEV",
+     "target": 247
+    },
+    {
+     "query": 264,
+     "split": "DEV",
+     "target": 248
+    },
+    {
+     "query": 265,
+     "split": "TEST",
+     "target": 82
+    },
+    {
+     "query": 265,
+     "split": "TEST",
+     "target": 247
+    },
+    {
+     "query": 266,
+     "split": "TEST",
+     "target": 247
+    },
+    {
+     "query": 267,
+     "split": "DEV",
+     "target": 14
+    },
+    {
+     "query": 270,
+     "split": "TEST",
+     "target": 247
+    },
+    {
+     "query": 271,
+     "split": "DEV",
+     "target": 82
+    },
+    {
+     "query": 271,
+     "split": "DEV",
+     "target": 247
+    },
+    {
+     "query": 273,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 273,
+     "split": "DEV",
+     "target": 14
+    },
+    {
+     "query": 273,
+     "split": "DEV",
+     "target": 41
+    },
+    {
+     "query": 273,
+     "split": "DEV",
+     "target": 210
+    },
+    {
+     "query": 273,
+     "split": "DEV",
+     "target": 214
+    },
+    {
+     "query": 273,
+     "split": "DEV",
+     "target": 217
+    },
+    {
+     "query": 273,
+     "split": "DEV",
+     "target": 224
+    },
+    {
+     "query": 273,
+     "split": "DEV",
+     "target": 242
+    },
+    {
+     "query": 274,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 274,
+     "split": "DEV",
+     "target": 14
+    },
+    {
+     "query": 274,
+     "split": "DEV",
+     "target": 41
+    },
+    {
+     "query": 274,
+     "split": "DEV",
+     "target": 78
+    },
+    {
+     "query": 274,
+     "split": "DEV",
+     "target": 208
+    },
+    {
+     "query": 275,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 275,
+     "split": "DEV",
+     "target": 14
+    },
+    {
+     "query": 276,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 276,
+     "split": "DEV",
+     "target": 14
+    },
+    {
+     "query": 276,
+     "split": "DEV",
+     "target": 273
+    },
+    {
+     "query": 277,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 277,
+     "split": "TEST",
+     "target": 14
+    },
+    {
+     "query": 278,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 278,
+     "split": "DEV",
+     "target": 14
+    },
+    {
+     "query": 278,
+     "split": "DEV",
+     "target": 275
+    },
+    {
+     "query": 279,
+     "split": "TEST",
+     "target": 14
+    },
+    {
+     "query": 280,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 280,
+     "split": "DEV",
+     "target": 14
+    },
+    {
+     "query": 280,
+     "split": "DEV",
+     "target": 41
+    },
+    {
+     "query": 280,
+     "split": "DEV",
+     "target": 275
+    },
+    {
+     "query": 280,
+     "split": "DEV",
+     "target": 278
+    },
+    {
+     "query": 281,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 281,
+     "split": "DEV",
+     "target": 14
+    },
+    {
+     "query": 282,
+     "split": "DEV",
+     "target": 279
+    },
+    {
+     "query": 283,
+     "split": "DEV",
+     "target": 279
+    },
+    {
+     "query": 284,
+     "split": "DEV",
+     "target": 279
+    },
+    {
+     "query": 285,
+     "split": "TEST",
+     "target": 239
+    },
+    {
+     "query": 285,
+     "split": "TEST",
+     "target": 279
+    },
+    {
+     "query": 286,
+     "split": "DEV",
+     "target": 14
+    },
+    {
+     "query": 286,
+     "split": "DEV",
+     "target": 279
+    },
+    {
+     "query": 290,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 290,
+     "split": "TEST",
+     "target": 274
+    },
+    {
+     "query": 290,
+     "split": "TEST",
+     "target": 275
+    },
+    {
+     "query": 291,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 291,
+     "split": "DEV",
+     "target": 243
+    },
+    {
+     "query": 293,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 293,
+     "split": "DEV",
+     "target": 273
+    },
+    {
+     "query": 293,
+     "split": "DEV",
+     "target": 290
+    },
+    {
+     "query": 294,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 296,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 296,
+     "split": "TEST",
+     "target": 290
+    },
+    {
+     "query": 298,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 298,
+     "split": "TEST",
+     "target": 41
+    },
+    {
+     "query": 300,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 301,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 302,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 303,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 304,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 305,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 306,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 307,
+     "split": "DEV",
+     "target": 7
+    },
+    {
+     "query": 307,
+     "split": "DEV",
+     "target": 187
+    },
+    {
+     "query": 307,
+     "split": "DEV",
+     "target": 214
+    },
+    {
+     "query": 308,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 308,
+     "split": "DEV",
+     "target": 275
+    },
+    {
+     "query": 308,
+     "split": "DEV",
+     "target": 290
+    },
+    {
+     "query": 309,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 309,
+     "split": "DEV",
+     "target": 290
+    },
+    {
+     "query": 310,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 310,
+     "split": "DEV",
+     "target": 290
+    },
+    {
+     "query": 311,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 311,
+     "split": "DEV",
+     "target": 290
+    },
+    {
+     "query": 312,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 312,
+     "split": "TEST",
+     "target": 290
+    },
+    {
+     "query": 315,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 315,
+     "split": "DEV",
+     "target": 187
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 316,
+     "split": "DEV",
+     "target": 187
+    },
+    {
+     "query": 317,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 317,
+     "split": "DEV",
+     "target": 119
+    },
+    {
+     "query": 317,
+     "split": "DEV",
+     "target": 187
+    },
+    {
+     "query": 319,
+     "split": "DEV",
+     "target": 47
+    },
+    {
+     "query": 321,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 321,
+     "split": "TEST",
+     "target": 273
+    },
+    {
+     "query": 324,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 326,
+     "split": "DEV",
+     "target": 210
+    },
+    {
+     "query": 327,
+     "split": "DEV",
+     "target": 69
+    },
+    {
+     "query": 327,
+     "split": "DEV",
+     "target": 210
+    },
+    {
+     "query": 332,
+     "split": "DEV",
+     "target": 210
+    },
+    {
+     "query": 332,
+     "split": "DEV",
+     "target": 280
+    },
+    {
+     "query": 333,
+     "split": "DEV",
+     "target": 274
+    },
+    {
+     "query": 333,
+     "split": "DEV",
+     "target": 277
+    },
+    {
+     "query": 334,
+     "split": "DEV",
+     "target": 98
+    },
+    {
+     "query": 334,
+     "split": "DEV",
+     "target": 135
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 280
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 300
+    },
+    {
+     "query": 336,
+     "split": "DEV",
+     "target": 334
+    },
+    {
+     "query": 337,
+     "split": "DEV",
+     "target": 136
+    },
+    {
+     "query": 337,
+     "split": "DEV",
+     "target": 300
+    },
+    {
+     "query": 337,
+     "split": "DEV",
+     "target": 336
+    },
+    {
+     "query": 338,
+     "split": "DEV",
+     "target": 214
+    },
+    {
+     "query": 339,
+     "split": "DEV",
+     "target": 78
+    },
+    {
+     "query": 342,
+     "split": "DEV",
+     "target": 97
+    },
+    {
+     "query": 342,
+     "split": "DEV",
+     "target": 173
+    },
+    {
+     "query": 343,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 343,
+     "split": "DEV",
+     "target": 332
+    },
+    {
+     "query": 343,
+     "split": "DEV",
+     "target": 333
+    },
+    {
+     "query": 343,
+     "split": "DEV",
+     "target": 334
+    },
+    {
+     "query": 343,
+     "split": "DEV",
+     "target": 336
+    },
+    {
+     "query": 343,
+     "split": "DEV",
+     "target": 337
+    },
+    {
+     "query": 343,
+     "split": "DEV",
+     "target": 338
+    },
+    {
+     "query": 343,
+     "split": "DEV",
+     "target": 339
+    },
+    {
+     "query": 343,
+     "split": "DEV",
+     "target": 341
+    },
+    {
+     "query": 344,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 344,
+     "split": "DEV",
+     "target": 333
+    },
+    {
+     "query": 348,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 348,
+     "split": "TEST",
+     "target": 332
+    },
+    {
+     "query": 349,
+     "split": "DEV",
+     "target": 308
+    },
+    {
+     "query": 350,
+     "split": "DEV",
+     "target": 98
+    },
+    {
+     "query": 350,
+     "split": "DEV",
+     "target": 99
+    },
+    {
+     "query": 350,
+     "split": "DEV",
+     "target": 334
+    },
+    {
+     "query": 354,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 354,
+     "split": "DEV",
+     "target": 332
+    },
+    {
+     "query": 355,
+     "split": "DEV",
+     "target": 334
+    },
+    {
+     "query": 355,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 356,
+     "split": "DEV",
+     "target": 334
+    },
+    {
+     "query": 356,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 357,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 359,
+     "split": "DEV",
+     "target": 308
+    },
+    {
+     "query": 360,
+     "split": "TEST",
+     "target": 98
+    },
+    {
+     "query": 360,
+     "split": "TEST",
+     "target": 224
+    },
+    {
+     "query": 360,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 361,
+     "split": "DEV",
+     "target": 108
+    },
+    {
+     "query": 363,
+     "split": "DEV",
+     "target": 338
+    },
+    {
+     "query": 363,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 364,
+     "split": "DEV",
+     "target": 217
+    },
+    {
+     "query": 364,
+     "split": "DEV",
+     "target": 338
+    },
+    {
+     "query": 364,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 367,
+     "split": "DEV",
+     "target": 294
+    },
+    {
+     "query": 367,
+     "split": "DEV",
+     "target": 300
+    },
+    {
+     "query": 367,
+     "split": "DEV",
+     "target": 337
+    },
+    {
+     "query": 367,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 368,
+     "split": "TEST",
+     "target": 300
+    },
+    {
+     "query": 368,
+     "split": "TEST",
+     "target": 336
+    },
+    {
+     "query": 368,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 368,
+     "split": "TEST",
+     "target": 367
+    },
+    {
+     "query": 369,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 369,
+     "split": "DEV",
+     "target": 367
+    },
+    {
+     "query": 369,
+     "split": "DEV",
+     "target": 368
+    },
+    {
+     "query": 370,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 371,
+     "split": "DEV",
+     "target": 337
+    },
+    {
+     "query": 371,
+     "split": "DEV",
+     "target": 342
+    },
+    {
+     "query": 371,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 371,
+     "split": "DEV",
+     "target": 367
+    },
+    {
+     "query": 372,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 373,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 375,
+     "split": "DEV",
+     "target": 344
+    },
+    {
+     "query": 376,
+     "split": "DEV",
+     "target": 344
+    },
+    {
+     "query": 377,
+     "split": "DEV",
+     "target": 209
+    },
+    {
+     "query": 377,
+     "split": "DEV",
+     "target": 344
+    },
+    {
+     "query": 378,
+     "split": "DEV",
+     "target": 209
+    },
+    {
+     "query": 378,
+     "split": "DEV",
+     "target": 344
+    },
+    {
+     "query": 380,
+     "split": "TEST",
+     "target": 45
+    },
+    {
+     "query": 380,
+     "split": "TEST",
+     "target": 135
+    },
+    {
+     "query": 380,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 381,
+     "split": "DEV",
+     "target": 280
+    },
+    {
+     "query": 381,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 383,
+     "split": "TEST",
+     "target": 69
+    },
+    {
+     "query": 383,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 384,
+     "split": "DEV",
+     "target": 339
+    },
+    {
+     "query": 384,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 386,
+     "split": "DEV",
+     "target": 102
+    },
+    {
+     "query": 386,
+     "split": "DEV",
+     "target": 280
+    },
+    {
+     "query": 386,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 387,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 387,
+     "split": "DEV",
+     "target": 367
+    },
+    {
+     "query": 387,
+     "split": "DEV",
+     "target": 369
+    },
+    {
+     "query": 388,
+     "split": "TEST",
+     "target": 274
+    },
+    {
+     "query": 389,
+     "split": "TEST",
+     "target": 274
+    },
+    {
+     "query": 390,
+     "split": "DEV",
+     "target": 274
+    },
+    {
+     "query": 391,
+     "split": "DEV",
+     "target": 274
+    },
+    {
+     "query": 392,
+     "split": "DEV",
+     "target": 274
+    },
+    {
+     "query": 392,
+     "split": "DEV",
+     "target": 301
+    },
+    {
+     "query": 394,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 394,
+     "split": "TEST",
+     "target": 383
+    },
+    {
+     "query": 397,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 398,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 399,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 400,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 400,
+     "split": "DEV",
+     "target": 370
+    },
+    {
+     "query": 400,
+     "split": "DEV",
+     "target": 383
+    },
+    {
+     "query": 402,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 402,
+     "split": "DEV",
+     "target": 136
+    },
+    {
+     "query": 402,
+     "split": "DEV",
+     "target": 342
+    },
+    {
+     "query": 402,
+     "split": "DEV",
+     "target": 371
+    },
+    {
+     "query": 404,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 404,
+     "split": "DEV",
+     "target": 367
+    },
+    {
+     "query": 404,
+     "split": "DEV",
+     "target": 368
+    },
+    {
+     "query": 405,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 405,
+     "split": "DEV",
+     "target": 367
+    },
+    {
+     "query": 406,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 406,
+     "split": "DEV",
+     "target": 367
+    },
+    {
+     "query": 407,
+     "split": "DEV",
+     "target": 294
+    },
+    {
+     "query": 407,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 407,
+     "split": "DEV",
+     "target": 367
+    },
+    {
+     "query": 407,
+     "split": "DEV",
+     "target": 372
+    },
+    {
+     "query": 408,
+     "split": "TEST",
+     "target": 367
+    },
+    {
+     "query": 410,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 411,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 412,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 412,
+     "split": "TEST",
+     "target": 367
+    },
+    {
+     "query": 413,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 413,
+     "split": "DEV",
+     "target": 367
+    },
+    {
+     "query": 414,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 415,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 416,
+     "split": "DEV",
+     "target": 376
+    },
+    {
+     "query": 418,
+     "split": "DEV",
+     "target": 375
+    },
+    {
+     "query": 420,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 420,
+     "split": "TEST",
+     "target": 381
+    },
+    {
+     "query": 422,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 422,
+     "split": "DEV",
+     "target": 384
+    },
+    {
+     "query": 423,
+     "split": "DEV",
+     "target": 332
+    },
+    {
+     "query": 423,
+     "split": "DEV",
+     "target": 334
+    },
+    {
+     "query": 423,
+     "split": "DEV",
+     "target": 339
+    },
+    {
+     "query": 423,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 424,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 425,
+     "split": "DEV",
+     "target": 45
+    },
+    {
+     "query": 425,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 425,
+     "split": "DEV",
+     "target": 380
+    },
+    {
+     "query": 426,
+     "split": "TEST",
+     "target": 135
+    },
+    {
+     "query": 426,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 430,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 432,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 432,
+     "split": "TEST",
+     "target": 410
+    },
+    {
+     "query": 437,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 437,
+     "split": "DEV",
+     "target": 402
+    },
+    {
+     "query": 438,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 438,
+     "split": "DEV",
+     "target": 423
+    },
+    {
+     "query": 441,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 442,
+     "split": "TEST",
+     "target": 334
+    },
+    {
+     "query": 442,
+     "split": "TEST",
+     "target": 336
+    },
+    {
+     "query": 442,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 443,
+     "split": "DEV",
+     "target": 334
+    },
+    {
+     "query": 443,
+     "split": "DEV",
+     "target": 336
+    },
+    {
+     "query": 443,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 446,
+     "split": "DEV",
+     "target": 208
+    },
+    {
+     "query": 447,
+     "split": "DEV",
+     "target": 391
+    },
+    {
+     "query": 448,
+     "split": "DEV",
+     "target": 391
+    },
+    {
+     "query": 449,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 449,
+     "split": "DEV",
+     "target": 437
+    },
+    {
+     "query": 451,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 454,
+     "split": "TEST",
+     "target": 208
+    },
+    {
+     "query": 454,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 455,
+     "split": "TEST",
+     "target": 336
+    },
+    {
+     "query": 455,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 456,
+     "split": "DEV",
+     "target": 336
+    },
+    {
+     "query": 456,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 456,
+     "split": "DEV",
+     "target": 368
+    },
+    {
+     "query": 457,
+     "split": "DEV",
+     "target": 336
+    },
+    {
+     "query": 457,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 457,
+     "split": "DEV",
+     "target": 368
+    },
+    {
+     "query": 458,
+     "split": "TEST",
+     "target": 3
+    },
+    {
+     "query": 458,
+     "split": "TEST",
+     "target": 109
+    },
+    {
+     "query": 459,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 459,
+     "split": "DEV",
+     "target": 109
+    },
+    {
+     "query": 460,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 460,
+     "split": "DEV",
+     "target": 109
+    },
+    {
+     "query": 462,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 462,
+     "split": "DEV",
+     "target": 100
+    },
+    {
+     "query": 465,
+     "split": "DEV",
+     "target": 100
+    },
+    {
+     "query": 466,
+     "split": "DEV",
+     "target": 337
+    },
+    {
+     "query": 469,
+     "split": "DEV",
+     "target": 300
+    },
+    {
+     "query": 469,
+     "split": "DEV",
+     "target": 337
+    },
+    {
+     "query": 469,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 469,
+     "split": "DEV",
+     "target": 405
+    },
+    {
+     "query": 470,
+     "split": "DEV",
+     "target": 337
+    },
+    {
+     "query": 472,
+     "split": "DEV",
+     "target": 468
+    },
+    {
+     "query": 473,
+     "split": "DEV",
+     "target": 468
+    },
+    {
+     "query": 473,
+     "split": "DEV",
+     "target": 472
+    },
+    {
+     "query": 474,
+     "split": "DEV",
+     "target": 468
+    },
+    {
+     "query": 474,
+     "split": "DEV",
+     "target": 472
+    },
+    {
+     "query": 474,
+     "split": "DEV",
+     "target": 473
+    },
+    {
+     "query": 475,
+     "split": "DEV",
+     "target": 468
+    },
+    {
+     "query": 475,
+     "split": "DEV",
+     "target": 474
+    },
+    {
+     "query": 477,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 477,
+     "split": "TEST",
+     "target": 443
+    },
+    {
+     "query": 478,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 481,
+     "split": "DEV",
+     "target": 102
+    },
+    {
+     "query": 482,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 483,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 485,
+     "split": "TEST",
+     "target": 337
+    },
+    {
+     "query": 486,
+     "split": "TEST",
+     "target": 296
+    },
+    {
+     "query": 486,
+     "split": "TEST",
+     "target": 337
+    },
+    {
+     "query": 486,
+     "split": "TEST",
+     "target": 350
+    },
+    {
+     "query": 486,
+     "split": "TEST",
+     "target": 368
+    },
+    {
+     "query": 486,
+     "split": "TEST",
+     "target": 469
+    },
+    {
+     "query": 486,
+     "split": "TEST",
+     "target": 470
+    },
+    {
+     "query": 486,
+     "split": "TEST",
+     "target": 472
+    },
+    {
+     "query": 486,
+     "split": "TEST",
+     "target": 473
+    },
+    {
+     "query": 486,
+     "split": "TEST",
+     "target": 474
+    },
+    {
+     "query": 486,
+     "split": "TEST",
+     "target": 485
+    },
+    {
+     "query": 487,
+     "split": "TEST",
+     "target": 223
+    },
+    {
+     "query": 487,
+     "split": "TEST",
+     "target": 224
+    },
+    {
+     "query": 488,
+     "split": "TEST",
+     "target": 210
+    },
+    {
+     "query": 488,
+     "split": "TEST",
+     "target": 223
+    },
+    {
+     "query": 489,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 489,
+     "split": "DEV",
+     "target": 80
+    },
+    {
+     "query": 490,
+     "split": "DEV",
+     "target": 80
+    },
+    {
+     "query": 491,
+     "split": "DEV",
+     "target": 78
+    },
+    {
+     "query": 491,
+     "split": "DEV",
+     "target": 79
+    },
+    {
+     "query": 491,
+     "split": "DEV",
+     "target": 80
+    },
+    {
+     "query": 492,
+     "split": "DEV",
+     "target": 80
+    },
+    {
+     "query": 494,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 494,
+     "split": "TEST",
+     "target": 368
+    },
+    {
+     "query": 495,
+     "split": "DEV",
+     "target": 368
+    },
+    {
+     "query": 497,
+     "split": "TEST",
+     "target": 343
+    },
+    {
+     "query": 497,
+     "split": "TEST",
+     "target": 368
+    },
+    {
+     "query": 498,
+     "split": "DEV",
+     "target": 3
+    },
+    {
+     "query": 498,
+     "split": "DEV",
+     "target": 69
+    },
+    {
+     "query": 503,
+     "split": "DEV",
+     "target": 69
+    },
+    {
+     "query": 504,
+     "split": "DEV",
+     "target": 69
+    },
+    {
+     "query": 508,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 509,
+     "split": "DEV",
+     "target": 69
+    },
+    {
+     "query": 509,
+     "split": "DEV",
+     "target": 132
+    },
+    {
+     "query": 510,
+     "split": "DEV",
+     "target": 473
+    },
+    {
+     "query": 510,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 510,
+     "split": "DEV",
+     "target": 508
+    },
+    {
+     "query": 511,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 511,
+     "split": "TEST",
+     "target": 508
+    },
+    {
+     "query": 512,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 512,
+     "split": "DEV",
+     "target": 508
+    },
+    {
+     "query": 512,
+     "split": "DEV",
+     "target": 510
+    },
+    {
+     "query": 513,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 513,
+     "split": "TEST",
+     "target": 508
+    },
+    {
+     "query": 513,
+     "split": "TEST",
+     "target": 510
+    },
+    {
+     "query": 514,
+     "split": "TEST",
+     "target": 474
+    },
+    {
+     "query": 514,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 514,
+     "split": "TEST",
+     "target": 508
+    },
+    {
+     "query": 515,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 515,
+     "split": "TEST",
+     "target": 508
+    },
+    {
+     "query": 515,
+     "split": "TEST",
+     "target": 510
+    },
+    {
+     "query": 516,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 516,
+     "split": "DEV",
+     "target": 508
+    },
+    {
+     "query": 516,
+     "split": "DEV",
+     "target": 515
+    },
+    {
+     "query": 517,
+     "split": "DEV",
+     "target": 470
+    },
+    {
+     "query": 517,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 517,
+     "split": "DEV",
+     "target": 508
+    },
+    {
+     "query": 517,
+     "split": "DEV",
+     "target": 510
+    },
+    {
+     "query": 517,
+     "split": "DEV",
+     "target": 511
+    },
+    {
+     "query": 518,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 518,
+     "split": "DEV",
+     "target": 508
+    },
+    {
+     "query": 518,
+     "split": "DEV",
+     "target": 510
+    },
+    {
+     "query": 519,
+     "split": "DEV",
+     "target": 508
+    },
+    {
+     "query": 519,
+     "split": "DEV",
+     "target": 510
+    },
+    {
+     "query": 520,
+     "split": "DEV",
+     "target": 210
+    },
+    {
+     "query": 520,
+     "split": "DEV",
+     "target": 223
+    },
+    {
+     "query": 524,
+     "split": "TEST",
+     "target": 473
+    },
+    {
+     "query": 525,
+     "split": "TEST",
+     "target": 473
+    },
+    {
+     "query": 527,
+     "split": "DEV",
+     "target": 132
+    },
+    {
+     "query": 527,
+     "split": "DEV",
+     "target": 509
+    },
+    {
+     "query": 528,
+     "split": "DEV",
+     "target": 523
+    },
+    {
+     "query": 532,
+     "split": "DEV",
+     "target": 209
+    },
+    {
+     "query": 533,
+     "split": "TEST",
+     "target": 209
+    },
+    {
+     "query": 534,
+     "split": "DEV",
+     "target": 339
+    },
+    {
+     "query": 534,
+     "split": "DEV",
+     "target": 350
+    },
+    {
+     "query": 534,
+     "split": "DEV",
+     "target": 485
+    },
+    {
+     "query": 534,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 535,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 535,
+     "split": "TEST",
+     "target": 534
+    },
+    {
+     "query": 536,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 536,
+     "split": "TEST",
+     "target": 534
+    },
+    {
+     "query": 537,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 537,
+     "split": "DEV",
+     "target": 534
+    },
+    {
+     "query": 540,
+     "split": "DEV",
+     "target": 423
+    },
+    {
+     "query": 540,
+     "split": "DEV",
+     "target": 534
+    },
+    {
+     "query": 541,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 541,
+     "split": "DEV",
+     "target": 534
+    },
+    {
+     "query": 541,
+     "split": "DEV",
+     "target": 535
+    },
+    {
+     "query": 542,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 542,
+     "split": "DEV",
+     "target": 386
+    },
+    {
+     "query": 543,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 543,
+     "split": "DEV",
+     "target": 386
+    },
+    {
+     "query": 543,
+     "split": "DEV",
+     "target": 392
+    },
+    {
+     "query": 546,
+     "split": "DEV",
+     "target": 534
+    },
+    {
+     "query": 546,
+     "split": "DEV",
+     "target": 541
+    },
+    {
+     "query": 547,
+     "split": "DEV",
+     "target": 541
+    },
+    {
+     "query": 548,
+     "split": "DEV",
+     "target": 487
+    },
+    {
+     "query": 549,
+     "split": "DEV",
+     "target": 224
+    },
+    {
+     "query": 549,
+     "split": "DEV",
+     "target": 487
+    },
+    {
+     "query": 549,
+     "split": "DEV",
+     "target": 520
+    },
+    {
+     "query": 552,
+     "split": "TEST",
+     "target": 541
+    },
+    {
+     "query": 555,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 555,
+     "split": "DEV",
+     "target": 510
+    },
+    {
+     "query": 555,
+     "split": "DEV",
+     "target": 512
+    },
+    {
+     "query": 557,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 557,
+     "split": "DEV",
+     "target": 555
+    },
+    {
+     "query": 559,
+     "split": "DEV",
+     "target": 510
+    },
+    {
+     "query": 559,
+     "split": "DEV",
+     "target": 512
+    },
+    {
+     "query": 559,
+     "split": "DEV",
+     "target": 513
+    },
+    {
+     "query": 559,
+     "split": "DEV",
+     "target": 515
+    },
+    {
+     "query": 560,
+     "split": "TEST",
+     "target": 510
+    },
+    {
+     "query": 561,
+     "split": "TEST",
+     "target": 510
+    },
+    {
+     "query": 565,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 565,
+     "split": "DEV",
+     "target": 534
+    },
+    {
+     "query": 565,
+     "split": "DEV",
+     "target": 535
+    },
+    {
+     "query": 567,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 568,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 568,
+     "split": "DEV",
+     "target": 423
+    },
+    {
+     "query": 569,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 569,
+     "split": "DEV",
+     "target": 423
+    },
+    {
+     "query": 572,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 572,
+     "split": "DEV",
+     "target": 565
+    },
+    {
+     "query": 574,
+     "split": "DEV",
+     "target": 567
+    },
+    {
+     "query": 575,
+     "split": "DEV",
+     "target": 474
+    },
+    {
+     "query": 576,
+     "split": "DEV",
+     "target": 474
+    },
+    {
+     "query": 578,
+     "split": "TEST",
+     "target": 474
+    },
+    {
+     "query": 578,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 578,
+     "split": "TEST",
+     "target": 567
+    },
+    {
+     "query": 579,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 579,
+     "split": "DEV",
+     "target": 537
+    },
+    {
+     "query": 579,
+     "split": "DEV",
+     "target": 567
+    },
+    {
+     "query": 580,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 580,
+     "split": "DEV",
+     "target": 565
+    },
+    {
+     "query": 581,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 581,
+     "split": "DEV",
+     "target": 512
+    },
+    {
+     "query": 581,
+     "split": "DEV",
+     "target": 567
+    },
+    {
+     "query": 582,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 582,
+     "split": "DEV",
+     "target": 567
+    },
+    {
+     "query": 583,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 583,
+     "split": "DEV",
+     "target": 567
+    },
+    {
+     "query": 584,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 584,
+     "split": "DEV",
+     "target": 567
+    },
+    {
+     "query": 584,
+     "split": "DEV",
+     "target": 574
+    },
+    {
+     "query": 587,
+     "split": "DEV",
+     "target": 98
+    },
+    {
+     "query": 587,
+     "split": "DEV",
+     "target": 350
+    },
+    {
+     "query": 587,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 588,
+     "split": "DEV",
+     "target": 99
+    },
+    {
+     "query": 588,
+     "split": "DEV",
+     "target": 350
+    },
+    {
+     "query": 588,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 589,
+     "split": "DEV",
+     "target": 350
+    },
+    {
+     "query": 589,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 591,
+     "split": "TEST",
+     "target": 350
+    },
+    {
+     "query": 595,
+     "split": "TEST",
+     "target": 565
+    },
+    {
+     "query": 596,
+     "split": "TEST",
+     "target": 474
+    },
+    {
+     "query": 596,
+     "split": "TEST",
+     "target": 565
+    },
+    {
+     "query": 596,
+     "split": "TEST",
+     "target": 574
+    },
+    {
+     "query": 600,
+     "split": "TEST",
+     "target": 597
+    },
+    {
+     "query": 602,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 603,
+     "split": "TEST",
+     "target": 595
+    },
+    {
+     "query": 604,
+     "split": "DEV",
+     "target": 343
+    },
+    {
+     "query": 604,
+     "split": "DEV",
+     "target": 497
+    },
+    {
+     "query": 605,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 605,
+     "split": "TEST",
+     "target": 574
+    },
+    {
+     "query": 605,
+     "split": "TEST",
+     "target": 596
+    },
+    {
+     "query": 607,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 607,
+     "split": "TEST",
+     "target": 596
+    },
+    {
+     "query": 609,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 609,
+     "split": "DEV",
+     "target": 596
+    },
+    {
+     "query": 611,
+     "split": "DEV",
+     "target": 599
+    },
+    {
+     "query": 615,
+     "split": "DEV",
+     "target": 595
+    },
+    {
+     "query": 617,
+     "split": "DEV",
+     "target": 599
+    },
+    {
+     "query": 621,
+     "split": "TEST",
+     "target": 599
+    },
+    {
+     "query": 622,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 622,
+     "split": "DEV",
+     "target": 602
+    },
+    {
+     "query": 623,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 623,
+     "split": "DEV",
+     "target": 602
+    },
+    {
+     "query": 623,
+     "split": "DEV",
+     "target": 622
+    },
+    {
+     "query": 624,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 624,
+     "split": "DEV",
+     "target": 602
+    },
+    {
+     "query": 624,
+     "split": "DEV",
+     "target": 622
+    },
+    {
+     "query": 625,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 625,
+     "split": "DEV",
+     "target": 602
+    },
+    {
+     "query": 625,
+     "split": "DEV",
+     "target": 622
+    },
+    {
+     "query": 626,
+     "split": "TEST",
+     "target": 273
+    },
+    {
+     "query": 626,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 626,
+     "split": "TEST",
+     "target": 602
+    },
+    {
+     "query": 626,
+     "split": "TEST",
+     "target": 623
+    },
+    {
+     "query": 626,
+     "split": "TEST",
+     "target": 624
+    },
+    {
+     "query": 626,
+     "split": "TEST",
+     "target": 625
+    },
+    {
+     "query": 627,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 627,
+     "split": "TEST",
+     "target": 602
+    },
+    {
+     "query": 628,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 628,
+     "split": "DEV",
+     "target": 602
+    },
+    {
+     "query": 629,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 630,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 631,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 632,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 632,
+     "split": "DEV",
+     "target": 629
+    },
+    {
+     "query": 633,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 634,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 635,
+     "split": "DEV",
+     "target": 607
+    },
+    {
+     "query": 636,
+     "split": "DEV",
+     "target": 296
+    },
+    {
+     "query": 636,
+     "split": "DEV",
+     "target": 629
+    },
+    {
+     "query": 636,
+     "split": "DEV",
+     "target": 632
+    },
+    {
+     "query": 636,
+     "split": "DEV",
+     "target": 633
+    },
+    {
+     "query": 637,
+     "split": "DEV",
+     "target": 296
+    },
+    {
+     "query": 638,
+     "split": "DEV",
+     "target": 296
+    },
+    {
+     "query": 639,
+     "split": "DEV",
+     "target": 296
+    },
+    {
+     "query": 641,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 641,
+     "split": "DEV",
+     "target": 584
+    },
+    {
+     "query": 641,
+     "split": "DEV",
+     "target": 596
+    },
+    {
+     "query": 641,
+     "split": "DEV",
+     "target": 605
+    },
+    {
+     "query": 643,
+     "split": "DEV",
+     "target": 605
+    },
+    {
+     "query": 643,
+     "split": "DEV",
+     "target": 641
+    },
+    {
+     "query": 644,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 644,
+     "split": "DEV",
+     "target": 515
+    },
+    {
+     "query": 645,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 645,
+     "split": "DEV",
+     "target": 515
+    },
+    {
+     "query": 646,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 646,
+     "split": "DEV",
+     "target": 513
+    },
+    {
+     "query": 646,
+     "split": "DEV",
+     "target": 515
+    },
+    {
+     "query": 647,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 647,
+     "split": "DEV",
+     "target": 602
+    },
+    {
+     "query": 648,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 648,
+     "split": "DEV",
+     "target": 518
+    },
+    {
+     "query": 649,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 649,
+     "split": "DEV",
+     "target": 518
+    },
+    {
+     "query": 655,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 655,
+     "split": "DEV",
+     "target": 512
+    },
+    {
+     "query": 655,
+     "split": "DEV",
+     "target": 513
+    },
+    {
+     "query": 655,
+     "split": "DEV",
+     "target": 516
+    },
+    {
+     "query": 657,
+     "split": "DEV",
+     "target": 647
+    },
+    {
+     "query": 658,
+     "split": "TEST",
+     "target": 515
+    },
+    {
+     "query": 659,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 661,
+     "split": "DEV",
+     "target": 622
+    },
+    {
+     "query": 662,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 663,
+     "split": "DEV",
+     "target": 622
+    },
+    {
+     "query": 664,
+     "split": "TEST",
+     "target": 512
+    },
+    {
+     "query": 664,
+     "split": "TEST",
+     "target": 513
+    },
+    {
+     "query": 664,
+     "split": "TEST",
+     "target": 515
+    },
+    {
+     "query": 666,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 666,
+     "split": "DEV",
+     "target": 664
+    },
+    {
+     "query": 667,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 667,
+     "split": "DEV",
+     "target": 664
+    },
+    {
+     "query": 667,
+     "split": "DEV",
+     "target": 666
+    },
+    {
+     "query": 668,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 668,
+     "split": "DEV",
+     "target": 664
+    },
+    {
+     "query": 669,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 669,
+     "split": "DEV",
+     "target": 664
+    },
+    {
+     "query": 670,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 670,
+     "split": "DEV",
+     "target": 664
+    },
+    {
+     "query": 671,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 671,
+     "split": "TEST",
+     "target": 664
+    },
+    {
+     "query": 672,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 672,
+     "split": "DEV",
+     "target": 664
+    },
+    {
+     "query": 673,
+     "split": "DEV",
+     "target": 424
+    },
+    {
+     "query": 673,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 673,
+     "split": "DEV",
+     "target": 659
+    },
+    {
+     "query": 674,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 674,
+     "split": "DEV",
+     "target": 673
+    },
+    {
+     "query": 675,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 675,
+     "split": "TEST",
+     "target": 674
+    },
+    {
+     "query": 676,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 676,
+     "split": "DEV",
+     "target": 674
+    },
+    {
+     "query": 677,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 677,
+     "split": "DEV",
+     "target": 674
+    },
+    {
+     "query": 678,
+     "split": "DEV",
+     "target": 491
+    },
+    {
+     "query": 681,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 681,
+     "split": "DEV",
+     "target": 623
+    },
+    {
+     "query": 681,
+     "split": "DEV",
+     "target": 626
+    },
+    {
+     "query": 682,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 682,
+     "split": "DEV",
+     "target": 623
+    },
+    {
+     "query": 685,
+     "split": "TEST",
+     "target": 623
+    },
+    {
+     "query": 686,
+     "split": "DEV",
+     "target": 623
+    },
+    {
+     "query": 688,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 688,
+     "split": "DEV",
+     "target": 662
+    },
+    {
+     "query": 689,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 689,
+     "split": "DEV",
+     "target": 662
+    },
+    {
+     "query": 690,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 690,
+     "split": "DEV",
+     "target": 634
+    },
+    {
+     "query": 690,
+     "split": "DEV",
+     "target": 662
+    },
+    {
+     "query": 691,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 691,
+     "split": "DEV",
+     "target": 662
+    },
+    {
+     "query": 692,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 692,
+     "split": "DEV",
+     "target": 662
+    },
+    {
+     "query": 693,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 693,
+     "split": "DEV",
+     "target": 662
+    },
+    {
+     "query": 694,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 694,
+     "split": "DEV",
+     "target": 662
+    },
+    {
+     "query": 695,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 695,
+     "split": "TEST",
+     "target": 662
+    },
+    {
+     "query": 696,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 696,
+     "split": "DEV",
+     "target": 662
+    },
+    {
+     "query": 697,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 697,
+     "split": "DEV",
+     "target": 662
+    },
+    {
+     "query": 700,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 704,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 704,
+     "split": "DEV",
+     "target": 662
+    },
+    {
+     "query": 707,
+     "split": "TEST",
+     "target": 624
+    },
+    {
+     "query": 708,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 708,
+     "split": "DEV",
+     "target": 700
+    },
+    {
+     "query": 709,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 709,
+     "split": "DEV",
+     "target": 700
+    },
+    {
+     "query": 710,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 710,
+     "split": "TEST",
+     "target": 700
+    },
+    {
+     "query": 711,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 711,
+     "split": "TEST",
+     "target": 700
+    },
+    {
+     "query": 712,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 712,
+     "split": "DEV",
+     "target": 700
+    },
+    {
+     "query": 713,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 713,
+     "split": "DEV",
+     "target": 700
+    },
+    {
+     "query": 714,
+     "split": "TEST",
+     "target": 700
+    },
+    {
+     "query": 715,
+     "split": "DEV",
+     "target": 700
+    },
+    {
+     "query": 716,
+     "split": "TEST",
+     "target": 700
+    },
+    {
+     "query": 717,
+     "split": "TEST",
+     "target": 700
+    },
+    {
+     "query": 719,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 719,
+     "split": "TEST",
+     "target": 625
+    },
+    {
+     "query": 721,
+     "split": "TEST",
+     "target": 420
+    },
+    {
+     "query": 721,
+     "split": "TEST",
+     "target": 673
+    },
+    {
+     "query": 722,
+     "split": "TEST",
+     "target": 625
+    },
+    {
+     "query": 723,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 723,
+     "split": "DEV",
+     "target": 631
+    },
+    {
+     "query": 724,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 724,
+     "split": "TEST",
+     "target": 631
+    },
+    {
+     "query": 726,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 726,
+     "split": "TEST",
+     "target": 629
+    },
+    {
+     "query": 728,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 728,
+     "split": "DEV",
+     "target": 634
+    },
+    {
+     "query": 730,
+     "split": "DEV",
+     "target": 296
+    },
+    {
+     "query": 731,
+     "split": "TEST",
+     "target": 296
+    },
+    {
+     "query": 735,
+     "split": "DEV",
+     "target": 673
+    },
+    {
+     "query": 736,
+     "split": "DEV",
+     "target": 629
+    },
+    {
+     "query": 738,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 738,
+     "split": "TEST",
+     "target": 633
+    },
+    {
+     "query": 739,
+     "split": "DEV",
+     "target": 486
+    },
+    {
+     "query": 739,
+     "split": "DEV",
+     "target": 633
+    },
+    {
+     "query": 741,
+     "split": "DEV",
+     "target": 633
+    },
+    {
+     "query": 742,
+     "split": "TEST",
+     "target": 486
+    },
+    {
+     "query": 742,
+     "split": "TEST",
+     "target": 630
+    },
+    {
+     "query": 745,
+     "split": "DEV",
+     "target": 254
+    },
+    {
+     "query": 745,
+     "split": "DEV",
+     "target": 523
+    },
+    {
+     "query": 746,
+     "split": "TEST",
+     "target": 745
+    },
+    {
+     "query": 748,
+     "split": "TEST",
+     "target": 523
+    },
+    {
+     "query": 748,
+     "split": "TEST",
+     "target": 745
+    },
+    {
+     "query": 750,
+     "split": "DEV",
+     "target": 523
+    },
+    {
+     "query": 750,
+     "split": "DEV",
+     "target": 748
+    }
+   ]
+  }
+ },
+ "split_rule": "TEST iff sha256('<repo name>#<query>')[0] % 10 < 3"
+}

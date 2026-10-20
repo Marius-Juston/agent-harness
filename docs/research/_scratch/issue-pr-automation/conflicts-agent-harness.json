@@ -1,0 +1,249 @@
+{
+ "merged_prs": 107,
+ "at_risk_pairs": 163,
+ "pairs_set_aside_b_conflicted_before_a": 10,
+ "pairs_judged": 153,
+ "conflicting_pairs": 6,
+ "pairs_both_prs_open": 101,
+ "conflicting_pairs_both_prs_open": 5,
+ "prs_with_a_conflicting_pair": 6,
+ "prs_whose_handback_head_conflicts_with_main_at_merge": 6,
+ "prs_sent_back_by_integrate": 4,
+ "sent_back_and_conflicting_handback": 4,
+ "sent_back_with_a_conflicting_pair": 4,
+ "pairs_with_both_owns_declared": 74,
+ "pr_level": {
+  "owns": {
+   "tp": 4,
+   "fp": 6,
+   "fn": 2,
+   "tn": 47,
+   "precision": 0.4,
+   "recall": 0.667
+  },
+  "files": {
+   "tp": 6,
+   "fp": 16,
+   "fn": 0,
+   "tn": 37,
+   "precision": 0.273,
+   "recall": 1.0
+  },
+  "pr_check": {
+   "tp": 6,
+   "fp": 0,
+   "fn": 0,
+   "tn": 53,
+   "precision": 1.0,
+   "recall": 1.0
+  },
+  "earliest": {
+   "tp": 6,
+   "fp": 0,
+   "fn": 0,
+   "tn": 53,
+   "precision": 1.0,
+   "recall": 1.0
+  }
+ },
+ "prs_judged": 59,
+ "predictors": {
+  "owns": {
+   "tp": 4,
+   "fp": 7,
+   "fn": 2,
+   "tn": 140,
+   "precision": 0.364,
+   "recall": 0.667
+  },
+  "owns_both_declared": {
+   "tp": 4,
+   "fp": 7,
+   "fn": 0,
+   "tn": 63,
+   "precision": 0.364,
+   "recall": 1.0
+  },
+  "files": {
+   "tp": 6,
+   "fp": 23,
+   "fn": 0,
+   "tn": 124,
+   "precision": 0.207,
+   "recall": 1.0
+  },
+  "pr_check": {
+   "tp": 6,
+   "fp": 0,
+   "fn": 0,
+   "tn": 147,
+   "precision": 1.0,
+   "recall": 1.0
+  },
+  "earliest": {
+   "tp": 6,
+   "fp": 0,
+   "fn": 0,
+   "tn": 147,
+   "precision": 1.0,
+   "recall": 1.0
+  }
+ },
+ "lead_hours_median": {
+  "pr_check": 0.25,
+  "earliest": 0.28,
+  "owns_at_claim": 0.39
+ },
+ "earliest_flags_before_b_handback": 4,
+ "conflicted_path_top_dirs": [
+  [
+   "tests",
+   2
+  ],
+  [
+   "docs",
+   1
+  ],
+  [
+   "devkit",
+   1
+  ],
+  [
+   "plugins",
+   1
+  ],
+  [
+   "CHANGELOG.md",
+   1
+  ]
+ ],
+ "conflicted_paths": [
+  [
+   "tests/test_plugin.py",
+   2
+  ],
+  [
+   "docs/generated/agent-surface.md",
+   1
+  ],
+  [
+   "devkit/gate.py",
+   1
+  ],
+  [
+   "plugins/harness-ops/agents/builder.md",
+   1
+  ],
+  [
+   "CHANGELOG.md",
+   1
+  ]
+ ],
+ "b_open_to_merged_hours_median": {
+  "conflicting": 0.4,
+  "clean": 0.1
+ },
+ "conflicting_pairs_only_uv_lock": 0,
+ "conflicting_pairs_only_lock_or_pyproject": 0,
+ "conflicting_pairs_touching_uv_lock": 0,
+ "pairs": [
+  {
+   "a": 41,
+   "b": 42,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.01,
+   "b_opened_h_before_a_merged": 0.0,
+   "b_merged_h_after_a_merged": 0.12,
+   "b_sent_back": false,
+   "send_back_min_after_a_merged": [],
+   "paths": [
+    "docs/generated/agent-surface.md"
+   ]
+  },
+  {
+   "a": 106,
+   "b": 107,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.23,
+   "b_opened_h_before_a_merged": 0.2,
+   "b_merged_h_after_a_merged": 0.06,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    0
+   ],
+   "paths": [
+    "devkit/gate.py"
+   ]
+  },
+  {
+   "a": 142,
+   "b": 148,
+   "conflict": true,
+   "owns": true,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": -0.28,
+   "b_opened_h_before_a_merged": -0.28,
+   "b_merged_h_after_a_merged": 0.68,
+   "b_sent_back": false,
+   "send_back_min_after_a_merged": [],
+   "paths": [
+    "tests/test_plugin.py"
+   ]
+  },
+  {
+   "a": 273,
+   "b": 278,
+   "conflict": true,
+   "owns": true,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.43,
+   "b_opened_h_before_a_merged": 0.4,
+   "b_merged_h_after_a_merged": 0.29,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    9
+   ],
+   "paths": [
+    "plugins/harness-ops/agents/builder.md"
+   ]
+  },
+  {
+   "a": 311,
+   "b": 309,
+   "conflict": true,
+   "owns": true,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.28,
+   "b_opened_h_before_a_merged": 0.29,
+   "b_merged_h_after_a_merged": 0.1,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    1
+   ],
+   "paths": [
+    "tests/test_plugin.py"
+   ]
+  },
+  {
+   "a": 329,
+   "b": 333,
+   "conflict": true,
+   "owns": true,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.28,
+   "b_opened_h_before_a_merged": 0.25,
+   "b_merged_h_after_a_merged": 0.36,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    10
+   ],
+   "paths": [
+    "CHANGELOG.md"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,9 @@
+Tier B DEV: 476 queries
+A1 TF-IDF title                           R@1 0.227 R@3 0.376 [0.334,0.420] R@5 0.452 P@3 0.135 | tau 0.2593 alertP 0.197 alertR3 0.250 rate 0.72 shown 1.20
+A2 TF-IDF title+DONE WHEN                 R@1 0.286 R@3 0.473 [0.429,0.519] R@5 0.561 P@3 0.175 | tau 0.1936 alertP 0.212 alertR3 0.366 rate 0.83 shown 1.69
+A3 BM25 title+DONE WHEN                   R@1 0.288 R@3 0.462 [0.420,0.506] R@5 0.550 P@3 0.172 | tau 12.2094 alertP 0.249 alertR3 0.269 rate 0.54 shown 1.10
+A4 BM25 title+Context+DONE WHEN           R@1 0.359 R@3 0.567 [0.521,0.611] R@5 0.643 P@3 0.223 | tau 25.8186 alertP 0.318 alertR3 0.357 rate 0.53 shown 1.16
+A5 potion-base-8M title+DONE WHEN         R@1 0.246 R@3 0.393 [0.349,0.439] R@5 0.475 P@3 0.146 | tau 0.5564 alertP 0.164 alertR3 0.332 rate 0.81 shown 2.00
+A6 potion-retrieval-32M title+DONE WHEN   R@1 0.254 R@3 0.422 [0.378,0.468] R@5 0.492 P@3 0.154 | tau 0.4642 alertP 0.178 alertR3 0.282 rate 0.69 shown 1.50
+A7 bge-small-en-v1.5 title+DONE WHEN      R@1 0.242 R@3 0.412 [0.368,0.458] R@5 0.479 P@3 0.152 | tau 0.7467 alertP 0.176 alertR3 0.305 rate 0.70 shown 1.59
+A8 RRF(A3, A6)                            R@1 0.284 R@3 0.475 [0.431,0.521] R@5 0.548 P@3 0.176 | tau 0.0320 alertP 0.249 alertR3 0.321 rate 0.86 shown 1.21

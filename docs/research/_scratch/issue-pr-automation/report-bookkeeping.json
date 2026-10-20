@@ -1,0 +1,1178 @@
+{
+ "window": [
+  "2026-10-11",
+  "2026-10-20"
+ ],
+ "overview": {
+  "builder": {
+   "transcripts": 170,
+   "turns": 10870,
+   "usd": 518.8
+  },
+  "reviewer": {
+   "transcripts": 235,
+   "turns": 4910,
+   "usd": 191.5
+  },
+  "researcher": {
+   "transcripts": 273,
+   "turns": 19778,
+   "usd": 1067.4
+  },
+  "lead": {
+   "transcripts": 20,
+   "turns": 4043,
+   "usd": 445.1
+  },
+  "other": {
+   "transcripts": 27,
+   "turns": 862,
+   "usd": 45.1
+  },
+  "tester": {
+   "transcripts": 10,
+   "turns": 587,
+   "usd": 23.3
+  }
+ },
+ "overview_usd_all": 2291.2,
+ "categories": {
+  "builder": {
+   "1 integrate loop": {
+    "calls": 38,
+    "turns": 38,
+    "transcripts": 18,
+    "err_rate": 0.105,
+    "usd": 1.89,
+    "usd_per_turn": 0.05,
+    "written_chars": 9138
+   },
+   "2 review relay": {
+    "calls": 67,
+    "turns": 65,
+    "transcripts": 44,
+    "err_rate": 0.045,
+    "usd": 3.29,
+    "usd_per_turn": 0.051,
+    "written_chars": 73773
+   },
+   "3 board upkeep runs": {
+    "calls": 23,
+    "turns": 23,
+    "transcripts": 13,
+    "err_rate": 0.13,
+    "usd": 0.83,
+    "usd_per_turn": 0.036,
+    "written_chars": 4051
+   },
+   "4 filing/upkeep of issues": {
+    "calls": 287,
+    "turns": 276,
+    "transcripts": 103,
+    "err_rate": 0.021,
+    "usd": 10.79,
+    "usd_per_turn": 0.039,
+    "written_chars": 187940
+   },
+   "5 conflict relay": {
+    "calls": 4,
+    "turns": 4,
+    "transcripts": 3,
+    "err_rate": 0.25,
+    "usd": 0.09,
+    "usd_per_turn": 0.021,
+    "written_chars": 434
+   },
+   "5 conflict seen in output": {
+    "calls": 19,
+    "turns": 19,
+    "transcripts": 15,
+    "err_rate": 0.316,
+    "usd": 0.84,
+    "usd_per_turn": 0.044,
+    "written_chars": 2293
+   },
+   "6 PR body/open": {
+    "calls": 425,
+    "turns": 425,
+    "transcripts": 165,
+    "err_rate": 0.28,
+    "usd": 20.48,
+    "usd_per_turn": 0.048,
+    "written_chars": 862885
+   },
+   "7 HANDOFF/SESSION write": {
+    "calls": 2,
+    "turns": 2,
+    "transcripts": 2,
+    "err_rate": 0.0,
+    "usd": 0.11,
+    "usd_per_turn": 0.057,
+    "written_chars": 2190
+   },
+   "8 changelog/release": {
+    "calls": 25,
+    "turns": 24,
+    "transcripts": 12,
+    "err_rate": 0.28,
+    "usd": 0.79,
+    "usd_per_turn": 0.033,
+    "written_chars": 27344
+   },
+   "9 worktree+claim/cleanup": {
+    "calls": 40,
+    "turns": 40,
+    "transcripts": 35,
+    "err_rate": 0.025,
+    "usd": 0.98,
+    "usd_per_turn": 0.025,
+    "written_chars": 12752
+   },
+   "ANY bookkeeping category": {
+    "calls": 931,
+    "turns": 913,
+    "transcripts": 168,
+    "err_rate": 0.16,
+    "usd": 40.14,
+    "usd_per_turn": 0.044,
+    "written_chars": 1181724
+   },
+   "ANY of 1-9 (no reviewer spawn, no x-rows)": {
+    "calls": 910,
+    "turns": 892,
+    "transcripts": 168,
+    "err_rate": 0.164,
+    "usd": 38.97,
+    "usd_per_turn": 0.044,
+    "written_chars": 1163258
+   },
+   "x other PR comment": {
+    "calls": 15,
+    "turns": 15,
+    "transcripts": 8,
+    "err_rate": 0.0,
+    "usd": 0.88,
+    "usd_per_turn": 0.059,
+    "written_chars": 13583
+   },
+   "x other SendMessage": {
+    "calls": 3,
+    "turns": 3,
+    "transcripts": 3,
+    "err_rate": 0.0,
+    "usd": 0.13,
+    "usd_per_turn": 0.044,
+    "written_chars": 2852
+   },
+   "x owner-decision record": {
+    "calls": 4,
+    "turns": 4,
+    "transcripts": 4,
+    "err_rate": 0.0,
+    "usd": 0.21,
+    "usd_per_turn": 0.051,
+    "written_chars": 3567
+   }
+  },
+  "all": {
+   "1 integrate loop": {
+    "calls": 540,
+    "turns": 539,
+    "transcripts": 71,
+    "err_rate": 0.031,
+    "usd": 44.12,
+    "usd_per_turn": 0.082,
+    "written_chars": 204467
+   },
+   "2 review relay": {
+    "calls": 667,
+    "turns": 542,
+    "transcripts": 103,
+    "err_rate": 0.004,
+    "usd": 51.99,
+    "usd_per_turn": 0.096,
+    "written_chars": 727274
+   },
+   "2 review relay: reviewer spawn": {
+    "calls": 242,
+    "turns": 189,
+    "transcripts": 8,
+    "err_rate": 0.029,
+    "usd": 20.34,
+    "usd_per_turn": 0.108,
+    "written_chars": 145874
+   },
+   "3 board upkeep runs": {
+    "calls": 130,
+    "turns": 130,
+    "transcripts": 43,
+    "err_rate": 0.038,
+    "usd": 8.44,
+    "usd_per_turn": 0.065,
+    "written_chars": 41750
+   },
+   "4 filing/upkeep of issues": {
+    "calls": 931,
+    "turns": 900,
+    "transcripts": 184,
+    "err_rate": 0.014,
+    "usd": 57.76,
+    "usd_per_turn": 0.064,
+    "written_chars": 946807
+   },
+   "5 conflict relay": {
+    "calls": 30,
+    "turns": 29,
+    "transcripts": 10,
+    "err_rate": 0.033,
+    "usd": 2.81,
+    "usd_per_turn": 0.097,
+    "written_chars": 19994
+   },
+   "5 conflict seen in output": {
+    "calls": 33,
+    "turns": 33,
+    "transcripts": 25,
+    "err_rate": 0.182,
+    "usd": 1.39,
+    "usd_per_turn": 0.042,
+    "written_chars": 7656
+   },
+   "6 PR body/open": {
+    "calls": 636,
+    "turns": 636,
+    "transcripts": 247,
+    "err_rate": 0.209,
+    "usd": 36.24,
+    "usd_per_turn": 0.057,
+    "written_chars": 1150632
+   },
+   "7 HANDOFF/SESSION write": {
+    "calls": 21,
+    "turns": 18,
+    "transcripts": 8,
+    "err_rate": 0.143,
+    "usd": 1.97,
+    "usd_per_turn": 0.11,
+    "written_chars": 36810
+   },
+   "8 changelog/release": {
+    "calls": 53,
+    "turns": 52,
+    "transcripts": 27,
+    "err_rate": 0.151,
+    "usd": 2.15,
+    "usd_per_turn": 0.041,
+    "written_chars": 43087
+   },
+   "9 worktree+claim/cleanup": {
+    "calls": 435,
+    "turns": 434,
+    "transcripts": 112,
+    "err_rate": 0.034,
+    "usd": 26.16,
+    "usd_per_turn": 0.06,
+    "written_chars": 277973
+   },
+   "ANY bookkeeping category": {
+    "calls": 3583,
+    "turns": 3192,
+    "transcripts": 379,
+    "err_rate": 0.057,
+    "usd": 219.38,
+    "usd_per_turn": 0.069,
+    "written_chars": 3468988
+   },
+   "ANY of 1-9 (no reviewer spawn, no x-rows)": {
+    "calls": 3160,
+    "turns": 2947,
+    "transcripts": 367,
+    "err_rate": 0.063,
+    "usd": 195.89,
+    "usd_per_turn": 0.066,
+    "written_chars": 3145723
+   },
+   "x other PR comment": {
+    "calls": 46,
+    "turns": 46,
+    "transcripts": 21,
+    "err_rate": 0.0,
+    "usd": 3.02,
+    "usd_per_turn": 0.066,
+    "written_chars": 71266
+   },
+   "x other SendMessage": {
+    "calls": 89,
+    "turns": 77,
+    "transcripts": 15,
+    "err_rate": 0.0,
+    "usd": 6.59,
+    "usd_per_turn": 0.086,
+    "written_chars": 67925
+   },
+   "x owner-decision record": {
+    "calls": 48,
+    "turns": 48,
+    "transcripts": 10,
+    "err_rate": 0.0,
+    "usd": 4.95,
+    "usd_per_turn": 0.103,
+    "written_chars": 63067
+   },
+   "x owner-decision relay": {
+    "calls": 25,
+    "turns": 17,
+    "transcripts": 4,
+    "err_rate": 0.0,
+    "usd": 1.71,
+    "usd_per_turn": 0.1,
+    "written_chars": 18676
+   }
+  },
+  "reviewer": {
+   "1 integrate loop": {
+    "calls": 40,
+    "turns": 40,
+    "transcripts": 32,
+    "err_rate": 0.0,
+    "usd": 0.76,
+    "usd_per_turn": 0.019,
+    "written_chars": 10682
+   },
+   "2 review relay": {
+    "calls": 19,
+    "turns": 19,
+    "transcripts": 19,
+    "err_rate": 0.0,
+    "usd": 0.62,
+    "usd_per_turn": 0.033,
+    "written_chars": 44555
+   },
+   "4 filing/upkeep of issues": {
+    "calls": 2,
+    "turns": 2,
+    "transcripts": 2,
+    "err_rate": 0.0,
+    "usd": 0.04,
+    "usd_per_turn": 0.02,
+    "written_chars": 574
+   },
+   "5 conflict seen in output": {
+    "calls": 7,
+    "turns": 7,
+    "transcripts": 5,
+    "err_rate": 0.0,
+    "usd": 0.14,
+    "usd_per_turn": 0.02,
+    "written_chars": 3350
+   },
+   "8 changelog/release": {
+    "calls": 3,
+    "turns": 3,
+    "transcripts": 1,
+    "err_rate": 0.0,
+    "usd": 0.12,
+    "usd_per_turn": 0.04,
+    "written_chars": 6009
+   },
+   "9 worktree+claim/cleanup": {
+    "calls": 139,
+    "turns": 139,
+    "transcripts": 56,
+    "err_rate": 0.022,
+    "usd": 2.87,
+    "usd_per_turn": 0.021,
+    "written_chars": 58607
+   },
+   "ANY bookkeeping category": {
+    "calls": 217,
+    "turns": 217,
+    "transcripts": 104,
+    "err_rate": 0.014,
+    "usd": 4.91,
+    "usd_per_turn": 0.023,
+    "written_chars": 153954
+   },
+   "ANY of 1-9 (no reviewer spawn, no x-rows)": {
+    "calls": 206,
+    "turns": 206,
+    "transcripts": 98,
+    "err_rate": 0.015,
+    "usd": 4.43,
+    "usd_per_turn": 0.022,
+    "written_chars": 118949
+   },
+   "x other PR comment": {
+    "calls": 11,
+    "turns": 11,
+    "transcripts": 9,
+    "err_rate": 0.0,
+    "usd": 0.47,
+    "usd_per_turn": 0.043,
+    "written_chars": 35005
+   }
+  },
+  "researcher": {
+   "1 integrate loop": {
+    "calls": 19,
+    "turns": 19,
+    "transcripts": 11,
+    "err_rate": 0.105,
+    "usd": 1.25,
+    "usd_per_turn": 0.066,
+    "written_chars": 3789
+   },
+   "2 review relay": {
+    "calls": 46,
+    "turns": 46,
+    "transcripts": 32,
+    "err_rate": 0.0,
+    "usd": 3.46,
+    "usd_per_turn": 0.075,
+    "written_chars": 59190
+   },
+   "3 board upkeep runs": {
+    "calls": 32,
+    "turns": 32,
+    "transcripts": 20,
+    "err_rate": 0.0,
+    "usd": 1.57,
+    "usd_per_turn": 0.049,
+    "written_chars": 11114
+   },
+   "4 filing/upkeep of issues": {
+    "calls": 310,
+    "turns": 296,
+    "transcripts": 61,
+    "err_rate": 0.01,
+    "usd": 19.05,
+    "usd_per_turn": 0.064,
+    "written_chars": 440554
+   },
+   "5 conflict seen in output": {
+    "calls": 4,
+    "turns": 4,
+    "transcripts": 4,
+    "err_rate": 0.0,
+    "usd": 0.27,
+    "usd_per_turn": 0.069,
+    "written_chars": 725
+   },
+   "6 PR body/open": {
+    "calls": 94,
+    "turns": 94,
+    "transcripts": 57,
+    "err_rate": 0.053,
+    "usd": 6.64,
+    "usd_per_turn": 0.071,
+    "written_chars": 153508
+   },
+   "8 changelog/release": {
+    "calls": 5,
+    "turns": 5,
+    "transcripts": 5,
+    "err_rate": 0.0,
+    "usd": 0.16,
+    "usd_per_turn": 0.032,
+    "written_chars": 1356
+   },
+   "9 worktree+claim/cleanup": {
+    "calls": 8,
+    "turns": 8,
+    "transcripts": 7,
+    "err_rate": 0.0,
+    "usd": 0.49,
+    "usd_per_turn": 0.061,
+    "written_chars": 3959
+   },
+   "ANY bookkeeping category": {
+    "calls": 505,
+    "turns": 491,
+    "transcripts": 75,
+    "err_rate": 0.02,
+    "usd": 32.15,
+    "usd_per_turn": 0.065,
+    "written_chars": 662036
+   },
+   "ANY of 1-9 (no reviewer spawn, no x-rows)": {
+    "calls": 494,
+    "turns": 480,
+    "transcripts": 70,
+    "err_rate": 0.02,
+    "usd": 31.52,
+    "usd_per_turn": 0.066,
+    "written_chars": 655166
+   },
+   "x other SendMessage": {
+    "calls": 10,
+    "turns": 10,
+    "transcripts": 5,
+    "err_rate": 0.0,
+    "usd": 0.56,
+    "usd_per_turn": 0.056,
+    "written_chars": 6079
+   },
+   "x owner-decision record": {
+    "calls": 2,
+    "turns": 2,
+    "transcripts": 1,
+    "err_rate": 0.0,
+    "usd": 0.13,
+    "usd_per_turn": 0.064,
+    "written_chars": 2799
+   }
+  },
+  "lead": {
+   "1 integrate loop": {
+    "calls": 442,
+    "turns": 441,
+    "transcripts": 9,
+    "err_rate": 0.025,
+    "usd": 40.19,
+    "usd_per_turn": 0.091,
+    "written_chars": 180789
+   },
+   "2 review relay": {
+    "calls": 532,
+    "turns": 409,
+    "transcripts": 7,
+    "err_rate": 0.0,
+    "usd": 44.52,
+    "usd_per_turn": 0.109,
+    "written_chars": 548321
+   },
+   "2 review relay: reviewer spawn": {
+    "calls": 242,
+    "turns": 189,
+    "transcripts": 8,
+    "err_rate": 0.029,
+    "usd": 20.34,
+    "usd_per_turn": 0.108,
+    "written_chars": 145874
+   },
+   "3 board upkeep runs": {
+    "calls": 70,
+    "turns": 70,
+    "transcripts": 7,
+    "err_rate": 0.029,
+    "usd": 5.92,
+    "usd_per_turn": 0.085,
+    "written_chars": 25371
+   },
+   "4 filing/upkeep of issues": {
+    "calls": 297,
+    "turns": 296,
+    "transcripts": 9,
+    "err_rate": 0.007,
+    "usd": 26.76,
+    "usd_per_turn": 0.09,
+    "written_chars": 287640
+   },
+   "5 conflict relay": {
+    "calls": 26,
+    "turns": 25,
+    "transcripts": 7,
+    "err_rate": 0.0,
+    "usd": 2.72,
+    "usd_per_turn": 0.109,
+    "written_chars": 19560
+   },
+   "5 conflict seen in output": {
+    "calls": 3,
+    "turns": 3,
+    "transcripts": 1,
+    "err_rate": 0.0,
+    "usd": 0.13,
+    "usd_per_turn": 0.044,
+    "written_chars": 1288
+   },
+   "6 PR body/open": {
+    "calls": 84,
+    "turns": 84,
+    "transcripts": 9,
+    "err_rate": 0.036,
+    "usd": 7.88,
+    "usd_per_turn": 0.094,
+    "written_chars": 94019
+   },
+   "7 HANDOFF/SESSION write": {
+    "calls": 19,
+    "turns": 16,
+    "transcripts": 6,
+    "err_rate": 0.158,
+    "usd": 1.86,
+    "usd_per_turn": 0.116,
+    "written_chars": 34620
+   },
+   "8 changelog/release": {
+    "calls": 17,
+    "turns": 17,
+    "transcripts": 7,
+    "err_rate": 0.0,
+    "usd": 1.01,
+    "usd_per_turn": 0.059,
+    "written_chars": 7853
+   },
+   "9 worktree+claim/cleanup": {
+    "calls": 242,
+    "turns": 241,
+    "transcripts": 11,
+    "err_rate": 0.045,
+    "usd": 21.65,
+    "usd_per_turn": 0.09,
+    "written_chars": 200121
+   },
+   "ANY bookkeeping category": {
+    "calls": 1843,
+    "turns": 1489,
+    "transcripts": 12,
+    "err_rate": 0.019,
+    "usd": 139.27,
+    "usd_per_turn": 0.094,
+    "written_chars": 1394431
+   },
+   "ANY of 1-9 (no reviewer spawn, no x-rows)": {
+    "calls": 1464,
+    "turns": 1288,
+    "transcripts": 11,
+    "err_rate": 0.019,
+    "usd": 118.09,
+    "usd_per_turn": 0.092,
+    "written_chars": 1132254
+   },
+   "x other PR comment": {
+    "calls": 19,
+    "turns": 19,
+    "transcripts": 3,
+    "err_rate": 0.0,
+    "usd": 1.61,
+    "usd_per_turn": 0.085,
+    "written_chars": 21931
+   },
+   "x other SendMessage": {
+    "calls": 76,
+    "turns": 64,
+    "transcripts": 7,
+    "err_rate": 0.0,
+    "usd": 5.89,
+    "usd_per_turn": 0.092,
+    "written_chars": 58994
+   },
+   "x owner-decision record": {
+    "calls": 42,
+    "turns": 42,
+    "transcripts": 5,
+    "err_rate": 0.0,
+    "usd": 4.62,
+    "usd_per_turn": 0.11,
+    "written_chars": 56701
+   },
+   "x owner-decision relay": {
+    "calls": 25,
+    "turns": 17,
+    "transcripts": 4,
+    "err_rate": 0.0,
+    "usd": 1.71,
+    "usd_per_turn": 0.1,
+    "written_chars": 18676
+   }
+  }
+ },
+ "lead_sendmessage_kinds": {
+  "review findings to author": {
+   "n": 250,
+   "chars": 262967,
+   "mean_chars": 1052,
+   "out_usd": 2.33
+  },
+  "re-review request": {
+   "n": 104,
+   "chars": 45185,
+   "mean_chars": 434,
+   "out_usd": 0.4
+  },
+  "other": {
+   "n": 76,
+   "chars": 40625,
+   "mean_chars": 535,
+   "out_usd": 0.36
+  },
+  "conflict/base relay": {
+   "n": 26,
+   "chars": 13244,
+   "mean_chars": 509,
+   "out_usd": 0.12
+  },
+  "owner decision relay": {
+   "n": 25,
+   "chars": 12592,
+   "mean_chars": 504,
+   "out_usd": 0.11
+  }
+ },
+ "lead_sendmessage_recipient_type_known": {
+  "True": 481
+ },
+ "dispatch_prompts": {
+  "spawns": 742,
+  "prompt_chars": 505599,
+  "mean_chars": 681,
+  "out_usd": 4.48
+ },
+ "review_relay_per_pr": {
+  "prs": 164,
+  "rounds_total": 331,
+  "rounds_dist": {
+   "0": 5,
+   "1": 78,
+   "2": 43,
+   "3": 8,
+   "4": 19,
+   "5": 11
+  },
+  "relay_turns_total": 396,
+  "relay_turns_per_pr_mean": 2.41,
+  "relay_turns_per_round": 1.2,
+  "lead_posted_review_comments": 155,
+  "lead_posted_review_chars": 137305,
+  "findings_messages_to_author": 193,
+  "relay_usd": 43.68,
+  "relay_message_chars": 252372,
+  "save_upper_usd (lead stops posting; findings message becomes a 200-char pointer)": 15.62
+ },
+ "integrate": {
+  "integrate_invocations": 351,
+  "prs": 236,
+  "tries_per_pr_dist (6 = 6+)": {
+   "1": 160,
+   "2": 50,
+   "3": 17,
+   "4": 6,
+   "5": 2,
+   "6": 1
+  },
+  "retries": 115,
+  "retry_what_changed": {
+   "new head commit": 37,
+   "nothing changed (same head, same flags)": 36,
+   "same head, lead added a flag (--harness-ok)": 20,
+   "new comment/review only": 16,
+   "same head, lead added a flag (--override)": 5,
+   "same head, lead added a flag (--harness-ok,--override)": 1
+  },
+  "outcome_of_try_before_a_retry": {
+   "refused": 39,
+   "?": 31,
+   "harness-review": 20,
+   "stopped": 10,
+   "conflict": 8,
+   "gate passed only": 3,
+   "gate-failed": 3,
+   "merged": 1
+  },
+  "outcome_before_a_retry_where_nothing_changed": {
+   "refused: pending check": 15,
+   "?": 13,
+   "gate-failed": 3,
+   "refused: feedback (unspecified)": 2,
+   "merged": 1,
+   "stopped": 1,
+   "refused: failing check": 1
+  },
+  "retries_with_both_head_shas_printed": {
+   "new head commit": 2
+  },
+  "minutes_between_tries_median": 1.7,
+  "outcomes_all": {
+   "merged": 214,
+   "?": 47,
+   "refused": 42,
+   "harness-review": 20,
+   "stopped": 12,
+   "conflict": 8,
+   "gate passed only": 4,
+   "gate-failed": 3,
+   "not-open": 1
+  },
+  "flags": {
+   "--override": 96,
+   "--harness-ok": 302,
+   "--local-ci": 77,
+   "--dry-run": 1
+  },
+  "lead_integrate_loop_usd": 40.19,
+  "lead_integrate_loop_turns": 441,
+  "prs_merged_in_these_tries": 213,
+  "lead_loop_turns_per_merged_pr": 2.07
+ },
+ "board_new": {
+  "calls_with_issue": 630,
+  "fate": {
+   "open": 398,
+   "closed COMPLETED": 194,
+   "no issue URL in the output": 177,
+   "closed COMPLETED (duplicate/superseded)": 18,
+   "closed NOT_PLANNED": 11,
+   "closed NOT_PLANNED (duplicate/superseded)": 9
+  },
+  "fate_by_role": {
+   "builder": {
+    "open": 140,
+    "closed COMPLETED": 24,
+    "closed NOT_PLANNED (duplicate/superseded)": 6,
+    "closed NOT_PLANNED": 4,
+    "closed COMPLETED (duplicate/superseded)": 1
+   },
+   "researcher": {
+    "open": 191,
+    "closed COMPLETED": 58,
+    "closed COMPLETED (duplicate/superseded)": 14,
+    "closed NOT_PLANNED": 2
+   },
+   "lead": {
+    "closed COMPLETED": 100,
+    "open": 64,
+    "closed NOT_PLANNED": 4,
+    "closed COMPLETED (duplicate/superseded)": 3,
+    "closed NOT_PLANNED (duplicate/superseded)": 2
+   },
+   "tester": {
+    "closed COMPLETED": 11,
+    "open": 3
+   },
+   "other": {
+    "closed NOT_PLANNED (duplicate/superseded)": 1,
+    "closed NOT_PLANNED": 1,
+    "closed COMPLETED": 1
+   }
+  },
+  "lead_manual_closes": {
+   "done by a merged PR or release": 38,
+   "duplicate/superseded/covered": 15,
+   "other": 5
+  }
+ },
+ "all_issues_fate": {
+  "open": 465,
+  "closed COMPLETED": 284,
+  "closed COMPLETED as duplicate/superseded": 18,
+  "closed NOT_PLANNED": 14,
+  "closed NOT_PLANNED as duplicate/superseded": 10
+ },
+ "staleness": {
+  "repo-E": {
+   "status_or_stale_label_changes_by_actor": {
+    "a person or local devkit": 1576,
+    "github-actions": 10
+   },
+   "stale_labels_ever_applied": 1,
+   "in_progress_starts": {
+    "alive": 120,
+    "dead": 72
+   },
+   "idle_over_6h_episodes": {
+    "dead": 9
+   },
+   "episode_end": {
+    "dead: ended by a comment": 2,
+    "dead: ended by close": 4,
+    "dead: ended by close or status change": 3
+   },
+   "hours_beyond_6h": {
+    "dead": 91.8
+   }
+  },
+  "H": {
+   "status_or_stale_label_changes_by_actor": {
+    "a person or local devkit": 768
+   },
+   "stale_labels_ever_applied": 0,
+   "in_progress_starts": {
+    "dead": 35,
+    "alive": 74
+   },
+   "idle_over_6h_episodes": {
+    "alive": 1
+   },
+   "episode_end": {
+    "alive: ended by a comment": 1
+   },
+   "hours_beyond_6h": {
+    "alive": 1.8
+   }
+  }
+ },
+ "conflicts": {
+  "files_top": [
+   [
+    "other source or doc",
+    21
+   ],
+   [
+    "test file",
+    7
+   ],
+   [
+    "agent/skill prompt (.md under plugins/ or .claude/)",
+    7
+   ],
+   [
+    "lock file",
+    7
+   ],
+   [
+    "stylesheet",
+    7
+   ],
+   [
+    "generated doc (docs/generated/)",
+    6
+   ],
+   [
+    "research INDEX.md",
+    4
+   ],
+   [
+    "pyproject.toml",
+    4
+   ]
+  ],
+  "file_conflicts": 63,
+  "calls_showing_a_conflict_by_role": {
+   "builder": 19,
+   "reviewer": 7,
+   "researcher": 4,
+   "lead": 3,
+   "other": 0,
+   "tester": 0
+  }
+ },
+ "comment_posts": {
+  "builder: gh issue comment: other": 15,
+  "builder: gh issue comment: owner decision": 1,
+  "builder: gh issue comment: review": 27,
+  "builder: gh pr comment: other": 15,
+  "builder: gh pr comment: owner decision": 3,
+  "builder: gh pr comment: review": 36,
+  "lead: gh issue comment: other": 46,
+  "lead: gh issue comment: owner decision": 38,
+  "lead: gh issue comment: review": 59,
+  "lead: gh pr comment: other": 20,
+  "lead: gh pr comment: owner decision": 12,
+  "lead: gh pr comment: review": 157,
+  "researcher: gh issue comment: other": 23,
+  "researcher: gh issue comment: owner decision": 1,
+  "researcher: gh issue comment: review": 26,
+  "researcher: gh pr comment: owner decision": 1,
+  "researcher: gh pr comment: review": 12,
+  "reviewer: gh pr comment: other": 11,
+  "reviewer: gh pr comment: review": 10,
+  "tester: gh issue comment: other": 9,
+  "tester: gh issue comment: review": 1,
+  "tester: gh pr comment: other": 1,
+  "tester: gh pr comment: review": 1
+ },
+ "lead_close_days": {
+  "done by a merged PR or release": [
+   "2026-10-11",
+   "2026-10-12",
+   "2026-10-13",
+   "2026-10-14",
+   "2026-10-15",
+   "2026-10-16",
+   "2026-10-20"
+  ],
+  "duplicate/superseded/covered": [
+   "2026-10-11",
+   "2026-10-15",
+   "2026-10-16",
+   "2026-10-20"
+  ]
+ },
+ "owner_decisions": {
+  "AskUserQuestion calls": 115,
+  "... followed by an owner-decision comment or relay within 7 calls": 44
+ },
+ "board_new_preceded_by_issue_search": {
+  "researcher": 26,
+  "builder": 22,
+  "tester": 2,
+  "lead": 15
+ },
+ "pr_summary_composition_chars": {
+  "builder": {
+   "all": 246639,
+   "checkbox lines": 12540,
+   "gate/test result lines": 17190
+  },
+  "researcher": {
+   "all": 51724,
+   "checkbox lines": 0,
+   "gate/test result lines": 894
+  },
+  "tester": {
+   "all": 9096,
+   "checkbox lines": 0,
+   "gate/test result lines": 473
+  },
+  "lead": {
+   "all": 6390,
+   "checkbox lines": 0,
+   "gate/test result lines": 341
+  },
+  "other": {
+   "all": 3779,
+   "checkbox lines": 636,
+   "gate/test result lines": 72
+  }
+ },
+ "pr_summaries": {
+  "builder": {
+   "dev_pr_calls": 318,
+   "with_heredoc_summary": 92,
+   "summary_chars_median": 2761,
+   "summary_chars_total": 246639,
+   "summary_out_usd": 2.19,
+   "err_rate": 0.368
+  },
+  "researcher": {
+   "dev_pr_calls": 83,
+   "with_heredoc_summary": 24,
+   "summary_chars_median": 2083,
+   "summary_chars_total": 51724,
+   "summary_out_usd": 0.46,
+   "err_rate": 0.06
+  },
+  "tester": {
+   "dev_pr_calls": 15,
+   "with_heredoc_summary": 7,
+   "summary_chars_median": 1149,
+   "summary_chars_total": 9096,
+   "summary_out_usd": 0.08,
+   "err_rate": 0.267
+  },
+  "lead": {
+   "dev_pr_calls": 57,
+   "with_heredoc_summary": 14,
+   "summary_chars_median": 329,
+   "summary_chars_total": 6390,
+   "summary_out_usd": 0.06,
+   "err_rate": 0.035
+  },
+  "other": {
+   "dev_pr_calls": 11,
+   "with_heredoc_summary": 1,
+   "summary_chars_median": 3779,
+   "summary_chars_total": 3779,
+   "summary_out_usd": 0.03,
+   "err_rate": 0.091
+  }
+ },
+ "handbacks_to_lead": {
+  "researcher": {
+   "n": 213,
+   "chars_mean": 4166,
+   "carry_usd": 8.49,
+   "carry_usd_above_300_chars": 7.89
+  },
+  "reviewer": {
+   "n": 186,
+   "chars_mean": 4958,
+   "carry_usd": 8.82,
+   "carry_usd_above_300_chars": 8.27
+  },
+  "builder": {
+   "n": 179,
+   "chars_mean": 3320,
+   "carry_usd": 5.87,
+   "carry_usd_above_300_chars": 5.34
+  },
+  "other": {
+   "n": 10,
+   "chars_mean": 3992,
+   "carry_usd": 0.56,
+   "carry_usd_above_300_chars": 0.52
+  },
+  "tester": {
+   "n": 4,
+   "chars_mean": 3396,
+   "carry_usd": 0.13,
+   "carry_usd_above_300_chars": 0.12
+  }
+ },
+ "integrate_loop_turn_split": {
+  "integrate call": {
+   "turns": 378,
+   "usd": 35.42
+  },
+  "checks/status read or wait only": {
+   "turns": 63,
+   "usd": 4.76
+  }
+ },
+ "integrate_bursts": {
+  "bursts": 59,
+  "turns": 441,
+  "turns_per_burst_median": 5,
+  "turns_beyond_one_per_burst": 382
+ },
+ "handoff": {
+  "builder": {
+   "calls": 2,
+   "turns": 2,
+   "chars": 2190,
+   "usd": 0.11,
+   "days": 2
+  },
+  "lead": {
+   "calls": 19,
+   "turns": 19,
+   "chars": 34620,
+   "usd": 2.33,
+   "days": 6
+  },
+  "lead (Read)": {
+   "calls": 4,
+   "turns": 4,
+   "chars": 393,
+   "usd": 0.43,
+   "days": 3
+  }
+ },
+ "changelog": {
+  "builder": {
+   "calls": 15,
+   "turns": 15,
+   "chars": 22912,
+   "usd": 0.46,
+   "days": 3
+  },
+  "lead": {
+   "calls": 4,
+   "turns": 4,
+   "chars": 1542,
+   "usd": 0.2,
+   "days": 2
+  }
+ },
+ "worktree_claim": {
+  "worktree add (lead)": 116,
+  "... with board claim in the same call": 82,
+  "... same call, error": 1,
+  "board claim (lead)": 173,
+  "board claim error": 3
+ },
+ "reviewer_worktrees": {
+  "worktree add": 78,
+  "worktree remove": 70,
+  "reviewer transcripts": 0
+ },
+ "issue_view_reads": {
+  "builder": 167,
+  "reviewer": 121,
+  "researcher": 250,
+  "lead": 165,
+  "tester": 14,
+  "other": 6
+ }
+}

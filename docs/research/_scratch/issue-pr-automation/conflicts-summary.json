@@ -1,0 +1,154 @@
+{
+ "merged_prs": 297,
+ "pairs_judged": 581,
+ "conflicting_pairs": 19,
+ "pairs_both_prs_open": 382,
+ "conflicting_pairs_both_prs_open": 13,
+ "prs_whose_handback_head_conflicts_with_main_at_merge": 19,
+ "prs_sent_back_by_integrate": 10,
+ "sent_back_with_a_conflicting_pair": 10,
+ "conflicting_pair_rate": 0.033,
+ "conflicting_pr_rate": 0.064,
+ "predictors": {
+  "owns": {
+   "tp": 7,
+   "fp": 17,
+   "fn": 12,
+   "tn": 545,
+   "precision": 0.292,
+   "recall": 0.368
+  },
+  "owns_both_declared": {
+   "tp": 7,
+   "fp": 17,
+   "fn": 7,
+   "tn": 237,
+   "precision": 0.292,
+   "recall": 0.5
+  },
+  "files": {
+   "tp": 19,
+   "fp": 50,
+   "fn": 0,
+   "tn": 512,
+   "precision": 0.275,
+   "recall": 1.0
+  },
+  "pr_check": {
+   "tp": 19,
+   "fp": 3,
+   "fn": 0,
+   "tn": 559,
+   "precision": 0.864,
+   "recall": 1.0
+  },
+  "earliest": {
+   "tp": 19,
+   "fp": 3,
+   "fn": 0,
+   "tn": 559,
+   "precision": 0.864,
+   "recall": 1.0
+  }
+ },
+ "pr_level": {
+  "owns": {
+   "tp": 7,
+   "fp": 15,
+   "fn": 12,
+   "tn": 145,
+   "precision": 0.318,
+   "recall": 0.368
+  },
+  "files": {
+   "tp": 19,
+   "fp": 38,
+   "fn": 0,
+   "tn": 122,
+   "precision": 0.333,
+   "recall": 1.0
+  },
+  "pr_check": {
+   "tp": 19,
+   "fp": 0,
+   "fn": 0,
+   "tn": 160,
+   "precision": 1.0,
+   "recall": 1.0
+  },
+  "earliest": {
+   "tp": 19,
+   "fp": 0,
+   "fn": 0,
+   "tn": 160,
+   "precision": 1.0,
+   "recall": 1.0
+  }
+ },
+ "conflicts_a_on_main_at_b_dev_pr": 7,
+ "of_those_sent_back": 4,
+ "conflicts_both_open": 12,
+ "of_those_sent_back_both_open": 6,
+ "owns_predicted_sent_back": 3,
+ "both_open_flag_minutes_before_b_dev_pr": [
+  -27.6,
+  -10.2,
+  -0.6,
+  1.2,
+  1.8,
+  1.8,
+  1.8,
+  2.4,
+  3.0,
+  7.8,
+  15.0,
+  51.0
+ ],
+ "both_open_minutes_from_b_dev_pr_to_a_merge": [
+  1.2,
+  1.2,
+  4.2,
+  7.2,
+  10.8,
+  12.0,
+  12.0,
+  15.0,
+  17.4,
+  24.0,
+  42.0,
+  226.8
+ ],
+ "minutes_from_a_merge_to_b_merge_conflicting": [
+  2,
+  4,
+  6,
+  7,
+  17,
+  22,
+  26,
+  31,
+  38,
+  41,
+  44,
+  47,
+  51,
+  89,
+  96,
+  264,
+  286,
+  388,
+  477
+ ],
+ "send_back_minutes_after_a_merged": [
+  0,
+  1,
+  9,
+  10,
+  23,
+  38,
+  41,
+  91,
+  192,
+  454
+ ]
+}
