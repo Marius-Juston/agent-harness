@@ -1,0 +1,21 @@
+agent-harness: 235 issues, 117 closed
+
+Tier B TEST, all queries: 49 labelled queries, 93 pairs, 76 filings
+A2 TF-IDF title+DONE WHEN           R@1 0.367 R@3 0.551 [0.408,0.694] R@5 0.571 | alertP 0.189 alertR3 0.469 rate 0.86 shown 1.74
+A3 BM25 title+DONE WHEN             R@1 0.347 R@3 0.551 [0.408,0.694] R@5 0.551 | alertP 0.222 alertR3 0.388 rate 0.59 shown 1.18
+A4 BM25 title+Context+DONE WHEN     R@1 0.367 R@3 0.612 [0.469,0.755] R@5 0.653 | alertP 0.300 alertR3 0.388 rate 0.49 shown 1.05
+
+Tier B TEST, closed queries: 19 labelled queries, 43 pairs, 38 filings
+A2 TF-IDF title+DONE WHEN           R@1 0.368 R@3 0.579 [0.368,0.789] R@5 0.632 | alertP 0.156 alertR3 0.474 rate 0.84 shown 1.68
+A3 BM25 title+DONE WHEN             R@1 0.368 R@3 0.579 [0.368,0.789] R@5 0.579 | alertP 0.174 alertR3 0.421 rate 0.61 shown 1.21
+A4 BM25 title+Context+DONE WHEN     R@1 0.421 R@3 0.684 [0.474,0.895] R@5 0.737 | alertP 0.244 alertR3 0.421 rate 0.50 shown 1.08
+
+Tier A (agent-harness): 5 queries
+A1 TF-IDF title                           R@3 0.80 (4/5)
+A2 TF-IDF title+DONE WHEN                 R@3 0.80 (4/5)
+A3 BM25 title+DONE WHEN                   R@3 0.80 (4/5)
+A4 BM25 title+Context+DONE WHEN           R@3 0.80 (4/5)
+A5 potion-base-8M title+DONE WHEN         R@3 1.00 (5/5)
+A6 potion-retrieval-32M title+DONE WHEN   R@3 0.80 (4/5)
+A7 bge-small-en-v1.5 title+DONE WHEN      R@3 0.80 (4/5)
+A8 RRF(A3, A6)                            R@3 0.80 (4/5)

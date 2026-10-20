@@ -1,0 +1,19 @@
+window spend $2,291; integrate-call turn $0.094
+break-even $6.43/window (stopgap $9.65); = 69 integrate turns
+
+retries 141 (session count); cache hits 19-34; saving $1.78-3.19
+  same head and feedback 61 of 141 = 43%
+  lead integrate-loop turns per merged PR 1.77 (calls only), 2.07 (with check reads)
+
+review relay n-gram basis: 10 x 3 x $0.077 = $2.31
+  per-PR basis: 164 PRs; lead relay $ 44.5 over 409 turns
+
+conflicts: 19 pairs of 581; PRs 19 of 297; dev-pr check avoids up to 4 send-backs = $5.08
+  send-back delay after A merged: median 30.5 min (n=10)
+  conflicting pairs Owns did not predict: 12 (r1-against's build threshold: 5 per window)
+
+duplicate base rate 13/791 = 1.6%; alerts on 48% of filings -> 29 alerts per duplicate
+
+lead bookkeeping 1288 turns $118; share of lead turns 31.9%
+
+filed four together: $7.4-40.5 per window (1.8% of spend at the upper bound)

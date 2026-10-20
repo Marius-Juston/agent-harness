@@ -1,0 +1,438 @@
+{
+ "merged_prs": 190,
+ "at_risk_pairs": 508,
+ "pairs_set_aside_b_conflicted_before_a": 80,
+ "pairs_judged": 428,
+ "conflicting_pairs": 13,
+ "pairs_both_prs_open": 281,
+ "conflicting_pairs_both_prs_open": 8,
+ "prs_with_a_conflicting_pair": 13,
+ "prs_whose_handback_head_conflicts_with_main_at_merge": 13,
+ "prs_sent_back_by_integrate": 6,
+ "sent_back_and_conflicting_handback": 6,
+ "sent_back_with_a_conflicting_pair": 6,
+ "pairs_with_both_owns_declared": 194,
+ "pr_level": {
+  "owns": {
+   "tp": 3,
+   "fp": 9,
+   "fn": 10,
+   "tn": 98,
+   "precision": 0.25,
+   "recall": 0.231
+  },
+  "files": {
+   "tp": 13,
+   "fp": 22,
+   "fn": 0,
+   "tn": 85,
+   "precision": 0.371,
+   "recall": 1.0
+  },
+  "pr_check": {
+   "tp": 13,
+   "fp": 0,
+   "fn": 0,
+   "tn": 107,
+   "precision": 1.0,
+   "recall": 1.0
+  },
+  "earliest": {
+   "tp": 13,
+   "fp": 0,
+   "fn": 0,
+   "tn": 107,
+   "precision": 1.0,
+   "recall": 1.0
+  }
+ },
+ "prs_judged": 120,
+ "predictors": {
+  "owns": {
+   "tp": 3,
+   "fp": 10,
+   "fn": 10,
+   "tn": 405,
+   "precision": 0.231,
+   "recall": 0.231
+  },
+  "owns_both_declared": {
+   "tp": 3,
+   "fp": 10,
+   "fn": 7,
+   "tn": 174,
+   "precision": 0.231,
+   "recall": 0.3
+  },
+  "files": {
+   "tp": 13,
+   "fp": 27,
+   "fn": 0,
+   "tn": 388,
+   "precision": 0.325,
+   "recall": 1.0
+  },
+  "pr_check": {
+   "tp": 13,
+   "fp": 3,
+   "fn": 0,
+   "tn": 412,
+   "precision": 0.812,
+   "recall": 1.0
+  },
+  "earliest": {
+   "tp": 13,
+   "fp": 3,
+   "fn": 0,
+   "tn": 412,
+   "precision": 0.812,
+   "recall": 1.0
+  }
+ },
+ "lead_hours_median": {
+  "pr_check": 0.02,
+  "earliest": 0.07,
+  "owns_at_claim": 1.92
+ },
+ "earliest_flags_before_b_handback": 7,
+ "conflicted_path_top_dirs": [
+  [
+   "uv.lock",
+   5
+  ],
+  [
+   "apps",
+   5
+  ],
+  [
+   "pyproject.toml",
+   4
+  ],
+  [
+   "<package>",
+   4
+  ],
+  [
+   "docs",
+   2
+  ],
+  [
+   "_typos.toml",
+   1
+  ],
+  [
+   "tests",
+   1
+  ]
+ ],
+ "conflicted_paths": [
+  [
+   "uv.lock",
+   5
+  ],
+  [
+   "pyproject.toml",
+   4
+  ],
+  [
+   "apps/",
+   3
+  ],
+  [
+   "apps/",
+   2
+  ],
+  [
+   "<package>/",
+   2
+  ],
+  [
+   "_typos.toml",
+   1
+  ],
+  [
+   "docs/",
+   1
+  ],
+  [
+   "docs/",
+   1
+  ],
+  [
+   "<package>/",
+   1
+  ],
+  [
+   "tests/",
+   1
+  ]
+ ],
+ "b_open_to_merged_hours_median": {
+  "conflicting": 1.43,
+  "clean": 0.25
+ },
+ "conflicting_pairs_only_uv_lock": 1,
+ "conflicting_pairs_only_lock_or_pyproject": 5,
+ "conflicting_pairs_touching_uv_lock": 5,
+ "pairs": [
+  {
+   "a": 107,
+   "b": 115,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.22,
+   "b_opened_h_before_a_merged": 0.2,
+   "b_merged_h_after_a_merged": 0.04,
+   "b_sent_back": false,
+   "send_back_min_after_a_merged": [],
+   "paths": [
+    "_typos.toml"
+   ]
+  },
+  {
+   "a": 297,
+   "b": 328,
+   "conflict": false,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": -1.17,
+   "b_opened_h_before_a_merged": -1.17,
+   "b_merged_h_after_a_merged": 1.49,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    83
+   ],
+   "paths": []
+  },
+  {
+   "a": 320,
+   "b": 328,
+   "conflict": false,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": -0.54,
+   "b_opened_h_before_a_merged": -0.54,
+   "b_merged_h_after_a_merged": 0.85,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    45
+   ],
+   "paths": []
+  },
+  {
+   "a": 314,
+   "b": 328,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": -0.47,
+   "b_opened_h_before_a_merged": -0.47,
+   "b_merged_h_after_a_merged": 0.78,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    41
+   ],
+   "paths": [
+    "docs/"
+   ]
+  },
+  {
+   "a": 340,
+   "b": 358,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.04,
+   "b_opened_h_before_a_merged": -0.0,
+   "b_merged_h_after_a_merged": 1.6,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    91
+   ],
+   "paths": [
+    "pyproject.toml",
+    "uv.lock"
+   ]
+  },
+  {
+   "a": 379,
+   "b": 395,
+   "conflict": false,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": -0.39,
+   "b_opened_h_before_a_merged": -0.39,
+   "b_merged_h_after_a_merged": 4.49,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    198
+   ],
+   "paths": []
+  },
+  {
+   "a": 358,
+   "b": 395,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": -0.3,
+   "b_opened_h_before_a_merged": -0.3,
+   "b_merged_h_after_a_merged": 4.4,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    192
+   ],
+   "paths": [
+    "pyproject.toml",
+    "uv.lock"
+   ]
+  },
+  {
+   "a": 340,
+   "b": 351,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.01,
+   "b_opened_h_before_a_merged": 0.18,
+   "b_merged_h_after_a_merged": 7.95,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    454
+   ],
+   "paths": [
+    "pyproject.toml",
+    "uv.lock"
+   ]
+  },
+  {
+   "a": 358,
+   "b": 385,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.07,
+   "b_opened_h_before_a_merged": 0.02,
+   "b_merged_h_after_a_merged": 6.46,
+   "b_sent_back": false,
+   "send_back_min_after_a_merged": [],
+   "paths": [
+    "pyproject.toml",
+    "uv.lock"
+   ]
+  },
+  {
+   "a": 385,
+   "b": 444,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": -0.13,
+   "b_opened_h_before_a_merged": -0.13,
+   "b_merged_h_after_a_merged": 0.64,
+   "b_sent_back": false,
+   "send_back_min_after_a_merged": [],
+   "paths": [
+    "uv.lock"
+   ]
+  },
+  {
+   "a": 577,
+   "b": 592,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.11,
+   "b_opened_h_before_a_merged": 0.07,
+   "b_merged_h_after_a_merged": 0.85,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    38
+   ],
+   "paths": [
+    "docs/"
+   ]
+  },
+  {
+   "a": 612,
+   "b": 620,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.27,
+   "b_opened_h_before_a_merged": 0.02,
+   "b_merged_h_after_a_merged": 0.43,
+   "b_sent_back": false,
+   "send_back_min_after_a_merged": [],
+   "paths": [
+    "<package>/"
+   ]
+  },
+  {
+   "a": 650,
+   "b": 653,
+   "conflict": true,
+   "owns": true,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.24,
+   "b_opened_h_before_a_merged": 0.7,
+   "b_merged_h_after_a_merged": 0.73,
+   "b_sent_back": false,
+   "send_back_min_after_a_merged": [],
+   "paths": [
+    "apps/",
+    "tests/",
+    "<package>/"
+   ]
+  },
+  {
+   "a": 653,
+   "b": 683,
+   "conflict": true,
+   "owns": false,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": -0.21,
+   "b_opened_h_before_a_merged": -0.21,
+   "b_merged_h_after_a_merged": 0.51,
+   "b_sent_back": true,
+   "send_back_min_after_a_merged": [
+    23
+   ],
+   "paths": [
+    "<package>/"
+   ]
+  },
+  {
+   "a": 653,
+   "b": 665,
+   "conflict": true,
+   "owns": true,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 0.97,
+   "b_opened_h_before_a_merged": 0.12,
+   "b_merged_h_after_a_merged": 4.77,
+   "b_sent_back": false,
+   "send_back_min_after_a_merged": [],
+   "paths": [
+    "apps/"
+   ]
+  },
+  {
+   "a": 665,
+   "b": 702,
+   "conflict": true,
+   "owns": true,
+   "pr_check": true,
+   "earliest_flag_h_before_a_merged": 3.91,
+   "b_opened_h_before_a_merged": 3.78,
+   "b_merged_h_after_a_merged": 1.48,
+   "b_sent_back": false,
+   "send_back_min_after_a_merged": [],
+   "paths": [
+    "apps/"
+   ]
+  }
+ ],
+ "note": "repo-E is private: paths reduced to their top-level directory"
+}

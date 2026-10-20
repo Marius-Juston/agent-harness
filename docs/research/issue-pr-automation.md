@@ -1,0 +1,243 @@
+# Research: issue and PR bookkeeping the lead still does by hand, and what devkit, git or GitHub can take over
+
+Status: v1.0 (2026-10-20; synthesis of round 1, five sub-questions). Issue: #346. Extends [command-sequences.md](command-sequences.md) §2-§3 (#321), whose transcript reader and cost model this note reuses.
+Labels: SOURCED = cited and fetched; VERIFIED = measured here (script named; transcripts are the owner's, so transcript numbers reproduce only on the owner's machine); BELIEVED = judgment; ASSUMED = unchecked premise.
+Search coverage: worst `discovery` line over the round's `uv run dev lit search` runs: `discovery 2026-10-20: OK, partial (s2 down; openalex answered)`; the others printed `OK (openalex, s2 answered)`. Product facts come from GitHub's docs source, vendor docs, context7, `gh` 2.102.0 `--help` and read-only `gh api` probes, all on 2026-10-20.
+Companions: [command-sequences.md](command-sequences.md) (sequences, #322-#325), [harness-efficiency.md](harness-efficiency.md) (cost model §2, fix-resume cost §4), [multi-agent.md](../specs/multi-agent.md) §2 (the review and integrate loop). Round files, scripts and outputs: [_scratch/issue-pr-automation/](_scratch/issue-pr-automation/QUESTION.md).
+
+## 0. Findings in one paragraph
+Bookkeeping is a third of the lead's turns (1,288 of 4,043, 31.9 %) but only about 4 % of all modelled spend that a tool could remove ($95 of $2,291 over the 10-day window 2026-10-11..20), so the case for automation rests on lead turns and recurring errors more than on dollars. Four changes clear the bar (a $6.4 per window payback, or at least 5 recurring errors per window), in this order. **(1) Reviewers post their verdict as one GitHub COMMENT review and the lead relays a pointer** (#347): the relay is the lead's largest bookkeeping item, 396 turns on 164 PRs, 155 hand-posted verdicts (137 k characters copied), $3.1-23.9 per window. It posts no inline threads, so it does not widen integrate's blocking surface. **(2) integrate answers an unchanged retry from a cached last outcome, and `--why` prints it** (#348): 34 of 141 same-session retries had the same head, feedback and flags (19 once #322's wait is counted), and one diagnostic `--override` re-run merged a PR. It saves only $1.8-3.2 but removes that hazard. A merging queue is rejected: 302 of 351 integrate calls carry `--harness-ok`, a lead judgement. **(3) `dev pr` refuses a branch that conflicts with main, and integrate sends back conflicting open PRs right after each merge** (#349): 19 of 297 merged PRs (6.4 %) were handed back conflicting; `git merge-tree` flags all 19 at PR level (precision and recall 1.00) in 3.7 ms per merge, against a median 30.5 min send-back delay today. Owns overlap predicts poorly (precision 0.29, recall 0.37). **(4) `board new` prints up to 3 related issues** (#350): duplicates are 13 of 791 issues (1.6 %). On the held-out split, stdlib BM25 over title + Context + DONE WHEN has recall@3 0.536 [0.464, 0.602] on both repositories and 0.612 [0.469, 0.755] on agent-harness alone. That beats TF-IDF and three local embedding models, but it alerts on half of all filings at label precision 0.29, so it is advisory only. The rest stays manual or is already filed: a local scheduler (Actions are blocked only on the private repository; orient and integrate already sync), a generated PR body (#232, #100), a HANDOFF generator (#80), a changelog generator (#60, #100) and `board claim --worktree`. All are under $6.4 per window with reasons in §3.5-§3.6. No GitHub feature replaces any of the four: the native merge queue and issue types are organisation-only, and every hosted queue still needs the local gate to post a check.
+
+## 1. Question, data and method
+The question (#346): which issue and PR bookkeeping does the lead (and do workers) still do by hand in harness-run repositories, and which of it can devkit, git or GitHub take over, ranked by measured frequency, cost and saving, without Actions minutes and on a personal account? Scope and exclusions: [QUESTION.md](_scratch/issue-pr-automation/QUESTION.md).
+
+**Data (VERIFIED).**
+- Transcripts: repo-E and H (this repository), 2026-10-11..20, the same two harness-run projects as [command-sequences.md](command-sequences.md). That is 735 transcripts, 41,050 turns and $2,291 of modelled spend. The lead is 20 sessions, 4,043 turns and $445. [bookkeeping.py](_scratch/issue-pr-automation/bookkeeping.py) imports [sequences.py](_scratch/command-sequences/sequences.py) for the transcript reader, step labels and cost model, and adds timestamps, SendMessage recipients, subagent types and edit paths. Output, counts only: [report-bookkeeping.json](_scratch/issue-pr-automation/report-bookkeeping.json). Savings: [rank.py](_scratch/issue-pr-automation/rank.py). Reconciled numbers in this note: [synthesis_numbers.py](_scratch/issue-pr-automation/synthesis_numbers.py) ([output](_scratch/issue-pr-automation/synthesis_numbers_output.txt)).
+- GitHub: every PR (306) and issue (791) of both repositories, with timelines, read-only through GraphQL on 2026-10-20. Both repositories merged their first PR on 2026-10-11 and their last before this note on 2026-10-20, so whole-history counts cover the same 10 days (VERIFIED, `gh pr list --state merged`).
+- Conflict replay: the PR heads of both repositories in scratch bare clones, replayed with `git merge-tree` ([conflicts_replay.py](_scratch/issue-pr-automation/conflicts_replay.py), [conflicts-summary.json](_scratch/issue-pr-automation/conflicts-summary.json)).
+- Duplicates: the issue text stays in `.scratch/dedup/` (gitignored, repo-E is private); labels and split by number only ([dedup_labels.json](_scratch/issue-pr-automation/dedup_labels.json)), pre-registered before any arm ran ([r1-dedup.md](_scratch/issue-pr-automation/r1-dedup.md), last section).
+
+**Cost and threshold.**
+- A turn costs its context re-read plus the command and 233 hidden output tokens, and output is carried until the next compaction, as in [command-sequences.md](command-sequences.md) §1. A lead integrate turn costs $0.094 and a lead bookkeeping turn $0.092 (VERIFIED, rank.py).
+- Each saving is a range: "lower" removes only what is certainly mechanical, "upper" every turn the change could remove (VERIFIED arithmetic, rank.py).
+- Break-even, from the against seat ([r1-against.md](_scratch/issue-pr-automation/r1-against.md) §1.3, [against_thresholds.py](_scratch/issue-pr-automation/scripts/against_thresholds.py)): a merged PR costs about $15, and a feature in `workflow.py` carries 0.29 fix commits per feature commit. That puts a small devkit feature at about $19.3, which pays back in 3 windows at **$6.4 per 10-day window** (0.29 % of spend), or in 2 windows at $9.6 for a stopgap that Actions will replace (VERIFIED arithmetic; the $15 is ASSUMED to apply to a small feature). The second test, as for #322: a change is worth building below $6.4 if it removes **at least 5 recurring errors per window** (BELIEVED).
+- The owner's goal is "less pressure on the LLM", so lead turns and lead-written text rank ahead of dollars where they disagree (BELIEVED).
+
+## 2. What GitHub offers a user-owned repository without Actions
+- **Actions are blocked only on the private repository** (VERIFIED, [github_env_probe.sh](_scratch/issue-pr-automation/scripts/github_env_probe.sh)).
+  - agent-harness is public. Of its last 40 runs, `pull_request` went 11/12, `push` 7/7 and Dependabot 21/21.
+  - repo-E is private. `pull_request` went 0/10, `push` 0/3 and `schedule` 0/20, with the annotation "recent account payments have failed or your spending limit needs to be increased"; Dependabot went 7/7.
+  - Dependabot does not count towards Actions minutes (SOURCED, [About Dependabot on GitHub Actions runners](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependabot-on-actions), GitHub Docs, 2026).
+- **No native merge queue.** Merge queues exist only in organisation-owned public repositories and Enterprise Cloud private ones (SOURCED, [merge-queue gated feature](https://github.com/github/docs/blob/main/data/reusables/gated-features/merge-queue.md), github/docs, 2026). Issue types and issue fields are organisation objects (SOURCED, [Managing issue types in an organization](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/managing-issue-types-in-an-organization), GitHub Docs, 2026), and `repository.issueTypes` is null on both repositories (VERIFIED).
+- **Already used.** Sub-issues, issue dependencies and `closingIssuesReferences` are free on personal accounts and devkit already uses them as its source of truth (VERIFIED, `devkit/board.py` `addBlockedBy`/`addSubIssue`, `devkit/stats.py`).
+- **Native auto-merge.** It is free on public repositories and needs Pro for private ones (SOURCED, [auto-merge gated feature](https://github.com/github/docs/blob/main/data/reusables/gated-features/auto-merge.md), github/docs, 2026). It is off on both repositories (VERIFIED). It helps only where Actions checks still run (BELIEVED); §3.2.
+- Per-candidate checks of hosted apps (Mergify, Kodiak, CodeRabbit, Copilot review, PR-Agent, Renovate, Probot), Projects v2 workflows, webhooks and changelog tools are in §3. The full table is in [r1-github-tools.md](_scratch/issue-pr-automation/r1-github-tools.md), Summary table.
+
+## 3. Ranked candidates
+### 3.1 Rank 1: the review relay (candidate 2), filed as #347
+- **Frequency and cost (VERIFIED, report-bookkeeping.json `review_relay_per_pr`, `comment_posts`, `handbacks_to_lead`).**
+  - 164 PRs went through 331 review passes: 78 had 1 pass, 43 had 2, and 30 had 4 or more.
+  - The lead spent 396 relay turns on them, $43.7, or 2.41 per PR. That covers 155 PR comments posting a reviewer's verdict (137 k characters copied), 193 findings messages to authors (mean 1,052 characters) and re-review requests.
+  - Another 59 verdicts went onto issues rather than PRs.
+  - Reviewers posted 21 `gh pr comment` calls and 0 `gh pr review` calls in 235 transcripts. Their 186 hand-backs average 4,958 characters, carried for $8.8.
+- **Existing tools, checked first.**
+  - The REST review endpoint takes a body, inline `comments` and `event` COMMENT (SOURCED, [REST API endpoints for pull request reviews](https://docs.github.com/en/rest/pulls/reviews), GitHub Docs, 2026). "Pull request authors cannot approve their own pull requests" (SOURCED, [Approving a pull request with required reviews](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/approving-a-pull-request-with-required-reviews), GitHub Docs, 2026). Every agent acts as the owner, who authors the PR, so COMMENT is the only usable event (BELIEVED). It works on a personal account without Actions.
+  - `dev board feedback` already prints "a PR's comments and reviews since its last commit, and its unresolved threads" (VERIFIED, `uv run dev board --help`). So the read-back side exists.
+  - Hosted reviewers replace the reviewer, not the relay. [CodeRabbit pricing](https://www.coderabbit.ai/pricing) (CodeRabbit, 2026) lists free reviews only for public repositories. Copilot code review "uses GitHub Actions to run the agentic capabilities" (SOURCED, [About GitHub Copilot code review](https://docs.github.com/en/copilot/concepts/agent-capabilities/agent-powered-workflows-and-operations/code-review), GitHub Docs, 2026). [PR-Agent](https://github.com/qodo-ai/pr-agent) (Qodo, MIT) is a second LLM path. None is recommended (BELIEVED).
+- **Spec (#347).**
+  - The reviewer or auditor posts its findings as one `gh pr review <n> --comment` whose first line is `Verdict: merge|send back|reconsider, round N, <sha>`, and hands back at most 5 lines with the review URL.
+  - The lead sends the author a pointer of at most 200 characters and posts no review text itself.
+  - The respawned author reads the review through `board feedback` or `board brief`.
+  - **No inline threads.** integrate refuses unresolved threads (`unfinished` in `devkit/workflow.py`, VERIFIED), and any account with write access can resolve a thread (SOURCED, [Commenting on a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/commenting-on-a-pull-request), GitHub Docs, 2026). Threads would therefore turn Nits into merge blockers, and a worker on the owner's account could resolve its own reviewer's thread, so the check would certify itself (BELIEVED, from [r1-against.md](_scratch/issue-pr-automation/r1-against.md) §2(2)).
+  - Each finding's disposition stays with #83; integrate's own failures stay with #110 (both commented).
+- **Saving: $3.1-23.9 per window** (VERIFIED arithmetic, rank.py). The lower bound counts only the output tokens of the copied text. The upper bound adds the posting turns and the hand-back carry above 300 characters. The change also cuts the most lead-written text of any candidate. Bot noise is a real cost: 21 practitioners called it "a recurrent and central problem" (SOURCED, Wessel et al., [Don't Disturb Me: Challenges of Interacting with Software Bots on Open Source Software Projects](https://doi.org/10.1145/3476042), PACM HCI 2021, abstract). One review per pass replaces one lead comment per pass, so the PR gets no more posts (BELIEVED).
+
+### 3.2 Rank 2: the integrate retry loop (candidate 1), filed as #348; the merging queue is rejected
+- **Frequency and cost (VERIFIED, report-bookkeeping.json `integrate`, [retries134.py](_scratch/issue-pr-automation/retries134.py)).**
+  - The lead ran 351 numbered `dev integrate` calls on 236 PRs. Outcomes: 214 merged, 47 unknown (backgrounded or blocked), 42 refused, 20 harness-review, 12 stopped, 8 conflict.
+  - The loop is 441 lead turns, $40.2, or 2.07 turns per merged PR, in 59 bursts with a median of 5 turns each.
+  - Counted as in [command-sequences.md](command-sequences.md) §2 (a PR already tried in the same lead session), on today's cache: **141 retries of 379 calls**. What changed before each retry:
+    - 34 had the same head, feedback and flags;
+    - 27 had the same head and feedback but a new `--harness-ok` or `--override` (a new lead decision, not a cache hit);
+    - 37 had a new head;
+    - 16 had new feedback;
+    - 26 had no PR number (a loop variable or `--help`);
+    - 1 was on a PR not found on GitHub.
+  - Of the 34, 15 followed a pending-check refusal, which #322 (v0.1.11) now waits out. So a cache keyed on (head, feedback, flags) would answer **19-34 retries per window, $1.8-3.2** (VERIFIED, synthesis_numbers.py).
+  - "Same head" rests on commit dates (only 2 retries printed both head SHAs), so it is an upper bound.
+- **Safety case (VERIFIED, lead `gh pr comment` bodies).** One `gate-failed` PR was re-run with `--override "x"` to see the failure, and it merged; the lead had to post a correction on the PR. A read-only `--why` removes the reason to re-run integrate as a diagnostic (BELIEVED).
+- **Existing tools, checked first** (each line labelled).
+  - Native merge queue: organisation-only (SOURCED, [merge-queue gated feature](https://github.com/github/docs/blob/main/data/reusables/gated-features/merge-queue.md), §2).
+  - Mergify is free for open source and up to 5 users, but does not state personal-account eligibility (SOURCED, [Mergify pricing](https://mergify.com/pricing), Mergify, 2026).
+  - Kodiak is "free for personal use and public repositories" (SOURCED, [Kodiak billing](https://kodiakhq.com/docs/billing), Kodiak, 2026).
+  - Any queue waits for a check on the queued or updated head. Without Actions, that check is the local gate, so a local process must still gate and post the status: a hosted queue adds a second state machine and removes none (BELIEVED, [r1-github-tools.md](_scratch/issue-pr-automation/r1-github-tools.md) F1).
+  - On the public repository, `gh pr merge --auto --match-head-commit` could let integrate return while Actions checks finish (BELIEVED). That is narrow, and #322 already waits.
+- **Spec (#348).**
+  - Store each refused, conflict, gate-failed and harness-review outcome under `state_dir("integrate")`, keyed by head SHA, a hash of the `unfinished` list and the flags, plus main's SHA for conflict and gate-failed. The per-outcome keys are derived from the code in [r1-conflicts-generation.md](_scratch/issue-pr-automation/r1-conflicts-generation.md) F4.
+  - A call with a matching key prints the cached `RESULT-JSON` with `"cached": true` and runs no gate; `--fresh` bypasses the cache.
+  - stopped, not-open and waiting outcomes are never cached.
+  - `--why` prints the cached outcome and its failing lines, and never merges.
+- **Rejected: `dev integrate --ready`, a loop that merges every green PR.** The upper bound looks large ($29.9, one call per burst), but 302 of 351 calls carry `--harness-ok` and 96 `--override`. The lead skill gives both only after reading the diff or on the owner's word, so a merging loop must either pass them blindly or stop at nearly every PR (VERIFIED counts; BELIEVED inference). The lead also already loops in shell (26 retries had a loop variable). An explicit-list form (`--queue 12 15 17`, only PRs the lead has read) is the only safe shape ([r1-conflicts-generation.md](_scratch/issue-pr-automation/r1-conflicts-generation.md) F4). It is not filed; Follow-ups gives the trigger.
+
+### 3.3 Rank 3: conflicts between parallel PRs (candidate 5), filed as #349
+- **Frequency (VERIFIED, conflicts-summary.json, conflicts_replay.py).**
+  - The replay judged 581 at-risk pairs, where one PR landed while the other was in flight. 19 conflict (3.3 %).
+  - 19 of 297 merged PRs (6.4 %) had a hand-back head that conflicted with main at merge time. integrate sent back 10, all among the 19, a median 30.5 min after the conflicting PR merged (0-454 min).
+  - Without integrate's generated-file merge driver it would be 28 pairs, not 19, so the driver already absorbs a third.
+- **Cost (VERIFIED, report-bookkeeping.json `conflicts`).** 8 of 351 integrates ended in `conflict` (2.3 %), and 34 calls showed a merge conflict. Builders' conflict calls failed 31.6 % of the time. The lead sent 26 conflict relays ($2.7). Saving $0.8-4.9 per window by the transcripts. Avoiding the 4 send-backs that were already detectable at `dev pr` saves about $5.1 at $1.27 per fix resume ([harness-efficiency.md](harness-efficiency.md) §4; VERIFIED arithmetic).
+- **Predictors, pair level (VERIFIED):**
+
+| predictor (when it is known) | TP | FP | FN | precision | recall |
+|---|---|---|---|---|---|
+| Owns overlap (`board wave`, at claim) | 7 | 17 | 12 | 0.29 | 0.37 |
+| changed files intersect (at `dev pr`) | 19 | 50 | 0 | 0.28 | 1.00 |
+| `git merge-tree` at the later `dev pr` | 19 | 3 | 0 | 0.86 | 1.00 |
+
+  - At PR level, `merge-tree` is 1.00/1.00. Its 3 pair-level false positives conflicted with a different PR that landed earlier.
+  - The check uses the same machinery as the ground truth, so the 1.00 says no conflict appeared after hand-back. It is not an independent model, and it is blind to semantic conflicts, which integrate's merged-tree gate catches.
+  - One `merge-tree` takes 3.7 ms on repo-E's pack.
+- **Why Owns misses.** 5 of repo-E's 13 conflicting pairs conflict only in `pyproject.toml` and/or `uv.lock`, which no issue owns. In 5 of the 12 misses one issue declared no Owns, and `board wave` treats a missing Owns as overlapping nothing (VERIFIED).
+- **Prior art.**
+  - Over 267,657 merge scenarios, 8.12 % conflict, and the number of files both branches change is "the most important feature by far" (SOURCED, Owhadi-Kareshk, Nadi & Rubin, [Predicting Merge Conflicts in Collaborative Software Development](https://arxiv.org/abs/1907.06274), ESEM 2019).
+  - In human projects conflicts "persist, on average, 10 days" (SOURCED, Brun, Holmes, Ernst & Notkin, [Proactive detection of collaboration conflicts](https://homes.cs.washington.edu/~mernst/pubs/vc-conflicts-fse2011.pdf), ESEC/FSE 2011). Here a conflicting pair lasted a median 41 min from one merge to the other (VERIFIED), a different regime.
+  - Workspace-awareness tools act on concrete changed files: Palantír led to "earlier detection and earlier resolution of a larger number of conflicts" in two laboratory experiments (SOURCED, Sarma, Redmiles & van der Hoek, [Palantir: Early Detection of Development Conflicts Arising from Parallel Code Changes](https://doi.org/10.1109/tse.2011.64), IEEE TSE 2011, abstract).
+  - GitHub's `mergeable` is computed per PR against its base, and lazily: 3 of 4 open repo-E PRs read UNKNOWN (VERIFIED). It cannot compare one PR with another.
+- **Spec (#349).**
+  - `dev pr` runs `git merge-tree --write-tree` of the branch against `origin/main`, with main's `.gitattributes` and the generated-file driver, and refuses with the conflicted paths. That catches the 7 of 19 pairs whose first PR was already on main (4 sent back).
+  - After each merge, integrate runs the same check of the new main against every open PR and sends back each conflicting PR at once. That covers the 12 pairs that were both open: a fix is still needed, but it starts at once instead of a median 30.5 min later.
+  - No pairwise check in `board wave`: at claim time the only signal is Owns (recall 0.37), and pairwise flags at `dev pr` change no decision (BELIEVED).
+- **Against-seat threshold met.** [r1-against.md](_scratch/issue-pr-automation/r1-against.md) §2(5) asked for at least 5 conflicts per window that Owns overlap did not predict. The replay finds 12 (VERIFIED), and 7 of the 10 send-backs were unpredicted.
+
+### 3.4 Rank 4: related and duplicate issues in `board new` (candidate 4), filed as #350
+- **Frequency (VERIFIED).**
+  - 13 of 791 issues (1.6 %) were closed as duplicate, superseded or folded into another, by a hand read of every NOT_PLANNED closing comment ([dedup_explore.py](_scratch/issue-pr-automation/dedup_explore.py) `volume`). None carries stateReason DUPLICATE.
+  - Two other counts bracket it: 2 of 235 agent-harness issues closed "Duplicate of" (0.85 %, r1-against), and 27 of 630 `board new` filings whose last comment matches a duplicate-like regex, which includes moves upstream (4.3 %, r1-transcripts). The hand read is the strongest, so 1.6 % is used.
+  - Latency is bimodal. Parallel filings were closed within 0.1 h; agent-harness #10 and #37 stayed open 212 h and 204 h until a lead sweep.
+  - Filing and issue upkeep cost $57.8 across roles, the largest bookkeeping category by dollars. 65 filings followed a manual issue search. Saving $1.7-8.4 per window (VERIFIED, rank.py).
+- **Existing tools.**
+  - The web UI suggests up to three possible duplicates while typing (SOURCED, [Creating an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-an-issue), GitHub Docs, 2026). Agents file through `gh`, so they never see it (BELIEVED).
+  - `gh search issues --search-type semantic` (gh 2.98.0, [cli/cli v2.98.0 release](https://github.com/cli/cli/releases/tag/v2.98.0), GitHub, 2026) returned nothing for 3 paraphrases of known closed issues, then hit HTTP 403 (VERIFIED, 5-query probe; N too small to rule it out).
+  - `gh issue close --duplicate-of` sets stateReason DUPLICATE (VERIFIED, `--help`) and gives future evaluations clean labels.
+- **Method (pre-registered, [r1-dedup.md](_scratch/issue-pr-automation/r1-dedup.md)).**
+  - Each issue is a query ranked against every earlier issue of its repository, in any state: the realistic setting of Rakha, Bezemer & Hassan ([Revisiting the Performance Evaluation of Automated Approaches for the Retrieval of Duplicate Issue Reports](https://doi.org/10.1109/TSE.2017.2755005), TSE 2017).
+  - Tier A: 12 curated duplicate, superseded or folded pairs over 10 queries, never tuned on.
+  - Tier B: 1,245 pairs where a body names an earlier issue, split by query hash into DEV (476 queries) and TEST (196 queries, 348 pairs), frozen before any arm ran.
+  - Eight arms: TF-IDF, BM25, potion-base-8M, potion-retrieval-32M, bge-small and a fusion. The only tuning is the alert threshold, on DEV. TEST was scored once.
+- **Results on the held-out TEST split, both repositories (VERIFIED, [dedup_test_output.txt](_scratch/issue-pr-automation/dedup_test_output.txt)).**
+  - The pre-registered rule picks BM25 over title + Context + DONE WHEN (A4): recall@3 **0.536 [0.464, 0.602]**, recall@1 0.327, P@3 0.204.
+  - It beats TF-IDF title + DONE WHEN by +0.071 [0.020, 0.122] and every embedding model by 0.11-0.16.
+  - About half of A4's gain over BM25 without Context is label leakage, because Tier B labels come from `#N` mentions in Context. With those sentences removed the TEST gain is +0.026 [−0.015, +0.066], so read A4 as "at least as good as" A2/A3.
+  - On Tier A every arm finds the target in the top 3 for 8-10 of 10 queries (A4 0.9 [0.7, 1.0]), so n is too small to rank the arms on duplicates.
+- **Results on this repository's own issues** (VERIFIED, [dedup_own_repo.py](_scratch/issue-pr-automation/dedup_own_repo.py), [output](_scratch/issue-pr-automation/dedup_own_repo_output.txt); same frozen rankings and DEV threshold, nothing re-tuned):
+
+| agent-harness, TEST split | labelled queries | recall@1 | recall@3 [95% CI] | alert precision (labels) | alert recall@3 | alert rate |
+|---|---|---|---|---|---|---|
+| all queries, A4 | 49 | 0.367 | 0.612 [0.469, 0.755] | 0.300 | 0.388 | 0.49 |
+| closed queries, A4 | 19 | 0.421 | 0.684 [0.474, 0.895] | 0.244 | 0.421 | 0.50 |
+| closed queries, A2 (TF-IDF) | 19 | 0.368 | 0.579 [0.368, 0.789] | 0.156 | 0.474 | 0.84 |
+| Tier A (curated duplicates), A4 | 5 | n/a | 0.80 (4 of 5) | n/a | n/a | n/a |
+
+  - Alert precision counts only labelled targets, so it is a lower bound. One rater judged the 56 unlabelled agent-harness TEST suggestions: 27 related, 0 duplicates, so 51/80 = **0.64** (BELIEVED, one rater, [dedup_judged.json](_scratch/issue-pr-automation/dedup_judged.json)).
+  - The literature agrees that lexical retrieval is a strong baseline and that GitHub is the hardest tracker. BM25F-based REP outperforms recent deep methods on most projects, and the techniques "do not perform as well on GitHub as they do on Bugzilla and Jira" (SOURCED, Zhang et al., [Duplicate Bug Report Detection: How Far Are We?](https://arxiv.org/abs/2212.00548), TOSEM 2022).
+  - A 15-line stdlib BM25 matches bm25s's top 3 on 789/789 queries, and ranking takes 20 ms. The cost is the 5.9 s issue fetch, which the board already does (VERIFIED, dedup_explore.py `purepy`).
+- **Verdict: advisory only.** At a 1.6 % base rate and an alert on 48 % of filings, there are about 29 alerts per real duplicate (VERIFIED arithmetic, synthesis_numbers.py). That is the regime where "disuse … is commonly caused by alarms that activate falsely" (SOURCED, Parasuraman & Riley, [Humans and Automation: Use, Misuse, Disuse, Abuse](https://doi.org/10.1518/001872097778543886), Human Factors 1997, abstract). The against seat's bar of precision ≥ 50 % on a held-out split is met only with the rater's judgement (0.64), not with labels (0.29). So the right form is a "Related: #a #b #c" line that also pre-fills Refs, never a gate. 672 of 791 bodies already list related issues by hand. It shares one advisory block with #238's decisions rows (commented).
+
+### 3.5 Below the threshold: the local scheduler (candidate 3)
+- **Frequency (VERIFIED, report-bookkeeping.json `staleness`, `categories`).**
+  - repo-E's scheduled `board` workflow last succeeded on 2026-10-15 and has failed 23 times since.
+  - In the whole history, `github-actions` made 10 of 2,354 status or stale label changes.
+  - integrate re-syncs blockers after every merge (`board.merged_pr`), and orient runs `board.sync()` and marks claims idle over 6 h as STALE in its rows (VERIFIED, `orient` in `devkit/workflow.py`, `_line` in `devkit/board.py`).
+  - The lead ran board upkeep by hand 70 times, $5.9. One claim sat idle 91.8 h with no stale label.
+- **Existing tools.**
+  - A systemd user timer with `Persistent=true` catches up a missed run (SOURCED, [systemd.timer](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html), systemd, 2026). But WSL shuts an idle distribution down after 15 s and the VM after 60 s by default (SOURCED, [Advanced settings configuration in WSL](https://learn.microsoft.com/en-us/windows/wsl/wsl-config), Microsoft Learn, 2026), so a timer fires only while a session is open, when orient already syncs (BELIEVED).
+  - `gh webhook forward` is "not supported for use in production" (SOURCED, [Using the GitHub CLI to forward webhooks for testing](https://docs.github.com/en/webhooks/testing-and-troubleshooting-webhooks/using-the-github-cli-to-forward-webhooks-for-testing), GitHub Docs, 2026).
+  - Projects v2 built-in workflows set Status on close or merge but cannot re-sync blockers or age claims (SOURCED, [Using the built-in automations](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/using-the-built-in-automations), GitHub Docs, 2026).
+  - An ETag-conditional `GET /events` costs no rate limit (VERIFIED, 304 with `X-Ratelimit-Remaining` unchanged), but event latency is "anywhere from 30s to 6h" (SOURCED, [REST API endpoints for events](https://docs.github.com/en/rest/activity/events), GitHub Docs, 2026).
+- **Verdict: not built.** The saving is at most $5.9, under the $9.6 stopgap bar, and the public repository's cron still runs. Not filed; the re-measure trigger is in Follow-ups.
+
+### 3.6 Below the threshold: PR body, HANDOFF, changelog, claim plus worktree, and three new candidates
+Each row: frequency and cost (VERIFIED, report-bookkeeping.json unless named), the existing tool, and why it is not filed.
+
+| candidate | frequency, cost per window | existing tool or feature | verdict |
+|---|---|---|---|
+| 6 generated PR body | 318 builder `dev pr`, 92 heredoc summaries (median 2,761 chars); $0.3-2.8. Checkbox and gate lines are 5 % + 7 % of summaries; in merged bodies they are 3.6 % / 1.1 % and 14 % / 11 % (agent-harness / repo-E), and worker prose is 81-86 % ([conflicts-generation.json](_scratch/issue-pr-automation/conflicts-generation.json)) | `dev pr` already writes Closes/Refs and area labels; #232 adds the checklist, #100 the title | No new issue. A gate line needs stage results the gate record does not keep (only when, seconds and root), and must never read as a verdict (automation bias, SOURCED, Parasuraman & Manzey, [Complacency and Bias in Human Use of Automation: An Attentional Integration](https://doi.org/10.1177/0018720810376055), Human Factors 2010). Commented on #232. |
+| 7 generated HANDOFF | 19 lead writes in 6 days, 34.6 k chars, $1.9-2.3, 3 errors. In repo-E's 23 HANDOFF versions only "in flight" and "merged" (21 % of lines) are data; the latest said "about 70 PRs" where 104 had merged | `orient` already prints in-flight rows and the next 5 items; it lacks "merged since the last HANDOFF commit" | No generator: it copies facts that live in the board, against HARNESS.md's "link to a fact where it lives". Suggested an orient block on #80. |
+| 8 changelog (git-cliff) | 19 CHANGELOG.md writes, $0.66 | git-cliff (Apache-2.0, `dev reuse check` PASS) and commitizen work offline; release-please's CLI runs without Actions; GitHub generates release notes by API (SOURCED, [Automatically generated release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes), GitHub Docs, 2026) | No. Commit subjects are not Conventional yet (#100), the "Upgrading a project" section is judgement ("commit log diffs … are full of noise", SOURCED, [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/)), and #60 runs on agent-harness, whose Actions work. Commented on #60. |
+| 9 `board claim --worktree` | 116 lead `git worktree add`, 82 (71 %) already chained with the claim; at most $3.1 for the 34 unchained ([command-sequences.md](command-sequences.md) §3.4 counted 88 add-plus-claim sequences, 77 in one call, $0.85) | `gh issue develop --worktree` (gh 2.99.0, [cli/cli v2.99.0 release](https://github.com/cli/cli/releases/tag/v2.99.0), GitHub, 2026) makes a linked remote branch and worktree but posts no claim | No. Both counts are under $6.4. The 116 includes worktrees with no claim, which the flag would not touch. |
+| N1 owner decisions recorded by hand | 115 AskUserQuestion; 42 "Owner decision" records and 25 relays, 75 k chars, up to $6.3 (regex-classed, ASSUMED complete) | none | At the break-even; commented on #226 as input to a `board decide` helper. |
+| N2 issues closed by hand after a merge | 38 of the lead's 58 `gh issue close` say "done in PR #N" or "released", up to $3.5 | integrate closes only `Closes #N` issues | Cause ASSUMED (Refs-only PRs or work spread over several PRs). Re-measure first (Follow-ups). |
+| N3 reviewer checkout worktrees | 78 adds, 70 removes in 56 reviewer transcripts, $2.9 | `gh pr checkout --worktree` (gh 2.98.0) | Below threshold; a text change at most. |
+
+## 4. Summary table
+Savings are per 10-day window, modelled at Opus 5.5 list prices (VERIFIED, rank.py and synthesis_numbers.py). "Works without Actions" refers to the chosen form on a personal account.
+
+| rank | candidate | frequency | saving lower-upper $ | existing feature checked | works without Actions | decision |
+|---|---|---|---|---|---|---|
+| 1 | reviewer posts one COMMENT review; lead relays a pointer | 164 PRs, 331 passes, 396 lead relay turns | 3.1-23.9 | REST reviews (COMMENT only on own PRs); CodeRabbit public-only; Copilot needs Actions | yes | #347 |
+| 2 | integrate outcome cache + `--why` | 141 retries, 19-34 unchanged-key | 1.8-3.2, plus the override-merge hazard | merge queue org-only; Mergify, Kodiak still need the local gate | yes | #348 |
+| 3 | `merge-tree` at `dev pr` + post-merge sweep | 19 of 297 PRs conflicting, 10 send-backs | 0.8-5.1 | `mergeable` is PR-vs-base and lazy | yes | #349 |
+| 4 | related-issues line in `board new` | 13 duplicates of 791; 630 filings | 1.7-8.4 | web-only duplicate hints; semantic search no recall on probe | yes | #350 |
+| 5 | local scheduler | 70 manual upkeep runs; 1 claim idle 92 h | 0-5.9 | systemd timer (WSL idles), webhooks dev-only, Projects v2 cannot | partly | not filed |
+| 6 | owner-decision record (N1) | 42 records, 25 relays | 0-6.3 | none | yes | comment on #226 |
+| 7 | close issues done by a merged PR (N2) | 38 hand closes | 0-3.5 | `Closes #N` | yes | re-measure |
+| 8 | `board claim --worktree` | 34 unchained adds | 0-3.1 | `gh issue develop --worktree` | yes | not filed |
+| 9 | reviewer checkout worktrees (N3) | 78 adds | 0-2.9 | `gh pr checkout --worktree` | yes | not filed |
+| 10 | generated PR body | 318 `dev pr` | 0.3-2.8 | #232, #100 | yes | comment on #232 |
+| 11 | HANDOFF skeleton | 19 writes | 0-2.3 | `orient` live view | yes | comment on #80 |
+| 12 | git-cliff changelog | 19 writes | 0-0.7 | git-cliff, release-please, generated notes | yes | comment on #60 |
+| - | `integrate --ready` merging loop | 302 of 351 calls carry `--harness-ok` | (29.9 upper, but judgement) | hosted queues | no gain | rejected |
+
+Ranks 1-4 by upper saving would put the duplicate line (8.4) above the conflict check (5.1). The conflict check ranks higher because it is exact (PR-level precision 1.00) and removes a recurring send-back, while the duplicate line is advisory at label precision 0.29 (BELIEVED).
+
+## 5. Contradictions between the round files, and how they are settled
+- **Integrate saving: $10.3 (r1-against) against $2.0-29.9 (r1-transcripts).**
+  - r1-against priced all 134 retries at $0.077 as an upper bound. r1-transcripts then classed each retry against GitHub.
+  - The classed count is the stronger evidence: 34 of 141 have an unchanged key, and 27 more carry a new lead flag.
+  - Settled: the cache saves $1.8-3.2. That is under r1-against's money bar (69 unchanged retries per window at $0.094), but over its error bar (at least 5 per window), and it removes a measured unsafe re-run. The $29.9 upper bound applies only to a merging loop, which both seats reject.
+- **Review relay: $2.3 (r1-against) against $3.1-23.9 (r1-transcripts).**
+  - r1-against counted one exact n-gram, `gh pr comment > SendMessage > gh pr comment` (n = 10). r1-transcripts counted every relay turn tied to a PR (396).
+  - The per-PR count includes the n-gram and measures what the change removes, so it governs. r1-against's own trigger (at least 28 relays per window) is passed: there are 155 hand-posted verdicts.
+  - r1-against's risks (threads widen the blocking surface; workers could resolve their reviewer's threads) are accepted in full: #347 posts no threads.
+- **Conflict pre-check: "below threshold, `board wave` already blocks Owns overlap" (r1-against) against "build" (r1-conflicts-generation).** The replay measured Owns recall at 0.37 and 12 unpredicted conflicting pairs, which meets r1-against's own condition. Settled for building.
+- **Duplicate base rate: 0.85 %, 1.6 % or 4.3 %.** These are three definitions (exact "Duplicate of" in one repository; a hand read of both; a regex upper bound). 1.6 % is used.
+- **Changelog conflicts.** r1-transcripts found no CHANGELOG.md file in any conflict output. The replay lists CHANGELOG.md among repo-E's conflicting hub files. These are different data (what agents saw in a session against a replay of every merge), and the replay is the more complete. **Unresolved:** neither changes the verdict on candidate 8.
+- **Unresolved, measurement precision only.** Head-SHA change on retries rests on commit dates for 113 of 115 retries. The 0.64 judged precision has one rater. N1 and N2 are regex-classed. None would reorder ranks 1-4: each would have to move a saving by more than the gap to the next rank (BELIEVED).
+
+## 6. Recommendation for this project
+- **Build, in order:**
+  1. #347 (P2). Judge it on lead verdict posts falling from 155 per 164 reviewed PRs to under 10 per 100, and findings messages averaging under 300 characters.
+  2. #348 (P2). Judge it on unchanged-key retries that re-run the gate falling from 34 per 141 to 0, and on no `--override` after a gate-failed outcome on an unchanged head.
+  3. #349 (P3). Judge it on the median send-back delay falling from 30.5 min to under 2 min, and on no PR handed back conflicting with main.
+  4. #350 (P3). Judge it on held-out recall@3 of at least 0.50, alerts on at most half of filings, and duplicates closed with `--duplicate-of`.
+  Each DONE WHEN reruns this note's scripts, so the outcome is measured, not asserted.
+- **Bounds.** Together the four remove $7.4-40.5 per window, 1.8 % of spend at the upper bound (VERIFIED arithmetic, synthesis_numbers.py). Most of the value is in lead turns (up to about 400 relay turns and 34 integrate re-runs per window) and in two recurring errors: send-backs found late, and the unsafe diagnostic re-run.
+- **Do not build** a merging queue, a local timer, a PR-body or HANDOFF generator, a changelog stopgap or `board claim --worktree` (§3.2, §3.5, §3.6). Each is under the bar, or replaces a lead judgement, or copies a fact that lives elsewhere.
+- **Use what GitHub already gives:** close duplicates with `gh issue close --duplicate-of` (in #350). Keep sub-issues and dependencies as the board's source of truth, as today.
+
+## Sources
+Measured (VERIFIED): [bookkeeping.py](_scratch/issue-pr-automation/bookkeeping.py) and [report-bookkeeping.json](_scratch/issue-pr-automation/report-bookkeeping.json), [rank.py](_scratch/issue-pr-automation/rank.py), [retries134.py](_scratch/issue-pr-automation/retries134.py), [synthesis_numbers.py](_scratch/issue-pr-automation/synthesis_numbers.py), [conflicts_fetch.py](_scratch/issue-pr-automation/conflicts_fetch.py), [conflicts_replay.py](_scratch/issue-pr-automation/conflicts_replay.py), [conflicts_summary.py](_scratch/issue-pr-automation/conflicts_summary.py), [conflicts_generation.py](_scratch/issue-pr-automation/conflicts_generation.py), [dedup_labels.py](_scratch/issue-pr-automation/dedup_labels.py), [dedup_eval.py](_scratch/issue-pr-automation/dedup_eval.py), [dedup_explore.py](_scratch/issue-pr-automation/dedup_explore.py), [dedup_own_repo.py](_scratch/issue-pr-automation/dedup_own_repo.py), [github_env_probe.sh](_scratch/issue-pr-automation/scripts/github_env_probe.sh), [surface_growth.py](_scratch/issue-pr-automation/scripts/surface_growth.py), [against_thresholds.py](_scratch/issue-pr-automation/scripts/against_thresholds.py). Round files: [r1-transcripts.md](_scratch/issue-pr-automation/r1-transcripts.md), [r1-github-tools.md](_scratch/issue-pr-automation/r1-github-tools.md), [r1-dedup.md](_scratch/issue-pr-automation/r1-dedup.md), [r1-conflicts-generation.md](_scratch/issue-pr-automation/r1-conflicts-generation.md), [r1-against.md](_scratch/issue-pr-automation/r1-against.md), [gaps-r1.md](_scratch/issue-pr-automation/gaps-r1.md). Code read: `devkit/workflow.py` (`_integrate`, `unfinished`, `orient`, `pr`), `devkit/board.py` (`sync`, `sweep`, `merged_pr`, `wave`, `_line`), `plugins/harness-ops/agents/reviewer.md`, `plugins/harness-ops/skills/lead/SKILL.md`, `plugins/harness-ops/scripts/guard_bash.py`.
+
+Documentation (fetched 2026-10-20): GitHub Docs: [About Dependabot on GitHub Actions runners](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependabot-on-actions); [merge-queue gated feature](https://github.com/github/docs/blob/main/data/reusables/gated-features/merge-queue.md) and [auto-merge gated feature](https://github.com/github/docs/blob/main/data/reusables/gated-features/auto-merge.md) (github/docs source); [Managing issue types in an organization](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/managing-issue-types-in-an-organization); [REST API endpoints for pull request reviews](https://docs.github.com/en/rest/pulls/reviews); [Approving a pull request with required reviews](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/approving-a-pull-request-with-required-reviews); [Commenting on a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/commenting-on-a-pull-request); [About GitHub Copilot code review](https://docs.github.com/en/copilot/concepts/agent-capabilities/agent-powered-workflows-and-operations/code-review); [Creating an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-an-issue); [Using the built-in automations](https://docs.github.com/en/issues/planning-and-tracking-with-projects/automating-your-project/using-the-built-in-automations); [Using the GitHub CLI to forward webhooks for testing](https://docs.github.com/en/webhooks/testing-and-troubleshooting-webhooks/using-the-github-cli-to-forward-webhooks-for-testing); [REST API endpoints for events](https://docs.github.com/en/rest/activity/events); [Automatically generated release notes](https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes). Releases: [cli/cli v2.98.0](https://github.com/cli/cli/releases/tag/v2.98.0), [cli/cli v2.99.0](https://github.com/cli/cli/releases/tag/v2.99.0). Vendors: [Mergify pricing](https://mergify.com/pricing), [Kodiak billing](https://kodiakhq.com/docs/billing), [CodeRabbit pricing](https://www.coderabbit.ai/pricing), [PR-Agent](https://github.com/qodo-ai/pr-agent). Others: [systemd.timer](https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html); Microsoft Learn, [Advanced settings configuration in WSL](https://learn.microsoft.com/en-us/windows/wsl/wsl-config); [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
+
+Papers (abstracts via `uv run dev lit get`; sections named where read):
+- Owhadi-Kareshk, Nadi & Rubin, [Predicting Merge Conflicts in Collaborative Software Development](https://arxiv.org/abs/1907.06274), ESEM 2019 (§V-B, §VI).
+- Brun, Holmes, Ernst & Notkin, [Proactive detection of collaboration conflicts](https://homes.cs.washington.edu/~mernst/pubs/vc-conflicts-fse2011.pdf), ESEC/FSE 2011 (page 1).
+- Sarma, Redmiles & van der Hoek, [Palantir: Early Detection of Development Conflicts Arising from Parallel Code Changes](https://doi.org/10.1109/tse.2011.64), IEEE TSE 2011.
+- Zhang, Han, Vinayakarao, Irsan, Xu, Thung, Lo & Jiang, [Duplicate Bug Report Detection: How Far Are We?](https://arxiv.org/abs/2212.00548), TOSEM 2022 (§2.2, §4.2, §5.1, §9).
+- Rakha, Bezemer & Hassan, [Revisiting the Performance Evaluation of Automated Approaches for the Retrieval of Duplicate Issue Reports](https://doi.org/10.1109/TSE.2017.2755005), TSE 2017.
+- Wessel, Wiese, Steinmacher & Gerosa, [Don't Disturb Me: Challenges of Interacting with Software Bots on Open Source Software Projects](https://doi.org/10.1145/3476042), PACM HCI 2021.
+- Parasuraman & Riley, [Humans and Automation: Use, Misuse, Disuse, Abuse](https://doi.org/10.1518/001872097778543886), Human Factors 1997.
+- Parasuraman & Manzey, [Complacency and Bias in Human Use of Automation: An Attentional Integration](https://doi.org/10.1177/0018720810376055), Human Factors 2010.
+- Further sources used only inside the round files (Cassandra, CI at Scale, Cupid, bot and Dependabot studies, tool-selection papers) are listed there.
+
+## Follow-ups
+Filed, ranked:
+- [ ] #347 reviewers post one COMMENT review; the lead relays a pointer. DONE WHEN reviewer.md, research-auditor.md and the lead skill say so, `board feedback`/`brief` show it (fake-gh test), and a bookkeeping.py rerun over at least 3 lead sessions shows lead verdict posts under 10 per 100 reviewed PRs (from 155 per 164) and findings messages under 300 characters on average.
+- [ ] #348 integrate answers an unchanged (head, feedback, flags) retry from its cache; `--why` prints it. DONE WHEN tests cover cached and never-cached outcomes and `--fresh`, and a retries134.py rerun over at least 3 lead sessions shows 0 gate re-runs on an unchanged key (from 34 per 141) and no `--override` after gate-failed on an unchanged head.
+- [ ] #349 `dev pr` refuses a branch conflicting with main; integrate sends back conflicting open PRs after each merge. DONE WHEN both ship with fixture-repository tests at under 50 ms per open PR, and a conflicts_replay.py rerun on the next 10 days shows a median send-back delay under 2 min (from 30.5) and no PR handed back conflicting with main.
+- [ ] #350 `board new` prints up to 3 related issues and pre-fills Refs; duplicates close with `--duplicate-of`. DONE WHEN tests pass on a fixture board, the shipped ranker scores recall@3 of at least 0.50 on the frozen TEST split with alerts on at most half of filings, and the lead skill names `--duplicate-of`.
+
+Not filed; re-measure triggers:
+- [ ] Merging queue over an explicit list (`dev integrate --queue`). DONE WHEN a bookkeeping.py rerun two weeks after #348 ships reports lead integrate-call turns per merged PR; file it only if that stays above 1.5 (1.77 now).
+- [ ] N2 manual closes after a merge. DONE WHEN each of the 38 is classed against its PR body (`Refs` only, several PRs, or a release), and an issue is filed if one class reaches at least 5 per window.
+- [ ] Local board sweep. DONE WHEN a rerun of bookkeeping.py `staleness` on two weeks of transcripts reports claims idle over 24 h; add `sweep` to orient only if that reaches at least 5 per window while Actions are still blocked on the private repository.
