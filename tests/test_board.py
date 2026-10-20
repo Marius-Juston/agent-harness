@@ -1099,13 +1099,22 @@ def test_new_never_refuses_when_the_board_cannot_be_read(fake, monkeypatch, answ
     assert board.sections(fake.created)["DONE WHEN"] == "- [ ] lit search backs off on 429"
 
 
-def test_related_skips_issues_closed_as_not_planned_and_prints_titles_on_one_line(fake, monkeypatch):
-    fake.listed = [{**d, "stateReason": "NOT_PLANNED"} if d["number"] == 1 else d for d in BOARD]
-    fake.listed[2] = {**fake.listed[2], "title": "Semantic\nScholar\x1b[2J cooldown " + "x" * 200}
+def test_related_still_suggests_issues_closed_as_not_planned(fake, monkeypatch):
+    """Regression (#350 review round 2): most known duplicate targets were closed as not planned, and every measured
+    number ranked issues in any state."""
     monkeypatch.setattr(board, "RELATED_MIN", 1e-9)
-    out = _new()
-    assert set(_shown(out)) <= SCHOLAR - {1} and 3 in _shown(out)
-    line = next(x for x in out.splitlines() if x.startswith("  #3 "))
+    first = _shown(_new())[0]
+    fake.listed = [{**d, "state": "CLOSED", "stateReason": "NOT_PLANNED"} if d["number"] == first else d for d in BOARD]
+    assert _shown(_new())[0] == first
+
+
+def test_related_prints_titles_on_one_line(fake, monkeypatch):
+    fake.listed = [
+        {**d, "title": "Semantic\nScholar\x1b[2J cooldown " + "x" * 200} if d["number"] == 3 else d for d in BOARD
+    ]
+    monkeypatch.setattr(board, "RELATED_MIN", 1e-9)
+    monkeypatch.setattr(board, "RELATED_SHOWN", len(BOARD))
+    line = next(x for x in _new().splitlines() if x.startswith("  #3 "))
     assert line.startswith("  #3 Semantic Scholar [2J cooldown x") and line.endswith("...")
     assert len(line) == len("  #3 ") + 100
 

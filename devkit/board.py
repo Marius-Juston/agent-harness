@@ -700,16 +700,16 @@ def related(
 
 
 def related_pool() -> list[Issue]:
-    """Every issue but those closed as not planned (duplicates, moves, tests), in one `gh` try: an advisory read
-    never waits out a rate limit."""
+    """Every issue in any state, closed as not planned included (most known duplicate targets were; every measured
+    number ranked all of them), in one `gh` try: an advisory read never waits out a rate limit."""
     global GH_TRIES  # gh reads it per call; restored below
     tries, GH_TRIES = GH_TRIES, 1
     try:
         args = ("issue", "list", "-R", repo(), "--state", "all", "--limit", str(ISSUE_LIMIT))
-        rows = gh_json(*args, fields=FIELDS + ",stateReason", links="")
+        rows = gh_json(*args, fields=FIELDS, links="")
     finally:
         GH_TRIES = tries
-    return [_issue(d) for d in rows if d.get("stateReason") != "NOT_PLANNED"]
+    return [_issue(d) for d in rows]
 
 
 def one_line(text: str, width: int = 100) -> str:
