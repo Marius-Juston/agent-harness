@@ -1297,6 +1297,7 @@ def in_flight_files() -> dict[str, list[str]]:
 
 FEEDBACK_QUERY = """query($owner: String!, $name: String!, $n: Int!) { repository(owner: $owner, name: $name) {
   pullRequest(number: $n) {
+    author { login } headRefOid
     commits(last: 1) { nodes { commit { committedDate } } }
     comments(last: 50) { nodes { author { login } body createdAt url } }
     reviews(last: 50) { nodes { author { login } body state submittedAt url } }
@@ -1304,6 +1305,24 @@ FEEDBACK_QUERY = """query($owner: String!, $name: String!, $n: Int!) { repositor
 } } }"""
 FEEDBACK_CHARS = 200
 THREADS_PAGE = 100  # the reviewThreads(first:) above; past it integrate refuses (fails closed) instead of paginating
+# The first line of the one COMMENT review a reviewer or research auditor posts (#347, issue-pr-automation.md §3.1).
+# Its findings are the author's to-do list, so feedback shows that review whole, not FEEDBACK_CHARS of it, when the
+# gh user posted it: agents act as that user, while anyone can open or review a public repository's PR.
+VERDICT = re.compile(r"Verdict: (merge|send back|reconsider), round (\d+), ([0-9a-fA-F]{7,40})")
+
+
+def verdict_of(body: str) -> re.Match | None:
+    """The VERDICT match of a review body's first line."""
+    return VERDICT.fullmatch((body.strip().splitlines() or [""])[0].strip())
+
+
+@functools.cache
+def gh_user() -> str:
+    """The login gh is authenticated as; "" when GitHub cannot say."""
+    try:
+        return gh("api", "user", "--jq", ".login").strip()
+    except BoardError:
+        return ""
 
 
 def pr_feedback(number: int) -> dict:
@@ -1314,8 +1333,12 @@ def pr_feedback(number: int) -> dict:
              f"query={FEEDBACK_QUERY}")  # fmt: skip
     pr = json.loads(out)["data"]["repository"]["pullRequest"]
     commits = pr["commits"]["nodes"]
+    verdicts = any(verdict_of(r.get("body") or "") for r in pr["reviews"]["nodes"])
+    trusted = {gh_user()} - {""} if verdicts else set()  # asked only when there is a verdict review
     return {
         "since": commits[-1]["commit"]["committedDate"] if commits else "",
+        "head": pr.get("headRefOid") or "",
+        "trusted": trusted,
         "comments": pr["comments"]["nodes"],
         "reviews": pr["reviews"]["nodes"],
         "threads": [t for t in pr["reviewThreads"]["nodes"] if not t["isResolved"]],
@@ -1329,23 +1352,32 @@ def login(node: dict) -> str:
 
 
 def pr_feedback_lines(fb: dict) -> list[str]:
-    """What an agent must answer: comments and reviews newer than the last commit, then every unresolved thread.
-    A COMMENTED review with no body only wraps inline comments, which its threads already carry."""
+    """What an agent must answer: verdict reviews whole (VERDICT, by a `trusted` login; marked stale when their SHA is
+    not the head's), then other comments and reviews newer than the last commit cut to FEEDBACK_CHARS, then every
+    unresolved thread. A COMMENTED review with no body only wraps inline comments, which its threads already carry."""
 
     def text(body: str) -> str:
         return " ".join(body.split())[:FEEDBACK_CHARS]
 
-    since = fb["since"]
-    out = [
+    since, head_sha = fb["since"], fb.get("head", "").lower()
+    verdicts, reviews = [], []
+    for r in fb["reviews"]:
+        if (r.get("submittedAt") or "") <= since or not (r["body"].strip() or r["state"] != "COMMENTED"):
+            continue
+        head = f"- review {r['state']} {login(r)} {r['submittedAt'][:16]}:"
+        if (v := verdict_of(r["body"])) and login(r) in fb.get("trusted", ()):
+            moved = head_sha and not head_sha.startswith(v[3].lower())
+            stale = f" stale: the head is now {head_sha[:7]}" if moved else ""
+            rest = r["body"].strip().splitlines()[1:]
+            verdicts += [f"{head} {v[0]} ({r['url']}){stale}", *(f"  {x.rstrip()}" for x in rest if x.strip())]
+        else:
+            reviews.append(f"{head} {text(r['body'])} ({r['url']})")
+    comments = [
         f"- comment {login(c)} {c['createdAt'][:16]}: {text(c['body'])} ({c['url']})"
         for c in fb["comments"]
         if c["createdAt"] > since
     ]
-    out += [
-        f"- review {r['state']} {login(r)} {r['submittedAt'][:16]}: {text(r['body'])} ({r['url']})"
-        for r in fb["reviews"]
-        if (r.get("submittedAt") or "") > since and (r["body"].strip() or r["state"] != "COMMENTED")
-    ]
+    out = verdicts + comments + reviews
     for t in fb["threads"]:
         last = (t["comments"]["nodes"] or [{}])[-1]
         out.append(
