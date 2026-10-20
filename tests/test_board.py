@@ -1083,7 +1083,7 @@ def test_new_shows_only_issues_at_or_above_the_threshold(fake, monkeypatch):
     assert "Refs" not in board.sections(fake.created)
 
 
-@pytest.mark.parametrize("answer", ["error", "not json"])
+@pytest.mark.parametrize("answer", ["error", "<html>", "null", '{"message": "x"}', "[1]", '[{"number": 1}]'])
 def test_new_never_refuses_when_the_board_cannot_be_read(fake, monkeypatch, answer):
     real = fake.gh
 
@@ -1092,11 +1092,33 @@ def test_new_never_refuses_when_the_board_cannot_be_read(fake, monkeypatch, answ
             return real(*args, input=input)
         if answer == "error":
             raise board.BoardError("gh issue list: HTTP 502")
-        return "<html>"
+        return answer
 
     monkeypatch.setattr(board, "gh", gh)
     assert _new() == "https://github.com/o/r/issues/50 (ready)"
     assert board.sections(fake.created)["DONE WHEN"] == "- [ ] lit search backs off on 429"
+
+
+def test_related_skips_issues_closed_as_not_planned_and_prints_titles_on_one_line(fake, monkeypatch):
+    fake.listed = [{**d, "stateReason": "NOT_PLANNED"} if d["number"] == 1 else d for d in BOARD]
+    fake.listed[2] = {**fake.listed[2], "title": "Semantic\nScholar\x1b[2J cooldown " + "x" * 200}
+    monkeypatch.setattr(board, "RELATED_MIN", 1e-9)
+    out = _new()
+    assert set(_shown(out)) <= SCHOLAR - {1} and 3 in _shown(out)
+    line = next(x for x in out.splitlines() if x.startswith("  #3 "))
+    assert line.startswith("  #3 Semantic Scholar [2J cooldown x") and line.endswith("...")
+    assert len(line) == len("  #3 ") + 100
+
+
+def test_the_related_lookup_tries_github_once(monkeypatch):
+    def gh(*args, input=None):
+        raise board.BoardError(f"GH_TRIES {board.GH_TRIES}")
+
+    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    with pytest.raises(board.BoardError, match=r"GH_TRIES 1$"):
+        board.related_pool()
+    assert board.GH_TRIES == 3  # restored after the advisory read
 
 
 def test_the_lead_closes_a_duplicate_with_state_reason_duplicate():

@@ -959,7 +959,8 @@ def file_report(r: dict) -> list[str]:
                 out.append(f"#{n} {title}: updated")
             else:
                 ctx = board.sections(body).get("Context", "")
-                out.append(f"{board.new(title, 'test', 'P2', ctx, [c['done']], [], [], [REF], None)} {title}: opened")
+                url = board.new(title, "test", "P2", ctx, [c["done"]], [], [], [REF], None, related_issues=False)
+                out.append(f"{url} {title}: opened")
         elif n and not c["skipped"]:
             board.gh(
                 "issue", "close", str(n), "-R", board.repo(), "--comment", f"Clean in the suite audit at {r['commit']}."

@@ -422,7 +422,7 @@ def test_file_report_opens_updates_closes_and_records_the_snapshot(monkeypatch):
     monkeypatch.setattr(board, "gh", gh)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(
-        board, "new", lambda title, kind, prio, ctx, done, *a: created.append((title, kind, done)) or "url"
+        board, "new", lambda title, kind, prio, ctx, done, *a, **k: created.append((title, kind, done)) or "url"
     )
     r = report_with({"flaky": ["t: passed and failed"], "slow": ["s: 9 s"]}, skipped=("ci",))
     out = suite_audit.file_report(r)
@@ -434,6 +434,19 @@ def test_file_report_opens_updates_closes_and_records_the_snapshot(monkeypatch):
     assert any("#99 Suite health: audit recorded" in line for line in out)
     gh.issues.append({"number": 99, "title": "Suite health", "state": "CLOSED", "body": tracker_body})
     assert suite_audit.last_snapshot() == (99, r["snapshot"])
+
+
+def test_file_report_opens_through_the_real_board_new_as_one_line_without_related_issues(monkeypatch):
+    """Regression (#350 review): board.new's Related lines would split file_report's `<url> <title>: opened` line."""
+    similar = {"number": 3, "title": "Suite health: flaky tests", "state": "CLOSED", "body": "## DONE WHEN\n- [ ] d"}
+    gh = FakeGh([similar])
+    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board, "RELATED_MIN", 1e-9)  # the closed twin would show, were related issues looked up
+    out = suite_audit.file_report(report_with({"flaky": ["t: passed and failed"]}))
+    assert "https://github.com/o/r/issues/99 (ready) Suite health: flaky tests: opened" in out
+    assert all("\n" not in line and "Related" not in line for line in out)
+    assert not [a for a, _ in gh.calls if a[:2] == ("issue", "list") and "all" in a and "stateReason" in str(a)]
 
 
 def test_issue_bodies_stay_under_githubs_limit():

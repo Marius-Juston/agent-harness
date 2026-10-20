@@ -699,10 +699,30 @@ def related(
     return [(i, s) for s, i in ranked[:RELATED_SHOWN] if s > 0 and s >= least]
 
 
+def related_pool() -> list[Issue]:
+    """Every issue but those closed as not planned (duplicates, moves, tests), in one `gh` try: an advisory read
+    never waits out a rate limit."""
+    global GH_TRIES  # gh reads it per call; restored below
+    tries, GH_TRIES = GH_TRIES, 1
+    try:
+        args = ("issue", "list", "-R", repo(), "--state", "all", "--limit", str(ISSUE_LIMIT))
+        rows = gh_json(*args, fields=FIELDS + ",stateReason", links="")
+    finally:
+        GH_TRIES = tries
+    return [_issue(d) for d in rows if d.get("stateReason") != "NOT_PLANNED"]
+
+
+def one_line(text: str, width: int = 100) -> str:
+    """Text from GitHub as one printable line: whitespace and control characters collapsed, cut to `width`."""
+    flat = " ".join("".join(c if c.isprintable() else " " for c in text).split())
+    return flat if len(flat) <= width else flat[: width - 3] + "..."
+
+
 def related_lines(found: list[tuple[Issue, float]]) -> list[str]:
     if not found:
         return []
-    return ["Related: " + " ".join(f"#{i.number}" for i, _ in found)] + [f"  #{i.number} {i.title}" for i, _ in found]
+    shown = [f"  #{i.number} {one_line(i.title)}" for i, _ in found]
+    return ["Related: " + " ".join(f"#{i.number}" for i, _ in found), *shown]
 
 
 def new(
@@ -715,10 +735,12 @@ def new(
     blocked_by: list[int | str],
     refs: list[str],
     parent: int | str | None,
+    related_issues: bool = True,
 ) -> str:
     """Create an item, then link it natively (blocked-by, sub-issue of `parent`); the body renders those links.
     Every reference is looked up before anything is created, so a typo or an unreadable issue creates nothing.
-    Related issues (`related`) are printed and added to Refs; a board that cannot be read only leaves them out."""
+    With `related_issues`, issues like it (`related`) are printed after the URL line and added to Refs; any failure
+    there only leaves them out. Programmatic callers that parse the one-line result pass False (and skip the fetch)."""
     if kind != "epic" and not done:
         raise BoardError("a work item needs at least one --done (a measurable DONE WHEN condition)")
     blockers = list(dict.fromkeys(parse_ref(b) for b in blocked_by))
@@ -726,11 +748,11 @@ def new(
     info = {r: remote(r) for r in [*blockers, *([up] if up else [])]}
     cited = [int(x) for x in refs if x.strip().isdigit()] + [r for x in refs for r in refs_in(x)]
     named = {r for r in [*blockers, up, *cited] if isinstance(r, int)}
+    found: list[tuple[Issue, float]] = []
     try:
-        found = related(title, context, done, fetch("all", links=""), named)
-    except (BoardError, ValueError) as e:  # advisory: never in the way of filing
-        print(f"board new: related issues skipped ({e})", file=sys.stderr)
-        found = []
+        found = related(title, context, done, related_pool(), named) if related_issues else []
+    except Exception as e:  # advisory: no answer of any shape stops the filing
+        print(f"board new: related issues skipped ({type(e).__name__}: {e})", file=sys.stderr)
     if found:
         refs = [*refs, " ".join(f"#{i.number}" for i, _ in found) + f" ({RELATED_NOTE})"]
     closed = closed_numbers() if blockers else set()  # not `done`: that is the DONE WHEN list
