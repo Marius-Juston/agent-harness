@@ -11,7 +11,7 @@ import os
 import re
 import shutil
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import yaml
@@ -43,6 +43,21 @@ def hook_python(version: str) -> tuple[bool, str, str]:
         ok = False
     what = f"python3 on PATH is {version or 'missing'} (plugin hooks need {want}+)"
     return ok, what, f"install Python {want}+ as python3 (the hooks run on the host's python3, not the venv's)"
+
+
+def host_leaks(env: Mapping[str, str]) -> str:
+    """A warning when the shell redirects Python (a sourced ROS sets PYTHONPATH), else ""."""
+    from devkit.gate import hermetic_env
+
+    if not (dropped := hermetic_env(env)[1]):
+        return ""
+    clear = json.dumps({"env": dict.fromkeys(dropped, "")})
+    unset = " ".join(f"-u {k}" for k in dropped)
+    return (
+        f"{', '.join(dropped)} set in this shell: the gate and `dev test` ignore it, but `uv run python` and "
+        f"a bare pytest still load it  ->  for agents, `.claude/settings.local.json` {clear}; "
+        f"in a shell, `env {unset} ...` (docs/SETUP.md, Host Python environment)"
+    )
 
 
 def _ok(cmd: list[str], cwd: Path | None = None) -> tuple[bool, str]:
@@ -256,6 +271,8 @@ def doctor() -> int:
             "approve project MCP servers in Claude Code (/mcp) or check the command",
         )
     report((root() / ".venv").exists(), "uv environment", "uv sync")
+    if leaks := host_leaks(os.environ):
+        print(f"WARN {leaks}")
     report(
         _trusted(),
         "workspace trusted by Claude Code (else headless agents ignore the project allowlist)",

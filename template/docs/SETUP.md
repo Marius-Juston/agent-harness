@@ -29,6 +29,24 @@ and it never prints, logs or caches a key. Agents cannot read the file either: t
 the project settings deny `Read` on it. Check with `uv run dev doctor` (each key found or missing, never its value)
 and `uv run dev lit status` (`(key)` next to each keyed source).
 
+## Host Python environment (ROS, conda, an old system python3)
+The harness runs in the environment the project declares, not the one your shell happens to have:
+- **Hook scripts** run on the machine's `python3` (they start `#!/usr/bin/env python3`), which must be 3.10 or
+  later. `uv run dev doctor` checks it.
+- **The gate and `dev test`** ignore `PYTHONPATH`, `PYTHONHOME`, `PYTEST_PLUGINS` and `PYTEST_ADDOPTS` and say so.
+  A sourced ROS sets `PYTHONPATH` to its own Python's packages, and pytest would load their plugins into the venv's
+  interpreter. A path the tests really need belongs in pytest's `pythonpath` option in `pyproject.toml`.
+- **Everything else** (`uv run python`, a bare `pytest`) still sees those variables. On such a machine, clear them for
+  agents in the gitignored `settings.local.json` under `.claude/`, so the change applies to this machine only:
+  ```json
+  { "env": { "PYTHONPATH": "" } }
+  ```
+  In your own shell, use `env -u PYTHONPATH <command>`, or a shell that has not sourced ROS. `dev doctor` warns while
+  one of these variables is set.
+- **Test dependencies go in the `dev` group.** `uv sync` (and CI's `uv sync --locked`) installs no optional extras
+  and removes any you installed by hand. If the tests import an extra, list it in the dev group, e.g.
+  `dev = ["<your-package>[<extra>, ...]", ...]`.
+
 ## Weekly quota cap
 The spawn guard refuses new agents at `[tool.devkit] quota_cap`; `! uv run dev quota-cap 90` overrides it on this
 machine only (`.git/devkit/quota_cap`, no PR), `--clear` drops the override, and agents are denied both.

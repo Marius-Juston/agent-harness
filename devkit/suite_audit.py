@@ -502,10 +502,8 @@ def collect(repo: Path, marks: str | None, paths: list[str]) -> set[str]:
     with tempfile.TemporaryDirectory(prefix="suite-audit-collect-") as tmp:
         Path(tmp, "_suite_audit_ids.py").write_text(COLLECT_PLUGIN)
         ids = Path(tmp, "ids")
-        env = os.environ | {
-            "SUITE_AUDIT_IDS": str(ids),
-            "PYTHONPATH": os.pathsep.join([tmp, os.environ.get("PYTHONPATH", "")]),
-        }
+        # the gate's environment (no shell PYTHONPATH, gate.HOST_LEAKS), with only the throwaway plugin on the path
+        env = gate.hermetic_env(os.environ)[0] | {"SUITE_AUDIT_IDS": str(ids), "PYTHONPATH": tmp}
         cmd = [sys.executable, "-m", "pytest", "--collect-only", "-p", "_suite_audit_ids", "-p", "no:randomly"]
         cmd += [*(["-m", marks] if marks else []), *paths]
         out = subprocess.run(cmd, cwd=repo, env=env, capture_output=True, text=True, check=False, timeout=600)
@@ -577,6 +575,7 @@ def run_suite(
     `ledger`."""
     cmd = gate.pytest_cmd(ids or GATE_PATHS)
     cmd[:1] = prefix
+    env = gate.hermetic_env(os.environ if env is None else env)[0]  # as the gate runs it
     if importlib.util.find_spec("pytest_randomly"):
         cmd.append(f"--randomly-seed={seed}")
     with tempfile.TemporaryDirectory(prefix="suite-audit-junit-") as tmp:
