@@ -23,7 +23,7 @@ from devkit import (
     stats,
     workflow,
 )
-from devkit.paths import root
+from devkit.paths import pin_git_output, root
 from devkit.suite_audit import due, file_report, last_snapshot, render, report
 
 NOTE_TEMPLATE = """# Research: {title}
@@ -613,6 +613,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main() -> None:
+    os.environ.update(pin_git_output(os.environ))  # every git devkit starts prints what it parses (paths.GIT_PINNED)
     args = parse()
     try:
         sys.exit(run(args))
