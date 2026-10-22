@@ -627,3 +627,9 @@ def test_real_cli_setup_in_an_unpinned_project_after_another_pinned_the_marketpl
     out = capsys.readouterr().out
     assert "FAIL" not in out, out
     assert "v0.1.1" in out and "pins no ref" in out
+
+
+def test_doctor_warns_when_the_shell_redirects_python():
+    assert setup.host_leaks({"PATH": "/bin"}) == ""
+    warning = setup.host_leaks({"PYTHONPATH": "/opt/ros/humble/lib/python3.10/site-packages"})
+    assert warning.startswith("PYTHONPATH set") and "settings.local.json" in warning and "env -u PYTHONPATH" in warning

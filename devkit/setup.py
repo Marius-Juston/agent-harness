@@ -11,7 +11,7 @@ import os
 import re
 import shutil
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import yaml
@@ -28,6 +28,19 @@ TOOLS = {
     "npx": "Node.js 20+ (the Playwright MCP server runs through npx)",
     "flock": "util-linux (gate and hooks use it)",
 }
+
+
+def host_leaks(env: Mapping[str, str]) -> str:
+    """A warning when the shell redirects Python (a sourced ROS sets PYTHONPATH), else ""."""
+    from devkit.gate import hermetic_env
+
+    if not (dropped := hermetic_env(env)[1]):
+        return ""
+    return (
+        f"{', '.join(dropped)} set in this shell: the gate and `dev test` ignore it, but `uv run python` and "
+        'a bare pytest still load it  ->  for agents, `.claude/settings.local.json` {"env": {"PYTHONPATH": ""}}; '
+        "in a shell, `env -u PYTHONPATH ...` (docs/SETUP.md, Host Python environment)"
+    )
 
 
 def _ok(cmd: list[str], cwd: Path | None = None) -> tuple[bool, str]:
@@ -239,6 +252,8 @@ def doctor() -> int:
             "approve project MCP servers in Claude Code (/mcp) or check the command",
         )
     report((root() / ".venv").exists(), "uv environment", "uv sync")
+    if leaks := host_leaks(os.environ):
+        print(f"WARN {leaks}")
     report(
         _trusted(),
         "workspace trusted by Claude Code (else headless agents ignore the project allowlist)",

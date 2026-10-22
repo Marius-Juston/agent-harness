@@ -328,6 +328,42 @@ def test_check_reruns_itself_under_a_fresh_per_run_bytecode_prefix(monkeypatch):
     assert not Path(seen["prefix"]).exists()  # ... used for this run only
 
 
+def test_hermetic_env_drops_only_what_redirects_python():
+    env = {"PATH": "/bin", "PYTHONPATH": "/opt/ros/lib", "PYTEST_ADDOPTS": "", "PYTHONDONTWRITEBYTECODE": "1"}
+    clean, dropped = gate.hermetic_env(env)
+    assert clean == {"PATH": "/bin", "PYTHONDONTWRITEBYTECODE": "1"}
+    assert dropped == ["PYTHONPATH"]  # an empty one is dropped too, but there is nothing to tell
+
+
+def test_the_rerun_gate_env_leaves_out_the_shells_pythonpath():
+    shell = {"PATH": "/bin", "PYTHONPATH": "/opt/ros/humble/lib/python3.10/site-packages"}
+    env, dropped = gate.rerun_env(shell, "<prefix>")
+    assert env == {"PATH": "/bin", "PYTHONPYCACHEPREFIX": "<prefix>", gate.CLEAN_FLAG: "<prefix>"}
+    assert dropped == ["PYTHONPATH"]
+
+
+def _ros_like(tmp_path) -> Path:
+    """A PYTHONPATH entry like a sourced ROS: a pytest entry-point plugin whose import fails."""
+    site = tmp_path / "site"
+    info = site / "broken_plugin-1.0.dist-info"
+    info.mkdir(parents=True)
+    (info / "METADATA").write_text("Metadata-Version: 2.1\nName: broken-plugin\nVersion: 1.0\n")
+    (info / "entry_points.txt").write_text("[pytest11]\nbroken = broken_plugin\n")
+    (site / "broken_plugin.py").write_text("import lark_that_is_not_installed\n")
+    return site
+
+
+def test_dev_test_runs_cleanly_with_a_ros_like_pythonpath(tmp_path, monkeypatch, capsys):
+    test = tmp_path / "test_one.py"
+    test.write_text("def test_one():\n    assert True\n")
+    monkeypatch.setenv("PYTHONPATH", str(_ros_like(tmp_path)))
+    cmd = gate.pytest_cmd([str(test)], n=1)
+    broken = subprocess.run(cmd, cwd=tmp_path, capture_output=True, text=True, check=False)
+    assert broken.returncode != 0 and "lark_that_is_not_installed" in broken.stdout + broken.stderr  # the trap works
+    assert gate.test([str(test)], affected=False, slow=False, n=1) == 0
+    assert "ignoring PYTHONPATH" in capsys.readouterr().out
+
+
 def test_the_rerun_gate_imports_bytecode_only_from_its_prefix(tmp_path):
     env = os.environ | {"PYTHONPYCACHEPREFIX": str(tmp_path), gate.CLEAN_FLAG: str(tmp_path)}
     code = "import sys; from devkit import gate; print(gate.clean_bytecode(), sys.modules['devkit.gate'].__cached__)"
