@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -116,8 +117,22 @@ def test_uv_add_guard_still_runs_the_gates_under_the_minimum_python(status, code
     command = " ".join(["uv", "add", "no-such-pkg-zq"])
     out = _under(min_python, "uv_add_guard.py", {"tool_name": "Bash", "tool_input": {"command": command}}, repo)
     assert out.returncode == code, out.stderr
-    if code == 0:  # no tomllib before 3.11: the project's own names go unread, and the hook says so
-        assert "no tomllib" in out.stdout
+
+
+def test_uv_add_guard_under_the_minimum_python_reads_pyproject_with_the_venvs_python(min_python, tmp_path):
+    """No tomllib before 3.11: the project venv's Python reads pyproject, so a workspace member is not sent to PyPI
+    as an unknown name (and refused)."""
+    repo = _repo(tmp_path)
+    (repo / "pyproject.toml").write_text('[project]\nname = "app"\n[tool.uv.sources]\nmylib = { workspace = true }\n')
+    venv = repo / ".venv/bin"
+    venv.mkdir(parents=True)
+    (venv / "python").symlink_to(sys.executable)
+    (venv / "dev").write_text('#!/bin/sh\necho \'{"candidates": [{"status": "NOT FOUND", "gates": {}}]}\'\n')
+    (venv / "dev").chmod(0o755)
+    command = " ".join(["uv", "add", "mylib"])
+    out = _under(min_python, "uv_add_guard.py", {"tool_name": "Bash", "tool_input": {"command": command}}, repo)
+    assert out.returncode == 0, out.stderr
+    assert "no tomllib" not in out.stdout
 
 
 @pytest.mark.parametrize(("version", "ok"), [("3.10", True), ("3.13", True), ("3.9", False), ("", False), ("x", False)])

@@ -41,9 +41,10 @@ try:  # 3.11+; hooks run under the host's python3, which may be older (guard_bas
 except ImportError:
     tomllib = None
 NO_TOML = (
-    f"python3 {sys.version.split()[0]} has no tomllib (3.11+): the project's own and [tool.uv.sources] names were not "
-    "read, so they are checked as PyPI names"
+    f"python3 {sys.version.split()[0]} has no tomllib (3.11+) and the project has no .venv to read pyproject.toml "
+    "with: its own and [tool.uv.sources] names are checked as PyPI names"
 )
+READ_TOML = "import json, sys, tomllib; print(json.dumps(tomllib.load(open(sys.argv[1], 'rb'))))"
 
 TIMEOUT = 80  # seconds for all `dev reuse check` calls of one hook run together; hooks.json gives the hook 90
 clock = time.monotonic
@@ -191,9 +192,21 @@ def existing(path: str) -> str:
     return path or "."
 
 
+def venv_python(cwd: str) -> str | None:
+    exe = os.path.join(guard_bash.worktree_root(existing(cwd)), ".venv", "bin", "python")
+    return exe if os.access(exe, os.X_OK) else None
+
+
 def toml(path: Path) -> dict:
-    if tomllib is None:
-        return {}
+    if tomllib is None:  # an older host python3: the project venv's (the one `dev` runs on) reads it
+        if not path.is_file() or not (exe := venv_python(str(path.parent))):
+            return {}
+        try:
+            out = subprocess.run([exe, "-c", READ_TOML, str(path)], capture_output=True, text=True, timeout=10)
+            data = json.loads(out.stdout) if out.returncode == 0 else {}
+        except (OSError, subprocess.SubprocessError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
@@ -344,7 +357,7 @@ def main() -> int:
         refuse += a.refuse
         names = groups.setdefault(a.cwd, [])
         names += [n for n in a.names if n not in names]
-    if tomllib is None and any(groups.values()):
+    if tomllib is None and any(groups.values()) and not any(venv_python(c) for c in groups):
         warn.append(NO_TOML)
     for where, names in groups.items():
         if not names:
