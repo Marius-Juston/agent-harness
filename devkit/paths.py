@@ -4,10 +4,39 @@ every agent worktree (each worktree has its own top level; they share one git co
 import functools
 import os
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
+
+# git settings that change output devkit parses (colour codes, a/ b/ prefixes, relative or quoted paths, an external
+# diff, signature lines in `git log`), pinned to git's defaults for every git devkit starts (#374). An external diff
+# (diff.external) cannot be unset through config: git() passes --no-ext-diff instead.
+GIT_PINNED = {
+    "color.ui": "never",
+    "core.quotePath": "true",
+    "diff.noprefix": "false",
+    "diff.mnemonicPrefix": "false",
+    "diff.relative": "false",
+    "log.showSignature": "false",
+}
+
+
+def pin_git_output(env: Mapping[str, str]) -> dict[str, str]:
+    """`env` plus GIT_PINNED as GIT_CONFIG_KEY_<n>/GIT_CONFIG_VALUE_<n> entries (git 2.31+, the precedence of
+    `git -c`), after any the environment already has."""
+    try:
+        n = int(env.get("GIT_CONFIG_COUNT", "0"))
+    except ValueError:
+        n = 0
+    out = dict(env)
+    for i, (key, value) in enumerate(GIT_PINNED.items(), start=n):
+        out[f"GIT_CONFIG_KEY_{i}"], out[f"GIT_CONFIG_VALUE_{i}"] = key, value
+    out["GIT_CONFIG_COUNT"] = str(n + len(GIT_PINNED))
+    return out
 
 
 def git(*args: str, cwd: Path | None = None, check: bool = True) -> str:
+    if args[:1] in (("diff",), ("log",), ("show",)):
+        args = (args[0], "--no-ext-diff", *args[1:])
     out = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
     if check and out.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {out.stderr.strip()}")
