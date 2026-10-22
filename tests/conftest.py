@@ -34,3 +34,15 @@ def hook():
         return out.returncode, out.stdout, out.stderr
 
     return run
+
+
+@pytest.fixture
+def ros_like_site(tmp_path) -> Path:
+    """A PYTHONPATH entry like a sourced ROS (#372): a pytest entry-point plugin whose import fails."""
+    site = tmp_path / "ros-site"
+    info = site / "broken_plugin-1.0.dist-info"
+    info.mkdir(parents=True)
+    (info / "METADATA").write_text("Metadata-Version: 2.1\nName: broken-plugin\nVersion: 1.0\n")
+    (info / "entry_points.txt").write_text("[pytest11]\nbroken = broken_plugin\n")
+    (site / "broken_plugin.py").write_text("import lark_that_is_not_installed\n")
+    return site

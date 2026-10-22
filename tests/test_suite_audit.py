@@ -369,6 +369,12 @@ def test_collect_reads_node_ids_after_marker_deselection(repo):
     assert suite_audit.collect(repo.path, "not slow", ["tests"]) == {"tests/test_m.py::test_a"}
 
 
+def test_collect_ignores_a_ros_like_pythonpath_as_the_gate_does(repo, ros_like_site, monkeypatch):
+    repo.commit({"tests/test_m.py": "def test_a():\n    pass\n"})
+    monkeypatch.setenv("PYTHONPATH", str(ros_like_site))
+    assert suite_audit.collect(repo.path, None, ["tests"]) == {"tests/test_m.py::test_a"}
+
+
 # ---------------------------------------------------------------- filing
 
 

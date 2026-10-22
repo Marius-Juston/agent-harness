@@ -21,7 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 
@@ -365,6 +365,30 @@ def _floors() -> dict:
 
 
 CLEAN_FLAG = "DEVKIT_GATE_PYCACHE"
+# Variables that point Python or pytest away from the project's .venv. A sourced ROS sets PYTHONPATH to its own
+# site-packages, which come before the venv's, so pytest loads their entry-point plugins and fails before a test runs.
+# CI sets none of them. Import paths a project needs belong in pytest's `pythonpath` option, which is versioned.
+HOST_LEAKS = ("PYTHONPATH", "PYTHONHOME", "PYTEST_PLUGINS", "PYTEST_ADDOPTS")
+
+
+def hermetic_env(env: Mapping[str, str]) -> tuple[dict[str, str], list[str]]:
+    """(env without HOST_LEAKS, the ones that were set to something): what the gate and `dev test` run under."""
+    return {k: v for k, v in env.items() if k not in HOST_LEAKS}, [k for k in HOST_LEAKS if env.get(k)]
+
+
+def rerun_env(env: Mapping[str, str], prefix: str) -> tuple[dict[str, str], list[str]]:
+    """The re-run gate's environment: hermetic_env, and bytecode only under the fresh per-run `prefix`."""
+    clean, dropped = hermetic_env(env)
+    return clean | {"PYTHONPYCACHEPREFIX": prefix, CLEAN_FLAG: prefix}, dropped
+
+
+def _say_dropped(dropped: list[str]) -> None:
+    if dropped:
+        print(
+            f"gate: ignoring {', '.join(dropped)} from the shell (set by ROS or similar); tests use only .venv, as in "
+            "CI. Import paths the tests need go in pytest's `pythonpath` option",
+            flush=True,
+        )
 
 
 def clean_bytecode() -> bool:
@@ -378,8 +402,10 @@ def check(
     if not clean_bytecode():
         # This process has already imported devkit, possibly from a planted __pycache__. Re-run the gate in a fresh
         # interpreter whose bytecode (and every test subprocess's) lives in a new empty dir, never in the tree.
+        # The same re-run leaves out what the shell set to redirect Python (HOST_LEAKS).
         with tempfile.TemporaryDirectory(prefix="gate-pycache-") as prefix:
-            env = os.environ | {"PYTHONPYCACHEPREFIX": prefix, CLEAN_FLAG: prefix}
+            env, dropped = rerun_env(os.environ, prefix)
+            _say_dropped(dropped)
             cmd = [sys.executable, "-c", "from devkit.cli import main; main()", *sys.argv[1:]]
             return subprocess.run(cmd, cwd=root(), env=env, check=False).returncode
     base = checks.merge_base()
@@ -425,7 +451,9 @@ def test(paths: list[str], affected: bool, slow: bool, n: int | None) -> int:
             return 0
         print(f"affected: {' '.join(paths)}")
     cmd = pytest_cmd(paths or ["tests"], slow=slow, n=n)
-    code = subprocess.run(cmd, cwd=root(), check=False).returncode
+    env, dropped = hermetic_env(os.environ)
+    _say_dropped(dropped)
+    code = subprocess.run(cmd, cwd=root(), env=env, check=False).returncode
     if code == 5:
         print("pytest collected no tests (exit 5): check the paths/markers", file=sys.stderr)
         return 1

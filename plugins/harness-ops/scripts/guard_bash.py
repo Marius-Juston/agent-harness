@@ -18,6 +18,10 @@ import tempfile
 from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 
+# Hooks run as `#!/usr/bin/env python3`, the host's interpreter, not the project's: every script must run on this
+# (Ubuntu 22.04 LTS ships 3.10). tests/test_plugin.py runs each one under it; devkit.setup.HOOK_PYTHON must agree.
+MIN_PYTHON = (3, 10)
+
 PIP = "Python is managed with uv only: `uv add <pkg>` (or `uv add --dev`), `uv run ...`. Never pip."
 PKILL = '`pkill -f` matches the shell running it. Collect PIDs with `pgrep -f "[p]attern"` in one call, kill them in another.'
 ENV = "Never read secrets: .env stays unread. Commands that need it load it themselves."
