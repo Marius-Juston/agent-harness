@@ -115,8 +115,11 @@ def test_uv_add_guard_still_runs_the_gates_under_the_minimum_python(status, code
     dev.write_text(f"#!/bin/sh\necho '{json.dumps({'candidates': [{'status': status, 'gates': gates}]})}'\n")
     dev.chmod(0o755)
     command = " ".join(["uv", "add", "no-such-pkg-zq"])
+    (repo / "pyproject.toml").write_text('[project]\nname = "app"\n')
     out = _under(min_python, "uv_add_guard.py", {"tool_name": "Bash", "tool_input": {"command": command}}, repo)
     assert out.returncode == code, out.stderr
+    if code == 0:  # no tomllib and no venv python to read pyproject with: the hook says the names went to PyPI
+        assert "no tomllib" in out.stdout
 
 
 def test_uv_add_guard_under_the_minimum_python_reads_pyproject_with_the_venvs_python(min_python, tmp_path):
