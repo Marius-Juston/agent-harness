@@ -36,6 +36,8 @@ def repo(tmp_path, monkeypatch):
 
 HOSTILE = {
     "color.ui": "always",
+    "color.diff": "always",  # a per-command colour wins over color.ui
+    "color.grep": "always",
     "diff.noprefix": "true",
     "diff.relative": "true",
     "diff.external": "/bin/false",
@@ -43,16 +45,35 @@ HOSTILE = {
 }
 
 
+def _raw(cwd, *args) -> str:
+    """git as an unpinned caller sees it (no --no-ext-diff, no GIT_CONFIG_* entries)."""
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False).stdout
+
+
+def _outputs(repo):
+    return (
+        gate.affected_tests("HEAD~1"),
+        paths.git("diff", "-U0", "HEAD~2", "HEAD"),
+        paths.git("-C", str(repo / "tests"), "diff", "--name-only", "HEAD~2", "HEAD"),
+    )
+
+
 def test_pinned_git_output_does_not_depend_on_the_repo_config(repo, monkeypatch):
-    plain = gate.affected_tests("HEAD~1"), paths.git("diff", "-U0", "HEAD~1", "HEAD")
+    (repo / "tests/test_pkg.py").write_text("import pkg  # touched\n")
+    _sh(repo, "git", "commit", "-q", "-am", "three")
+    plain = _outputs(repo)
+    assert plain[0] == ["tests/test_pkg.py"] and "--- a/pkg.py" in plain[1]
+    assert plain[2].splitlines() == ["pkg.py", "tests/test_pkg.py"]
+    raw = _raw(repo, "diff", "-U0", "HEAD~2", "HEAD"), _raw(repo / "tests", "diff", "--name-only", "HEAD~2", "HEAD")
     for key, value in HOSTILE.items():
         _sh(repo, "git", "config", key, value)
-    hostile = paths.git("diff", "-U0", "HEAD~1", "HEAD", check=False)
-    assert hostile != plain[1]  # the trap works: the raw output changes
+    # the trap works: unpinned, each setting changes what a parser reads
+    assert _raw(repo, "grep", "-l", "pkg", "--", "tests").startswith("\x1b[")
+    assert _raw(repo, "diff", "-U0", "HEAD~2", "HEAD") != raw[0]  # external diff /bin/false: nothing printed
+    assert _raw(repo / "tests", "diff", "--no-ext-diff", "--name-only", "HEAD~2", "HEAD") != raw[1]  # relative
     for key, value in paths.pin_git_output({}).items():
         monkeypatch.setenv(key, value)
-    assert (gate.affected_tests("HEAD~1"), paths.git("diff", "-U0", "HEAD~1", "HEAD")) == plain
-    assert plain[0] == ["tests/test_pkg.py"] and "--- a/pkg.py" in plain[1]
+    assert _outputs(repo) == plain
 
 
 def test_pin_git_output_keeps_entries_already_set():

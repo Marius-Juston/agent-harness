@@ -11,7 +11,10 @@ from pathlib import Path
 # diff, signature lines in `git log`), pinned to git's defaults for every git devkit starts (#374). An external diff
 # (diff.external) cannot be unset through config: git() passes --no-ext-diff instead.
 GIT_PINNED = {
-    "color.ui": "never",
+    # color.ui is only the default: a per-command color.<cmd> wins over it, so each one is pinned too
+    **{f"color.{c}": "never" for c in ("ui", "diff", "grep", "status", "branch", "showBranch", "decorate")},
+    "diff.srcPrefix": "a/",  # git 2.45+; older git ignores the key
+    "diff.dstPrefix": "b/",
     "core.quotePath": "true",
     "diff.noprefix": "false",
     "diff.mnemonicPrefix": "false",
@@ -35,8 +38,9 @@ def pin_git_output(env: Mapping[str, str]) -> dict[str, str]:
 
 
 def git(*args: str, cwd: Path | None = None, check: bool = True) -> str:
-    if args[:1] in (("diff",), ("log",), ("show",)):
-        args = (args[0], "--no-ext-diff", *args[1:])
+    at = 2 if args[:1] == ("-C",) else 0  # the subcommand, after a leading `-C <dir>`
+    if args[at : at + 1] in (("diff",), ("log",), ("show",)):
+        args = (*args[: at + 1], "--no-ext-diff", *args[at + 1 :])
     out = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False)
     if check and out.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {out.stderr.strip()}")
