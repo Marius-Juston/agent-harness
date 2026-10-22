@@ -4,6 +4,41 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.14 (2026-10-21)
+
+The harness runs in the environment the project declares, not the one the machine happens to have: plugin hooks work
+on an older system `python3`, a sourced ROS (or any shell `PYTHONPATH`) no longer breaks the gate's tests, and the
+owner's git config no longer changes the git output devkit parses.
+
+### Upgrading a project
+Run `uvx copier update --data harness_ref=v0.1.14`, then `uv sync && uv run dev setup && uv run dev check`. These can
+need attention:
+- **The gate, `dev test` and `dev suite-audit` ignore `PYTHONPATH`, `PYTHONHOME`, `PYTHONOPTIMIZE`,
+  `PYTHONWARNINGS`, `PYTEST_PLUGINS` and `PYTEST_ADDOPTS`** from the shell, as CI never sets them, and print which
+  ones they dropped. If the tests relied on one of them, move it into pytest's `pythonpath` or `filterwarnings`
+  option in `pyproject.toml`. `dev doctor` warns while one is set, because ad-hoc `uv run python` still sees it.
+  docs/SETUP.md has a new *Host Python environment* section. (#372, #376)
+- **Every `dev` command pins git's default output** for the git it starts, through `GIT_CONFIG_COUNT` entries
+  (`color.*=never`, the `a/` `b/` diff prefixes, non-relative and quoted paths, no signatures in `git log`), and
+  `git diff`/`log`/`show` run with `--no-ext-diff`. The pins reach every subprocess of `dev`, the project's test suite
+  under `dev test` included. (#374)
+- **Plugin hooks need `python3` 3.10 or later** on the machine. `dev doctor` checks it. (#370)
+- **Test-only optional extras belong in the dev group.** `uv sync` and CI's `uv sync --locked` install no extras and
+  remove any installed by hand. This is a project-side fix; docs/SETUP.md says how.
+
+### Fixed
+- `uv_add_guard.py` crashed on every Bash call under Python 3.10 (a module-level `import tomllib`), so the `uv add`
+  reuse gates never ran. Without `tomllib` it now reads `pyproject.toml` with the project venv's Python. A test runs
+  every plugin hook under Python 3.10, and ruff lints `plugins/**/*.py` at `py310`. (#370)
+- A sourced ROS Humble put its Python 3.10 `launch_testing` pytest plugin into the venv's pytest, and the test stage
+  died on `No module named 'lark'` before running a test. (#372)
+- With `color.ui=always` (or a `color.grep`/`color.diff` setting, `diff.noprefix`, `diff.relative` or
+  `diff.external`) in the git config, `dev test --affected` and the `dev stats` diff parsing read colour codes or
+  wrong paths. (#374)
+
+### Added
+- An animated terminal demo of the full loop in the README, and the step after `claude` in the quickstart. (#368)
+
 ## v0.1.13 (2026-10-20)
 
 Less issue and PR bookkeeping for the lead, from the #346 research ([issue-pr-automation.md](docs/research/issue-pr-automation.md)):
