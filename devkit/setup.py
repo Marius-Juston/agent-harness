@@ -29,6 +29,21 @@ TOOLS = {
     "flock": "util-linux (gate and hooks use it)",
 }
 
+# The oldest python3 the plugin's hook scripts run on (they run as `#!/usr/bin/env python3`, the host's interpreter);
+# guard_bash.MIN_PYTHON in the plugin states the same (a test checks they agree).
+HOOK_PYTHON = (3, 10)
+
+
+def hook_python(version: str) -> tuple[bool, str, str]:
+    """(ok, what, fix) for the host's python3 version ("3.10", or "" when there is none) against HOOK_PYTHON."""
+    want = ".".join(map(str, HOOK_PYTHON))
+    try:
+        ok = tuple(int(x) for x in version.split(".")[:2]) >= HOOK_PYTHON
+    except ValueError:
+        ok = False
+    what = f"python3 on PATH is {version or 'missing'} (plugin hooks need {want}+)"
+    return ok, what, f"install Python {want}+ as python3 (the hooks run on the host's python3, not the venv's)"
+
 
 def _ok(cmd: list[str], cwd: Path | None = None) -> tuple[bool, str]:
     try:
@@ -221,6 +236,8 @@ def doctor() -> int:
 
     for tool, fix in TOOLS.items():
         report(shutil.which(tool) is not None, f"{tool} on PATH", fix)
+    ok, out = _ok(["python3", "-c", "import sys; print('%d.%d' % sys.version_info[:2])"])
+    report(*hook_python(out if ok else ""))
     ok, _ = _ok(["gh", "auth", "status"])
     report(ok, "gh authenticated", "gh auth login")
     report(bool(git("remote", "get-url", "origin", check=False)), "origin remote", "see README: clone from GitHub")

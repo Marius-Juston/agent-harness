@@ -28,7 +28,6 @@ import re
 import subprocess
 import sys
 import time
-import tomllib
 import urllib.parse
 from dataclasses import dataclass, field
 from functools import cache
@@ -36,6 +35,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import guard_bash
+
+try:  # 3.11+; hooks run under the host's python3, which may be older (guard_bash.MIN_PYTHON)
+    import tomllib
+except ImportError:
+    tomllib = None
+NO_TOML = (
+    f"python3 {sys.version.split()[0]} has no tomllib (3.11+): the project's own and [tool.uv.sources] names were not "
+    "read, so they are checked as PyPI names"
+)
 
 TIMEOUT = 80  # seconds for all `dev reuse check` calls of one hook run together; hooks.json gives the hook 90
 clock = time.monotonic
@@ -184,6 +192,8 @@ def existing(path: str) -> str:
 
 
 def toml(path: Path) -> dict:
+    if tomllib is None:
+        return {}
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
@@ -334,6 +344,8 @@ def main() -> int:
         refuse += a.refuse
         names = groups.setdefault(a.cwd, [])
         names += [n for n in a.names if n not in names]
+    if tomllib is None and any(groups.values()):
+        warn.append(NO_TOML)
     for where, names in groups.items():
         if not names:
             continue
