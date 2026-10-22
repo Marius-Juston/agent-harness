@@ -36,10 +36,12 @@ def host_leaks(env: Mapping[str, str]) -> str:
 
     if not (dropped := hermetic_env(env)[1]):
         return ""
+    clear = json.dumps({"env": dict.fromkeys(dropped, "")})
+    unset = " ".join(f"-u {k}" for k in dropped)
     return (
         f"{', '.join(dropped)} set in this shell: the gate and `dev test` ignore it, but `uv run python` and "
-        'a bare pytest still load it  ->  for agents, `.claude/settings.local.json` {"env": {"PYTHONPATH": ""}}; '
-        "in a shell, `env -u PYTHONPATH ...` (docs/SETUP.md, Host Python environment)"
+        f"a bare pytest still load it  ->  for agents, `.claude/settings.local.json` {clear}; "
+        f"in a shell, `env {unset} ...` (docs/SETUP.md, Host Python environment)"
     )
 
 
