@@ -52,8 +52,9 @@ def _raw(cwd, *args) -> str:
 
 def _outputs(repo):
     return (
-        gate.affected_tests("HEAD~1"),
+        gate.affected_tests("HEAD~2"),  # pkg.py changed since: its importers are found with git grep
         paths.git("diff", "-U0", "HEAD~2", "HEAD"),
+        paths.git("-C", str(repo), "diff", "-U0", "HEAD~2", "HEAD"),  # --no-ext-diff after -C
         paths.git("-C", str(repo / "tests"), "diff", "--name-only", "HEAD~2", "HEAD"),
     )
 
@@ -63,7 +64,7 @@ def test_pinned_git_output_does_not_depend_on_the_repo_config(repo, monkeypatch)
     _sh(repo, "git", "commit", "-q", "-am", "three")
     plain = _outputs(repo)
     assert plain[0] == ["tests/test_pkg.py"] and "--- a/pkg.py" in plain[1]
-    assert plain[2].splitlines() == ["pkg.py", "tests/test_pkg.py"]
+    assert plain[3].splitlines() == ["pkg.py", "tests/test_pkg.py"]
     raw = _raw(repo, "diff", "-U0", "HEAD~2", "HEAD"), _raw(repo / "tests", "diff", "--name-only", "HEAD~2", "HEAD")
     for key, value in HOSTILE.items():
         _sh(repo, "git", "config", key, value)
