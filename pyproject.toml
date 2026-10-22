@@ -71,6 +71,8 @@ plugin = [
 [tool.ruff]
 line-length = 120
 target-version = "py313"
+# Hook scripts run on the host's python3, not the venv's: syntax newer than guard_bash.MIN_PYTHON is an error (#370)
+per-file-target-version = { "plugins/**/*.py" = "py310" }
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S"]
