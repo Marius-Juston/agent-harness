@@ -367,8 +367,10 @@ def _floors() -> dict:
 CLEAN_FLAG = "DEVKIT_GATE_PYCACHE"
 # Variables that point Python or pytest away from the project's .venv. A sourced ROS sets PYTHONPATH to its own
 # site-packages, which come before the venv's, so pytest loads their entry-point plugins and fails before a test runs.
-# CI sets none of them. Import paths a project needs belong in pytest's `pythonpath` option, which is versioned.
-HOST_LEAKS = ("PYTHONPATH", "PYTHONHOME", "PYTEST_PLUGINS", "PYTEST_ADDOPTS")
+# PYTHONOPTIMIZE strips the asserts of the code under test, PYTHONWARNINGS changes the warning filters (#376).
+# CI sets none of them. What a project needs belongs in pytest's `pythonpath` and `filterwarnings` options, which are
+# versioned.
+HOST_LEAKS = ("PYTHONPATH", "PYTHONHOME", "PYTHONOPTIMIZE", "PYTHONWARNINGS", "PYTEST_PLUGINS", "PYTEST_ADDOPTS")
 
 
 def hermetic_env(env: Mapping[str, str]) -> tuple[dict[str, str], list[str]]:

@@ -33,9 +33,11 @@ and `uv run dev lit status` (`(key)` next to each keyed source).
 The harness runs in the environment the project declares, not the one your shell happens to have:
 - **Hook scripts** run on the machine's `python3` (they start `#!/usr/bin/env python3`), which must be 3.10 or
   later. `uv run dev doctor` checks it.
-- **The gate and `dev test`** ignore `PYTHONPATH`, `PYTHONHOME`, `PYTEST_PLUGINS` and `PYTEST_ADDOPTS` and say so.
-  A sourced ROS sets `PYTHONPATH` to its own Python's packages, and pytest would load their plugins into the venv's
-  interpreter. A path the tests really need belongs in pytest's `pythonpath` option in `pyproject.toml`.
+- **The gate and `dev test`** ignore `PYTHONPATH`, `PYTHONHOME`, `PYTHONOPTIMIZE`, `PYTHONWARNINGS`,
+  `PYTEST_PLUGINS` and `PYTEST_ADDOPTS` and say so. A sourced ROS sets `PYTHONPATH` to its own Python's packages, and
+  pytest would load their plugins into the venv's interpreter. `PYTHONOPTIMIZE` strips the asserts of the code under
+  test, and `PYTHONWARNINGS` changes which warnings fail. A path or warning filter the tests really need belongs in
+  pytest's `pythonpath` or `filterwarnings` option in `pyproject.toml`.
 - **Everything else** (`uv run python`, a bare `pytest`) still sees those variables. On such a machine, clear them for
   agents in the gitignored `settings.local.json` under `.claude/`, so the change applies to this machine only:
   ```json

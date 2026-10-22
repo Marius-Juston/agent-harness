@@ -329,10 +329,30 @@ def test_check_reruns_itself_under_a_fresh_per_run_bytecode_prefix(monkeypatch):
 
 
 def test_hermetic_env_drops_only_what_redirects_python():
-    env = {"PATH": "/bin", "PYTHONPATH": "/opt/ros/lib", "PYTEST_ADDOPTS": "", "PYTHONDONTWRITEBYTECODE": "1"}
+    env = {
+        "PATH": "/bin",
+        "PYTHONPATH": "/opt/ros/lib",
+        "PYTEST_ADDOPTS": "",
+        "PYTHONOPTIMIZE": "1",
+        "PYTHONWARNINGS": "error",
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
     clean, dropped = gate.hermetic_env(env)
     assert clean == {"PATH": "/bin", "PYTHONDONTWRITEBYTECODE": "1"}
-    assert dropped == ["PYTHONPATH"]  # an empty one is dropped too, but there is nothing to tell
+    assert dropped == ["PYTHONPATH", "PYTHONOPTIMIZE", "PYTHONWARNINGS"]  # an empty one goes too, with nothing to tell
+
+
+def test_dev_test_keeps_asserts_when_the_shell_sets_pythonoptimize(tmp_path, monkeypatch, capsys):
+    test = tmp_path / "test_debug.py"
+    test.write_text(
+        "def test_asserts_run():\n    if not __debug__:\n        raise RuntimeError('optimized: asserts are off')\n"
+    )
+    monkeypatch.setenv("PYTHONOPTIMIZE", "1")
+    cmd = gate.pytest_cmd([str(test)], n=1)
+    optimized = subprocess.run(cmd, cwd=tmp_path, capture_output=True, text=True, check=False)
+    assert optimized.returncode != 0 and "asserts are off" in optimized.stdout  # the trap works
+    assert gate.test([str(test)], affected=False, slow=False, n=1) == 0
+    assert "ignoring PYTHONOPTIMIZE" in capsys.readouterr().out
 
 
 def test_the_rerun_gate_env_leaves_out_the_shells_pythonpath():
