@@ -5,10 +5,11 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 
 import pytest
 
-from devkit import board, checks, frontmatter
+from devkit import board, checks, frontmatter, setup
 from devkit.paths import root
 
 PLUGIN = root() / "plugins/harness-ops"
@@ -47,6 +48,99 @@ def test_every_hook_script_exists_and_is_executable():
         target = PLUGIN / rel
         assert target.is_file() and target.stat().st_mode & 0o111, rel
     assert all((PLUGIN / "hooks" / m).is_file() for m in data["modules"])
+
+
+# Hooks run as `#!/usr/bin/env python3`, the host's interpreter (#370): a sample payload per script, run under the
+# oldest Python they promise.
+MIN_PYTHON = tuple(
+    int(x)
+    for x in re.search(r"^MIN_PYTHON = \((\d+), (\d+)\)", (PLUGIN / "scripts/guard_bash.py").read_text(), re.M).groups()
+)
+HOOK_PAYLOADS = {
+    "guard_bash.py": {"tool_name": "Bash", "tool_input": {"command": "ls"}},
+    "uv_add_guard.py": {"tool_name": "Bash", "tool_input": {"command": "ls"}},
+    "read_guard.py": {"tool_name": "Read", "tool_input": {"file_path": "a.py"}},
+    "edit_guard.py": {"tool_name": "Edit", "tool_input": {"file_path": "a.py", "old_string": "x", "new_string": "y"}},
+    "lint_after_edit.py": {"tool_name": "Edit", "tool_input": {"file_path": "a.py"}},
+    "completion_gate.py": {"hook_event_name": "SubagentStop", "agent_type": "harness-ops:builder"},
+}
+
+
+@pytest.fixture(scope="module")
+def min_python() -> str:
+    """The oldest supported interpreter, from uv (downloaded once). No skip when uv cannot get it: a skipped check
+    would pass silently."""
+    want = ".".join(map(str, MIN_PYTHON))
+    find = ["uv", "python", "find", "--no-project", want]
+    out = subprocess.run(find, capture_output=True, text=True, check=False)
+    if out.returncode != 0:
+        subprocess.run(["uv", "python", "install", want], capture_output=True, check=False, timeout=300)
+        out = subprocess.run(find, capture_output=True, text=True, check=False)
+    assert out.returncode == 0, f"no Python {want} for the hook tests: run `uv python install {want}` ({out.stderr})"
+    return out.stdout.strip()
+
+
+def _repo(tmp_path):
+    subprocess.run(["git", "init", "-q", "-b", "main", str(tmp_path)], check=True)
+    (tmp_path / "a.py").write_text("x = 1\n")
+    return tmp_path
+
+
+def _under(python: str, script: str, payload: dict, cwd) -> subprocess.CompletedProcess:
+    data = json.dumps(payload | {"cwd": str(cwd)})
+    cmd = [python, str(PLUGIN / "scripts" / script)]
+    return subprocess.run(cmd, input=data, cwd=cwd, capture_output=True, text=True, timeout=60, check=False)
+
+
+def test_every_python_hook_has_a_sample_payload():
+    assert {p.name for p in (PLUGIN / "scripts").glob("*.py")} == set(HOOK_PAYLOADS)
+
+
+def test_the_stated_minimum_python_agrees_with_dev_doctor():
+    assert MIN_PYTHON == setup.HOOK_PYTHON
+
+
+@pytest.mark.parametrize("script", sorted(HOOK_PAYLOADS))
+def test_every_python_hook_runs_under_the_minimum_python(script, min_python, tmp_path):
+    out = _under(min_python, script, HOOK_PAYLOADS[script], _repo(tmp_path))
+    assert out.returncode == 0, out.stderr
+
+
+@pytest.mark.parametrize(("status", "code"), [("NOT FOUND", 2), ("OK", 0)])
+def test_uv_add_guard_still_runs_the_gates_under_the_minimum_python(status, code, min_python, tmp_path):
+    repo = _repo(tmp_path)
+    dev = repo / ".venv/bin/dev"
+    dev.parent.mkdir(parents=True)
+    gates = {"G1": "FAIL (not on PyPI)"} if status != "OK" else {}
+    dev.write_text(f"#!/bin/sh\necho '{json.dumps({'candidates': [{'status': status, 'gates': gates}]})}'\n")
+    dev.chmod(0o755)
+    command = " ".join(["uv", "add", "no-such-pkg-zq"])
+    (repo / "pyproject.toml").write_text('[project]\nname = "app"\n')
+    out = _under(min_python, "uv_add_guard.py", {"tool_name": "Bash", "tool_input": {"command": command}}, repo)
+    assert out.returncode == code, out.stderr
+    if code == 0:  # no tomllib and no venv python to read pyproject with: the hook says the names went to PyPI
+        assert "no tomllib" in out.stdout
+
+
+def test_uv_add_guard_under_the_minimum_python_reads_pyproject_with_the_venvs_python(min_python, tmp_path):
+    """No tomllib before 3.11: the project venv's Python reads pyproject, so a workspace member is not sent to PyPI
+    as an unknown name (and refused)."""
+    repo = _repo(tmp_path)
+    (repo / "pyproject.toml").write_text('[project]\nname = "app"\n[tool.uv.sources]\nmylib = { workspace = true }\n')
+    venv = repo / ".venv/bin"
+    venv.mkdir(parents=True)
+    (venv / "python").symlink_to(sys.executable)
+    (venv / "dev").write_text('#!/bin/sh\necho \'{"candidates": [{"status": "NOT FOUND", "gates": {}}]}\'\n')
+    (venv / "dev").chmod(0o755)
+    command = " ".join(["uv", "add", "mylib"])
+    out = _under(min_python, "uv_add_guard.py", {"tool_name": "Bash", "tool_input": {"command": command}}, repo)
+    assert out.returncode == 0, out.stderr
+    assert "no tomllib" not in out.stdout
+
+
+@pytest.mark.parametrize(("version", "ok"), [("3.10", True), ("3.13", True), ("3.9", False), ("", False), ("x", False)])
+def test_doctor_judges_the_host_python3_against_the_hook_minimum(version, ok):
+    assert setup.hook_python(version)[0] is ok
 
 
 @pytest.mark.parametrize(

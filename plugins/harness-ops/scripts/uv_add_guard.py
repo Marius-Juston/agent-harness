@@ -28,7 +28,6 @@ import re
 import subprocess
 import sys
 import time
-import tomllib
 import urllib.parse
 from dataclasses import dataclass, field
 from functools import cache
@@ -36,6 +35,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import guard_bash
+
+try:  # 3.11+; hooks run under the host's python3, which may be older (guard_bash.MIN_PYTHON)
+    import tomllib
+except ImportError:
+    tomllib = None
+NO_TOML = (
+    f"python3 {sys.version.split()[0]} has no tomllib (3.11+) and a pyproject.toml could not be read with the "
+    "project's .venv python: its own and [tool.uv.sources] names are checked as PyPI names"
+)
+UNREAD: list[Path] = []  # pyproject files toml() could not read without tomllib (NO_TOML is then printed)
+READ_TOML = "import json, sys, tomllib; print(json.dumps(tomllib.load(open(sys.argv[1], 'rb'))))"
 
 TIMEOUT = 80  # seconds for all `dev reuse check` calls of one hook run together; hooks.json gives the hook 90
 clock = time.monotonic
@@ -183,7 +193,25 @@ def existing(path: str) -> str:
     return path or "."
 
 
+def venv_python(cwd: str) -> str | None:
+    exe = os.path.join(guard_bash.worktree_root(existing(cwd)), ".venv", "bin", "python")
+    return exe if os.access(exe, os.X_OK) else None
+
+
 def toml(path: Path) -> dict:
+    if tomllib is None:  # an older host python3: the project venv's (the one `dev` runs on) reads it
+        if not path.is_file():
+            return {}
+        data = None
+        if exe := venv_python(str(path.parent)):  # -I: no module from the hook's cwd shadows json or tomllib
+            cmd = [exe, "-I", "-c", READ_TOML, str(path)]
+            with contextlib.suppress(OSError, subprocess.SubprocessError, ValueError):
+                out = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+                data = json.loads(out.stdout) if out.returncode == 0 else None
+        if not isinstance(data, dict):
+            UNREAD.append(path)
+            return {}
+        return data
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
@@ -334,6 +362,8 @@ def main() -> int:
         refuse += a.refuse
         names = groups.setdefault(a.cwd, [])
         names += [n for n in a.names if n not in names]
+    if UNREAD and any(groups.values()):
+        warn.append(NO_TOML)
     for where, names in groups.items():
         if not names:
             continue
