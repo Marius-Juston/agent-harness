@@ -342,21 +342,10 @@ def test_the_rerun_gate_env_leaves_out_the_shells_pythonpath():
     assert dropped == ["PYTHONPATH"]
 
 
-def _ros_like(tmp_path) -> Path:
-    """A PYTHONPATH entry like a sourced ROS: a pytest entry-point plugin whose import fails."""
-    site = tmp_path / "site"
-    info = site / "broken_plugin-1.0.dist-info"
-    info.mkdir(parents=True)
-    (info / "METADATA").write_text("Metadata-Version: 2.1\nName: broken-plugin\nVersion: 1.0\n")
-    (info / "entry_points.txt").write_text("[pytest11]\nbroken = broken_plugin\n")
-    (site / "broken_plugin.py").write_text("import lark_that_is_not_installed\n")
-    return site
-
-
-def test_dev_test_runs_cleanly_with_a_ros_like_pythonpath(tmp_path, monkeypatch, capsys):
+def test_dev_test_runs_cleanly_with_a_ros_like_pythonpath(tmp_path, ros_like_site, monkeypatch, capsys):
     test = tmp_path / "test_one.py"
     test.write_text("def test_one():\n    assert True\n")
-    monkeypatch.setenv("PYTHONPATH", str(_ros_like(tmp_path)))
+    monkeypatch.setenv("PYTHONPATH", str(ros_like_site))
     cmd = gate.pytest_cmd([str(test)], n=1)
     broken = subprocess.run(cmd, cwd=tmp_path, capture_output=True, text=True, check=False)
     assert broken.returncode != 0 and "lark_that_is_not_installed" in broken.stdout + broken.stderr  # the trap works
