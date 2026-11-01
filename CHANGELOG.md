@@ -4,6 +4,79 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.17 (2026-11-01)
+
+Several gates can run on one machine at once (`gate_slots`), integrate can land several ready PRs behind one gate
+(`dev integrate --train`), and a gate run in one worktree can no longer report another worktree's results or reuse
+a pass recorded for a different test selection. `devkit/workflow.py` is split into focused modules, ending the
+import cycle around `devkit.checks`.
+
+### Upgrading a project
+Run `uvx copier update`, then `uv sync && uv run dev setup && uv run dev docs && uv run dev check`. These can need
+attention:
+- **New opt-in `[tool.devkit] gate_slots`** (default 1, so nothing changes until a project sets it): the number of
+  gates that may run at once on one machine, each holding one of the lock files `gate.lock`, `gate.lock.1`, ... in
+  `<git-common-dir>/devkit/`. Integrate's gate still takes the next free slot ahead of queued worker gates, and the
+  test workers are divided among the slots. A gate also honours slot files left by a larger setting, so **lowering
+  `gate_slots` takes effect only once the extra `gate.lock.<n>` files are deleted while no gate runs** (`dev status`
+  lists every holder). A value below 1, or a bool, string or float, is a config error. (#461)
+- **The gate's first line names the worktree, the interpreter and the devkit directory it runs**, and a
+  `gate: WARNING: ...` line follows when devkit or python comes from another worktree of the same repository (a
+  sibling's venv or editable install). Fix that setup rather than ignoring the warning: such a gate runs the
+  sibling's code. A venv outside the project or an editable harness checkout elsewhere is only named. (#463)
+- **Cached passes now re-check the collected test selection.** A pass record stores a fingerprint of the node ids
+  `pytest --collect-only` lists, and a cache hit is reused only when it matches, so a pass scoped on a feature
+  branch is not reused on main at the same tree. Records written before this release carry no fingerprint and are
+  never reused: every tree re-gates once after the upgrade, and each cache check costs one collect-only run. (#462)
+- **`dev integrate --train N <pr>...`** is new: it gates up to N ready PRs merged together once, lands each as its
+  own squash commit with one push of main, and on failure bisects to the first breaking member and sends back only
+  that one. A protected main that refuses a direct push stops the train with nothing landed (#472). (#464)
+- **`--harness-ok` now takes PR numbers.** In a train it clears only the members named and refuses a number that is
+  not a member (and duplicate members); on a single integrate, a bare `--harness-ok` still clears that PR, and a
+  number other than that PR is refused. Scripts that pass it with a value must pass PR numbers. (#464)
+- **devkit internals moved out of `devkit.workflow`.** A project or script importing devkit internals from
+  `devkit.workflow` should import them from the new modules: `devkit.quota` (quota cap and usage polling),
+  `devkit.branches` (worktree listing, branch pruning), `devkit.prtext` (Reuse:, title and session-leak rules),
+  `devkit.ci_status` (PR check polling, `--local-ci`), `devkit.merging` (merge with main, conflicts, stacked
+  retargets, `regenerate`) and `devkit.fixloop` (fix loop, send-backs, scrubbing, outcome records, `--why`).
+  `devkit.workflow` keeps re-exporting what the plugin scripts import (`_gate_passed`, `REUSE_FORMS`,
+  `reuse_problem`) and what `devkit.train` reads through it, so a plugin older or newer than the project's devkit
+  keeps working; anything else, `SESSION_URL` for one, is no longer there. Tests that monkeypatch `workflow.git` or
+  `workflow.state_dir` to steer moved code must patch the new module too. (#442, #443, #444, #445, #446, #448)
+- **`dev agent-stats` scorecard counts as `--cost`/`--reviews`/`--misses` do:** it drops runs with no real
+  assistant message and skips `<synthetic>` messages, so the main-session row can show fewer runs and higher
+  medians than before on the same transcripts. Compare scorecards across the upgrade with that in mind. (#450)
+
+### Added
+- `[tool.devkit] gate_slots`: N concurrent gate slots per machine, merges still first; `dev status` lists every
+  slot holder. (#461)
+- `dev integrate --train N <pr>...`: a merge train that gates several ready PRs together and bisects on failure; the
+  multi-agent spec gains it as step 9. (#464)
+- The gate's first line names its worktree, interpreter and devkit, with a warning for one from another worktree.
+  (#463)
+- `devkit/quota.py`, `devkit/branches.py`, `devkit/prtext.py`, `devkit/ci_status.py`, `devkit/merging.py` and
+  `devkit/fixloop.py`, holding code moved verbatim out of `devkit/workflow.py` (1,279 -> 934 lines in the last
+  step). (#442, #443, #444, #445, #446, #448)
+- `devkit/diffparse.py`, a leaf module holding the diff parser moved from `devkit/weaken.py`. (#449)
+
+### Changed
+- `--harness-ok` takes PR numbers; a bare `--harness-ok` clears a single integrate only. (#464)
+- A pass record stores the collected test selection's fingerprint, and a cache hit needs it to match. (#462)
+- `devkit.checks` no longer imports `devkit.cli` or `devkit.weaken`: `gate.check` takes a parser factory, and the
+  largest import cycle goes from 7 modules to none. (#449)
+- `dev agent-stats` has one transcript reader for the scorecard and `--cost`/`--reviews`/`--misses`; the scorecard
+  skips synthetic turns and runs without a real one. (#450)
+- This repository's consolidation trigger excludes research scratch, eval fixtures, `tests/fixtures` and `template`
+  (its own `[tool.devkit.consolidation]`), and decision D24 freezes `scripts/suite_metrics.py` as evidence. (#451)
+
+### Fixed
+- A queued `dev check` could report another worktree's test output as its own: two gates failing in the same second
+  shared one log file, and concurrent writers of `test-history.jsonl` crashed or lost runs. Logs now have unique
+  names and the history is written under a lock. (#463)
+- A pass scoped on a feature branch was reused by `dev check` on main at the same tree. (#462)
+- A gate passing through the wait queue to a free slot printed the waiting notice. (#461)
+- A test of integrate wrote `pr-7.outcome.json` into the clone's real shared state dir on every run. (#448)
+
 ## v0.1.16 (2026-11-01)
 
 Integrate needs the lead less: it regenerates declared hash lines and copied action pins when a PR's head is merged
