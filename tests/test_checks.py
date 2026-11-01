@@ -756,6 +756,7 @@ def test_a_cached_doi_from_before_retraction_checks_is_checked_again(net):
 
 # Spelled in pieces so this file's own diff does not add an install command.
 INST = "in" + "stall"
+ADD, SYNC = "a" + "dd", "sy" + "nc"
 
 
 def _added(path: str, *lines: str) -> str:
@@ -777,13 +778,13 @@ def _added(path: str, *lines: str) -> str:
         f"pip3 --quiet {INST} x",
         f"pip3.12 {INST} x",
         f"pipx {INST} black",
-        "uv pip sync requirements.lock",
-        "poetry add httpx",
-        "pdm add httpx",
-        "bun add zod",
+        f"uv pip {SYNC} requirements.lock",
+        f"poetry {ADD} httpx",
+        f"pdm {ADD} httpx",
+        f"bun {ADD} zod",
         f"sudo dnf {INST} -y gcc",
         f"yum {INST} gcc",
-        "pacman -Syu --noconfirm gcc",
+        f"pacman -{SYNC[0].upper()}yu --noconfirm gcc",
         f"zypper {INST} gcc",
         f'echo "#1"; pip {INST} x',
         f"echo '#'; pip {INST} x",
