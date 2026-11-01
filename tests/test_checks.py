@@ -995,3 +995,5 @@ def test_the_shipped_decision_tables_pass_with_short_literals():
         assert problems == [] and len(parsed) == rows, (rel, problems)
     ran = checks.check_decisions()
     assert ran.ok and ran.checked == 6 and not ran.warnings, ran.warnings
+    # Project-owned: `copier update` must never merge a template header edit into a project's rows.
+    assert ".devkit/decisions.toml" in (root() / "copier.yml").read_text()

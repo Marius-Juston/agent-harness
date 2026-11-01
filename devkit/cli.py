@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import time
+from datetime import date
 from pathlib import Path
 
 from devkit import (
@@ -19,6 +20,7 @@ from devkit import (
     gate,
     lit,
     reuse,
+    rules,
     setup,
     stats,
     workflow,
@@ -268,6 +270,11 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("slug")
     x.add_argument("--title", required=True)
     x.add_argument("--issue", default="?")
+    x = sub.add_parser("gotcha", help="append a one-line lesson to the .claude/rules file scoped to a path")
+    x.add_argument("path", help="the file or directory the lesson is about")
+    x.add_argument("lesson", nargs="+")
+    x.add_argument("--issue", type=int, help="provenance issue (default: the branch's <n>-)")
+    x.add_argument("--checkable", action="store_true", help="a test or hook can catch it: print the issue to file")
 
     s = sub.add_parser("setup", help="once per machine/clone: uv sync, git config, plugin install, then doctor")
     s.add_argument(
@@ -373,6 +380,25 @@ def _changed_notes() -> list[Path]:
     return [root() / f for f in sorted(set(out)) if (root() / f).exists() and Path(f).name not in _NOT_NOTES]
 
 
+def run_gotcha(a: argparse.Namespace) -> int:
+    lesson = " ".join(a.lesson)
+    issue = a.issue or rules.issue_from_branch(checks.git("branch", "--show-current", check=False).strip())
+    if issue is None:
+        print("no issue number in the branch name: pass --issue N")
+        return 1
+    if a.checkable:
+        print("a check holds where a rule only advises; file this instead of a rule:")
+        print(rules.checkable_issue(a.path, lesson, issue))
+        return 0
+    try:
+        path, wrote = rules.add(a.path, lesson, issue, date.today())
+    except ValueError as exc:
+        print(f"not written: {exc}")
+        return 1
+    print(f"{'added to' if wrote else 'already in'} {path.relative_to(root())}")
+    return 0
+
+
 def run(a: argparse.Namespace) -> int:
     match a.cmd:
         case "orient":
@@ -428,6 +454,8 @@ def run(a: argparse.Namespace) -> int:
                 return 1
             path.write_text(NOTE_TEMPLATE.format(title=a.title, date=time.strftime("%Y-%m-%d"), issue=a.issue))
             print(f"created {path.relative_to(root())}")
+        case "gotcha":
+            return run_gotcha(a)
         case "setup":
             return setup.setup(repin_all=a.repin_all)
         case "doctor":

@@ -27,7 +27,7 @@ from pathlib import Path, PurePosixPath
 from typing import IO
 from xml.etree import ElementTree
 
-from devkit import board, checks, config, docs, weaken
+from devkit import board, checks, config, docs, rules, weaken
 from devkit.paths import git, root, state_dir
 from devkit.ran import Ran
 
@@ -397,6 +397,7 @@ def stages(
         lambda: checks.check_dev_commands(commands),
         checks.check_research_notes,
         checks.check_decisions,
+        lambda: rules.check_rules(base),
         board.check_board,
         lambda: checks.check_ratchets(base),
         lambda: weaken.check_weakening(base),
