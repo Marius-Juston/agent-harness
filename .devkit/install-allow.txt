@@ -1,0 +1,5 @@
+# Files that may add a package install command (devkit/checks.py check_installs, #392). One path glob per line,
+# then `#` and the reason. A new entry needs the owner's approval: the reviewer treats one without it as Blocking.
+tests/test_hooks.py  # sample commands the guard hooks must refuse
+devkit/setup.py  # `dev doctor` prints install hints for missing tools; it runs none
+docs/research/_scratch/**  # research scratch quotes setup steps of the tools it surveys

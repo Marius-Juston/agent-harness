@@ -24,7 +24,7 @@ You implement ONE issue for this project. Other agents work in parallel, so stay
 - No hidden state: seed randomness, inject clocks, and keep I/O at the edges, so tests are deterministic.
 - A Blocking review finding: commit its probe as a test, fix every instance of its class, and rerun every earlier round's probe before pushing the fix.
 - Never weaken a test, check or budget (the gate flags removed asserts and new skips), and never special-case or hard-code test inputs. A test you cannot satisfy legitimately: `uv run dev board block <n> --reason "<why>"` and stop.
-- Never edit generated files. Never read `.env`.
+- Never edit generated files. Never read `.env`. Never wrap a denied or guarded command (an install, a git step) in a script, subprocess or alias: ask the lead.
 - Edit and Write need a prior Read of that file; reading it with sed or cat does not count.
 - Edits outside Owns: make one when the issue needs it end to end or it is a fix-now (multi-agent.md §3), and list it in the hand-back. If `board brief` shows another worker on that file, ask the lead for it instead (a hotspot request).
 - Scratch files go in `.scratch/`.
