@@ -15,6 +15,12 @@ After the update, run `uv run dev docs`: it writes the new `docs/generated/decis
 generated-docs stage needs. `.devkit/decisions.toml` is project-owned: copier creates it once and never updates it,
 and the gate warns when an active row's reason literal leaves its path. (#226)
 
+`uv run dev integrate` now refuses a PR whose title is not Conventional Commits (`type(scope): outcome`, lowercase
+type, ` (#n)` optional), before the gate and whatever `--override` says; `dev pr` writes such titles from the issue,
+so only PRs opened by hand or before the update need retitling (`gh pr edit <n> --title ...`). The template's
+`dependabot.yml` gives Dependabot PRs `build(deps):` / `ci(deps):` titles. A project whose main does not use
+Conventional Commits opts out with `conventional_titles = false` under `[tool.devkit]`. (#100)
+
 ### Fixed
 - `copier update` reused the `harness_ref` answer stored in `.copier-answers.yml` over the new release's default, so
   template files moved while the dev-group, uv-source and plugin pins stayed on the old tag. `harness_ref` is no

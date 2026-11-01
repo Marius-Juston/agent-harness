@@ -491,6 +491,72 @@ def main_conflicts() -> list[str]:
         raise board.BoardError(f"cannot check this branch for conflicts with origin/main: {exc}") from exc
 
 
+# Conventional Commits 1.0.0 PR titles (#100): the squash subject is the PR title, and release-please (#60) reads the
+# subjects on main. The type comes from the issue's type label; the scope from its '<component>: ' title prefix.
+COMMIT_TYPES = ("feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert")
+KIND_TYPE = {"build": "feat", "epic": "feat", "bug": "fix", "test": "test", "research": "docs", "infra": "ci"}
+# Lowercase types only (the spec allows any case; commitizen's check does not). The scope keeps to ASCII word chars,
+# '.', '/' and '-', which release-please's and conventional-changelog's parsers both read. The ` (#n)` suffix `dev pr`
+# writes is optional: Dependabot's and release-please's PR titles carry none. docs/research/agent-harness.md §12.
+CONVENTIONAL_HEAD = re.compile(rf"({'|'.join(COMMIT_TYPES)})(\([\w./-]+\))?!?: (?=\S)", re.ASCII)
+CONVENTIONAL = re.compile(CONVENTIONAL_HEAD.pattern + r"(?!\(#\d+\)$)[^\n\r]+", re.ASCII)  # an outcome, not only (#n)
+TITLE_FORM = "type(scope): outcome (#n)"
+# A release item ('Release v0.1.15', 'release: v0.1.15 notes') is a chore, never a feature scoped by its version.
+RELEASE_TITLE = re.compile(r"release:\s*|release\s+(?=v?\d+\.\d)", re.I)
+
+
+def conventional_title(issue: board.Issue) -> str:
+    """`type(scope): outcome (#n)` for `issue`: the type from its type label (KIND_TYPE), the scope from its
+    '<component>: ' prefix (board.COMPONENT_TITLE) as a slug; a 'Research: ' / 'Epic: ' prefix is not a scope, and a
+    component that is itself a commit type becomes the type. A title that is already Conventional is kept as it is,
+    and a release item is `chore(release)`."""
+    whole = " ".join(issue.title.split())  # one line, so the subject is one line too
+    title, kind, scope = whole, KIND_TYPE.get(issue.kind, "feat"), ""
+    if CONVENTIONAL_HEAD.match(whole):
+        return f"{whole} (#{issue.number})"
+    if m := RELEASE_TITLE.match(title):
+        title, kind, scope = title[m.end() :].strip(), "chore", "release"
+    elif m := board.TITLE_PREFIX.match(title):
+        title = title[m.end() :].strip()
+    elif board.COMPONENT_TITLE.match(title):
+        component, title = (part.strip() for part in title.split(":", 1))
+        if component.lower() in COMMIT_TYPES:
+            kind = component.lower()
+        else:
+            scope = re.sub(r"[^\w.-]+", "-", component.lower(), flags=re.ASCII).strip("-.")
+    return f"{kind}{f'({scope})' if scope else ''}: {title or whole} (#{issue.number})"
+
+
+def title_problem(title: str | None) -> str | None:
+    """Why `title` is not a Conventional Commits PR title, or None (always None with `conventional_titles = false`)."""
+    if not config.get().conventional_titles or CONVENTIONAL.fullmatch((title or "").strip()):
+        return None
+    return (
+        f"PR title {title!r} is not Conventional Commits: write '{TITLE_FORM}', type one of {', '.join(COMMIT_TYPES)}"
+    )
+
+
+def expected_title(info: dict) -> str:
+    """The title `dev pr` gives the PR `info`, from the first issue it links (`board.linked`), quoted; TITLE_FORM when
+    it links none or the board cannot be read."""
+    closes, own = board.linked(info.get("body") or "", info.get("headRefName", ""))
+    for n in closes + own:
+        try:
+            return repr(conventional_title(board.get(n)))
+        except board.BoardError:
+            break
+    return repr(TITLE_FORM)
+
+
+def check_title(title: str | None) -> int:
+    """`dev pr-title`: CI passes the title in PR_TITLE (an env value, never `${{ }}` inside a script)."""
+    if why := title_problem(title):
+        print(f"FAIL {why}")
+        return 1
+    print(f"ok: {title.strip()}")
+    return 0
+
+
 def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> str:
     """Push the gated branch and open its PR. A body without a `Closes #N` / `Refs #N` first line gets `Closes #N`
     (a complete hand-back: the merge closes the issue), or `Refs #N` with `partial` (the issue returns to ready).
@@ -514,7 +580,7 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
         raise board.BoardError("--partial, but the summary starts with 'Closes #N': write 'Refs #N' or drop --partial")
     if not re.match(r"(Closes|Refs) #\d+", body):
         body = f"{'Refs' if partial else 'Closes'} #{number}\n\n{body}"
-    title = f"{issue.title} (#{number})"
+    title = conventional_title(issue)
     commits = git("log", "--format=%B", f"{base}..HEAD") if (base := checks.merge_base()) else ""
     texts = {"PR title": title, "PR body": body, "branch commit messages": commits}
     if (leaks := session_leaks(**texts)) and repo_public():
@@ -1022,6 +1088,8 @@ def _merge_if_unchanged(
     subject, body = squash_message(pr_number, info or {}, review)
     if session_leaks(**{"PR title": subject, "PR body": body}) and repo_public():
         return f"{SESSION_RULE} in the squash commit: edit the PR title or body, then rerun integrate"
+    if info is not None and (why := title_problem(subject)):  # the title as re-read after the gate
+        return f"{why} in the squash commit: edit the PR title, then rerun integrate"
     if branch := (info or {}).get("headRefName"):
         retarget_stacked(branch, head, dry_run)
     if not dry_run:
@@ -1636,6 +1704,10 @@ def _integrate(
         return done(1, "refused", reason=reason)
     if (leaks := session_leaks(**{"PR title": info.get("title"), "PR body": info.get("body")})) and repo_public():
         reason = f"{SESSION_RULE}: the {' and '.join(leaks)} carry one; edit the PR, then rerun integrate"
+        print(f"RESULT: refused: {reason}")
+        return back("refused", [reason], [], reason=reason)
+    if why := title_problem(info.get("title")):  # works with no Actions; override does not lift it
+        reason = f"{why}; expected {expected_title(info)}: edit the PR title, then rerun integrate"
         print(f"RESULT: refused: {reason}")
         return back("refused", [reason], [], reason=reason)
     if override is not None and not override.strip():

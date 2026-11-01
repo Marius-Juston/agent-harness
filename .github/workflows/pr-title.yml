@@ -1,0 +1,25 @@
+name: pr-title
+# The squash subject on main is the PR title, and release-please reads those subjects: a title must be Conventional
+# Commits (`dev pr` writes one; `dev integrate` refuses others without Actions). A workflow of its own because a title
+# edit (`edited`) must re-run this check without re-running the gate.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: { persist-credentials: false }
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with: { enable-cache: true }
+      - name: PR title is Conventional Commits
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }} # an env value: the title never becomes script text
+        run: uv run --locked dev pr-title

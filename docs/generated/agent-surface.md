@@ -84,6 +84,7 @@
 | `board brief` | everything an agent needs to start an item (spawn prompts stay one line) |
 | `board feedback` | a PR's comments and reviews since its last commit, and its unresolved threads |
 | `pr` | worker: push the gated branch, open the PR, move the item to review |
+| `pr-title` | CI: fail unless the PR title is Conventional Commits (title from PR_TITLE) |
 | `integrate` | lead: re-gate a PR merged onto main in a throwaway worktree, then merge it |
 | `cite-check` | resolve every source in research notes; flag dead links and title mismatches |
 | `lit` | literature search shared by all agents: rate-limited, cached, compact (OpenAlex, S2, Crossref, Europe PMC, arXiv) |

@@ -607,7 +607,7 @@ def fake_integrate(monkeypatch, tmp_path):
                     headRefOid=world["remote_head"],
                     headRefName="5-x",
                     isDraft=False,
-                    title="t",
+                    title="feat: t (#5)",
                     body="Closes #5",
                     statusCheckRollup=rollup,
                     latestReviews=world["reviews"],

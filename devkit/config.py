@@ -63,6 +63,9 @@ class Config:
     # Backticked repository paths in prose under these prefixes are not checked (their markdown links still are).
     path_check_skip: list[str] = field(default_factory=list)
     quota_cap: int = 95  # weekly all-models percent at which the spawn guard refuses new agents
+    # #100: integrate refuses a PR title that is not Conventional Commits (`dev pr` writes one); false turns that
+    # refusal and `dev pr-title` off, for a project whose main does not use Conventional Commits subjects.
+    conventional_titles: bool = True
     checks_wait_s: int = 900  # how long integrate waits for the checks on a PR head it pushed before it merges
     # #43: one test's limit (pytest-timeout; 0 = none; a test needing more says `@pytest.mark.timeout(n)`), and the
     # deadline of integrate's gate run, past which its whole process group is killed so the gate lock is freed.
