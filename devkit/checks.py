@@ -19,6 +19,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from devkit import config, frontmatter
+from devkit.diffparse import parse
 from devkit.paths import git, root
 from devkit.ran import Ran
 
@@ -411,16 +412,12 @@ def span_problem(parser: argparse.ArgumentParser, commands: dict[str, set[str]],
     return f"{' '.join(extra)} left over: no argument takes it" if extra else None
 
 
-def check_dev_commands(commands: dict[str, set[str]], parser: argparse.ArgumentParser | None = None) -> Ran:
+def check_dev_commands(commands: dict[str, set[str]], parser: argparse.ArgumentParser) -> Ran:
     """Every `uv run dev X [Y]` written anywhere in prose, agents or skills names a real command (a failure). Each
     backticked span is also parsed for unknown options and leftover positionals (a warning until `DEV_SPAN_GATE`),
     and so are spans in `.py` strings and comments outside test files (a warning only). Fenced blocks, research notes
     and lines that mark a span as a historical or negative reference ("removed", "do not reintroduce") are exempt
-    from the parse. `parser` is a fresh `devkit.cli.build()` by default; it is loosened in place."""
-    if parser is None:
-        from devkit import cli  # cli imports this module
-
-        parser = cli.build()
+    from the parse. `parser` is a fresh `devkit.cli.build()`, handed in by the caller; it is loosened in place."""
     loosen(parser)
     ran = Ran("dev commands named in docs")
     cfg = config.get()
@@ -838,8 +835,6 @@ def install_findings(diff: str, allowed: list[str], read: Callable[[str], str | 
     allowlisted path globs. Prose files are skipped. With `read` (path -> new text, None if unreadable), a `.py`
     call or a backslash-continued `.sh`/`.bash` line touching an added line is matched as a whole (#423), so an
     install list split over lines or built from string pieces is caught too."""
-    from devkit.weaken import parse  # weaken imports this module
-
     out = []
     for f in parse(diff):
         if not f.new or f.new.endswith(PROSE_SUFFIXES) or any(fnmatch.fnmatch(f.new, g) for g in allowed):
