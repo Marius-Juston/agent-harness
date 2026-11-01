@@ -1025,3 +1025,108 @@ def test_the_shipped_decision_tables_pass_with_short_literals():
     # Project-owned: `copier update` must never merge a template header edit into a project's rows.
     owned = yaml.safe_load((root() / "copier.yml").read_text())["_skip_if_exists"]
     assert ".devkit/decisions.toml" in owned
+
+
+# --- dev command spans (#229) ----------------------------------------------------------------------------------------
+
+
+def _commands() -> dict[str, set[str]]:
+    from devkit import cli
+
+    return cli.command_map()
+
+
+def test_a_positional_reason_to_board_block_is_a_warning_not_a_failure(tmp_path, monkeypatch):
+    """The one real CLI drift on record (decision-records-and-drift.md §5, 1a): `block` takes --reason."""
+    _repo(monkeypatch, tmp_path, {"a.md": 'Stuck? Run `uv run dev board block 5 "no token"` and stop.\n'})
+    ran = checks.check_dev_commands(_commands())
+    assert ran.ok and ran.problems == []
+    (warning,) = ran.warnings
+    assert warning.startswith("a.md:1: ") and "no token" in warning and "board block" in warning
+
+
+def test_an_unknown_option_in_a_span_is_a_warning(tmp_path, monkeypatch):
+    _repo(monkeypatch, tmp_path, {"a.md": "run `uv run dev check --fast`\n"})
+    ran = checks.check_dev_commands(_commands())
+    assert ran.ok and len(ran.warnings) == 1 and "--fast" in ran.warnings[0], ran.warnings
+
+
+@pytest.mark.parametrize(
+    "span",
+    [
+        'uv run dev board block 5 --reason "no token"',
+        "uv run dev board block <n> --reason <why>",  # placeholders
+        "uv run dev board block N --reason x",
+        "uv run dev board block",  # required arguments loosened
+        "uv run dev board claim <n> --agent builder --branch <n>-<slug>",
+        "uv run dev code outline|show|refs|find",  # alternatives
+        "uv run dev board list*",  # a settings.json glob
+        "uv run dev board new --type build|bug --title x",
+        "uv run dev board beat 229 ...",  # elision
+        "uv run dev test --affected && git status",  # cut at a shell operator
+        "uv run dev check > log.txt",
+        "uv run dev pr <n> --summary - <<'EOF'",
+        "uv run dev check, then push",
+        "uv run dev board brief [<n>]",  # an optional placeholder
+        "uv run dev check --help",
+        "cd x && uv run dev check",  # the command need not open the span
+        "uv run dev board new --done",  # an option named without its value
+    ],
+)
+def test_valid_spans_are_silent(tmp_path, monkeypatch, span):
+    _repo(monkeypatch, tmp_path, {"a.md": f"Use `{span}` here.\n"})
+    ran = checks.check_dev_commands(_commands())
+    assert ran.ok and ran.warnings == [] and ran.problems == [], ran.warnings
+
+
+def test_spans_in_fences_research_notes_and_negative_references_are_exempt(tmp_path, monkeypatch):
+    bad = '`uv run dev board block 5 "why"`'
+    _repo(
+        monkeypatch,
+        tmp_path,
+        {
+            "docs/research/note.md": f"The historical drift was {bad}.\n",
+            "a.md": f"The form {bad} was removed: use --reason.\n",
+            "b.md": f"Never write {bad} again, do not reintroduce it.\n",
+            "c.md": f"```\n{bad}\n```\n",
+        },
+    )
+    ran = checks.check_dev_commands(_commands())
+    assert ran.ok and ran.warnings == [], ran.warnings
+
+
+def test_the_span_parse_becomes_a_failure_once_promoted(tmp_path, monkeypatch):
+    """#236: after 0 FP over 30 held-out merges per repository, DEV_SPAN_GATE flips and the same span fails."""
+    files = {"a.md": '`uv run dev board block 5 "why"`\n', "b.py": '"`uv run dev check --fast`"\n'}
+    _repo(monkeypatch, tmp_path, files)
+    monkeypatch.setattr(checks, "DEV_SPAN_GATE", True)
+    ran = checks.check_dev_commands(_commands())
+    assert not ran.ok and len(ran.problems) == 1 and ran.problems[0].startswith("a.md:1: "), ran.problems
+    assert len(ran.warnings) == 1 and ran.warnings[0].startswith("b.py:1: "), ran.warnings  # .py stays a warning
+
+
+def test_py_strings_and_comments_warn_only_and_test_files_are_skipped(tmp_path, monkeypatch):
+    _repo(
+        monkeypatch,
+        tmp_path,
+        {
+            "pkg/hint.py": 'HINT = "run `uv run dev board block 5 why`"\n# or `uv run dev nosuch x`\n',
+            "tests/test_x.py": '"`uv run dev board block 5 why`"\n',
+            "pkg/conftest.py": '"`uv run dev board block 5 why`"\n',
+        },
+    )
+    ran = checks.check_dev_commands(_commands())
+    assert ran.ok and ran.problems == []
+    assert len(ran.warnings) == 2 and all(w.startswith("pkg/hint.py:") for w in ran.warnings), ran.warnings
+    assert any("nosuch" in w for w in ran.warnings)
+
+
+def test_the_name_check_still_fails_on_an_unknown_command(tmp_path, monkeypatch):
+    _repo(monkeypatch, tmp_path, {"a.md": "`uv run dev nosuch`\n"})
+    ran = checks.check_dev_commands(_commands())
+    assert not ran.ok and "nosuch" in ran.problems[0]
+
+
+def test_the_current_tree_raises_no_dev_span_warning():
+    ran = checks.check_dev_commands(_commands())
+    assert ran.ok and ran.warnings == [], ran.warnings
