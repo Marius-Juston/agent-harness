@@ -1,6 +1,6 @@
 [project]
 name = "agent-harness"
-version = "0.1.15"
+version = "0.1.16"
 description = "A harness for repositories worked on by many Claude Code agents: the devkit gate and board, a Claude Code plugin, and a Copier template."
 readme = "README.md"
 license = "MIT"
