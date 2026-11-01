@@ -232,6 +232,54 @@ def _installed() -> list[dict]:
     return data if isinstance(data, list) else []
 
 
+def mcp_prereqs(
+    servers: Mapping[str, object], prereqs: Mapping[str, list[str]], which: Callable[[str], str | None]
+) -> list[tuple[bool, str, str]]:
+    """Doctor lines (ok, what, fix) for the binaries `[tool.devkit] mcp_prereqs` says the configured MCP servers need.
+    `which` is shutil.which, which sees real executables only: a shell function (Claude Code defines one for rg) passes
+    `command -v` in a session while the server, started without that shell, finds nothing (#390)."""
+    out = []
+    for name, spec in servers.items():
+        if not isinstance(spec, dict):
+            continue
+        words = [name, str(spec.get("command", "")), *map(str, spec.get("args") or [])]
+        for key, tools in prereqs.items():
+            if any(key in w for w in words):
+                out += [
+                    (
+                        which(tool) is not None,
+                        f"{tool} on PATH as a real binary (MCP server {name} needs it)",
+                        f"install {tool} as a real binary on PATH (a shell function or alias does not count), "
+                        "then reconnect the server (/mcp): it checks only at start",
+                    )
+                    for tool in tools
+                ]
+    return out
+
+
+def _mcp_servers() -> dict:
+    """The MCP servers Claude Code starts here: user scope and this project's local scope (both in ~/.claude.json)
+    and the project's `.mcp.json`, a later scope's server replacing an earlier one of the same name."""
+
+    def servers_in(path: Path) -> tuple[dict, dict]:
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return {}, {}
+        if not isinstance(data, dict):
+            return {}, {}
+        local = data.get("projects", {}).get(str(root()), {}) if isinstance(data.get("projects"), dict) else {}
+        return data, local if isinstance(local, dict) else {}
+
+    user, local = servers_in(Path.home() / ".claude.json")
+    project, _ = servers_in(root() / ".mcp.json")
+    out: dict = {}
+    for scope in (user, project, local):
+        if isinstance(found := scope.get("mcpServers"), dict):
+            out |= found
+    return out
+
+
 KEYS_DOC = "docs/SETUP.md, section 'Research API keys'"
 
 
@@ -277,6 +325,8 @@ def doctor() -> int:
             f"MCP server {name} connected",
             "approve project MCP servers in Claude Code (/mcp) or check the command",
         )
+    for line in mcp_prereqs(_mcp_servers(), config.get().mcp_prereqs, shutil.which):
+        report(*line)
     report((root() / ".venv").exists(), "uv environment", "uv sync")
     if leaks := host_leaks(os.environ):
         print(f"WARN {leaks}")

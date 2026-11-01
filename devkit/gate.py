@@ -1,6 +1,7 @@
 """The gate: `uv run dev check` is the one verification entry point (CI runs the same command).
 
-- One gate per machine at a time (a lock in the shared git dir), so parallel agents queue instead of thrashing memory.
+- One gate per machine at a time (a lock in the shared git dir), so parallel agents queue instead of thrashing memory;
+  integrate's gate goes ahead of the queued worker gates.
 - A pass is cached by tree_key: re-gating an unchanged clean tree is free; a dirty tree is never cached.
 - Each stage prints one line; a failing stage prints at most FAIL_LINES of its output and saves the rest.
 - A pytest run that passed nothing fails (nothing collected, everything skipped or deselected): it is not a pass.
@@ -21,8 +22,9 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, MutableMapping, Sequence
 from pathlib import Path, PurePosixPath
+from typing import IO
 from xml.etree import ElementTree
 
 from devkit import board, checks, config, docs, weaken
@@ -318,20 +320,71 @@ def tree_key(base: str | None, repo: Path | None = None) -> str | None:
     return hashlib.sha256(json.dumps(parts).encode()).hexdigest()[:40]
 
 
+PRIORITY_ENV = "DEVKIT_GATE_PRIORITY"  # set by integrate: its gate takes the lock ahead of worker gates (#385)
+HELD_ENV = "DEVKIT_GATE_HELD"  # a file the gate creates once it holds the lock: integrate's deadline starts there
+
+
+def lock_role(env: Mapping[str, str]) -> dict:
+    """gate_lock's `priority` and `held`, as integrate's environment sets them for the gate it runs."""
+    return {"priority": bool(env.get(PRIORITY_ENV)), "held": Path(env[HELD_ENV]) if env.get(HELD_ENV) else None}
+
+
+def take_lock_role(env: MutableMapping[str, str]) -> dict:
+    """lock_role, removing both variables from `env`: the gate's stages (pytest, a nested `dev check` in a test) must
+    neither inherit integrate's priority nor touch its held file."""
+    role = lock_role(env)
+    env.pop(PRIORITY_ENV, None)
+    env.pop(HELD_ENV, None)
+    return role
+
+
 @contextlib.contextmanager
-def gate_lock(path: Path, on_wait: Callable[[], None] = lambda: None) -> Iterator[None]:
-    """One gate per machine. Opened with "a+" (never truncating) so a waiting gate does not erase the holder's pid."""
-    with open(path, "a+") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            on_wait()
-            fcntl.flock(lock, fcntl.LOCK_EX)
+def gate_lock(
+    path: Path, on_wait: Callable[[], None] = lambda: None, priority: bool = False, held: Path | None = None
+) -> Iterator[None]:
+    """One gate per machine. Opened with "a+" (never truncating) so a waiting gate does not erase the holder's pid.
+    flock grants the lock in no fixed order, so a priority gate (integrate's) holds a shared lock on `<path>.priority`
+    while it waits, and a worker gate that gets the lock meanwhile hands it back and waits until no priority gate
+    does (#385). By design, worker gates starve while integrate gates arrive back to back: a merge outranks a check.
+    Once the lock is held, `held` is created: integrate's deadline counts from there, not the wait."""
+    with open(path, "a+") as lock, open(path.with_name(path.name + ".priority"), "a+") as queue:
+        if priority:
+            fcntl.flock(queue, fcntl.LOCK_SH)
+        said = False
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                if not said:
+                    on_wait()
+                    said = True
+                fcntl.flock(lock, fcntl.LOCK_EX)
+            if priority or _no_priority_waiter(queue):
+                break
+            fcntl.flock(lock, fcntl.LOCK_UN)
+            if not said:
+                on_wait()
+                said = True
+            fcntl.flock(queue, fcntl.LOCK_EX)  # granted once no priority gate waits
+            fcntl.flock(queue, fcntl.LOCK_UN)
+        if priority:
+            fcntl.flock(queue, fcntl.LOCK_UN)
         lock.seek(0)
         lock.truncate()
         lock.write(f"{os.getpid()} {root()}\n")
         lock.flush()
+        if held:
+            held.touch()
         yield
+
+
+def _no_priority_waiter(queue: IO[str]) -> bool:
+    try:
+        fcntl.flock(queue, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
+    fcntl.flock(queue, fcntl.LOCK_UN)
+    return True
 
 
 def stages(
@@ -410,6 +463,7 @@ def check(
             _say_dropped(dropped)
             cmd = [sys.executable, "-c", "from devkit.cli import main; main()", *sys.argv[1:]]
             return subprocess.run(cmd, cwd=root(), env=env, check=False).returncode
+    role = take_lock_role(os.environ)  # the re-run above kept them, the stages below must not see them
     base = checks.merge_base()
     key = tree_key(base)
     record = state_dir("gate") / f"{key}{'-full' if full else ''}.json" if key else None
@@ -420,7 +474,7 @@ def check(
     def waiting() -> None:
         print("gate: another gate runs on this machine; waiting for it ...", flush=True)
 
-    with gate_lock(state_dir() / "gate.lock", on_wait=waiting):
+    with gate_lock(state_dir() / "gate.lock", on_wait=waiting, **role):
         start = time.time()
         failed = 0
         for stage in stages(full, commands, base, help_rows):

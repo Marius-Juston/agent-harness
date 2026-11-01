@@ -1135,3 +1135,41 @@ def test_the_lead_closes_a_duplicate_with_state_reason_duplicate():
     """`--duplicate-of` sets stateReason DUPLICATE, so later dedup evaluations read labels, not closing prose."""
     lead = (board.root() / "plugins/harness-ops/skills/lead/SKILL.md").read_text()
     assert "`gh issue close <n> --duplicate-of <m>`" in lead
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [["--bogus"], ["--bogus", "v"], ["--bogus=v"], ["-x"], ["--tit", "t2"], ["--label", "x"], ["stray"]],
+)
+def test_board_new_with_an_unknown_option_exits_2_with_the_argparse_error(fake, monkeypatch, capsys, extra):
+    """#387: a scripted loop moved on after `board new` with an unrecognised option; argparse must refuse it."""
+    from devkit import cli
+
+    argv = ["dev", "board", "new", "--title", "t", "--type", "bug", "--done", "d", *extra]
+    monkeypatch.setattr("sys.argv", argv)
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 2
+    assert re.search(r"error: .*(unrecognized arguments|required)", capsys.readouterr().err)
+    assert not [c for c in fake.calls if c[:2] == ("issue", "create")]
+
+
+@pytest.mark.parametrize("answer", [board.BoardError("gh issue create -R: HTTP 502"), "", "Creating issue in o/r\n"])
+def test_board_new_whose_create_fails_exits_1_naming_the_item_not_created(fake, monkeypatch, capsys, answer):
+    """#387: a failed (or URL-less) `gh issue create` is an error naming the title, never a silent empty line."""
+    from devkit import cli
+
+    def gh(*args, input=None):
+        if args[:2] == ("issue", "create"):
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+        return FakeGitHub.gh(fake, *args, input=input)
+
+    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr("sys.argv", ["dev", "board", "new", "--title", "Second item", "--type", "bug", "--done", "d"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 1
+    out = capsys.readouterr()
+    assert "'Second item' not created" in out.err and "issues/" not in out.out
