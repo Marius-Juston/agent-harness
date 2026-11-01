@@ -17,7 +17,7 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, config, gate, workflow
+from devkit import board, branches, config, gate, workflow
 
 REAL_POPEN = subprocess.Popen
 
@@ -626,6 +626,7 @@ def fake_integrate(monkeypatch, tmp_path):
         return subprocess.CompletedProcess(cmd, code, "", "")
 
     monkeypatch.setattr(workflow, "git", git)
+    monkeypatch.setattr(branches, "git", git)
     monkeypatch.setattr(board, "gh", gh)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "comment", lambda *a, **k: None)
@@ -635,7 +636,7 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(board, "block", lambda n, reason: world["blocked"].append((n, reason)))
     monkeypatch.setattr(board, "set_status", lambda n, status: world["status"].append((n, status)))
     monkeypatch.setattr(workflow.time, "sleep", lambda s: None)
-    monkeypatch.setattr(workflow, "worktrees", lambda: [])
+    monkeypatch.setattr(branches, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
     workflow.config.get()  # resolve this repository's config with the real git, before subprocess.run is faked
@@ -1591,3 +1592,24 @@ def test_integrate_whose_gate_waits_for_the_lock_longer_than_its_deadline_is_not
     assert time.monotonic() - started >= 3
     assert res["outcome"] != "stopped", res
     assert _merged(fake_integrate["events"]), res
+
+
+def _dev_command_stage(**kw):
+    (stage,) = [s for s in gate.stages(False, {"x": set()}, None, **kw) if "check_dev_commands" in s.__code__.co_names]
+    return stage
+
+
+def test_the_dev_command_stage_uses_the_parser_factory_it_is_handed(monkeypatch):
+    """#449: cli hands gate its parser factory, so checks never imports cli to build one."""
+    from devkit import checks, cli
+
+    seen = []
+    monkeypatch.setattr(checks, "check_dev_commands", lambda commands, parser: seen.append((commands, parser)))
+    built = cli.build()
+    _dev_command_stage(parser=lambda: built)()
+    assert seen == [({"x": set()}, built)]
+
+
+def test_the_dev_command_stage_refuses_to_run_without_a_parser_factory():
+    with pytest.raises(ValueError, match="parser"):
+        _dev_command_stage()()

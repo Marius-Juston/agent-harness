@@ -10,6 +10,7 @@ from pathlib import Path
 
 from devkit import (
     board,
+    branches,
     checks,
     citecheck,
     code,
@@ -20,6 +21,7 @@ from devkit import (
     gate,
     handoff,
     lit,
+    quota,
     reuse,
     rules,
     setup,
@@ -423,9 +425,9 @@ def run(a: argparse.Namespace) -> int:
         case "status":
             print(workflow.status(a.json, a.resume))
         case "worktree":
-            print("\n".join(workflow.prune_branches(a.dry_run)) or "no local branches of merged or closed PRs")
+            print("\n".join(branches.prune_branches(a.dry_run)) or "no local branches of merged or closed PRs")
         case "check":
-            return gate.check(command_map(), command_help(), full=a.full, use_cache=not a.no_cache)
+            return gate.check(command_map(), command_help(), full=a.full, use_cache=not a.no_cache, parser=build)
         case "test":
             return gate.test(a.paths, a.affected, a.slow, a.n)
         case "docs":
@@ -489,7 +491,7 @@ def run(a: argparse.Namespace) -> int:
         case "doctor":
             return setup.doctor()
         case "usage-poll":
-            return workflow.usage_poll(once=a.once)
+            return quota.usage_poll(once=a.once)
         case "quota-cap":
             return run_quota_cap(a)
         case "suite-audit":
@@ -511,14 +513,14 @@ def run_quota_cap(a: argparse.Namespace) -> int:
         return 1
     if a.pct is not None:
         try:
-            workflow.set_quota_cap(config.parse_cap(a.pct))
+            quota.set_quota_cap(config.parse_cap(a.pct))
         except ValueError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
     elif a.clear:
-        workflow.set_quota_cap(None)
-    cap, source = workflow.quota_cap()
-    print(f"quota cap {cap}% ({workflow.CAP_SOURCES[source]})")
+        quota.set_quota_cap(None)
+    cap, source = quota.quota_cap()
+    print(f"quota cap {cap}% ({quota.CAP_SOURCES[source]})")
     return 0
 
 
