@@ -862,6 +862,17 @@ def test_the_gate_passes_a_clean_diff_and_warns_without_a_base(git_repo):
     assert ran.ok and ran.warnings
 
 
+@pytest.mark.timeout(10)
+def test_a_long_run_of_option_dashes_finishes_fast_and_is_not_an_install():
+    """CodeQL on #399: `(?:\\s+--?[\\w=.-]+)*` backtracked exponentially on many repetitions of '-- -'."""
+    import time
+
+    line = "pip" + " -- - ---" * 5000 + " x"  # ' ---' splits two ways in the old pattern: 22 of them took 0.4 s
+    start = time.perf_counter()
+    assert checks.install_findings(_added("scripts/run.sh", line), []) == []
+    assert time.perf_counter() - start < 1.0
+
+
 def test_a_settings_file_still_flags_an_install_outside_a_permission_rule():
     line = f'    "command": "pip {INST} x && run"'
     assert len(checks.install_findings(_added(".claude/settings.json", line), [])) == 1

@@ -606,7 +606,7 @@ def check_generated(render: dict[str, str]) -> Ran:
 # installer. Matched after quotes, commas and brackets become spaces, so `["pip", "install"]` reads as `pip install`.
 INSTALL = re.compile(
     r"\b(?:pip(?:3(?:\.\d+)?)?|pipx|conda|mamba|micromamba|apt|apt-get|dnf|yum|zypper|brew|gem|cargo)"
-    r"(?:\s+--?[\w=.-]+)*\s+install\b"
+    r"(?:\s++-[\w=.-]*+)*+\s+install\b"  # possessive, and one way to split options: no backtracking blowup
     r"|\buv\s+tool\s+install\b|\buv\s+pip\s+sync\b|\b(?:poetry|pdm|bun)\s+add\b|\bpacman\b[^|;&]*\s-S\w*"
     r"|\b(?:npm|pnpm)\s+(?:install|i|add)\b|\byarn\s+(?:global\s+)?add\b"
     r"|\b(?:curl|wget)\b[^|]*\|\s*(?:sudo\s+)?(?:bash|dash|zsh|sh)\b"
