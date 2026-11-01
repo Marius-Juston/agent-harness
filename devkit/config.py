@@ -96,6 +96,10 @@ class Config:
     # they lag), e.g. `{ ".github/workflows/ci.yml" = ["template/.github/workflows/*.yml"] }`: Dependabot bumps only
     # the workflows it reads.
     action_pins: dict[str, list[str]] = field(default_factory=dict)
+    # #391: changed-path match (an Owns-style glob or path prefix) -> the reviewer agent a review must name, e.g.
+    # `{ "src/math/" = "harness-ops:reviewer" }`. integrate refuses a PR touching such a path until the gh user posted a
+    # `Verdict: merge` review (board.VERDICT) naming that agent on its head or an ancestor. {} requires none.
+    required_reviews: dict[str, str] = field(default_factory=dict)
     consolidation: dict[str, object] = field(default_factory=lambda: dict(CONSOLIDATION))
     prices: dict[str, dict[str, float]] = field(default_factory=lambda: {k: dict(v) for k, v in PRICES.items()})
 
@@ -119,6 +123,11 @@ def parse(data: dict) -> Config:
     for source, globs in data.get("action_pins", {}).items():
         if not (isinstance(globs, list) and globs and all(isinstance(g, str) and g for g in globs)):
             raise ConfigError(f"[tool.devkit.action_pins] {source} = {globs!r}: expected a list of path globs")
+    for match, who in data.get("required_reviews", {}).items():
+        if not (match and isinstance(who, str) and who):
+            raise ConfigError(
+                f"[tool.devkit.required_reviews] {match!r} = {who!r}: expected a path glob -> reviewer name"
+            )
     if "consolidation" in data:
         data = {**data, "consolidation": _consolidation(data["consolidation"])}
     if "prices" in data:

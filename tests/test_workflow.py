@@ -2100,6 +2100,120 @@ def test_closes_problem_needs_a_link_to_the_branch_issue_only(branch, body, ok):
         assert "'Closes #5' or 'Refs #5'" in why
 
 
+def _verdict(sha: str, verdict: str = "merge", by: str = "lead", signed: str = "harness-ops:reviewer") -> dict:
+    """A COMMENT review whose first line is a board.VERDICT, posted by `by`, its body naming `signed`."""
+    body = f"Verdict: {verdict}, round 1, {sha}\n\nReviewed by {signed}: no findings."
+    return {"author": {"login": by}, "body": body, "state": "COMMENTED", "submittedAt": "2026-10-11T11:00:00Z",
+            "url": "https://github.com/o/r/pull/7#pullrequestreview-1"}  # fmt: skip
+
+
+RULES = {"src/math/": "harness-ops:reviewer"}
+
+
+@pytest.mark.parametrize(
+    ("touched", "reviews", "ok"),
+    [
+        (["src/app.py"], [], True),  # no configured path touched
+        (["src/math/lemma.py"], [], False),
+        (["src/math/lemma.py"], [_verdict("c" * 40)], True),
+        (["src/math/lemma.py"], [_verdict("c" * 7)], True),  # an abbreviated SHA
+        (["src/math/lemma.py"], [_verdict("a" * 40)], True),  # an ancestor of the head
+        (["src/math/lemma.py"], [_verdict("f" * 40)], False),  # a SHA not on the PR's history
+        (["src/math/lemma.py"], [_verdict("c" * 40, by="mallory")], False),  # only the gh user's reviews count
+        (["src/math/lemma.py"], [_verdict("c" * 40, signed="someone")], False),  # must name the reviewer
+        (["src/math/lemma.py"], [_verdict("c" * 40, verdict="send back")], False),
+        (["src/math/lemma.py"], [_verdict("c" * 40), _verdict("c" * 40, verdict="send back")], False),  # latest
+        (["src/math/lemma.py"], [_verdict("a" * 40, verdict="send back"), _verdict("c" * 40)], True),
+        (["src/math/lemma.py"], [{**_verdict("c" * 40), "body": "LGTM harness-ops:reviewer"}], False),
+    ],
+)
+def test_review_problem_needs_a_trusted_merge_verdict_naming_the_reviewer_on_the_head_or_an_ancestor(
+    touched, reviews, ok
+):
+    """#391: a configured path needs the gh user's VERDICT review that names the reviewer and judged the head or an
+    ancestor of it; the latest such review decides."""
+    why = workflow.review_problem(touched, reviews, "c" * 40, {"lead"}, RULES, lambda sha: sha[0] in "ac")
+    assert (why is None) == ok, why
+    if not ok:
+        assert "src/math/lemma.py" in why and "harness-ops:reviewer" in why
+
+
+def test_review_problem_with_no_rules_requires_nothing():
+    assert workflow.review_problem(["src/math/lemma.py"], [], "c" * 40, set(), {}, lambda sha: False) is None
+
+
+def test_integrate_refuses_a_configured_path_without_a_review_then_accepts_it_once_posted(
+    fake_integrate,  # noqa: F811
+    monkeypatch,
+    capsys,
+):
+    """#391 DONE WHEN: a PR touching a `required_reviews` path is refused through the fix loop, before the gate, until
+    the reviewer's verdict review is posted on its head; then it merges. --override does not lift the refusal."""
+    monkeypatch.setattr(workflow.config, "get", lambda: workflow.config.Config(required_reviews=RULES))
+    fake_integrate["files"] = ["src/math/lemma.py"]
+    _push(fake_integrate, "c" * 40)  # a hex head: a VERDICT line names it
+    posted = _github_keeps_comments(fake_integrate, monkeypatch)
+    reviews: list[dict] = []
+    real = board.gh
+
+    def gh(*args, **kw):
+        out = real(*args, **kw)
+        if args[:2] == ("api", "graphql"):
+            data = json.loads(out)
+            data["data"]["repository"]["pullRequest"]["reviews"]["nodes"] = reviews
+            return json.dumps(data)
+        return out
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, override="ship it") == 1
+    out = capsys.readouterr().out
+    res = _last_json(out)
+    assert "RESULT: refused" in out and res["outcome"] == "refused" and res["cycle"] == 1
+    assert "src/math/lemma.py" in res["reason"] and "harness-ops:reviewer" in res["reason"]
+    assert "harness-ops:reviewer" in posted[0]["body"]
+    assert not any(e[0] == "run" for e in fake_integrate["events"])
+    assert not _merged(fake_integrate["events"])
+
+    reviews.append(_verdict("a" * 40))  # judged an earlier head: fake git's merge-base calls it an ancestor
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert ("git", "merge-base", "--is-ancestor", "a" * 40, "c" * 40) in fake_integrate["events"]
+    assert _merged(fake_integrate["events"])
+
+
+def test_is_ancestor_reads_the_clone_and_says_no_for_an_unknown_sha(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    for args in (("init", "-q"), ("commit", "-q", "--allow-empty", "-m", "one")):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], check=True)
+    first = workflow.git("rev-parse", "HEAD")
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "2"],
+                   check=True)  # fmt: skip
+    head = workflow.git("rev-parse", "HEAD")
+    assert workflow._is_ancestor(first[:7], head) and workflow._is_ancestor(head, head)
+    assert not workflow._is_ancestor(head, first)
+    assert not workflow._is_ancestor("f" * 40, head)
+
+
+def test_a_review_on_the_head_itself_needs_no_ancestry_check(fake_integrate, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(workflow.config, "get", lambda: workflow.config.Config(required_reviews=RULES))
+    monkeypatch.setattr(board, "gh_user", lambda: "lead")
+    fake_integrate["files"] = ["src/math/lemma.py"]
+    _push(fake_integrate, "c" * 40)
+    real = board.gh
+
+    def gh(*args, **kw):
+        out = real(*args, **kw)
+        if args[:2] == ("api", "graphql"):
+            data = json.loads(out)
+            data["data"]["repository"]["pullRequest"]["reviews"]["nodes"] = [_verdict("c" * 40)]
+            return json.dumps(data)
+        return out
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert _merged(fake_integrate["events"])
+    assert not any(e[:2] == ("git", "merge-base") and "--is-ancestor" in e for e in fake_integrate["events"])
+
+
 def test_a_body_edited_during_the_gate_is_checked_again_before_the_merge(monkeypatch):
     calls = []
     monkeypatch.setattr(board, "gh", lambda *a, **k: calls.append(a) or "")
