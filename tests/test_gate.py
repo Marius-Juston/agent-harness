@@ -1718,3 +1718,24 @@ def test_integrate_whose_gate_waits_for_the_lock_longer_than_its_deadline_is_not
     assert time.monotonic() - started >= 3
     assert res["outcome"] != "stopped", res
     assert _merged(fake_integrate["events"]), res
+
+
+def _dev_command_stage(**kw):
+    (stage,) = [s for s in gate.stages(False, {"x": set()}, None, **kw) if "check_dev_commands" in s.__code__.co_names]
+    return stage
+
+
+def test_the_dev_command_stage_uses_the_parser_factory_it_is_handed(monkeypatch):
+    """#449: cli hands gate its parser factory, so checks never imports cli to build one."""
+    from devkit import checks, cli
+
+    seen = []
+    monkeypatch.setattr(checks, "check_dev_commands", lambda commands, parser: seen.append((commands, parser)))
+    built = cli.build()
+    _dev_command_stage(parser=lambda: built)()
+    assert seen == [({"x": set()}, built)]
+
+
+def test_the_dev_command_stage_refuses_to_run_without_a_parser_factory():
+    with pytest.raises(ValueError, match="parser"):
+        _dev_command_stage()()

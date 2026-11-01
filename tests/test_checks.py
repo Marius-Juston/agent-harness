@@ -1119,12 +1119,12 @@ def test_an_unreadable_decision_table_is_a_problem(tmp_path, monkeypatch):
 def test_the_shipped_decision_tables_pass_with_short_literals():
     from devkit.paths import root
 
-    for rel, rows in ((".devkit/decisions.toml", 6), ("template/.devkit/decisions.toml", 0)):
+    for rel, rows in ((".devkit/decisions.toml", 7), ("template/.devkit/decisions.toml", 0)):
         text = (root() / rel).read_text()
         problems, parsed = checks.decision_rows(text)
         assert problems == [] and len(parsed) == rows, (rel, problems)
     ran = checks.check_decisions()
-    assert ran.ok and ran.checked == 6 and not ran.warnings, ran.warnings
+    assert ran.ok and ran.checked == 7 and not ran.warnings, ran.warnings
     # Project-owned: `copier update` must never merge a template header edit into a project's rows.
     owned = yaml.safe_load((root() / "copier.yml").read_text())["_skip_if_exists"]
     assert ".devkit/decisions.toml" in owned
@@ -1139,10 +1139,16 @@ def _commands() -> dict[str, set[str]]:
     return cli.command_map()
 
 
+def _parser():
+    from devkit import cli
+
+    return cli.build()
+
+
 def test_a_positional_reason_to_board_block_is_a_warning_not_a_failure(tmp_path, monkeypatch):
     """The one real CLI drift on record (decision-records-and-drift.md §5, 1a): `block` takes --reason."""
     _repo(monkeypatch, tmp_path, {"a.md": 'Stuck? Run `uv run dev board block 5 "no token"` and stop.\n'})
-    ran = checks.check_dev_commands(_commands())
+    ran = checks.check_dev_commands(_commands(), _parser())
     assert ran.ok and ran.problems == []
     (warning,) = ran.warnings
     assert warning.startswith("a.md:1: ") and "no token" in warning and "board block" in warning
@@ -1150,7 +1156,7 @@ def test_a_positional_reason_to_board_block_is_a_warning_not_a_failure(tmp_path,
 
 def test_an_unknown_option_in_a_span_is_a_warning(tmp_path, monkeypatch):
     _repo(monkeypatch, tmp_path, {"a.md": "run `uv run dev check --fast`\n"})
-    ran = checks.check_dev_commands(_commands())
+    ran = checks.check_dev_commands(_commands(), _parser())
     assert ran.ok and len(ran.warnings) == 1 and "--fast" in ran.warnings[0], ran.warnings
 
 
@@ -1178,7 +1184,7 @@ def test_an_unknown_option_in_a_span_is_a_warning(tmp_path, monkeypatch):
 )
 def test_valid_spans_are_silent(tmp_path, monkeypatch, span):
     _repo(monkeypatch, tmp_path, {"a.md": f"Use `{span}` here.\n"})
-    ran = checks.check_dev_commands(_commands())
+    ran = checks.check_dev_commands(_commands(), _parser())
     assert ran.ok and ran.warnings == [] and ran.problems == [], ran.warnings
 
 
@@ -1194,7 +1200,7 @@ def test_spans_in_fences_research_notes_and_negative_references_are_exempt(tmp_p
             "c.md": f"```\n{bad}\n```\n",
         },
     )
-    ran = checks.check_dev_commands(_commands())
+    ran = checks.check_dev_commands(_commands(), _parser())
     assert ran.ok and ran.warnings == [], ran.warnings
 
 
@@ -1203,7 +1209,7 @@ def test_the_span_parse_becomes_a_failure_once_promoted(tmp_path, monkeypatch):
     files = {"a.md": '`uv run dev board block 5 "why"`\n', "b.py": '"`uv run dev check --fast`"\n'}
     _repo(monkeypatch, tmp_path, files)
     monkeypatch.setattr(checks, "DEV_SPAN_GATE", True)
-    ran = checks.check_dev_commands(_commands())
+    ran = checks.check_dev_commands(_commands(), _parser())
     assert not ran.ok and len(ran.problems) == 1 and ran.problems[0].startswith("a.md:1: "), ran.problems
     assert len(ran.warnings) == 1 and ran.warnings[0].startswith("b.py:1: "), ran.warnings  # .py stays a warning
 
@@ -1218,7 +1224,7 @@ def test_py_strings_and_comments_warn_only_and_test_files_are_skipped(tmp_path, 
             "pkg/conftest.py": '"`uv run dev board block 5 why`"\n',
         },
     )
-    ran = checks.check_dev_commands(_commands())
+    ran = checks.check_dev_commands(_commands(), _parser())
     assert ran.ok and ran.problems == []
     assert len(ran.warnings) == 2 and all(w.startswith("pkg/hint.py:") for w in ran.warnings), ran.warnings
     assert any("nosuch" in w for w in ran.warnings)
@@ -1226,10 +1232,39 @@ def test_py_strings_and_comments_warn_only_and_test_files_are_skipped(tmp_path, 
 
 def test_the_name_check_still_fails_on_an_unknown_command(tmp_path, monkeypatch):
     _repo(monkeypatch, tmp_path, {"a.md": "`uv run dev nosuch`\n"})
-    ran = checks.check_dev_commands(_commands())
+    ran = checks.check_dev_commands(_commands(), _parser())
     assert not ran.ok and "nosuch" in ran.problems[0]
 
 
 def test_the_current_tree_raises_no_dev_span_warning():
-    ran = checks.check_dev_commands(_commands())
+    ran = checks.check_dev_commands(_commands(), _parser())
     assert ran.ok and ran.warnings == [], ran.warnings
+
+
+# --- import cycle (#449) ---------------------------------------------------------------------------------------------
+
+
+def _devkit_import_cycles() -> list[list[str]]:
+    from devkit import consolidation
+
+    pkg = Path(checks.__file__).parent
+    srcs = {consolidation.module_name(f"devkit/{p.name}"): p.read_text(encoding="utf-8") for p in pkg.glob("*.py")}
+    graph: dict[str, set[str]] = {m: set() for m in srcs}
+    for m, src in srcs.items():
+        for t in consolidation.regex_import_targets(src, m, m == "devkit"):
+            if (r := consolidation.resolve(t, set(srcs))) and r != m:
+                graph[m].add(r)
+    return consolidation.tarjan(graph)
+
+
+def test_checks_is_in_no_import_cycle_and_the_largest_cycle_is_at_most_three_modules():
+    cycles = _devkit_import_cycles()
+    assert not [c for c in cycles if "devkit.checks" in c], cycles
+    assert max(map(len, cycles), default=0) <= 3, cycles
+
+
+def test_diffparse_is_a_leaf_that_imports_nothing_from_devkit():
+    from devkit import consolidation, diffparse
+
+    src = Path(diffparse.__file__).read_text(encoding="utf-8")
+    assert not [t for t in consolidation.regex_import_targets(src, "devkit.diffparse", False) if t.startswith("devkit")]

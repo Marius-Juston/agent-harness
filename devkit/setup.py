@@ -341,7 +341,7 @@ def doctor() -> int:
             print(f"WARN {what}  ->  {fix}")
         else:
             report(ok, what, fix)
-    from devkit.workflow import POLLER, quota_reading
+    from devkit.quota import POLLER, quota_reading
 
     report(quota_reading()[0] is not None, "quota reading under 30 min old (spawn guard enforces the cap)", POLLER)
     skew = build_skew(config.get().plugins, installed, projects, pinned_plugin_root())
@@ -524,7 +524,7 @@ def setup(repin_all: bool = False) -> int:
     if inside.returncode != 0:
         subprocess.run(["git", "init", "-q", "-b", "main"], check=True)
         print("ok   git init (branch main)")
-    from devkit.workflow import POLLER
+    from devkit.quota import POLLER
 
     steps = [
         ("uv sync", ["uv", "sync"]),
