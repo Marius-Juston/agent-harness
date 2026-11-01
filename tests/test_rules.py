@@ -382,6 +382,15 @@ def test_check_warns_on_a_pattern_claude_code_drops(repo):
     assert ran.warnings == [".claude/rules/x.md: paths pattern `foo\\` does not compile; Claude Code drops it"]
 
 
+def test_check_fails_a_rule_whose_every_pattern_fails_to_compile(repo):
+    _tree(repo, {".claude/rules/x.md": '---\npaths: ["foo\\\\", "bar\\\\"]\n---\n- x\n'})
+    ran = rules.check_rules(_base(repo))
+    assert ran.problems == [  # its rule lines are still checked
+        ".claude/rules/x.md: no paths pattern compiles; Claude Code never loads this rule",
+        ".claude/rules/x.md:4: no provenance: end the line with (#<issue>, YYYY-MM-DD)",
+    ]
+
+
 def test_patterns_split_commas_expand_braces_and_cut_a_trailing_globstar():
     assert rules.patterns("src/**, lib/*.{ts,tsx}") == ["src", "lib/*.ts", "lib/*.tsx"]
     assert rules.patterns(["a/{b,c}/**", 3, " ", "{x}"]) == ["a/b", "a/c", "x"]  # non-strings dropped, as Claude does

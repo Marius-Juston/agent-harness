@@ -259,7 +259,12 @@ def check_rules(base: str | None) -> Ran:
             added = added_lines(base) if base else None
             if added is None:
                 ran.warnings.append("no merge base with main: provenance of new rule lines not checked")
-        for glob in globs_of(meta):
+        every = patterns((meta or {}).get("paths"))
+        dead = bool(every) and len(invalid(every)) == len(every)
+        if dead:
+            ran.checked += 1
+            ran.problems.append(f"{rel}: no paths pattern compiles; Claude Code never loads this rule")
+        for glob in [] if dead else globs_of(meta):
             ran.checked += 1
             bad = invalid(patterns(glob))
             ran.warnings += [f"{rel}: paths pattern `{b}` does not compile; Claude Code drops it" for b in bad]
