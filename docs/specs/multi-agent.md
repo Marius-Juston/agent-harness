@@ -98,7 +98,8 @@ open); of several labels, the highest priority and the furthest status are kept;
 - **Quota.** `uv run dev usage-poll` (detached) records the weekly usage percent, and the spawn hook refuses new
   agents at `[tool.devkit] quota_cap`. At the cap, commit, push the branch and hand off; do not start new work.
 - **Concurrency.** `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` bounds spawns. It is per machine: set it in your shell or
-  in `.claude/settings.local.json` (`env`), never in the checked-in settings.json, whose `env` beats the shell.
+  in the gitignored `settings.local.json` under `.claude/` (`env`), never in the checked-in settings.json, whose
+  `env` beats the shell.
   In practice: up to about 6 researchers, and as many builders as there are disjoint Owns and free memory.
 
 ## 5. Long sessions and compaction
