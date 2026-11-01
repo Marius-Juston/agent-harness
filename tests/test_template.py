@@ -183,7 +183,9 @@ def test_copier_update_never_conflicts_on_project_owned_files(tmp_path):
     dest = tmp_path / "prev"
     data = {"project_name": "demo-project", "description": "A demo."}
     run_copy(str(ROOT), dest, data=data, defaults=True, vcs_ref=_previous_release(), unsafe=False, quiet=True)
-    assert yaml.safe_load((dest / ".copier-answers.yml").read_text())["harness_ref"] == _previous_release()
+    # releases <= v0.1.14 stored their own harness_ref; from v0.1.15 it is never asked (when: false, #163)
+    stored = yaml.safe_load((dest / ".copier-answers.yml").read_text()).get("harness_ref")
+    assert stored in (None, _previous_release())
     for name in ("CLAUDE.md", "README.md"):
         p = dest / name
         p.write_text(p.read_text().replace("demo-project", "Demo Project, edited by its owner") + "\nOwn line.\n")
