@@ -1259,10 +1259,22 @@ def regenerate(tree: Path) -> bool:
 FIX_LINES = 40  # failing lines a fix-loop comment carries: the local gate's, or the failed Actions jobs' log tail
 NEXT_STEP = "fix each item above, run `uv run dev check`, push, and hand back"
 # Credentials a gate or job log can print, cut from a fix-loop comment before it is posted: GitHub tokens (classic and
-# fine-grained), API keys of the `sk-` form, AWS access key ids and HTTP bearer tokens.
+# fine-grained), API keys of the `sk-` form, AWS access key ids, vendor-prefixed tokens, PEM private keys, JWTs, the
+# `user:password` of a URL, and HTTP bearer/token values of 20+ characters (so "Bearer of bad news" stays). Measured
+# in docs/research/devkit-reuse-survey.md §2.3. The vendor, private-key and JWT patterns are ported from gitleaks'
+# default rules (slack-bot-token, gcp-api-key, pypi-upload-token, npm-access-token, gitlab-pat,
+# huggingface-access-token, stripe-access-token, private-key, jwt) in config/gitleaks.toml of
+# https://github.com/gitleaks/gitleaks, Copyright (c) 2019 Zachary Rice, MIT License; gitleaks' trailing
+# delimiter group is a lookahead here so only the token is cut.
+_GITLEAKS_END = r"""(?=[\x60'"\s;]|\\[nr]|$)"""
 SECRET = re.compile(
-    r"\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]{8,}|AKIA[A-Z0-9]{12,})"
-    r"|(?<=[Bb]earer )[A-Za-z0-9._~+/=-]+|(?<=[Tt]oken )[A-Za-z0-9_]{20,}"
+    r"\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]{8,}|AKIA[A-Z0-9]{12,}"
+    r"|xoxb-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*|pypi-AgEIcHlwaS5vcmc[\w-]{50,1000}|glpat-[\w-]{20}"
+    r"|(?:AIza[\w-]{35}|hf_(?i:[a-z]{34})|(?i:npm_[a-z0-9]{36})|(?:sk|rk)_(?:test|live|prod)_[a-zA-Z0-9]{10,99}"
+    r"|ey[a-zA-Z0-9]{17,}\.ey[a-zA-Z0-9/\\_-]{17,}\.(?:[a-zA-Z0-9/\\_-]{10,}={0,2})?)" + _GITLEAKS_END + ")"
+    r"|(?i:-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----[\s\S]{64,}?KEY(?: BLOCK)?-----)"
+    r"|(?<=://)[^/\s:@]+:[^/\s@]+(?=@)"
+    r"|(?<=[Bb]earer )[A-Za-z0-9._~+/=-]{20,}|(?<=[Tt]oken )[A-Za-z0-9_]{20,}"
 )
 REDACTED = "[redacted]"
 # A session link or trailer anywhere in a log line, looser than SESSION_LEAK (which judges a PR body): any scheme or
