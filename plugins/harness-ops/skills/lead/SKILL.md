@@ -51,5 +51,5 @@ Per item in review, by priority:
 - STALE claim (another machine, idle 6 h): `board claim --force` only after reading its last comment.
 
 ## 6. Keep the record
-Update HANDOFF (`[tool.devkit] handoff`, default `docs/HANDOFF.md`) when agents change and after each integrate batch (before `autoCompactWindow` compaction), under 40 lines: in flight (issue, agent, branch), just merged, next (ranked startable items, why), owner decisions pending (also in open questions).
+Keep HANDOFF (`[tool.devkit] handoff`) under 40 lines, current when agents change and per integrate batch (before `autoCompactWindow` compaction): `uv run dev handoff` (integrate runs it) rewrites in flight, just merged, next; hand-write pending owner decisions (also in open questions).
 Land it with other lead edits on a branch via `dev pr`/`dev integrate`.

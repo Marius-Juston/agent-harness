@@ -55,6 +55,7 @@
 | command | what |
 |---|---|
 | `orient` | session start: handoff, board, worktrees, gate, memory, quota (~60 lines) |
+| `handoff` | rewrite the handoff file's in flight, just merged and next sections from the board |
 | `status` | this machine: gate, agent worktrees, free memory, quota |
 | `worktree` | local branches: prune those of merged or superseded PRs |
 | `worktree prune` | delete local branches whose merged or closed PR's head contains their tip |
