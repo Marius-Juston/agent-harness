@@ -1613,7 +1613,7 @@ def test_a_rerun_on_the_same_head_posts_only_new_content_and_never_counts(fake_i
     assert res["cycle"] == 1 and res["fix"] == "in-progress"  # one head, one cycle
 
 
-def test_gate_reruns_on_one_head_that_differ_only_in_duration_stay_one_cycle(fake_integrate, monkeypatch, capsys):  # noqa: F811
+def test_gate_reruns_on_one_head_that_differ_only_in_duration_post_once(fake_integrate, monkeypatch, capsys):  # noqa: F811
     posted = _github_keeps_comments(fake_integrate, monkeypatch)
     cycles = []
     for took in (30, 31, 32):
@@ -1621,8 +1621,8 @@ def test_gate_reruns_on_one_head_that_differ_only_in_duration_stay_one_cycle(fak
         assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
         res = _last_json(capsys.readouterr().out)
         cycles.append((res["cycle"], res["fix"]))
-    assert cycles == [(1, "in-progress")] * 3 and fake_integrate["blocked"] == []
-    assert len(posted) == 3
+    assert cycles == [(1, "in-progress"), (1, "already posted"), (1, "already posted")]
+    assert len(posted) == 1 and fake_integrate["blocked"] == []  # only the timing changed: nothing new to post
 
 
 def test_a_strangers_marker_counts_nothing_and_stays_ordinary_feedback(fake_integrate, monkeypatch, capsys):  # noqa: F811
@@ -1669,17 +1669,39 @@ def test_a_send_back_never_posts_a_token_or_a_session_link(fake_integrate, monke
     posted = _github_keeps_comments(fake_integrate, monkeypatch)
     url = "https://" + workflow.SESSION_URL + "_01abc"
     leak = f"test_a FAILED token=ghp_ABCDEF github_pat_11AB sk-0123456789abcdef AKIA0123456789ABCDEF {url}"
-    _gate_says(monkeypatch, GATE_OUT.replace("test_a FAILED", leak).replace("test_b FAILED", "Bearer abc.def"), 1)
+    session = workflow.SESSION_URL
+    sessions = [
+        f"see {session}_02bare",  # no scheme
+        f"see https://www.{session}_03www",
+        f"see HTTPS://CLAUDE.AI/code/{session.rsplit('/', 1)[1].upper()}_04caps",
+        "see https%3A%2F%2Fclaude.ai%2Fcode%2F" + session.rsplit("/", 1)[1] + "_05encoded",
+        "build\tstep\t2026-10-31T00:00:00Z Claude-Session: 06trailer",  # a --log-failed prefixed trailer
+    ]
+    gate = GATE_OUT.replace("test_a FAILED", leak).replace("test_b FAILED", "Bearer abc.def")
+    gate = gate.replace("     would reformat devkit/x.py", "\n".join(f"     {ln}" for ln in sessions))
+    _gate_says(monkeypatch, gate, 1)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     body = posted[0]["body"]
-    for secret in ("ghp_ABCDEF", "github_pat_11AB", "sk-0123456789abcdef", "AKIA0123456789ABCDEF", "abc.def", url):
+    marks = ("02bare", "03www", "04caps", "05encoded", "06trailer")
+    for secret in (
+        "ghp_ABCDEF",
+        "github_pat_11AB",
+        "sk-0123456789abcdef",
+        "AKIA0123456789ABCDEF",
+        "abc.def",
+        url,
+        *marks,
+    ):
         assert secret not in body
     assert "[redacted]" in body and "FAIL ruff format" in body and board.FIX_MARK.search(body)
 
 
 def test_scrubbed_keeps_ordinary_text():
-    text = "FAIL tests: sk-learn, task-runner, ghost_town, Bearer of news"
-    assert workflow.scrubbed(text) == "FAIL tests: sk-learn, task-runner, ghost_town, Bearer [redacted] news"
+    text = "FAIL tests: sk-learn, task-runner, ghost_town, Bearer of news, risk-assessment-review"
+    assert workflow.scrubbed(text) == "FAIL tests: sk-learn, task-runner, ghost_town, Bearer [redacted] news, " + (
+        "risk-assessment-review"
+    )
+    assert workflow.scrubbed("Authorization: token " + "0a" * 20) == "Authorization: token [redacted]"
 
 
 def test_a_check_log_without_gh_still_ends_in_a_result(fake_integrate, monkeypatch, capsys):  # noqa: F811

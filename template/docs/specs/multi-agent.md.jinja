@@ -49,8 +49,10 @@ Nothing assumes that two machines share a disk.
    the item goes back to in-progress with its claim kept, the worker to resume is named, and `board brief` shows
    that comment as 'Fix before merge'. A cycle is a PR head integrate failed on (a rerun on the same head keeps
    its number); after the 3rd (`cycle` in the result) the item is blocked 'needs owner', and the next head after
-   the owner unblocks it starts a fresh round. Only fix-loop comments by the gh user count or reach the brief, and
-   tokens and session links are cut from the comment before it is posted. If the gate passes, the PR merges, then its items close, blocked items whose blockers
+   the owner unblocks it starts a fresh round. Integrate and the workers act as one gh user (one account), so only
+   that user's fix-loop comments count or reach the brief, as only its verdict reviews are trusted; markers and
+   verdicts from any other account are ordinary comments. Tokens and session links are cut from the comment before
+   it is posted. If the gate passes, the PR merges, then its items close, blocked items whose blockers
    closed move to ready, and the worktree is removed. Every other open PR into main that the new main conflicts
    with is then sent back the same way at once (`sent_back`; not counted as a cycle). The last line, `RESULT-JSON: {...}`, says what happened (`outcome`). A PR that touches
    harness files is refused until the lead has read that diff (`--harness-ok`); a `.gitattributes` change can hide

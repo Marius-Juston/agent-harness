@@ -1194,16 +1194,20 @@ NEXT_STEP = "fix each item above, run `uv run dev check`, push, and hand back"
 # fine-grained), API keys of the `sk-` form, AWS access key ids and HTTP bearer tokens.
 SECRET = re.compile(
     r"\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]{8,}|AKIA[A-Z0-9]{12,})"
-    r"|(?<=[Bb]earer )[A-Za-z0-9._~+/=-]+"
+    r"|(?<=[Bb]earer )[A-Za-z0-9._~+/=-]+|(?<=[Tt]oken )[A-Za-z0-9_]{20,}"
 )
 REDACTED = "[redacted]"
+# A session link or trailer anywhere in a log line, looser than SESSION_LEAK (which judges a PR body): any scheme or
+# none, a subdomain, URL-encoded slashes, and a trailer behind `gh run view --log-failed`'s job/step/time prefix.
+SESSION_SCRUB = re.compile(r"claude\.ai(?:/|%2F)code(?:/|%2F)" + "session" + r"|Claude-Session[ \t]*:", re.I)
+DURATION = re.compile(r", \d+(?:\.\d+)? s\)$")  # the gate's `RESULT: failed (N stage(s), 30 s)` timing
 
 
 def scrubbed(text: str) -> str:
-    """`text` with each SECRET cut, and each line carrying a session link or a Claude-Session trailer (SESSION_LEAK)
+    """`text` with each SECRET cut, and each line carrying a session link or a Claude-Session trailer (SESSION_SCRUB)
     replaced, before integrate posts it: a log line is not the worker's to edit once it is on a PR. Session lines go
     whatever the repository's visibility (`repo_public` fails closed to public anyway)."""
-    lines = [REDACTED if SESSION_LEAK.search(ln) else ln for ln in text.split("\n")]
+    lines = [REDACTED if SESSION_SCRUB.search(ln) else ln for ln in text.split("\n")]
     return SECRET.sub(REDACTED, "\n".join(lines))
 
 
@@ -1278,7 +1282,8 @@ def fix_loop(
     failing = failing[-FIX_LINES:]
     _, last = board.fix_loop_state(marked, trusted)
     mark = board.FIX_MARK.search(last["body"]) if last else None
-    key = hashlib.sha256(json.dumps([outcome, reasons, failing, feedback]).encode()).hexdigest()[:12]
+    timeless = [DURATION.sub(")", ln) if ln.startswith("RESULT:") else ln for ln in failing]  # a rerun's new timing
+    key = hashlib.sha256(json.dumps([outcome, reasons, timeless, feedback]).encode()).hexdigest()[:12]
     cycle = fix_cycle(mark, head, counted)
     if mark and (mark[2], mark[3]) == (head, key):
         print(f"PR #{pr_number} already has this failure on {head[:10]} (fix cycle {cycle}): nothing posted")
