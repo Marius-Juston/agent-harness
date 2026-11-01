@@ -799,6 +799,57 @@ def test_dev_worktree_prune_is_a_command(branches, capsys):
     assert "deleted branch 1-merged" in capsys.readouterr().out and not _local(repo, "1-merged")
 
 
+def test_status_resume_lists_dirty_or_ahead_worktrees_with_a_respawn_prompt(branches, tmp_path, monkeypatch, capsys):
+    """#388: after a session restart, `dev status --resume` gives one line per worktree with commits or edits: issue,
+    branch, PR, last commit, the unresolved review URL and a respawn prompt. Clean worktrees level with main, the main
+    checkout and a fork's PR on the same branch name are left out."""
+    from devkit import cli
+
+    repo, prs = branches
+    _branch(repo, "11-ahead", "a1")
+    _branch(repo, "12-dirty")
+    _branch(repo, "13-idle")
+    for name in ("11-ahead", "12-dirty", "13-idle"):
+        sh(repo, "git", "worktree", "add", "-q", str(tmp_path / name), name)
+    (tmp_path / "12-dirty/edit.txt").write_text("unsaved\n")
+    (repo / "main-scratch.txt").write_text("the lead's own edit\n")
+    prs += [
+        {"number": 40, "headRefName": "11-ahead", "url": "https://x/pull/40", "isCrossRepository": False},
+        {"number": 41, "headRefName": "12-dirty", "url": "https://x/pull/41", "isCrossRepository": True},
+    ]
+    thread = {"path": "a1", "line": 1, "comments": {"nodes": [{"url": "https://x/pull/40#r1"}]}}
+    monkeypatch.setattr(board, "pr_feedback", lambda n: {"threads": [thread] if n == 40 else []})
+
+    rows = json.loads(workflow.status(as_json=True, resume=True))
+    assert [(r["issue"], r["branch"], r["pr"], r["review"]) for r in rows] == [
+        (11, "11-ahead", 40, "https://x/pull/40#r1"),
+        (12, "12-dirty", None, None),
+    ]
+    assert rows[0]["last"].endswith("11-ahead a1") and rows[1]["dirty"] == 1
+    assert rows[0]["prompt"] == f"Work on #11 in {tmp_path / '11-ahead'}; finish, gate, dev pr"
+    assert cli.run(cli.parse(["status", "--resume"])) in (None, 0)
+    text = capsys.readouterr().out.splitlines()
+    assert len(text) == 4 and "PR #40" in text[0] and "https://x/pull/40#r1" in text[0]
+    assert text[1] == f"  Work on #11 in {tmp_path / '11-ahead'}; finish, gate, dev pr"
+    assert "no PR" in text[2] and "*1" in text[2]
+
+
+def test_status_resume_says_so_when_nothing_needs_resuming(branches):
+    assert workflow.status(resume=True) == "no worktree with commits or edits to resume"
+
+
+def test_status_resume_still_lists_worktrees_when_github_cannot_say(branches, tmp_path, monkeypatch):
+    repo, _ = branches
+    _branch(repo, "14-x", "x")
+    sh(repo, "git", "worktree", "add", "-q", str(tmp_path / "14-x"), "14-x")
+
+    def down(*a, **k):
+        raise board.BoardError("gh: no network")
+
+    monkeypatch.setattr(board, "gh", down)
+    assert "PR ?" in workflow.status(resume=True)
+
+
 def _stop_mid(repo, tmp_path, how: str) -> str:
     """A worktree of branch 1-x stopped mid-rebase (conflict or an `edit` stop) or mid-bisect: shown as detached."""
     tip = _branch(repo, "1-x", *(["a.txt"] if how == "conflict" else ["x", "y"]))

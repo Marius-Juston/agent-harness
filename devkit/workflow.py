@@ -289,7 +289,67 @@ def gate_holder() -> str:
     return "idle" if out.returncode == 0 else f"running ({lock.read_text().strip()})"
 
 
-def status(as_json: bool = False) -> str:
+def open_prs() -> dict[str, dict] | None:
+    """Branch -> its open same-repository PR (number, url); None when GitHub cannot say."""
+    try:
+        found = board.gh("pr", "list", "-R", board.repo(), "--state", "open", "--limit", str(PRUNE_LIMIT),
+                         "--json", "number,headRefName,url,isCrossRepository")  # fmt: skip
+        return {p["headRefName"]: p for p in json.loads(found or "[]") if not p.get("isCrossRepository")}
+    except (board.BoardError, OSError, ValueError):
+        return None
+
+
+def review_url(pr: int) -> str | None:
+    """The newest comment URL of the PR's first unresolved review thread, or None (none, or GitHub cannot say)."""
+    try:
+        threads = board.pr_feedback(pr)["threads"]
+    except (board.BoardError, OSError, ValueError, KeyError):
+        return None
+    return ((threads[0]["comments"]["nodes"] or [{}])[-1].get("url") or None) if threads else None
+
+
+def resume_rows() -> list[dict]:
+    """#388: every agent worktree with commits ahead of main or edits, with what a lead needs to re-dispatch it after a
+    session restart: issue, branch, PR, last commit, unresolved review URL and a one-line respawn prompt."""
+    home, prs = main_checkout().resolve(), open_prs()
+    rows = []
+    for w in worktrees():
+        if Path(w["path"]).resolve() == home or not (w["ahead"] or w["dirty"]):
+            continue
+        m = re.match(r"(\d+)-", w["branch"])
+        pr = (prs or {}).get(w["branch"])
+        target = f"#{m[1]} in {w['path']}" if m else w["path"]
+        rows.append(
+            w
+            | {
+                "issue": int(m[1]) if m else None,
+                "pr": pr["number"] if pr else None,
+                "pr_known": prs is not None,
+                "last": git("-C", w["path"], "log", "-1", "--format=%h %s", check=False),
+                "review": review_url(pr["number"]) if pr else None,
+                "prompt": f"Work on {target}; finish, gate, dev pr",
+            }
+        )
+    return rows
+
+
+def resume_text(rows: list[dict]) -> str:
+    out = []
+    for r in rows:
+        pr = f"PR #{r['pr']}" if r["pr"] else ("no PR" if r["pr_known"] else "PR ?")
+        edits = f" *{r['dirty']}" if r["dirty"] else ""
+        review = f" . review {r['review']}" if r["review"] else ""
+        out += [
+            f"#{r['issue'] or '?'} {r['branch']} . {pr} . +{r['ahead']}{edits} . {r['last']}{review}",
+            f"  {r['prompt']}",
+        ]
+    return "\n".join(out) or "no worktree with commits or edits to resume"
+
+
+def status(as_json: bool = False, resume: bool = False) -> str:
+    if resume:
+        rows = resume_rows()
+        return json.dumps(rows, indent=1) if as_json else resume_text(rows)
     wts = worktrees()
     pct, cap = quota_reading()
     data = {
