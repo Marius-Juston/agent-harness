@@ -5,6 +5,7 @@ import threading
 from pathlib import Path
 
 import pytest
+import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -970,12 +971,13 @@ def test_decisions_missing_or_header_only_table_is_not_configured_not_a_failure(
     assert any("not configured" in n or "no decisions" in n for n in ran.notes)
 
 
-def test_decisions_index_renders_rows_and_only_when_the_table_exists(tmp_path, monkeypatch):
+def test_decisions_index_renders_rows_and_a_page_without_a_table(tmp_path, monkeypatch):
     from devkit import docs
 
     monkeypatch.setattr(docs, "root", lambda: tmp_path)
     monkeypatch.setattr(checks, "root", lambda: tmp_path)
-    assert docs.decisions_index() is None
+    page = docs.decisions_index()
+    assert "No decisions recorded." in page and "](" not in page
     path = tmp_path / config.Config().decisions
     path.parent.mkdir(parents=True)
     path.write_text("# none yet\n")
@@ -984,6 +986,31 @@ def test_decisions_index_renders_rows_and_only_when_the_table_exists(tmp_path, m
     out = docs.decisions_index()
     assert "| D01 |" in out and "Never curl the index APIs." in out and "superseded by D01" in out
     assert "`shared rate limits`" in out and "docs/rule.md" in out
+
+
+def test_a_project_without_a_decision_table_passes_with_harness_linking_the_page(tmp_path, monkeypatch):
+    """Review of #412: HARNESS.md is template-owned and links the page, so the page exists and its links resolve
+    after a project deletes its table (and the stale page), then runs `uv run dev docs`."""
+    from devkit import docs
+
+    monkeypatch.setattr(docs, "root", lambda: tmp_path)
+    page = docs.decisions_index()
+    files = {
+        ".devkit/HARNESS.md": "[decisions.md](../docs/generated/decisions.md)\n",
+        "docs/generated/decisions.md": page,
+    }
+    _repo(monkeypatch, tmp_path, files)
+    links, table = checks.check_links(), checks.check_decisions()
+    assert links.ok and links.problems == [], links.problems
+    assert table.ok and table.checked == 0 and table.problems == []
+
+
+def test_an_unreadable_decision_table_is_a_problem(tmp_path, monkeypatch):
+    ran = decisions(tmp_path, monkeypatch, None)
+    (tmp_path / config.Config().decisions).parent.mkdir(parents=True)
+    (tmp_path / config.Config().decisions).write_bytes(b"\xff\xfe not utf-8")
+    ran = checks.check_decisions()
+    assert not ran.ok and any("unreadable" in p for p in ran.problems), ran.problems
 
 
 def test_the_shipped_decision_tables_pass_with_short_literals():
@@ -996,5 +1023,5 @@ def test_the_shipped_decision_tables_pass_with_short_literals():
     ran = checks.check_decisions()
     assert ran.ok and ran.checked == 6 and not ran.warnings, ran.warnings
     # Project-owned: `copier update` must never merge a template header edit into a project's rows.
-    copier = (root() / "copier.yml").read_text()
-    assert ".devkit/decisions.toml" in copier
+    owned = yaml.safe_load((root() / "copier.yml").read_text())["_skip_if_exists"]
+    assert ".devkit/decisions.toml" in owned

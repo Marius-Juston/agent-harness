@@ -4,7 +4,7 @@
   from the files that define them, so prose never has to repeat a count, a field or a command list.
 - <research_dir>/INDEX.md: every research note with its status and one-line finding, so agents check what is
   already researched before starting (duplicate research is the most common research waste).
-- <generated_dir>/decisions.md: the decision table (`[tool.devkit] decisions`), written only when the table exists.
+- <generated_dir>/decisions.md: the decision table (`[tool.devkit] decisions`), written even without one.
   Linked, never @-imported, so it costs no agent context until opened.
 """
 
@@ -128,19 +128,20 @@ def research_index() -> str:
     return "\n".join(out) + "\n"
 
 
-def decisions_index() -> str | None:
-    """The decision table as a page, or None when the project has no table file."""
+def decisions_index() -> str:
+    """The decision table as a page. Always written, so the template-owned HARNESS.md link resolves even in a project
+    that deleted its table; the page then names no file, because a link to a missing one fails the link check."""
     cfg = config.get()
     try:
         text = (root() / cfg.decisions).read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return None
-    _, rows = decision_rows(text)
-    link = posixpath.relpath(cfg.decisions, cfg.generated_dir)
+    except (OSError, UnicodeDecodeError):
+        text = None
+    rows = decision_rows(text)[1] if text is not None else []
+    source = f"[{cfg.decisions}]({posixpath.relpath(cfg.decisions, cfg.generated_dir)})" if text is not None else None
     out = [
         HEADER,
         "# Decisions (generated)\n",
-        f"Durable rules from [{cfg.decisions}]({link}).",
+        f"Durable rules from {source}." if source else "Durable rules from the table `[tool.devkit] decisions` names.",
         "`uv run dev check` warns when an active row's literal leaves its path; a PR that changes such a rule",
         "supersedes its row.\n",
     ]
@@ -160,13 +161,11 @@ def decisions_index() -> str | None:
 
 def render(commands: Sequence[tuple[str, str]]) -> dict[str, str]:
     cfg = config.get()
-    out = {
+    return {
         f"{cfg.generated_dir}/agent-surface.md": surface(commands),
         f"{cfg.research_dir}/INDEX.md": research_index(),
+        f"{cfg.generated_dir}/decisions.md": decisions_index(),
     }
-    if (decisions := decisions_index()) is not None:
-        out[f"{cfg.generated_dir}/decisions.md"] = decisions
-    return out
 
 
 def write(commands: Sequence[tuple[str, str]]) -> list[str]:

@@ -23,10 +23,10 @@ status = "active"
 
 [[decision]]
 id = "D07"
-rule = "A research note gets at most 2 audit cycles; what is left goes to the note's open issues."
+rule = "A research note gets one audit, and one second audit only after a send-back; what is left goes to its open issues."
 why = "https://github.com/Marius-Juston/agent-harness/issues/84#issuecomment-6126618369"
 # The skill states no reason (a second cycle mostly re-rolls the verifier), so this literal is the rule's own.
-enforced-by = [{ path = "plugins/harness-ops/skills/research/SKILL.md", literal = "at most 2 cycles" }]
+enforced-by = [{ path = "plugins/harness-ops/skills/research/SKILL.md", literal = "then one second audit" }]
 status = "active"
 
 [[decision]]

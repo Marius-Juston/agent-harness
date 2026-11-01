@@ -751,6 +751,9 @@ def check_decisions() -> Ran:
         text = (root() / rel).read_text(encoding="utf-8")
     except FileNotFoundError:
         text = ""
+    except (OSError, UnicodeDecodeError) as e:
+        ran.problems.append(f"{rel}: unreadable: {e}")
+        return ran
     problems, rows = decision_rows(text)
     ran.problems += [f"{rel}: {p}" for p in problems]
     ran.checked = len(rows)

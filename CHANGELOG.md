@@ -11,6 +11,9 @@ A plain `uvx copier update` moves the devkit and plugin pins again; `--data harn
 This takes effect from the first release that carries the fix, and that update moves the pins even when the project
 still holds an older stored answer. `uv run dev doctor` warns when a project's pins lag its template (an update made
 with a plain `copier update` before this fix) and names the `--data harness_ref=<tag>` command that repairs it.
+After the update, run `uv run dev docs`: it writes the new `docs/generated/decisions.md`, which the gate's
+generated-docs stage needs. `.devkit/decisions.toml` is project-owned: copier creates it once and never updates it,
+and the gate warns when an active row's reason literal leaves its path. (#226)
 
 ### Fixed
 - `copier update` reused the `harness_ref` answer stored in `.copier-answers.yml` over the new release's default, so
