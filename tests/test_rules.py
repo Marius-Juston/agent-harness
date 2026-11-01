@@ -316,13 +316,70 @@ CLAUDE_PROBES = [
     (["devkit/*.py"], "devkit/rules.py", True),
     (["plugins/**/agents/*.md"], "plugins/harness-ops/agents/builder.md", True),
 ]
-KNOWN_MISS = (["tests/**", "!tests/fixtures/**"], "tests/fixtures/a.py")
+# Held out from the survey (the #416 audit), with node-ignore's answers from the same 2.1.316 module.
+HELD_OUT_PROBES = [
+    (["**/test_*.py"], "tests/test_a.py", True),
+    (["docs/**/*.md"], "docs/a.md", True),
+    (["*.py"], "a/b/c.py", True),
+    (["foo/*/bar"], "foo/x/y/bar", False),
+    (["?.md"], "docs/a.md", True),
+    (["[abc].md"], "b.md", True),
+    (["a/b"], "x/a/b", False),
+    (["**/node_modules"], "web/node_modules/x.js", True),
+    (["src/**/*.test.ts"], "src/a/b.test.ts", True),
+    (["!*.md"], "a.md", False),
+    (["#foo"], "#foo", False),
+    (["\\#foo"], "#foo", True),
+    ("*.md, !README.md", "README.md", False),
+    (["docs/*"], "docs/sub/a.md", True),
+    (["src/**/*"], "src/a.py", True),
+    (["**/*.{md,mdx}"], "a/b.mdx", True),
+    (["{src,lib}/**"], "lib/a.py", True),
+    (["Makefile"], "sub/Makefile", True),
+    (["*.Py"], "a.PY", True),
+    ([".github/workflows/*.yml"], ".github/workflows/ci.yml", True),
+    (["a/**/b/**"], "a/x/b/c", True),
+    (["*/a.md"], "x/y/a.md", False),
+    (["src/a.ts/"], "src/a.ts", False),
+    (["tests/"], "tests/a.py", True),
+    (["src/[!a]*.ts"], "src/b.ts", False),  # node-ignore reads `[!a]` differently: the one known disagreement
+    (["*.py", "!keep.py"], "keep.py", False),
+    (["docs/**", "!docs/keep.md"], "docs/keep.md", True),
+    (["docs/*.md", "!docs/keep.md"], "docs/keep.md", False),
+    (["src/", "!src/a.py"], "src/a.py", True),
+    (["**/*.md"], "a/b/c/d.md", True),
+    (["src/**/**/x"], "src/x", True),
+    (["a/*.md"], "A/b.md", True),
+    (["*"], "a/b", True),
+    (["src/**/test/**"], "src/test/a.py", True),
+    (["src/{a,b}/{c,d}.ts"], "src/b/d.ts", True),
+]
+KNOWN_MISSES = [(["src/[!a]*.ts"], "src/b.ts")]
 
 
-def test_loads_agrees_with_claude_code_on_the_probes_but_the_documented_negation():
+def test_loads_agrees_with_claude_code_on_every_survey_probe():
     missed = [(v, rel) for v, rel, want in CLAUDE_PROBES if rules.loads(rel, {"paths": v}) != want]
     assert len(CLAUDE_PROBES) == 20
-    assert missed == [KNOWN_MISS]
+    assert missed == []
+
+
+def test_loads_agrees_with_claude_code_on_the_held_out_probes_but_the_listed_misses():
+    missed = [(v, rel) for v, rel, want in HELD_OUT_PROBES if rules.loads(rel, {"paths": v}) != want]
+    assert len(HELD_OUT_PROBES) == 35
+    assert missed == KNOWN_MISSES
+
+
+def test_a_pattern_that_does_not_compile_is_dropped_not_raised():
+    assert not rules.loads("foo", {"paths": ["foo\\"]})
+    assert rules.loads("src/a.py", {"paths": ["src/**", "foo\\"]})
+    assert not rules.matches("foo", "foo\\")
+
+
+def test_check_warns_on_a_pattern_claude_code_drops(repo):
+    _tree(repo, {".claude/rules/x.md": '---\npaths: ["src/**", "foo\\\\"]\n---\n- x (#1, 2026-01-01)\n'})
+    ran = rules.check_rules(_base(repo))
+    assert ran.problems == []
+    assert ran.warnings == [".claude/rules/x.md: paths pattern `foo\\` does not compile; Claude Code drops it"]
 
 
 def test_patterns_split_commas_expand_braces_and_cut_a_trailing_globstar():

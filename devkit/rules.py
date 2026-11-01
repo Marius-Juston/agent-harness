@@ -93,11 +93,31 @@ def patterns(value: object) -> list[str]:
     return [g for g in (g.removesuffix("/**") for g in globs) if g]
 
 
+def invalid(globs: list[str]) -> list[str]:
+    """Patterns that do not compile (`foo\\`): node-ignore drops such a pattern, so it matches nothing."""
+    out = []
+    for g in globs:
+        try:
+            pathspec.GitIgnoreSpec.from_lines([g.casefold()])
+        except ValueError:
+            out.append(g)
+    return out
+
+
 def spec(globs: list[str]) -> pathspec.GitIgnoreSpec:
-    """node-ignore's gitignore semantics, case-insensitive like its default: pathspec's GitIgnoreSpec agrees with it on
-    19 of 20 probes, re-including a file under an excluded parent where node-ignore does not
-    (docs/research/devkit-reuse-survey.md §2.2)."""
-    return pathspec.GitIgnoreSpec.from_lines([g.casefold() for g in globs])
+    """node-ignore's gitignore semantics, case-insensitive like its default, via pathspec's GitIgnoreSpec
+    (docs/research/devkit-reuse-survey.md §2.2); a pattern that does not compile is dropped, as node-ignore does."""
+    bad = set(invalid(globs))
+    return pathspec.GitIgnoreSpec.from_lines([g.casefold() for g in globs if g not in bad])
+
+
+def hit(match: pathspec.GitIgnoreSpec, rel: str) -> bool:
+    """node-ignore's verdict: an excluded parent directory excludes the file too (no `!x` re-includes under it), so
+    each ancestor is tried as a directory before the file itself."""
+    parts = rel.casefold().split("/")
+    return any(match.match_file("/".join(parts[:i]) + "/") for i in range(1, len(parts))) or match.match_file(
+        "/".join(parts)
+    )
 
 
 def globs_of(meta: dict | None) -> list[str]:
@@ -105,14 +125,14 @@ def globs_of(meta: dict | None) -> list[str]:
 
 
 def matches(rel: str, glob: str) -> bool:
-    return spec(patterns(glob)).match_file(rel.casefold())
+    return hit(spec(patterns(glob)), rel)
 
 
 def loads(rel: str, meta: dict | None) -> bool:
     """Claude Code loads the rule when `rel` is read: all of its `paths:` patterns together decide (a later `!x`
     excludes again), and a list of only `**` is unconditional."""
     pats = patterns((meta or {}).get("paths"))
-    return all(p == "**" for p in pats) or spec(pats).match_file(rel.casefold())
+    return all(p == "**" for p in pats) or hit(spec(pats), rel)
 
 
 def normalize(lesson: str) -> str:
@@ -190,7 +210,7 @@ def glob_hits(glob: str, files: list[str]) -> bool:
     """A tracked file matches, else any file on disk does (gitignored output such as `build/**` still loads rules)."""
     pats = patterns(glob)
     match = spec(pats)
-    if any(match.match_file(f.casefold()) for f in files):
+    if any(hit(match, f) for f in files):
         return True
     top = root()
     for base in sorted({_walk_base(p) for p in pats if not p.startswith("!")}):
@@ -198,7 +218,7 @@ def glob_hits(glob: str, files: list[str]) -> bool:
             dirs[:] = [d for d in dirs if d not in PRUNE and not (Path(here) / d / "pyvenv.cfg").is_file()]
             rel = Path(here).relative_to(top).as_posix()
             prefix = "" if rel == "." else rel + "/"
-            if any(match.match_file((prefix + n).casefold()) for n in names):
+            if any(hit(match, prefix + n) for n in names):
                 return True
     return False
 
@@ -241,6 +261,10 @@ def check_rules(base: str | None) -> Ran:
                 ran.warnings.append("no merge base with main: provenance of new rule lines not checked")
         for glob in globs_of(meta):
             ran.checked += 1
+            bad = invalid(patterns(glob))
+            ran.warnings += [f"{rel}: paths pattern `{b}` does not compile; Claude Code drops it" for b in bad]
+            if bad and len(bad) == len(patterns(glob)):
+                continue
             if not glob_hits(glob, files):
                 where = ran.warnings if EXOTIC.search(glob) else ran.problems
                 where.append(f"{rel}: paths glob `{glob}` matches no file")
