@@ -46,12 +46,13 @@ def free_gb() -> float:
 
 
 def workers(slots: int | None = None, cores: int | None = None, gb: float | None = None) -> int:
-    """pytest-xdist workers: half the cores, at most one per 2 GB free, shared among the gate slots (#461), so
-    `slots` gates running at once take no more than one did; at least 1, at most 16."""
+    """pytest-xdist workers: half the cores shared among the gate slots (#461), so `slots` gates running at once take
+    the cores one did, and at most one per 2 GB free (already net of the gates running now, so not divided); at least
+    1, at most 16."""
     slots = gate_slots() if slots is None else slots
     cores = (os.cpu_count() or 2) if cores is None else cores
     gb = free_gb() if gb is None else gb
-    return max(1, min(cores // 2 // slots, int(gb // 2) // slots, 16))
+    return max(1, min(cores // 2 // slots, int(gb // 2), 16))
 
 
 # pytest's final line, e.g. "== 3 passed, 1 skipped in 0.52s ==" or "3 passed in 65.1s (0:01:05)" under -q.
@@ -356,13 +357,25 @@ def slot_paths(path: Path, slots: int) -> list[Path]:
     return [path, *(path.with_name(f"{path.name}.{i}") for i in range(1, slots))]
 
 
+def _on_disk(path: Path) -> list[Path]:
+    """The slot lock files of `path` that exist, whatever gate_slots made them, in slot order."""
+    found = [p for p in path.parent.glob(f"{path.name}.*") if p.name.removeprefix(path.name + ".").isdigit()]
+    return ([path] if path.exists() else []) + sorted(found, key=lambda p: int(p.name.rsplit(".", 1)[1]))
+
+
+def effective_slots(path: Path, slots: int) -> int:
+    """`slots`, or more when slot files on disk say a gate elsewhere runs with more (a worktree whose pyproject still
+    has the old gate_slots, or a caller that names none): a gate must not wait while a slot it does not know is free.
+    Lowering gate_slots therefore takes effect once the extra `<path>.<n>` files are deleted with no gate running."""
+    numbered = [int(p.name.rsplit(".", 1)[1]) for p in _on_disk(path) if p != path]
+    return max(slots, max(numbered, default=0) + 1)
+
+
 def holders(path: Path) -> list[str]:
     """The pid and root of each gate holding a slot of `path` now, in slot order (any slot count, so a changed
     gate_slots still shows a gate started under the old one)."""
     found = []
-    for slot in sorted(path.parent.glob(f"{path.name}*"), key=lambda p: (p != path, len(p.name), p.name)):
-        if slot != path and not slot.name.removeprefix(path.name + ".").isdigit():
-            continue
+    for slot in _on_disk(path):
         with open(slot, "a+") as f:
             try:
                 fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -380,17 +393,17 @@ def gate_lock(
     held: Path | None = None,
     slots: int = 1,
 ) -> Iterator[None]:
-    """At most `slots` gates per machine, one per lock file of slot_paths (#461). Opened with "a+" (never truncating)
-    so a waiting gate does not erase a holder's pid.
-    A gate tries every slot without blocking. Worker gates that find none free queue on `<path>.wait`; its holder
-    waits for a slot (blocking on the one lock file, else trying all every SLOT_POLL_S), so a newcomer cannot take a
-    slot freed for a gate that queued before it. flock grants a lock in no fixed order, so a priority gate
+    """At most `slots` gates per machine (effective_slots: more when slot files on disk show more), one per lock file
+    of slot_paths (#461). Opened with "a+" (never truncating) so a waiting gate does not erase a holder's pid.
+    A gate tries every slot without blocking. Worker gates that find none free queue on `<path>.wait` (plain flock, so
+    in no fixed order), and only its holder waits for a slot (blocking on the one lock file, else trying all every
+    SLOT_POLL_S): one worker gate competes for slots at a time. flock grants a lock in no fixed order, so a priority gate
     (integrate's) skips that queue and holds a shared lock on `<path>.priority` while it waits, and a worker gate that
     gets a slot meanwhile hands it back and waits until no priority gate does (#385): integrate takes the next free
     slot. By design, worker gates starve while integrate gates arrive back to back: a merge outranks a check.
     Once a slot is held, `held` is created: integrate's deadline counts from there, not the wait."""
     with contextlib.ExitStack() as stack:
-        locks = [stack.enter_context(open(p, "a+")) for p in slot_paths(path, slots)]
+        locks = [stack.enter_context(open(p, "a+")) for p in slot_paths(path, effective_slots(path, slots))]
         queue = stack.enter_context(open(path.with_name(path.name + ".priority"), "a+"))
         turn = None if priority else stack.enter_context(open(path.with_name(path.name + ".wait"), "a+"))
         said = False

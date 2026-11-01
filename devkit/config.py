@@ -76,8 +76,9 @@ class Config:
     # at most the running gate, since integrate's goes ahead of queued worker gates) has this bound of its own.
     gate_lock_wait_s: int = 7200
     # #461: how many gates may run at once on this machine (one lock file per slot in the shared state dir). Each
-    # gate's pytest workers are divided by it, so N gates together use what one used. Raise it on a machine where gates
-    # queue while cores and memory idle; integrate's gate still takes the next free slot ahead of queued worker gates.
+    # gate's share of the cores for pytest workers is divided by it. Raise it on a machine where gates queue while
+    # cores and memory idle; integrate's gate still takes the next free slot ahead of queued worker gates. A gate uses
+    # every slot file it finds, so lowering it takes effect once the extra `gate.lock.<n>` files are deleted.
     gate_slots: int = 1
     # `dev integrate --local-ci` (#76): a required check that has not queued after this long means Actions cannot run.
     local_ci_wait_s: int = 600

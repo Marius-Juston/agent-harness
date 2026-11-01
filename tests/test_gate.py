@@ -581,12 +581,37 @@ def test_status_lists_every_gate_holder(monkeypatch, repo):
     b.close()
 
 
+def test_a_gate_configured_for_fewer_slots_still_takes_a_free_slot_another_gate_made(tmp_path):
+    """#477 review: a gate with slots=1 (the suite audit, or a worktree whose pyproject still says gate_slots = 1)
+    must not wait at the head of the queue while a slot made by a gate_slots = 3 gate is free: it uses every slot file
+    on disk."""
+    path = tmp_path / "gate.lock"
+    for p in gate.slot_paths(path, 3):
+        p.touch()  # as a gate_slots = 3 gate left them
+    assert gate.effective_slots(path, 1) == 3 and gate.effective_slots(path, 5) == 5
+    busy = _hold(path, "1 /three-slot-gate")
+    waited, inside = threading.Event(), threading.Event()
+
+    def narrow():
+        with gate.gate_lock(path, slots=1, on_wait=waited.set):
+            inside.set()
+
+    t = threading.Thread(target=narrow)
+    t.start()
+    assert inside.wait(10)
+    t.join(10)
+    assert not waited.is_set()
+    busy.close()
+
+
 @given(cores=st.integers(1, 512), gb=st.floats(0, 4096), slots=st.integers(1, 64))
 def test_workers_share_the_machine_among_the_gate_slots(cores, gb, slots):
-    """#461: N concurrent gates together take at most half the cores and one worker per 2 GB free."""
+    """#461: N concurrent gates together take at most half the cores; each takes at most one worker per 2 GB free now
+    (free memory is already net of the gates running, so it is not divided again)."""
     n = gate.workers(slots, cores=cores, gb=gb)
     assert 1 <= n <= 16
-    assert n == 1 or (n * slots <= cores // 2 and n * slots * 2 <= gb)
+    assert n == 1 or (n * slots <= cores // 2 and n * 2 <= gb)
+    assert n == max(1, min(cores // 2 // slots, int(gb // 2), 16))
     assert gate.workers(1, cores=cores, gb=gb) == max(1, min(cores // 2, int(gb // 2), 16))
 
 
