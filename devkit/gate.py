@@ -387,11 +387,11 @@ def save_pass(record: Path, took: float, tests: str | None) -> None:
         write_atomic(record, json.dumps(data))
 
 
-def identity() -> list[str]:
-    """The gate's first line: the worktree it checks and the interpreter and devkit it runs. A devkit imported from
-    outside the worktree (an editable install of another checkout, a stray PYTHONPATH) runs another tree's gate code
-    and is said loudly (#463)."""
-    top = root().resolve()
+def identity(worktree: Path | None = None) -> list[str]:
+    """The gate's first line: the worktree it checks (root()) and the interpreter and devkit it runs. A devkit
+    imported from outside the worktree (an editable install of another checkout, a stray PYTHONPATH) runs another
+    tree's gate code and is said loudly (#463)."""
+    top = (worktree or root()).resolve()
     code = Path(devkit.__file__).resolve().parent
     lines = [f"gate: {top} (python {sys.executable}, devkit {code})"]
     if not code.is_relative_to(top):

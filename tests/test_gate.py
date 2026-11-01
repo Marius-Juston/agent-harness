@@ -18,7 +18,7 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, config, gate, workflow
+from devkit import board, config, gate, paths, workflow
 
 REAL_POPEN = subprocess.Popen
 
@@ -226,15 +226,10 @@ def test_gates_writing_the_history_at_the_same_time_lose_no_run(tmp_path):
     assert sorted(p.name for p in history.parent.iterdir()) == [history.name, history.name + ".lock"]  # no tmp left
 
 
-def _shared_state(monkeypatch, state):
-    """Point the gate's machine state dir at `state`, as every worktree of one clone shares it."""
-
-    def state_dir(*parts):
-        path = state.joinpath(*parts)
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    monkeypatch.setattr(gate, "state_dir", state_dir)
+def _shared_state(monkeypatch, common):
+    """The machine state dir under `common`, as every worktree of one clone shares its git common dir; returns it."""
+    monkeypatch.setattr(paths, "common_dir", lambda: common)
+    return gate.state_dir()
 
 
 def _worktrees(repo, tmp_path, files):
@@ -256,8 +251,7 @@ def test_two_worktrees_gating_at_once_each_read_only_their_own_test_output(repo,
     other = _worktrees(repo, tmp_path, {"test_m.py": test.format("main")})
     (other / "test_m.py").write_text(test.format("feature"))
     _sh(other, "git", "commit", "-qam", "feature")
-    state = tmp_path / "state"
-    _shared_state(monkeypatch, state)
+    state = _shared_state(monkeypatch, tmp_path / "common")
     monkeypatch.setattr(gate, "FAIL_LINES", 3)
     monkeypatch.setattr(gate.time, "time", lambda: 1000.0)  # the same second for both
     history = state / gate.HISTORY_FILE
@@ -287,11 +281,10 @@ def test_two_worktrees_gating_at_once_each_read_only_their_own_test_output(repo,
     assert sorted(next(iter(r)) for r in runs) == ["test_m::test_feature", "test_m::test_main"]
 
 
-def test_the_gate_names_its_worktree_and_interpreter_and_warns_about_a_devkit_from_elsewhere(tmp_path, monkeypatch):
+def test_the_gate_names_its_worktree_and_interpreter_and_warns_about_a_devkit_from_elsewhere(tmp_path):
     first, *rest = gate.identity()
     assert str(gate.root().resolve()) in first and sys.executable in first and rest == []
-    monkeypatch.setattr(gate, "root", lambda: tmp_path)  # this checkout's devkit now lies outside "the worktree"
-    first, warning = gate.identity()
+    first, warning = gate.identity(tmp_path)  # this checkout's devkit lies outside that worktree
     assert str(tmp_path.resolve()) in first and "WARNING" in warning and str(Path(gate.__file__).parent) in warning
 
 
@@ -307,16 +300,15 @@ def pytest_collection_modifyitems(config, items):
 """
 
 
+CHAPTERS = {
+    "tests/conftest.py": BRANCH_SCOPED_CONFTEST,
+    "tests/test_chapter_a.py": "def test_a():\n    pass\n",
+    "tests/test_chapter_b.py": "def test_b():\n    pass\n",
+}
+
+
 def test_a_scoped_pass_on_a_feature_branch_is_not_reused_on_main_at_the_same_tree(repo, tmp_path):
-    other = _worktrees(
-        repo,
-        tmp_path,
-        {
-            "tests/conftest.py": BRANCH_SCOPED_CONFTEST,
-            "tests/test_chapter_a.py": "def test_a():\n    pass\n",
-            "tests/test_chapter_b.py": "def test_b():\n    pass\n",
-        },
-    )
+    other = _worktrees(repo, tmp_path, CHAPTERS)
     assert gate.tree_key(None, repo) == gate.tree_key(None, other)  # the tree key alone cannot tell them apart
     scoped, everything = gate.selection(False, other), gate.selection(False, repo)
     assert scoped and everything and scoped != everything
@@ -338,22 +330,27 @@ def test_a_pass_record_without_a_test_selection_is_never_reused(repo, tmp_path):
     assert gate.selection(False, cwd=repo) is None  # no tests dir: collection fails, no fingerprint
 
 
-def test_check_reuses_a_pass_only_while_the_test_selection_matches(tmp_path, monkeypatch, capsys):
-    selected = {"now": "sel-1"}
-    monkeypatch.setattr(gate, "clean_bytecode", lambda: True)
-    _shared_state(monkeypatch, tmp_path)
-    monkeypatch.setattr(gate.checks, "merge_base", lambda: None)
-    monkeypatch.setattr(gate, "tree_key", lambda base: "k" * 40)
-    monkeypatch.setattr(gate, "stages", lambda *a: [])
-    monkeypatch.setattr(gate, "selection", lambda full, cwd=None: selected["now"])
+def test_dev_check_on_main_reruns_after_a_scoped_pass_in_a_feature_worktree_at_the_same_tree(
+    repo, tmp_path, monkeypatch, capsys
+):
+    other = _worktrees(repo, tmp_path, CHAPTERS)
+    _shared_state(monkeypatch, tmp_path / "common")  # both worktrees share one record dir, as one clone's do
+    monkeypatch.setattr(gate, "clean_bytecode", lambda: True)  # already the re-run interpreter
+    monkeypatch.setattr(gate, "stages", lambda *a: [])  # the stages pass; what is reused is the question
     monkeypatch.setattr(gate, "gate_lock", lambda *a, **k: contextlib.nullcontext())
-    assert gate.check({}) == 0 and "cached" not in capsys.readouterr().out
-    assert gate.check({}) == 0 and "RESULT: passed (cached" in capsys.readouterr().out
-    selected["now"] = "sel-2"  # same tree, another selection (another branch's conftest)
-    assert gate.check({}) == 0
-    out = capsys.readouterr().out
+
+    def check_in(cwd):
+        monkeypatch.chdir(cwd)
+        paths.root.cache_clear()  # a new process per gate, as two worktrees' gates are
+        config.get.cache_clear()
+        assert gate.check({}) == 0
+        return capsys.readouterr().out
+
+    assert "cached" not in check_in(other)  # the feature worktree's scoped pass is recorded
+    assert "RESULT: passed (cached" in check_in(other)
+    out = check_in(repo)  # main, same tree and merge base, selects every chapter
     assert "selected other tests" in out and "RESULT: passed (cached" not in out
-    assert gate.check({}) == 0 and "RESULT: passed (cached" in capsys.readouterr().out  # the new pass is recorded
+    assert "RESULT: passed (cached" in check_in(repo)  # main's own pass is recorded in turn
 
 
 def test_diff_coverage_never_fails_the_stage_when_it_cannot_measure(repo, monkeypatch):
