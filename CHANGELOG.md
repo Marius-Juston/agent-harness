@@ -4,6 +4,19 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## Unreleased
+
+### Upgrading a project
+A plain `uvx copier update` moves the devkit and plugin pins again; `--data harness_ref=<tag>` is no longer needed.
+This takes effect from the first release that carries the fix, and that update moves the pins even when the project
+still holds an older stored answer. `uv run dev doctor` warns when a project's pins lag its template (an update made
+with a plain `copier update` before this fix) and names the `--data harness_ref=<tag>` command that repairs it.
+
+### Fixed
+- `copier update` reused the `harness_ref` answer stored in `.copier-answers.yml` over the new release's default, so
+  template files moved while the dev-group, uv-source and plugin pins stayed on the old tag. `harness_ref` is no
+  longer asked: it is always the template's own release, and an update drops the stored answer. (#163)
+
 ## v0.1.14 (2026-10-21)
 
 The harness runs in the environment the project declares, not the one the machine happens to have: plugin hooks work

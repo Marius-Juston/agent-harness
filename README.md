@@ -76,7 +76,7 @@ Kinney et al., [The Semantic Scholar Open Data Platform](https://arxiv.org/abs/2
 What differs between projects lives in the project: `[tool.devkit]` in its pyproject.toml (the keys and defaults
 are in [devkit/config.py](devkit/config.py)), word budgets and test floors in `.devkit/ratchets.toml`, the area-label map in
 `.github/labeler.yml`, and its own CLAUDE.md. Everything generic is changed here, released as a tag, and pulled into
-a project with `uvx copier update --data harness_ref=<tag>`, which also moves the devkit and plugin pins.
+a project with `uvx copier update`, which also moves the devkit and plugin pins.
 
 ## Updating a project
 <p align="center">
@@ -85,7 +85,7 @@ a project with `uvx copier update --data harness_ref=<tag>`, which also moves th
 
 ```bash
 uvx copier check-update   # is a newer release out? (`uv run dev doctor` warns too, for the template and plugins)
-uvx copier update --data harness_ref=<tag>   # three-way: your edits are kept; the flag moves the pins
+uvx copier update         # three-way: your edits are kept; the devkit and plugin pins move too
 uv sync && uv run dev docs && uv run dev check
 uv run dev setup          # moves the installed plugin to the new pin
 ```

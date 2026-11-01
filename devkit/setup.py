@@ -113,6 +113,13 @@ def staleness(answers: dict, plugins: dict[str, str], tags: Callable[[str], list
         latest = latest_release(tags(repo_url(src)))
         if latest and _older(ref, latest):
             out.append(f"template {ref} is behind {latest}  ->  uvx copier update, then uv sync")
+        # A template before v0.1.15 stored harness_ref and reused it on update, so the pins could stay behind the
+        # template (#163); only an explicit ref moves them out of that state. Later answers files have no harness_ref.
+        if (pin := answers.get("harness_ref")) and _older(pin, ref):
+            to = latest if latest and _older(ref, latest) else ref
+            out.append(
+                f"pins {pin} lag the template {ref}  ->  uvx copier update --data harness_ref={to}, then uv sync"
+            )
     for plugin, source in plugins.items():
         repo, _, pin = source.partition("@")
         if not pin:

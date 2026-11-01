@@ -32,10 +32,13 @@ python_version:
   default: "3.13"
   choices: ["3.13", "3.14"]
 
+# The agent-harness release (git tag) the devkit and the harness-ops plugin are pinned to: always this template's own
+# release. Never asked, so `copier update` neither stores it nor reuses an older answer, and the pins move with the
+# template (#163). `--data harness_ref=<ref>` still overrides it.
 harness_ref:
   type: str
-  help: The agent-harness release (git tag) the devkit and the harness-ops plugin are pinned to
   default: v0.1.14
+  when: false
 
 # For testing a harness checkout before release (its CI does): install the devkit from this local path instead of
 # the tag. Never asked; pass it with --data harness_path=/abs/path.
