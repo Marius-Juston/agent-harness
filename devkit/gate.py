@@ -388,17 +388,23 @@ def save_pass(record: Path, took: float, tests: str | None) -> None:
         write_atomic(record, json.dumps(data))
 
 
-def identity(worktree: Path | None = None) -> list[str]:
-    """The gate's first line: the worktree it checks (root()) and the interpreter and devkit it runs. A devkit
-    imported from outside the worktree (an editable install of another checkout, a stray PYTHONPATH) runs another
-    tree's gate code and is said loudly (#463)."""
+def identity(worktree: Path | None = None, code: Path | None = None, python: Path | None = None) -> list[str]:
+    """The gate's first line: the worktree it checks (root()) and the interpreter and devkit it runs, and a warning
+    for each of the two that lies in ANOTHER worktree of this repository: that gate runs a sibling's code or venv and
+    reports its results as this one's (#463). Anywhere else (a venv outside the project, an editable harness checkout)
+    is a setup, not a mix-up, and is only named."""
     top = (worktree or root()).resolve()
-    code = Path(devkit.__file__).resolve().parent
-    lines = [f"gate: {top} (python {sys.executable}, devkit {code})"]
-    if not code.is_relative_to(top):
-        lines.append(
-            f"gate: WARNING: devkit is imported from {code}, outside this worktree {top}: the gate runs that code"
-        )
+    code = (code or Path(devkit.__file__).parent).resolve()
+    python = python or Path(sys.executable)
+    python = python.parent.resolve() / python.name  # the link itself is not resolved: it points out of the venv
+    lines = [f"gate: {top} (python {python}, devkit {code})"]
+    listed = git("worktree", "list", "--porcelain", cwd=top, check=False).splitlines()
+    trees = [Path(line.removeprefix("worktree ")).resolve() for line in listed if line.startswith("worktree ")]
+    for what, path in (("devkit", code), ("python", python)):
+        # the deepest worktree holding the path: a worktree may sit inside the main checkout
+        owner = max((t for t in trees if path.is_relative_to(t)), key=lambda t: len(t.parts), default=None)
+        if owner and owner != top:
+            lines.append(f"gate: WARNING: {what} comes from {owner}, another worktree of this repository, not {top}")
     return lines
 
 

@@ -281,11 +281,31 @@ def test_two_worktrees_gating_at_once_each_read_only_their_own_test_output(repo,
     assert sorted(next(iter(r)) for r in runs) == ["test_m::test_feature", "test_m::test_main"]
 
 
-def test_the_gate_names_its_worktree_and_interpreter_and_warns_about_a_devkit_from_elsewhere(tmp_path):
+def test_the_gate_names_its_worktree_interpreter_and_devkit_on_its_first_line():
     first, *rest = gate.identity()
-    assert str(gate.root().resolve()) in first and sys.executable in first and rest == []
-    first, warning = gate.identity(tmp_path)  # this checkout's devkit lies outside that worktree
-    assert str(tmp_path.resolve()) in first and "WARNING" in warning and str(Path(gate.__file__).parent) in warning
+    assert str(gate.root().resolve()) in first and str(Path(gate.__file__).parent.resolve()) in first
+    assert Path(sys.executable).name in first and rest == []
+
+
+def test_the_gate_warns_only_when_devkit_or_python_come_from_another_worktree_of_the_repo(repo, tmp_path):
+    other = _worktrees(repo, tmp_path, {"devkit/__init__.py": ""})
+    nested = repo / "wt" / "nested"  # a worktree inside the main checkout, as agent worktrees often are
+    _sh(repo, "git", "worktree", "add", "-q", "-b", "nested", str(nested))
+    own_code, own_python = repo / "devkit", repo / ".venv/bin/python"
+
+    def warnings(top, code=own_code, python=own_python):
+        return [line for line in gate.identity(top, code, python)[1:] if "WARNING" in line]
+
+    assert warnings(repo) == []
+    (devkit,) = warnings(repo, code=other / "devkit")
+    assert str(other.resolve()) in devkit and devkit.startswith("gate: WARNING: devkit")
+    (python,) = warnings(repo, python=other / ".venv/bin/python")
+    assert python.startswith("gate: WARNING: python")
+    assert len(warnings(other)) == 2  # the gate of `other` running main's devkit and venv
+    # a setup, not a mix-up: an editable harness checkout, a venv outside the project
+    assert warnings(repo, code=tmp_path / "harness/devkit", python=tmp_path / "venvs/p/bin/python") == []
+    assert warnings(nested, code=nested / "devkit", python=nested / ".venv/bin/python") == []  # deepest owner wins
+    assert len(warnings(nested)) == 2  # the main checkout around it is another worktree
 
 
 BRANCH_SCOPED_CONFTEST = """import subprocess
