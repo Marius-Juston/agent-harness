@@ -2009,6 +2009,57 @@ def test_a_title_edited_during_the_gate_is_checked_again_before_the_merge(monkey
     assert merge[merge.index("--subject") + 1] == "fix: stop on a moved head (#7)"
 
 
+def test_integrate_refuses_a_body_that_lost_the_closes_line_through_the_fix_loop(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    """#434: a body rewritten with `gh pr edit` dropped `Closes #5`, so the merge would leave #5 open. integrate
+    refuses before the gate, names the missing line, and sends it back through the fix loop; override does not lift it."""
+    posted = _github_keeps_comments(fake_integrate, monkeypatch)
+    real = board.gh
+    monkeypatch.setattr(
+        board, "gh", lambda *a, **k: real(*a, **k).replace('"Closes #5"', '"Rewritten summary, see #9"')
+    )
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, override="ship it") == 1
+    out = capsys.readouterr().out
+    res = _last_json(out)
+    assert "RESULT: refused" in out and "'Closes #5'" in res["reason"] and "'5-x'" in res["reason"]
+    assert res["outcome"] == "refused" and res["cycle"] == 1
+    assert "'Closes #5'" in posted[0]["body"]
+    assert not any(e[0] == "run" for e in fake_integrate["events"])
+    assert not _merged(fake_integrate["events"])
+
+
+@pytest.mark.parametrize(
+    ("branch", "body", "ok"),
+    [
+        ("5-x", "Closes #5", True),
+        ("5-x", "Refs #5\n\nPartial.", True),
+        ("5-x", "Summary.\n\nFixes #5 and #6", True),
+        ("5-x", "", False),
+        ("5-x", "Closes #50", False),
+        ("5-x", "Refs #6", False),
+        ("5-x", "`Closes #5`", False),  # GitHub links nothing from a code span
+        ("dependabot/uv/filelock-4.2.1", "Bumps filelock from 4.1.1 to 4.2.1.", True),
+        ("release-please--branches--main", ":robot: I have created a release", True),
+        ("main", "", True),
+    ],
+)
+def test_closes_problem_needs_a_link_to_the_branch_issue_only(branch, body, ok):
+    why = workflow.closes_problem({"headRefName": branch, "body": body})
+    assert (why is None) == ok, why
+    if not ok:
+        assert "'Closes #5' or 'Refs #5'" in why
+
+
+def test_a_body_edited_during_the_gate_is_checked_again_before_the_merge(monkeypatch):
+    calls = []
+    monkeypatch.setattr(board, "gh", lambda *a, **k: calls.append(a) or "")
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(workflow, "_remote_shas", lambda n: ("h1", "m1"))
+    info = {"title": "fix: t", "body": "rewritten", "headRefName": "5-x"}
+    reason = workflow._merge_if_unchanged(7, "h1", "m1", info=info)
+    assert reason and "'Closes #5'" in reason
+    assert not [c for c in calls if c[:2] == ("pr", "merge")]
+
+
 def test_conventional_titles_false_turns_the_check_off(fake_integrate, monkeypatch, capsys):  # noqa: F811
     """A project whose main does not use Conventional Commits opts out with `[tool.devkit] conventional_titles = false`:
     integrate merges any title and `dev pr-title` passes."""
