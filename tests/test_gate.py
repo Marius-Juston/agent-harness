@@ -1532,33 +1532,62 @@ def test_integrate_stops_when_its_gate_waits_past_the_lock_wait_bound(fake_integ
     assert not _merged(fake_integrate["events"])
 
 
+def _release_once_waited(worker, queue: Path, wait_s: float, seen: dict, bound_s: float = 30) -> None:
+    """Close `worker` (the held gate lock) `wait_s` after a priority gate is seen waiting for it, a shared lock on
+    `queue` (gate.gate_lock), so the wait is measured from an event, not from when the test started. Gives up after
+    `bound_s` without a waiter. `seen` gets `waiting` and `released` (time.monotonic, shared across processes)."""
+    tick = threading.Event()  # fake_integrate makes time.sleep a no-op; Event.wait still blocks
+    deadline = time.monotonic() + bound_s
+    with open(queue, "a+") as probe:
+        while time.monotonic() < deadline:
+            try:
+                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                seen["waiting"] = time.monotonic()
+                break
+            fcntl.flock(probe, fcntl.LOCK_UN)
+            tick.wait(0.01)
+    if "waiting" in seen:
+        while (left := seen["waiting"] + wait_s - time.monotonic()) > 0:
+            tick.wait(left)
+    seen["released"] = time.monotonic()
+    worker.close()
+
+
 def test_integrate_whose_gate_waits_for_the_lock_longer_than_its_deadline_is_not_stopped(
     fake_integrate, monkeypatch, capsys, tmp_path
 ):
     """#385: gate_deadline_s counts the gate's run, not its wait for the machine's gate lock. A worker gate holds the
-    lock for 3 s; integrate's gate (the real gate_lock, as integrate's environment sets it) waits for it, then runs
-    well under its 2 s deadline, and integrate goes on to merge."""
+    lock until 3 s after integrate's gate (the real gate_lock, as integrate's environment sets it) is seen waiting for
+    it; that gate then runs well under its 2 s deadline, and integrate goes on to merge. #407: every interval is
+    measured from an event (waiting seen, lock released, lock acquired), never raced against a timer."""
     cfg = workflow.config.Config(gate_deadline_s=2, gate_lock_wait_s=60)
     monkeypatch.setattr(workflow.config, "get", lambda: cfg)
     monkeypatch.setattr(workflow, "HELD_POLL_S", 0.05)
     monkeypatch.setattr(workflow.subprocess, "Popen", REAL_POPEN)
-    lock = tmp_path / "gate.lock"
+    lock, acquired = tmp_path / "gate.lock", tmp_path / "acquired"
     stand_in = (
         "import os, time\nfrom pathlib import Path\nfrom devkit import gate\n"
         f"os.chdir({str(Path(__file__).parents[1])!r})  # gate_lock names the holding repo\n"
-        f"with gate.gate_lock(Path({str(lock)!r}), **gate.lock_role(os.environ)):\n    time.sleep(0.5)\n"
+        f"with gate.gate_lock(Path({str(lock)!r}), **gate.lock_role(os.environ)):\n"
+        f"    Path({str(acquired)!r}).write_text(repr(time.monotonic()))\n    time.sleep(0.5)\n"
     )
     monkeypatch.setattr(workflow, "GATE", [sys.executable, "-c", stand_in])
-    worker = open(lock, "a+")  # noqa: SIM115 (released by the timer)
+    worker = open(lock, "a+")  # noqa: SIM115 (released by the releaser)
     fcntl.flock(worker, fcntl.LOCK_EX)
-    release = threading.Timer(3, worker.close)
-    release.start()
+    seen: dict = {}
     started = time.monotonic()
+    queue = lock.with_name(lock.name + ".priority")
+    release = threading.Thread(target=_release_once_waited, args=(worker, queue, 3, seen))
+    release.start()
     try:
         workflow.integrate(7, harness_ok=True, dry_run=False)
     finally:
         release.join()
-    assert time.monotonic() - started >= 3  # it did wait, longer than gate_deadline_s
     res = _last_json(capsys.readouterr().out)
+    assert "waiting" in seen, f"integrate's gate never waited for the held lock: {res}"
+    assert acquired.exists(), f"integrate's gate never took the lock: {res}"
+    assert float(acquired.read_text()) >= seen["released"] >= seen["waiting"] + 3  # it did wait, past the deadline
+    assert time.monotonic() - started >= 3
     assert res["outcome"] != "stopped", res
     assert _merged(fake_integrate["events"]), res
