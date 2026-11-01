@@ -6,6 +6,8 @@
   already researched before starting (duplicate research is the most common research waste).
 - <generated_dir>/decisions.md: the decision table (`[tool.devkit] decisions`), written even without one.
   Linked, never @-imported, so it costs no agent context until opened.
+- the copies `[tool.devkit] action_pins` names: their action pins follow their source workflow (#431), so a
+  Dependabot bump of the source alone is completed by `dev docs`, which integrate runs on the merged tree.
 """
 
 import json
@@ -159,12 +161,54 @@ def decisions_index() -> str:
     return "\n".join(out) + "\n"
 
 
+# A step's commit-pinned action, as Dependabot writes it: `uses: owner/repo[/path]@<sha> # <version> [more words]`.
+USES = re.compile(
+    r"(?P<head>\buses:[ \t]*[\"']?)(?P<action>[\w.-]+/[\w./-]+)@(?P<sha>[0-9a-f]{40})(?P<quote>[\"']?)"
+    r"(?:(?P<hash>[ \t]*#[ \t]*)(?P<version>[^\s#]+))?"
+)
+
+
+def synced_pins(source: str, mirror: str) -> str:
+    """`mirror` with each action `source` pins to one commit moved to that commit and its version comment (later
+    words of the comment kept). An action `source` does not use, pins two ways, or pins to the commit `mirror`
+    already has, is left as it is."""
+    pins: dict[str, set[tuple[str, str | None]]] = {}
+    for m in USES.finditer(source):
+        pins.setdefault(m["action"], set()).add((m["sha"], m["version"]))
+
+    def repin(m: re.Match) -> str:
+        if len(pins.get(m["action"], ())) != 1:
+            return m[0]
+        ((sha, version),) = pins[m["action"]]
+        if sha == m["sha"]:  # one commit: its label may be more precise here (`# v7.0.1` against `# v7`)
+            return m[0]
+        comment = m["hash"] + (version or m["version"]) if m["version"] else f" # {version}" if version else ""
+        return f"{m['head']}{m['action']}@{sha}{m['quote']}{comment}"
+
+    return USES.sub(repin, mirror)
+
+
+def pinned_mirrors(tree, action_pins: dict[str, list[str]]) -> dict[str, str]:
+    """Copy path -> its text with the pins of its source workflow (`[tool.devkit] action_pins`), for each file the
+    globs match under `tree`. Raises ConfigError when a source is missing: a typo must not pass as nothing to sync."""
+    out = {}
+    for source, globs in action_pins.items():
+        if not (tree / source).is_file():
+            raise config.ConfigError(f"[tool.devkit.action_pins]: {source} does not exist")
+        text = (tree / source).read_text(encoding="utf-8")
+        for path in sorted({p for g in globs for p in tree.glob(g) if p.is_file()}):
+            if (rel := path.relative_to(tree).as_posix()) != source:
+                out[rel] = synced_pins(text, path.read_text(encoding="utf-8"))
+    return out
+
+
 def render(commands: Sequence[tuple[str, str]]) -> dict[str, str]:
     cfg = config.get()
     return {
         f"{cfg.generated_dir}/agent-surface.md": surface(commands),
         f"{cfg.research_dir}/INDEX.md": research_index(),
         f"{cfg.generated_dir}/decisions.md": decisions_index(),
+        **pinned_mirrors(root(), cfg.action_pins),
     }
 
 

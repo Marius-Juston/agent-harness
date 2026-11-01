@@ -92,6 +92,10 @@ class Config:
     # binaries it needs on PATH, e.g. `mcp_prereqs = { "lean-lsp" = ["rg"] }`. A shell function of that name does not
     # count: the server starts without the shell.
     mcp_prereqs: dict[str, list[str]] = field(default_factory=dict)
+    # #431: workflow -> globs of its copies whose action pins follow it (`dev docs` rewrites them; the gate fails when
+    # they lag), e.g. `{ ".github/workflows/ci.yml" = ["template/.github/workflows/*.yml"] }`: Dependabot bumps only
+    # the workflows it reads.
+    action_pins: dict[str, list[str]] = field(default_factory=dict)
     consolidation: dict[str, object] = field(default_factory=lambda: dict(CONSOLIDATION))
     prices: dict[str, dict[str, float]] = field(default_factory=lambda: {k: dict(v) for k, v in PRICES.items()})
 
@@ -112,6 +116,9 @@ def parse(data: dict) -> Config:
     for match, tools in data.get("mcp_prereqs", {}).items():
         if not (isinstance(tools, list) and all(isinstance(t, str) and t for t in tools)):
             raise ConfigError(f"[tool.devkit.mcp_prereqs] {match} = {tools!r}: expected a list of binary names")
+    for source, globs in data.get("action_pins", {}).items():
+        if not (isinstance(globs, list) and globs and all(isinstance(g, str) and g for g in globs)):
+            raise ConfigError(f"[tool.devkit.action_pins] {source} = {globs!r}: expected a list of path globs")
     if "consolidation" in data:
         data = {**data, "consolidation": _consolidation(data["consolidation"])}
     if "prices" in data:

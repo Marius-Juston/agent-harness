@@ -59,6 +59,8 @@ default-groups = ["dev"]
 surface = ["plugins/harness-ops"]
 # The plugin and the template describe a consuming project's paths, which do not exist here.
 path_check_skip = ["plugins/", "template/"]
+# Dependabot bumps ci.yml only; `dev docs` (and so integrate) moves the template's copies of those pins with it (#431).
+action_pins = { ".github/workflows/ci.yml" = ["template/.github/workflows/*.yml"] }
 
 # `dev integrate --local-ci`: what stands in for each required CI job when Actions cannot run (ci.yml's commands).
 [tool.devkit.local_ci]
