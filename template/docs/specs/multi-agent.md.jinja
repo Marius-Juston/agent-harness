@@ -81,7 +81,9 @@ Nothing assumes that two machines share a disk.
    as its cycle). Generated files are regenerated, and one gate runs on that candidate. On a pass each member lands
    as its own squash commit carrying its regenerated files, main is pushed once, and each PR is closed with a
    comment naming the train while its issues move as integrate moves them. A member whose head, title, body or
-   feedback changed during the gate, or a main that moved, stops the train with nothing landed. On a failure the
+   feedback changed during the gate, or a main that moved, stops the train with nothing landed. A head that moves
+   after the push keeps its PR open and its branch (`kept_open`); a branch is deleted only under a lease on the
+   gated head. On a failure the
    train bisects by prefix: at most ceil(log2 N) gates find the first member whose addition breaks the gate, and
    only that member goes through the fix loop. One more gate checks the members after it without it; if they fail
    too they are deferred to the next train, never sent back. When only the full candidate failed, that spare gate
