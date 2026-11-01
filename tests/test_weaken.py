@@ -314,3 +314,14 @@ def test_the_gate_reads_test_config_goldens_and_the_test_file(repo, monkeypatch)
         "golden file edit",
         "patch of code under test",
     }
+
+
+def test_weaken_parse_stays_importable_and_is_the_diffparse_parser():
+    """#449 moved the diff parser to devkit.diffparse; external importers of devkit.weaken.parse keep working."""
+    from devkit import diffparse
+    from devkit.weaken import parse
+
+    assert parse is diffparse.parse
+    (f,) = parse(diff("x.py", [(3, "old")], [(3, "new")]))
+    assert (f.old, f.new) == ("x.py", "x.py")
+    assert f.removed == [diffparse.Line("x.py", 3, "old")] and f.added == [diffparse.Line("x.py", 3, "new")]

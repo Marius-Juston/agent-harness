@@ -418,7 +418,7 @@ def run(a: argparse.Namespace) -> int:
         case "worktree":
             print("\n".join(workflow.prune_branches(a.dry_run)) or "no local branches of merged or closed PRs")
         case "check":
-            return gate.check(command_map(), command_help(), full=a.full, use_cache=not a.no_cache)
+            return gate.check(command_map(), command_help(), full=a.full, use_cache=not a.no_cache, parser=build)
         case "test":
             return gate.test(a.paths, a.affected, a.slow, a.n)
         case "docs":
