@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from devkit import checks, config, workflow
+from devkit import checks, config, quota
 
 
 def test_an_empty_table_gives_the_template_defaults():
@@ -86,13 +86,13 @@ def test_budget_kinds_follow_the_surface_roots(monkeypatch):
     ],
 )
 def test_usage_percent_reads_the_all_models_line(text, pct):
-    assert workflow.usage_percent(text) == pct
+    assert quota.usage_percent(text) == pct
 
 
 def test_a_usage_reading_carries_the_configured_cap(monkeypatch, tmp_path):
-    monkeypatch.setattr(workflow, "state_dir", lambda *a: tmp_path)
+    monkeypatch.setattr(quota, "state_dir", lambda *a: tmp_path)
     monkeypatch.setattr(config, "get", lambda: config.Config(quota_cap=50))
-    data = json.loads(workflow.write_usage(60, now=1000).read_text())
+    data = json.loads(quota.write_usage(60, now=1000).read_text())
     assert data == {"pct": 60, "t": 1000, "cap": 50}
 
 
