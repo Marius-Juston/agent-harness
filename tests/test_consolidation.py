@@ -2,6 +2,7 @@
 
 import json
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -264,6 +265,17 @@ def test_report_ignores_the_harness_own_cli_when_it_is_tracked_here():
     r = consolidation.report(Path(__file__).resolve().parents[1], names, cfg())
     assert "devkit/cli.py" not in r["command_overlap"]
     assert r["parse_errors"]["count"] == 0
+
+
+def test_this_repository_keeps_path_loaded_trees_and_research_scratch_out_of_the_trigger():
+    # #451: the owner excluded research evidence and trees reached only by path; a table replaces the default list.
+    here = Path(__file__).resolve().parents[1]
+    table = tomllib.loads((here / "pyproject.toml").read_text())["tool"]["devkit"]["consolidation"]
+    exclude = config.parse({"consolidation": table}).consolidation["exclude"]
+    assert set(config.CONSOLIDATION["exclude"]) <= set(exclude)
+    loaded = ("docs/research/_scratch/", "evals/conflicting/", "evals/reuse/", "tests/fixtures/", "template/")
+    paths = [p for _, p in consolidation.code_files(here, "HEAD", exclude)]
+    assert paths and not [p for p in paths if p.startswith(loaded)]
 
 
 # ---------------------------------------------------------------- the CLI

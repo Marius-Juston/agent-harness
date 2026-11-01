@@ -49,3 +49,11 @@ rule = "Agents never curl or WebFetch the literature index APIs; they go through
 why = "https://github.com/Marius-Juston/agent-harness/issues/174#issuecomment-6147198151"
 enforced-by = [{ path = "plugins/harness-ops/agents/research-auditor.md", literal = "rate limits every agent shares" }]
 status = "active"
+
+[[decision]]
+id = "D24"
+rule = "scripts/suite_metrics.py is frozen evidence for docs/research/test-suite-design.md: never extended or deleted."
+why = "https://github.com/Marius-Juston/agent-harness/issues/451#issuecomment-6554084869"
+# D13-D23 are the seed study's own numbers (docs/research/_scratch/adr-drift), so a new row starts after them.
+enforced-by = [{ path = "scripts/suite_metrics.py", literal = "VERIFIED numbers were measured" }]
+status = "active"

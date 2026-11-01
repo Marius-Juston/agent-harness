@@ -11,6 +11,7 @@
   uploads it as the test-history artifact), so an audit can find flaky and slow tests across runs.
 """
 
+import argparse
 import contextlib
 import fcntl
 import hashlib
@@ -388,13 +389,19 @@ def _no_priority_waiter(queue: IO[str]) -> bool:
 
 
 def stages(
-    full: bool, commands: dict[str, set[str]], base: str | None, help_rows: Sequence[tuple[str, str]] = ()
+    full: bool,
+    commands: dict[str, set[str]],
+    base: str | None,
+    help_rows: Sequence[tuple[str, str]] = (),
+    parser: Callable[[], argparse.ArgumentParser] | None = None,
 ) -> list[Callable[[], Ran]]:
+    """The gate's stages in order. `parser` builds a fresh `dev` parser (cli passes `cli.build`) for the dev-command
+    check; it is passed in so this module never imports cli."""
     return [
         checks.check_surface,
         checks.check_settings,
         checks.check_links,
-        lambda: checks.check_dev_commands(commands),
+        lambda: checks.check_dev_commands(commands, _need(parser)()),
         checks.check_research_notes,
         checks.check_decisions,
         lambda: rules.check_rules(base),
@@ -410,6 +417,12 @@ def stages(
         zizmor,
         lambda: tests_stage(pytest_cmd(["tests"], slow=full), _floors(), base, history=state_dir() / HISTORY_FILE),
     ]
+
+
+def _need(parser: Callable[[], argparse.ArgumentParser] | None) -> Callable[[], argparse.ArgumentParser]:
+    if parser is None:
+        raise ValueError("the dev-command stage needs a parser factory: pass parser=cli.build")
+    return parser
 
 
 def _floors() -> dict:
@@ -455,7 +468,11 @@ def clean_bytecode() -> bool:
 
 
 def check(
-    commands: dict[str, set[str]], help_rows: Sequence[tuple[str, str]] = (), full: bool = False, use_cache: bool = True
+    commands: dict[str, set[str]],
+    help_rows: Sequence[tuple[str, str]] = (),
+    full: bool = False,
+    use_cache: bool = True,
+    parser: Callable[[], argparse.ArgumentParser] | None = None,
 ) -> int:
     if not clean_bytecode():
         # This process has already imported devkit, possibly from a planted __pycache__. Re-run the gate in a fresh
@@ -480,7 +497,7 @@ def check(
     with gate_lock(state_dir() / "gate.lock", on_wait=waiting, **role):
         start = time.time()
         failed = 0
-        for stage in stages(full, commands, base, help_rows):
+        for stage in stages(full, commands, base, help_rows, parser):
             ran = stage()
             print(ran.line(), flush=True)
             for p in ran.problems[:FAIL_LINES]:
