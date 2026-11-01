@@ -367,6 +367,26 @@ def test_an_unanchored_glob_finds_gitignored_output_at_any_depth(repo):
     assert rules.check_rules(_base(repo)).problems == []
 
 
+def test_disk_fallback_never_enters_environments_or_caches(repo, monkeypatch):
+    pruned = ["node_modules/pkg", ".venv/lib", "env/lib", "src/__pycache__", ".git/objects"]
+    _tree(repo, {f"{d}/{i}/x.log": "" for d in pruned for i in range(20)} | {"env/pyvenv.cfg": ""})
+    _tree(repo, {"build/out.log": ""})
+    entered = []
+    real_walk = rules.os.walk
+
+    def counting_walk(top, *a, **kw):
+        for here, dirs, names in real_walk(top, *a, **kw):
+            entered.append(Path(here).relative_to(repo).as_posix())
+            yield here, dirs, names
+
+    monkeypatch.setattr(rules.os, "walk", counting_walk)
+    assert rules.glob_hits("*.log", [])  # gitignored build/out.log, found without the pruned trees
+    assert not rules.glob_hits("*.nothing", [])
+    tops = {e.split("/")[0] for e in entered} | {"/".join(e.split("/")[:2]) for e in entered}
+    assert not tops & {"node_modules", ".venv", "env", ".git", "src/__pycache__"}
+    assert "build" in tops
+
+
 def test_add_picks_a_rules_file_scoped_by_a_comma_string(repo):
     _tree(repo, {".claude/rules/both.md": '---\npaths: "docs/**, src/app/**"\n---\n- x (#1, 2026-01-01)\n'})
     path, _ = rules.add("src/app/main.py", "use the factory", 9, TODAY)

@@ -26,6 +26,11 @@ BRACE_BUDGET = (1000, 4 * 1024 * 1024)  # patterns, bytes; past either a glob st
 # matches nothing warns instead of failing.
 EXOTIC = re.compile(r"[!@+?*]\(|^!|\[\^|\[!|\{[^{},]*\.\.[^{},]*\}")
 MAX_WORDS = 25
+# Directories the disk fallback of glob_hits never enters (VCS, environments, caches; also any dir with pyvenv.cfg):
+# walking them makes every gate slow in a large project. A glob anchored inside one still walks from there.
+PRUNE = frozenset(
+    {".git", ".venv", "venv", "node_modules", "__pycache__", ".tox", ".mypy_cache", ".ruff_cache", ".pytest_cache"}
+)
 
 
 def tracked() -> list[Path]:
@@ -190,7 +195,7 @@ def glob_hits(glob: str, files: list[str]) -> bool:
     top = root()
     for base in sorted({_walk_base(p) for p in pats if not p.startswith("!")}):
         for here, dirs, names in os.walk(top / base):
-            dirs[:] = [d for d in dirs if d != ".git"]
+            dirs[:] = [d for d in dirs if d not in PRUNE and not (Path(here) / d / "pyvenv.cfg").is_file()]
             rel = Path(here).relative_to(top).as_posix()
             prefix = "" if rel == "." else rel + "/"
             if any(match.match_file((prefix + n).casefold()) for n in names):
