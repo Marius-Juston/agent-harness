@@ -759,20 +759,29 @@ def new(
     status = "blocked" if any(not is_done(b, closed, info[b]) for b in blockers) else "ready"
     area = areas(owns, area_globs(), tracked_files()) if owns else []
     labels = [f"type:{kind}", priority] + ([] if kind == "epic" else [f"status:{status}"]) + area
-    missing_labels_created(area)
-    url = gh(
-        "issue",
-        "create",
-        "-R",
-        repo(),
-        "--title",
-        title,
-        "--body-file",
-        "-",
-        "--label",
-        ",".join(labels),
-        input=body_from(context, done, owns, blockers, refs, up, rendered=bool(info)),
-    ).strip()
+    try:  # a scripted loop reads the exit code: any failure names the item it did not create (#387)
+        missing_labels_created(area)
+        out = gh(
+            "issue",
+            "create",
+            "-R",
+            repo(),
+            "--title",
+            title,
+            "--body-file",
+            "-",
+            "--label",
+            ",".join(labels),
+            input=body_from(context, done, owns, blockers, refs, up, rendered=bool(info)),
+        )
+    except BoardError as e:
+        raise BoardError(f"board new: {title!r} not created ({e})") from e
+    url = (out.strip().splitlines() or [""])[-1].strip()
+    if not re.search(r"/issues/\d+$", url):
+        raise BoardError(
+            f"board new: {title!r} not created, or not confirmed: gh issue create printed no issue URL"
+            f" ({out.strip()!r}); check the board before retrying"
+        )
     if info:
         number = int(url.rstrip("/").rsplit("/", 1)[-1])
         try:
