@@ -24,6 +24,7 @@ from devkit import (
     rules,
     setup,
     stats,
+    train,
     workflow,
 )
 from devkit.paths import pin_git_output, root
@@ -177,6 +178,13 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("--title", default=os.environ.get("PR_TITLE"), help="default: the PR_TITLE environment variable")
     x = sub.add_parser("integrate", help="lead: re-gate a PR merged onto main in a throwaway worktree, then merge it")
     x.add_argument("pr", type=int)
+    x.add_argument("more", type=int, nargs="*", metavar="PR", help="with --train: the other members, in priority order")
+    x.add_argument(
+        "--train",
+        type=int,
+        metavar="N",
+        help="merge N ready PRs (pr, then the others, in priority order) with one gate; bisect on failure",
+    )
     x.add_argument("--harness-ok", action="store_true", help="you read the diff of harness files it touches")
     x.add_argument("--dry-run", action="store_true")
     x.add_argument(
@@ -440,6 +448,15 @@ def run(a: argparse.Namespace) -> int:
             return workflow.check_title(a.title)
         case "integrate" if a.why:  # read-only, whatever other flags came with it
             return workflow.why(a.pr)
+        case "integrate" if a.train is not None or a.more:
+            members = [a.pr, *a.more]
+            if a.train != len(members) or a.override or a.consolidation_review:
+                print(
+                    f"integrate --train N takes exactly N PRs (got --train {a.train} and {len(members)}), "
+                    "and neither --override nor --consolidation-review"
+                )
+                return 2
+            return train.train(members, a.harness_ok, a.dry_run, a.local_ci)
         case "integrate":
             return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
         case "cite-check":

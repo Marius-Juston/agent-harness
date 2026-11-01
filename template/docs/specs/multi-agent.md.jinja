@@ -72,6 +72,18 @@ Nothing assumes that two machines share a disk.
    accepts only the GitHub Actions app (a posted status would not count; the refusal names the `app_id: -1` change
    for the owner) or has no stand-in. The board needs no scheduled job either: `dev orient` and `dev integrate` run
    `board sync`, so the template's `board.yml` is optional.
+9. **A merge train** (lead, a long review queue): `uv run dev integrate --train N <pr> <pr>...` takes N ready PRs in
+   board priority order. Each member passes integrate's per-PR checks first; one that fails is sent back or held
+   exactly as a single integrate would, and the train goes on. The rest merge onto main one by one in a throwaway
+   worktree. A member that conflicts with main or with the members before it is sent back before any gate (a
+   conflict with earlier members is not counted as its cycle). Generated files are regenerated once, and one gate
+   runs on that candidate. On a pass each member lands as its own squash commit, main is pushed once, and each PR is
+   closed with a comment naming the train while its issues move as integrate moves them. On a failure the train
+   bisects by prefix: at most ceil(log2 N) gates find the first member whose addition breaks the gate, and only that
+   member goes through the fix loop. One more gate checks the members after it without it; if they fail too they
+   are deferred to the next train, never sent back. `--local-ci` posts its statuses on each landing member's head.
+   The last line is `RESULT-JSON: {"train", "outcome", "members", "gates_run"}`. `--override` and
+   `--consolidation-review` are single-PR only.
 
 ## 2a. Conventions (`uv run dev board lint`)
 Every open item meets these. `board lint` lists what breaks them and exits 1. `--fix` makes the label edits that
