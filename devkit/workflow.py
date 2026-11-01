@@ -1169,30 +1169,125 @@ def regenerate(tree: Path) -> bool:
     return True
 
 
-def send_back(pr_number: int, info: dict, main: str, paths: list[str], dry_run: bool = False) -> list[str]:
-    """A real conflict with main: comment the paths on the PR and block each issue it links ('rebase on main'),
-    naming the worker to resume. Returns the workers (agent@host of each live claim)."""
+FIX_LINES = 40  # failing lines a fix-loop comment carries: the local gate's, or the failed Actions jobs' log tail
+NEXT_STEP = "fix each item above, run `uv run dev check`, push, and hand back"
+
+
+def failed_check_lines(info: dict) -> list[str]:
+    """The last FIX_LINES lines of `gh run view --job <id> --log-failed` over the PR's failing Actions checks (a
+    status context has no log to fetch). A log GitHub will not give is one line naming the check."""
+    lines: list[str] = []
+    for c in latest_checks(info.get("statusCheckRollup") or []):
+        if c.get("__typename") == "StatusContext" or c.get("status") != "COMPLETED":
+            continue
+        if c.get("conclusion") in CHECK_PASSED or not (m := JOB_URL.search(c.get("detailsUrl") or "")):
+            continue
+        try:
+            log = board.gh("run", "view", "-R", board.repo(), "--job", m[1], "--log-failed")
+        except board.BoardError as exc:
+            lines.append(f"check {_named(c)}: no failed log from GitHub ({exc})")
+            continue
+        lines += [ln.rstrip() for ln in log.splitlines() if ln.strip()]
+    return lines[-FIX_LINES:]
+
+
+def _fenced(lines: list[str]) -> str:
+    """`lines` as a fenced block no backtick run inside can close."""
+    fence = "`" * max([3, *(len(r) + 1 for ln in lines for r in re.findall(r"`+", ln))])
+    return "\n".join([f"{fence}text", *lines, fence])
+
+
+def fix_loop(
+    pr_number: int,
+    info: dict,
+    outcome: str,
+    reasons: list[str],
+    failing: list[str],
+    head: str,
+    dry_run: bool = False,
+    counted: bool = True,
+    step: str = NEXT_STEP,
+) -> dict:
+    """Close the fix loop on a PR integrate did not merge (#110), with no lead relay: comment the `reasons`, the last
+    FIX_LINES `failing` lines and the PR's unresolved feedback on the PR, under a board.FIX_MARK that `board brief`
+    shows as 'Fix before merge'; then move each issue the PR links back to in-progress, its claim kept, so the worker
+    is resumed or respawned on it. A `counted` send-back is one more fix cycle; at board.FIX_CAP the issues are blocked
+    'needs owner' instead. The same content on the same head as the last comment posts and counts nothing (a rerun).
+    Returns the result fields: `cycle`, `fix` (in-progress, needs owner, already posted, dry run), `resume` (the
+    claims' agent@host) or, when GitHub refused a write, `fix_error`: the outcome stands either way."""
     branch = info.get("headRefName", "")
     closes, own = board.linked(info.get("body") or "", branch)
     issues = closes + own
-    workers = list(dict.fromkeys(f"{c.agent}@{c.host}" for n in issues if (c := board.get(n).claim())))
+    try:
+        fb = board.pr_feedback(pr_number)
+        workers = list(dict.fromkeys(f"{c.agent}@{c.host}" for n in issues if (c := board.get(n).claim())))
+    except (board.BoardError, OSError, ValueError, KeyError) as exc:
+        print(f"warning: no fix loop on PR #{pr_number}: cannot read it or its issues ({exc}); comment it by hand")
+        return {"fix_error": f"cannot read the PR or its issues: {exc}"}
+    feedback = board.pr_feedback_lines(fb)
+    failing = failing[-FIX_LINES:]
+    previous, last = board.fix_loop_state(fb.get("comments") or [])
+    key = hashlib.sha256(json.dumps([outcome, reasons, failing, feedback]).encode()).hexdigest()[:12]
+    if last is not None and (m := board.FIX_MARK.search(last["body"])) and (m[2], m[3]) == (head, key):
+        print(f"PR #{pr_number} already has this failure on {head[:10]} (fix cycle {previous}): nothing posted")
+        return {"cycle": previous, "fix": "already posted", "resume": workers}
+    cycle = previous + counted
+    capped = counted and cycle >= board.FIX_CAP
     who = ", ".join(workers) or "the worker that opened it"
-    files = "\n".join(f"- `{p}`" for p in paths)
-    note = (
-        f"`dev integrate`: PR #{pr_number} conflicts with main ({main[:10]}) in:\n{files}\n\n"
-        f"Rebase on main: resume {who} on branch `{branch}` to merge `origin/main`, resolve these files, run "
-        "`uv run dev docs` and `uv run dev check`, push, and hand back. Then the lead reruns integrate."
-    )
-    reason = f"rebase on main: PR #{pr_number} conflicts with main in {', '.join(paths)}; resume {who} on `{branch}`"
+    refs = ", ".join(f"#{n}" for n in issues) or "no linked issue"
+    parts = [
+        f"<!-- devkit:fix-loop cycle={cycle} head={head} key={key} outcome={outcome} -->",
+        f"`dev integrate`: PR #{pr_number} was not merged: **{outcome}** on head {head[:10]} "
+        f"(fix cycle {cycle} of {board.FIX_CAP}).",
+        "\n".join(reasons),
+    ]
+    if failing:
+        parts.append(f"Failing lines (last {len(failing)}):\n{_fenced(failing)}")
+    if feedback:
+        parts.append("Unresolved feedback:\n" + "\n".join(feedback))
+    if capped:
+        parts.append(
+            f"This is fix cycle {cycle} of {board.FIX_CAP}: {refs} blocked 'needs owner'. The owner decides: fix it by "
+            "hand, re-scope the issue, or close the PR."
+        )
+    else:
+        parts.append(
+            f"Resume {who} on branch `{branch}`: {step}. Then the lead reruns integrate. {refs} stay in progress, "
+            "claims kept; `uv run dev board brief <n>` shows this comment as 'Fix before merge'."
+        )
+    body = "\n\n".join(p for p in parts if p)
     if dry_run:
-        print(f"would comment on PR #{pr_number} and block {', '.join(f'#{n}' for n in issues) or 'no issue'}")
-        return workers
-    board.gh("pr", "comment", str(pr_number), "-R", board.repo(), "--body", note)
-    for n in issues:
-        board.block(n, reason)
-    if head := info.get("headRefOid"):
+        print(f"would comment on PR #{pr_number} and move {refs} to {'blocked' if capped else 'in-progress'}")
+        return {"cycle": cycle, "fix": "dry run", "resume": workers}
+    try:
+        board.gh("pr", "comment", str(pr_number), "-R", board.repo(), "--body", body)
+        for n in issues:
+            if capped:
+                board.block(n, f"needs owner: PR #{pr_number} failed integrate {cycle} times (last: {outcome})")
+            else:
+                board.set_status(n, "in-progress")
+    except (board.BoardError, OSError) as exc:
+        print(f"warning: the fix loop on PR #{pr_number} failed ({exc}): comment it and move {refs} by hand")
+        return {"cycle": cycle, "fix_error": str(exc), "resume": workers}
+    fix = "needs owner" if capped else "in-progress"
+    print(f"sent back: commented on PR #{pr_number}, {refs} -> {fix} (fix cycle {cycle} of {board.FIX_CAP})")
+    return {"cycle": cycle, "fix": fix, "resume": workers}
+
+
+def send_back(
+    pr_number: int, info: dict, main: str, paths: list[str], dry_run: bool = False, counted: bool = True
+) -> dict:
+    """A real conflict with main, through `fix_loop`: the paths go on the PR and its issues back to in-progress,
+    naming the worker to resume. `counted`: integrate's own run on this PR (a conflict another merge caused, found by
+    `send_back_conflicting`, is no failed cycle of this PR). Returns `fix_loop`'s fields."""
+    files = [f"- `{p}`" for p in paths]
+    step = "merge `origin/main`, resolve these files, run `uv run dev docs` and `uv run dev check`, push, and hand back"
+    head = info.get("headRefOid") or ""
+    reasons = [f"It conflicts with main ({main[:10]}) in:", *files]
+    fields = fix_loop(pr_number, info, "conflict", reasons, [], head, dry_run, counted, step)
+    if head and not dry_run and "fix_error" not in fields:
         _sent_back_file().write_text(json.dumps(_sent_back() | {str(pr_number): head}) + "\n")
-    return workers
+    return fields
 
 
 def _sent_back_file() -> Path:
@@ -1243,10 +1338,13 @@ def send_back_conflicting(merged: int) -> list[int]:
     sent: list[int] = []
     for n in (n for n in found if n not in again):
         try:  # one PR GitHub refuses must not hide the PRs already commented
-            send_back(n, prs[n] | {"headRefOid": heads[n]}, main, found[n])
-            sent.append(n)
+            fields = send_back(n, prs[n] | {"headRefOid": heads[n]}, main, found[n], counted=False)
         except (board.BoardError, RuntimeError, OSError) as exc:
-            failed[n] = f"send-back failed: {exc}"
+            fields = {"fix_error": str(exc)}
+        if "fix_error" in fields:
+            failed[n] = f"send-back failed: {fields['fix_error']}"
+        else:
+            sent.append(n)
     kept = {k: v for k, v in _sent_back().items() if k.isdigit() and int(k) in prs}
     _sent_back_file().write_text(json.dumps(kept) + "\n")
     print(
@@ -1447,7 +1545,8 @@ def _integrate(
 ) -> int:
     """Lead only: merge a PR after re-gating the merged tree in a throwaway worktree: main merged into pull/N/head,
     generated files regenerated. When that tree differs from the head (the PR is behind main, or its generated files
-    are stale) it is pushed to the PR branch before the merge; a real conflict is sent back (`send_back`).
+    are stale) it is pushed to the PR branch before the merge; a real conflict is sent back (`send_back`), and so is
+    a failed gate or a refusal the worker can fix (`fix_loop`, #110: `cycle` in the result).
     Unfinished feedback (checks, requested changes, open threads) refuses it unless `override` gives a reason,
     which is logged on the PR just before the merge. Feedback is read again after the gate: what arrived during it
     refuses the merge, override or not. After a push it waits (bounded, `checks_wait_s`) for every check on the new
@@ -1468,6 +1567,11 @@ def _integrate(
     def done(code: int, outcome: str, **fields: object) -> int:
         return result(pr_number, code, outcome, judged=pushed or info["headRefOid"], **fields)
 
+    def back(outcome: str, reasons: list[str], failing: list[str], **fields: object) -> int:
+        """A failure the worker fixes: `fix_loop` sends it back, and the result carries its cycle."""
+        head = pushed or info["headRefOid"]
+        return done(1, outcome, **fields, **fix_loop(pr_number, info, outcome, reasons, failing, head, dry_run))
+
     if info["state"] != "OPEN" or info["isDraft"]:
         print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
         return done(1, "not-open")
@@ -1477,7 +1581,7 @@ def _integrate(
     if (leaks := session_leaks(**{"PR title": info.get("title"), "PR body": info.get("body")})) and repo_public():
         reason = f"{SESSION_RULE}: the {' and '.join(leaks)} carry one; edit the PR, then rerun integrate"
         print(f"RESULT: refused: {reason}")
-        return done(1, "refused", reason=reason)
+        return back("refused", [reason], [], reason=reason)
     if override is not None and not override.strip():
         print("RESULT: refused: --override needs a reason")
         return done(1, "refused", reason="--override needs a reason")
@@ -1513,7 +1617,8 @@ def _integrate(
                 f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, resolve the threads and "
                 "wait for the checks; or rerun with --override '<reason>' (logged on the PR)."
             )
-            return done(1, "refused", reason="unfinished feedback", feedback=todo)
+            return back("refused", [f"- {t}" for t in todo], failed_check_lines(info), reason="unfinished feedback",
+                        feedback=todo)  # fmt: skip
         print(f"overriding unfinished feedback ({override}):\n  " + "\n  ".join(todo))
     head_ref, main_ref = f"refs/devkit/integrate/pr-{pr_number}", f"refs/devkit/integrate/main-{pr_number}"
     try:
@@ -1536,10 +1641,10 @@ def _integrate(
     try:
         try:
             if conflicts := merge_main(tmp, main):
-                workers = send_back(pr_number, info, main, conflicts, dry_run=dry_run)
-                who = ", ".join(workers) or "its worker"
+                returned = send_back(pr_number, info, main, conflicts, dry_run=dry_run)
+                who = ", ".join(returned.get("resume", [])) or "its worker"
                 print(f"RESULT: conflict with main in {', '.join(conflicts)}; sent back, resume {who}")
-                return done(1, "conflict", conflicts=conflicts, resume=workers, branch=info["headRefName"])
+                return done(1, "conflict", conflicts=conflicts, branch=info["headRefName"], **returned)
             regenerated = regenerate(tmp)
             gone = deleted_owns(tmp, main, info)
         except OSError as exc:  # no gh at all; a gh failure is a BoardError, a RuntimeError
@@ -1552,7 +1657,9 @@ def _integrate(
             rows = [f"#{n}: {', '.join(paths)}" for n, paths in gone.items()]
             print(f"RESULT: refused: PR #{pr_number} deletes what open issues own:\n  " + "\n  ".join(rows))
             print("--override does not lift this: name each issue with `Refs #N` in the PR body, or edit its Owns.")
-            return done(1, "refused", reason="deletes paths open issues own", owns=gone)
+            why = "It deletes what open issues own: name each with `Refs #N` in the PR body, or edit its Owns:"
+            return back("refused", [why, *(f"- {r}" for r in rows)], [], reason="deletes paths open issues own",
+                        owns=gone)  # fmt: skip
         tip = git("rev-parse", "HEAD", cwd=tmp)
         print(
             f"gating PR #{pr_number} ({head[:10]}) merged with main {main[:10]} as {tip[:10]} in {tmp} ...", flush=True
@@ -1568,8 +1675,9 @@ def _integrate(
             )
             return done(1, "stopped", reason=passed, **said)
         if not passed:
-            print(f"RESULT: stopped (merged tree fails the gate); comment on PR #{pr_number} and send it back")
-            return done(1, "gate-failed", reason="the merged tree fails the gate", **said)
+            print(f"RESULT: gate-failed (the merged tree fails the gate); PR #{pr_number} is sent back")
+            why = f"The merged tree (main {main[:10]} merged in) fails the gate; its full log: {run_log}"
+            return back("gate-failed", [why], said["gate"], reason="the merged tree fails the gate", **said)
     finally:
         git("worktree", "remove", "--force", str(tmp), check=False)
         git("update-ref", "-d", head_ref, check=False)
@@ -1578,7 +1686,8 @@ def _integrate(
     if arrived := [t for t in now if t not in todo]:
         print(f"RESULT: refused: feedback arrived on PR #{pr_number} during the gate:\n  " + "\n  ".join(arrived))
         print(f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate.")
-        return done(1, "refused", reason="feedback arrived during the gate", feedback=arrived)
+        return back("refused", [f"- {t}" for t in arrived], failed_check_lines(state),
+                    reason="feedback arrived during the gate", feedback=arrived)  # fmt: skip
     if todo:
         log = f"`dev integrate --override`: {override}\n\nOverriding:\n" + "\n".join(f"- {t}" for t in todo)
         if dry_run:
@@ -1602,12 +1711,14 @@ def _integrate(
             expected = [check_key(c) for c in latest_checks(state.get("statusCheckRollup") or [])]
             if not local_ci and (code := _wait_on_tip(pr_number, tip, expected, update)) is not None:
                 return code
-            if not local_ci and (arrived := [t for t in _pr_state(pr_number)[1] if t not in todo]):
+            fresh, later = (state, []) if local_ci else _pr_state(pr_number)
+            if arrived := [t for t in later if t not in todo]:
                 print(f"RESULT: refused: unfinished feedback on the pushed head {tip[:10]}:\n  " + "\n  ".join(arrived))
                 print(
                     f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate."
                 )
-                return done(1, "refused", reason="feedback on the pushed head", feedback=arrived, **update)
+                return back("refused", [f"- {t}" for t in arrived], failed_check_lines(fresh),
+                            reason="feedback on the pushed head", feedback=arrived, **update)  # fmt: skip
     if local_ci and dry_run:
         print(f"would wait for Actions on {tip[:10]} and post what it does not run as statuses: {', '.join(contexts)}")
     elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update)) is not None:

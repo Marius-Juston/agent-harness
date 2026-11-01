@@ -1021,7 +1021,7 @@ def test_integrate_sends_back_each_open_pr_the_new_main_conflicts_with(project, 
     res = last_json(said)
     assert res["outcome"] == "merged" and res["sent_back"] == [8]
     assert "sent back 1 of 2 open PRs" in said
-    assert [n for n, _ in project["blocked"]] == [13]
+    assert project["status"] == [(13, "in-progress")] and project["blocked"] == []  # #110: the claim is kept
     comments = [e for e in project["events"] if e[:3] == ("gh", "pr", "comment")]
     assert [e[3] for e in comments] == ["8"] and "docs/research/a.md" in comments[0][-1]
     assert not out(clone, "git", "for-each-ref", "refs/devkit")  # no fetched refs left behind
@@ -1472,3 +1472,185 @@ def test_failing_lines_is_every_failed_stage_with_its_problems_in_order_and_boun
     assert all(ln in kept for ln in got if not ln.startswith("... "))  # in order, nothing invented
     if len(keys := [ln for ln in want if _key(ln)]) <= workflow.WHY_LINES:
         assert [ln for ln in got if _key(ln)] == keys  # every stage line, FAILED line and E line survives the cap
+
+
+# --- integrate closes the fix loop: failures and feedback on the PR, back to in-progress, cap 3 (#110) -------------
+
+
+def _github_keeps_comments(world: dict, monkeypatch, log: str = "") -> list[dict]:
+    """On top of fake_integrate: each `gh pr comment` shows in later GraphQL reads of the PR's comments, and
+    `gh run view --log-failed` prints `log`. Returns the comments posted, as GitHub would list them."""
+    fake, posted = board.gh, []
+
+    def gh(*args, **kw):
+        if args[:2] == ("pr", "comment"):
+            body = args[args.index("--body") + 1]
+            url = f"https://github.com/o/r/pull/7#issuecomment-{len(posted) + 1}"
+            posted.append({"author": {"login": "lead"}, "body": body, "createdAt": "2026-10-12T00:00:00Z", "url": url})
+        if args[:2] == ("api", "graphql"):
+            data = json.loads(fake(*args, **kw))
+            data["data"]["repository"]["pullRequest"]["comments"]["nodes"] = list(posted)
+            return json.dumps(data)
+        if args[:2] == ("run", "view"):
+            world["events"].append(("gh", *args))
+            return log
+        return fake(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+    return posted
+
+
+def _push(world: dict, head: str) -> None:
+    """The worker pushed a fix: the PR head, the fetched head and the merged tree are `head` now."""
+    world["fetched_head"] = world["remote_head"] = world["tip"] = head
+
+
+def test_a_gate_failure_is_sent_back_with_its_failing_lines_and_feedback_and_keeps_the_claim(
+    fake_integrate,  # noqa: F811
+    monkeypatch,
+    capsys,
+):
+    posted = _github_keeps_comments(fake_integrate, monkeypatch)
+    fake_integrate["threads"] = [_thread("devkit/x.py", 9)]  # an open thread does not stop an --override run
+    _gate_says(monkeypatch, GATE_OUT, 1)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, override="owner said so") == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "gate-failed" and res["cycle"] == 1 and res["fix"] == "in-progress"
+    assert res["resume"] == ["builder-5@box"]
+    [sent] = posted
+    mark = board.FIX_MARK.search(sent["body"])
+    assert (mark[1], mark[2], mark[4]) == ("1", HEAD, "gate-failed")
+    assert all(line in sent["body"] for line in res["gate"])  # the failing gate lines, whole
+    assert "unresolved thread devkit/x.py:9" in sent["body"] and "builder-5@box" in sent["body"]
+    assert fake_integrate["status"] == [(5, "in-progress")] and fake_integrate["blocked"] == []
+
+
+def test_a_failing_actions_check_is_sent_back_with_the_last_40_lines_of_its_failed_log(
+    fake_integrate,  # noqa: F811
+    monkeypatch,
+    capsys,
+):
+    log = "\n".join(f"check\trun tests\tline {i}" for i in range(1, 101)) + "\n"
+    posted = _github_keeps_comments(fake_integrate, monkeypatch, log)
+    fake_integrate["checks"] = [_job("check", 42)]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "refused" and res["cycle"] == 1
+    assert ("gh", "run", "view", "-R", "o/r", "--job", "42", "--log-failed") in fake_integrate["events"]
+    body = posted[0]["body"]
+    assert "line 61\n" in body and "line 100\n" in body and "line 60\n" not in body
+    assert "check check: failing (FAILURE)" in body
+    assert not _merged(fake_integrate["events"])
+
+
+def test_the_third_failed_cycle_blocks_the_issue_needs_owner(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    posted = _github_keeps_comments(fake_integrate, monkeypatch)
+    _gate_says(monkeypatch, GATE_OUT, 1)
+    cycles = []
+    for head in ("a" * 40, "b" * 40, "c" * 40):
+        _push(fake_integrate, head)
+        assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+        res = _last_json(capsys.readouterr().out)
+        cycles.append((res["cycle"], res["fix"]))
+    assert cycles == [(1, "in-progress"), (2, "in-progress"), (3, "needs owner")]
+    assert fake_integrate["status"] == [(5, "in-progress")] * 2
+    [(n, reason)] = fake_integrate["blocked"]
+    assert n == 5 and reason.startswith("needs owner") and "PR #7" in reason
+    assert len(posted) == 3 and "blocked 'needs owner'" in posted[-1]["body"]
+
+
+def test_a_rerun_on_the_same_head_and_failure_posts_and_counts_nothing(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    posted = _github_keeps_comments(fake_integrate, monkeypatch)
+    fake_integrate["threads"] = [_thread("a.py", 1)]
+    for _ in range(2):
+        assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert len(posted) == 1 and res["cycle"] == 1 and res["fix"] == "already posted"
+    assert fake_integrate["status"] == [(5, "in-progress")]
+    fake_integrate["threads"] = [_thread("a.py", 1), _thread("b.py", 2)]  # new feedback on the same head
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert len(posted) == 2 and _last_json(capsys.readouterr().out)["cycle"] == 2
+
+
+def test_a_dry_run_sends_nothing_back(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    posted = _github_keeps_comments(fake_integrate, monkeypatch)
+    _gate_says(monkeypatch, GATE_OUT, 1)
+    assert workflow.integrate(7, harness_ok=True, dry_run=True) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["cycle"] == 1 and res["fix"] == "dry run"
+    assert posted == [] and fake_integrate["status"] == [] and fake_integrate["blocked"] == []
+
+
+def test_a_fix_loop_github_refuses_keeps_the_outcome(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    _gate_says(monkeypatch, GATE_OUT, 1)
+
+    def offline(n, status):
+        raise board.BoardError("gh issue edit: offline")
+
+    monkeypatch.setattr(board, "set_status", offline)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "gate-failed" and res["cycle"] == 1 and "offline" in res["fix_error"]
+
+
+@pytest.mark.parametrize("knobs", [{"merge_code": 1, "conflicts": ["a.py"]}, {"gate_code": 1}])
+def test_a_pr_github_cannot_read_keeps_the_outcome(fake_integrate, monkeypatch, capsys, knobs):  # noqa: F811
+    """The fix loop reads the PR's comments after the outcome is known: failing there must not turn it into stopped."""
+    fake_integrate.update(knobs)
+    reads, read = [], board.pr_feedback
+
+    def offline(n):  # the read before the gate answers; the fix loop's, after the outcome, fails
+        if reads:
+            raise board.BoardError("gh api graphql: offline")
+        reads.append(n)
+        return read(n)
+
+    monkeypatch.setattr(board, "pr_feedback", offline)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] in {"conflict", "gate-failed"} and "offline" in res["fix_error"] and "cycle" not in res
+    assert fake_integrate["status"] == [] and fake_integrate["blocked"] == []
+
+
+def test_a_conflict_another_merge_caused_is_sent_back_but_not_counted(project, capsys, monkeypatch):  # noqa: F811
+    clone = project["clone"]
+    listed = [_other_pr(project, 8, "13-d", {"docs/research/a.md": "one\nTWO by d\nthree\n"})]
+    open_pr(project, {"docs/research/a.md": "one\nTWO by c\nthree\n", **note(clone, "c")})
+    _merging(project, monkeypatch, listed)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    [comment] = [e for e in project["events"] if e[:3] == ("gh", "pr", "comment")]
+    assert board.FIX_MARK.search(comment[-1])[1] == "0" and "outcome=conflict" in comment[-1]
+
+
+def _fix_comment(cycle: int, head: str, text: str, url: str = "u") -> dict:
+    marker = f"<!-- devkit:fix-loop cycle={cycle} head={head} key=k outcome=gate-failed -->"
+    return {"author": {"login": "lead"}, "body": f"{marker}\n{text}", "createdAt": "2026-10-12T00:00:00Z", "url": url}
+
+
+def test_fix_before_merge_shows_the_latest_send_back_and_whether_the_head_moved():
+    fb = {"head": "a" * 40, "comments": [_fix_comment(1, "a" * 40, "old"), _fix_comment(2, "a" * 40, "FAIL tests")]}
+    rows = board.fix_before_merge(7, fb)
+    assert rows[0] == f"\n## Fix before merge (PR #7, gate-failed, fix cycle 2 of 3, on head {'a' * 10})"
+    assert rows[1:] == ["FAIL tests"]
+    assert "moved since" in board.fix_before_merge(7, fb | {"head": "b" * 40})[0]
+    assert board.fix_before_merge(7, {"head": "a" * 40, "comments": []}) == []
+
+
+def test_brief_shows_fix_before_merge_and_feedback_does_not_repeat_it(monkeypatch):
+    issue = mk(110, ["status:in-progress", "type:build"], "## DONE WHEN\n- [ ] x\n")
+    fb = {
+        "since": "2026-10-11T00:00:00Z",
+        "head": "a" * 40,
+        "trusted": set(),
+        "comments": [_fix_comment(1, "a" * 40, "FAIL tests: 1 problem(s)\n     tests/test_x.py::test_a FAILED")],
+        "reviews": [],
+        "threads": [],
+    }
+    monkeypatch.setattr(board, "get", lambda n: issue)
+    monkeypatch.setattr(board, "in_flight_files", dict)
+    monkeypatch.setattr(board, "issue_prs", lambda n: [7])
+    monkeypatch.setattr(board, "pr_feedback", lambda n: fb)
+    text = board.brief(110)
+    assert "## Fix before merge (PR #7, gate-failed, fix cycle 1 of 3" in text
+    assert "     tests/test_x.py::test_a FAILED" in text
+    assert board.pr_feedback_lines(fb) == []  # the send-back shows once, whole, not cut in the feedback list

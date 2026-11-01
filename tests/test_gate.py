@@ -559,6 +559,7 @@ def fake_integrate(monkeypatch, tmp_path):
         "merge_code": 0,
         "conflicts": [],
         "blocked": [],
+        "status": [],
         "after_push": [],
         "git_version": "git version 2.43.0",
     }
@@ -624,6 +625,7 @@ def fake_integrate(monkeypatch, tmp_path):
     claim = board.Claim(host="box", agent="builder-5", branch="5-x", at="", token=None, cid="")
     monkeypatch.setattr(board, "get", lambda n: SimpleNamespace(state="OPEN", status="review", claim=lambda: claim))
     monkeypatch.setattr(board, "block", lambda n, reason: world["blocked"].append((n, reason)))
+    monkeypatch.setattr(board, "set_status", lambda n, status: world["status"].append((n, status)))
     monkeypatch.setattr(workflow.time, "sleep", lambda s: None)
     monkeypatch.setattr(workflow, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
@@ -759,7 +761,8 @@ def test_override_covers_only_the_feedback_it_was_given(fake_integrate, capsys):
     out = capsys.readouterr().out
     assert "b.py:2" in out and "a.py:1" not in out.split("during the gate")[1]
     assert not _merged(fake_integrate["events"])
-    assert not any(e[:3] == ("gh", "pr", "comment") for e in fake_integrate["events"])
+    [sent] = _comments(fake_integrate["events"])  # the fix loop's send-back (#110), never the override's log
+    assert board.FIX_MARK.search(sent) and "b.py:2" in sent and "owner said so" not in sent
 
 
 def test_integrate_override_merges_and_logs_the_reason_on_the_pr(fake_integrate):
@@ -788,8 +791,9 @@ def _last_json(out):
     return json.loads(last.removeprefix("RESULT-JSON: "))
 
 
-def test_a_conflict_is_sent_back_to_the_named_worker_and_blocks_the_issue(fake_integrate, capsys):
-    """#38: a real conflict comments the paths on the PR, blocks the issue 'rebase on main' and names the worker."""
+def test_a_conflict_is_sent_back_to_the_named_worker_and_keeps_the_claim(fake_integrate, capsys):
+    """#38, #110: a real conflict comments the paths and the rebase steps on the PR, names the worker and moves the
+    issue back to in-progress with its claim kept (no release, no block)."""
     fake_integrate["merge_code"], fake_integrate["conflicts"] = 1, ["docs/research/n.md", "src/app.py"]
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     ev = fake_integrate["events"]
@@ -798,8 +802,8 @@ def test_a_conflict_is_sent_back_to_the_named_worker_and_blocks_the_issue(fake_i
     note = next(e for e in ev if e[:3] == ("gh", "pr", "comment"))
     body = note[note.index("--body") + 1]
     assert "`docs/research/n.md`" in body and "`src/app.py`" in body and "builder-5@box" in body
-    [(n, reason)] = fake_integrate["blocked"]
-    assert n == 5 and reason.startswith("rebase on main") and "builder-5@box" in reason and "src/app.py" in reason
+    assert "merge `origin/main`" in body and board.FIX_MARK.search(body)
+    assert fake_integrate["status"] == [(5, "in-progress")] and fake_integrate["blocked"] == []
     res = _last_json(capsys.readouterr().out)
     assert res["outcome"] == "conflict" and res["conflicts"] == fake_integrate["conflicts"]
     assert res["resume"] == ["builder-5@box"] and res["branch"] == "5-x" and res["exit"] == 1
@@ -1319,7 +1323,8 @@ def test_a_failing_gate_posts_no_status(fake_integrate, actions, capsys):
     fake_integrate["checks"] = [_job("check", 11)]
     fake_integrate["gate_code"] = 1
     assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 1
-    assert actions["statuses"] == [] and not _comments(fake_integrate["events"])
+    [sent] = _comments(fake_integrate["events"])  # the fix loop's send-back (#110) only
+    assert actions["statuses"] == [] and board.FIX_MARK.search(sent)
     assert _last_json(capsys.readouterr().out)["outcome"] == "gate-failed"
 
 

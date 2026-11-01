@@ -153,7 +153,15 @@ def project(tmp_path, monkeypatch):
     shutil.copy(ATTRIBUTES, clone / ".gitattributes")
     commit(clone, {"docs/research/a.md": "one\ntwo\nthree\n", INDEX: "# Index\n- a\n"}, "init")
     sh(clone, "git", "push", "-q", "origin", "main")
-    world = {"events": [], "origin": origin, "clone": clone, "blocked": [], "branch": "12-c", "body": "Closes #12"}
+    world = {
+        "events": [],
+        "origin": origin,
+        "clone": clone,
+        "blocked": [],
+        "status": [],
+        "branch": "12-c",
+        "body": "Closes #12",
+    }
 
     def head() -> str:
         return out(origin, "git", "rev-parse", f"refs/heads/{world['branch']}")
@@ -205,9 +213,10 @@ def project(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "Popen", popen)
     monkeypatch.setattr(board, "gh", gh)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "pr_feedback", lambda n: {"threads": []})
+    monkeypatch.setattr(board, "pr_feedback", lambda n: {"since": "", "comments": [], "reviews": [], "threads": []})
     monkeypatch.setattr(board, "get", lambda n: type("I", (), {"claim": lambda self: claim})())
     monkeypatch.setattr(board, "block", lambda n, reason: world["blocked"].append((n, reason)))
+    monkeypatch.setattr(board, "set_status", lambda n, status: world["status"].append((n, status)))
     monkeypatch.setattr(board, "merged_pr", lambda *a: world["events"].append(("merged_pr", *a)) or ["#12 -> done"])
     monkeypatch.setattr(workflow, "main_checkout", lambda: clone)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: tmp_path.joinpath("state", *p))
@@ -271,15 +280,16 @@ def test_integrate_leaves_a_current_pr_alone(project, capsys):
 
 
 def test_integrate_sends_a_real_conflict_back(project, capsys):
-    """#38: both sides rewrite one note: the PR gets the paths, the issue is blocked, the worker is named."""
+    """#38, #110: both sides rewrite one note: the PR gets the paths, the worker is named, the issue goes back to
+    in-progress with its claim."""
     old = open_pr(project, {"docs/research/a.md": "one\nTWO by the PR\nthree\n"})
     land_on_main(project, {"docs/research/a.md": "one\nTWO on main\nthree\n"})
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     res = last_json(capsys.readouterr().out)
     assert res["outcome"] == "conflict" and res["conflicts"] == ["docs/research/a.md"]
     assert res["resume"] == ["builder-12@box"]
-    [(n, reason)] = project["blocked"]
-    assert n == 12 and reason.startswith("rebase on main") and "docs/research/a.md" in reason
+    assert project["status"] == [(12, "in-progress")] and project["blocked"] == []
+    assert res["cycle"] == 1 and res["fix"] == "in-progress"
     comment = next(e for e in project["events"] if e[:3] == ("gh", "pr", "comment"))
     assert "`docs/research/a.md`" in comment[comment.index("--body") + 1]
     assert not any(e[:3] == ("gh", "pr", "merge") or e[:2] == ("uv", "check") for e in project["events"])

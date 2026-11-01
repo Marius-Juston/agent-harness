@@ -43,11 +43,14 @@ Nothing assumes that two machines share a disk.
 7. **Integrate** (lead). Read the PR and check its numbers against the data, then run `uv run dev integrate <pr>`.
    This merges the PR onto `origin/main` in a throwaway worktree and re-runs the gate there. A worker's report is
    not evidence. The merged tree is main merged into the PR, with generated files regenerated (`dev docs`); when
-   that differs from the PR head, integrate pushes it to the PR branch first. A real conflict is sent back: the
-   paths go on the PR, the item is blocked ('rebase on main') and the worker to resume is named. If the gate
-   passes, the PR merges, then its items close, blocked items whose blockers closed move to ready, and the
-   worktree is removed. Every other open PR into main that the new main conflicts with is then sent back the same
-   way at once (`sent_back`). The last line, `RESULT-JSON: {...}`, says what happened (`outcome`). A PR that touches
+   that differs from the PR head, integrate pushes it to the PR branch first. A conflict, a failed gate or a
+   refusal the worker can fix is sent back with no lead relay: one PR comment carries the reasons, the last 40
+   failing lines (the local gate's, or `gh run view --log-failed` of a failing check) and the unresolved feedback;
+   the item goes back to in-progress with its claim kept, the worker to resume is named, and `board brief` shows
+   that comment as 'Fix before merge'. After the 3rd failed cycle on one PR (`cycle` in the result) the item is
+   blocked 'needs owner'. If the gate passes, the PR merges, then its items close, blocked items whose blockers
+   closed move to ready, and the worktree is removed. Every other open PR into main that the new main conflicts
+   with is then sent back the same way at once (`sent_back`; not counted as a cycle). The last line, `RESULT-JSON: {...}`, says what happened (`outcome`). A PR that touches
    harness files is refused until the lead has read that diff (`--harness-ok`); a `.gitattributes` change can hide
    conflicts, so read it too.
    Integrate also refuses a PR with failing or pending checks, a standing CHANGES_REQUESTED review or unresolved

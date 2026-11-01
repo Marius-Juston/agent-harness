@@ -19,7 +19,7 @@
 | name | invocation | words | purpose |
 |---|---|---|---|
 | harness-ops:harness | model + /harness-ops:harness | 558 | How to change a project's agent surface safely — CLAUDE.md, .claude/ settings and agents, skills, hooks, the [tool.devkit] config, CI — without drift or bloa... |
-| harness-ops:lead | model + /harness-ops:lead | 720 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
+| harness-ops:lead | model + /harness-ops:lead | 758 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
 | harness-ops:research | model + /harness-ops:research | 646 | Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reve... |
 
 ## Hooks
@@ -121,5 +121,5 @@
 | plugins/harness-ops/agents/suite-auditor.md | 272 | 600 |
 | plugins/harness-ops/agents/tester.md | 263 | 600 |
 | plugins/harness-ops/skills/harness/SKILL.md | 558 | 650 |
-| plugins/harness-ops/skills/lead/SKILL.md | 720 | 720 |
+| plugins/harness-ops/skills/lead/SKILL.md | 758 | 720 |
 | plugins/harness-ops/skills/research/SKILL.md | 646 | 650 |

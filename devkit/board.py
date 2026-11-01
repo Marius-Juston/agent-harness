@@ -1436,6 +1436,12 @@ THREADS_PAGE = 100  # the reviewThreads(first:) above; past it integrate refuses
 # Its findings are the author's to-do list, so feedback shows that review whole, not FEEDBACK_CHARS of it, when the
 # gh user posted it: agents act as that user, while anyone can open or review a public repository's PR.
 VERDICT = re.compile(r"Verdict: (merge|send back|reconsider), round (\d+), ([0-9a-fA-F]{7,40})")
+# The comment `dev integrate` posts on a PR it did not merge (#110): what to fix, for `brief`'s 'Fix before merge'.
+# `cycle` counts integrate's failed runs on the PR; at FIX_CAP its issues are blocked 'needs owner'. `key` hashes the
+# comment's content, so a rerun that finds the same failure on the same head posts nothing and counts nothing.
+FIX_MARK = re.compile(r"<!-- devkit:fix-loop cycle=(\d+) head=(\S*) key=(\S*) outcome=(\S+) -->")
+FIX_CAP = 3
+FIX_SHOWN = 80  # lines of the fix-loop comment `brief` shows: its 40 failing lines plus the feedback around them
 
 
 def verdict_of(body: str) -> re.Match | None:
@@ -1473,6 +1479,26 @@ def pr_feedback(number: int) -> dict:
     }
 
 
+def fix_loop_state(comments: list[dict]) -> tuple[int, dict | None]:
+    """(the highest fix-loop cycle in a PR's `comments`, the latest fix-loop comment or None)."""
+    marked = [(c, m) for c in comments if (m := FIX_MARK.search(c.get("body") or ""))]
+    return max((int(m[1]) for _, m in marked), default=0), (marked[-1][0] if marked else None)
+
+
+def fix_before_merge(pr: int, fb: dict) -> list[str]:
+    """`brief`'s 'Fix before merge' section from the PR's latest fix-loop comment: its heading (cycle, head, whether
+    the head moved since) and the comment's text. Empty when integrate never sent this PR back."""
+    cycle, last = fix_loop_state(fb.get("comments") or [])
+    if last is None:
+        return []
+    m = FIX_MARK.search(last["body"])
+    head, now = m[2], (fb.get("head") or "").lower()
+    moved = f"; the PR head moved since, to {now[:10]}: rerun integrate first" if now and head and now != head else ""
+    out = [f"\n## Fix before merge (PR #{pr}, {m[4]}, fix cycle {cycle} of {FIX_CAP}, on head {head[:10]}{moved})"]
+    rows = FIX_MARK.sub("", last["body"]).strip().splitlines()
+    return out + cap(rows, FIX_SHOWN, last.get("url") or f"PR #{pr}")
+
+
 def login(node: dict) -> str:
     """The author's login; a deleted account comes back as a null author."""
     return (node.get("author") or {}).get("login", "ghost")
@@ -1502,7 +1528,7 @@ def pr_feedback_lines(fb: dict) -> list[str]:
     comments = [
         f"- comment {login(c)} {c['createdAt'][:16]}: {text(c['body'])} ({c['url']})"
         for c in fb["comments"]
-        if c["createdAt"] > since
+        if c["createdAt"] > since and not FIX_MARK.search(c.get("body") or "")  # fix_before_merge shows those whole
     ]
     out = verdicts + comments + reviews
     for t in fb["threads"]:
@@ -1565,7 +1591,9 @@ def brief(number: int) -> str:
         out += cap(rows, SECTION_LINES, "`uv run dev status` and `gh pr list`")
     try:
         for pr in issue_prs(i.number):
-            rows = pr_feedback_lines(pr_feedback(pr)) or ["- none: no new comments or reviews, no unresolved threads"]
+            fb = pr_feedback(pr)
+            out += fix_before_merge(pr, fb)
+            rows = pr_feedback_lines(fb) or ["- none: no new comments or reviews, no unresolved threads"]
             out.append(f"\n## PR #{pr} feedback since its last commit (answer or fix each, resolve threads)")
             out += cap(rows, SECTION_LINES, f"`uv run dev board feedback {pr}`")
     except BoardError:
