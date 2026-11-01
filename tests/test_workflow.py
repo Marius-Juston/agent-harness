@@ -1830,6 +1830,7 @@ def test_brief_shows_fix_before_merge_and_feedback_does_not_repeat_it(monkeypatc
         ("Epic: one board", ["type:epic"], "feat: one board"),
         ("harness-ops/C++ #x: y", [], "feat(harness-ops-c-x): y"),
         ("no component here", ["type:bug"], "fix: no component here"),
+        ("CI: CodeQL and Scorecard", ["type:infra"], "ci: CodeQL and Scorecard"),  # a capitalised type component
         ("Release v0.1.15", ["type:infra"], "chore(release): v0.1.15"),
         ("release: v0.1.15 notes and pins", ["type:build"], "chore(release): v0.1.15 notes and pins"),
         ("Release 1.2.0: bundle", ["type:build"], "chore(release): 1.2.0: bundle"),
