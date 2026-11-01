@@ -290,3 +290,85 @@ def test_add_refuses_a_lesson_over_25_words(repo):
     with pytest.raises(ValueError, match="at most 25 words"):
         rules.add("src/lib.py", " ".join(["w"] * 26), 5, TODAY)
     assert rules.add("src/lib.py", " ".join(["w"] * 25), 5, TODAY)[1]
+
+
+# Claude Code 2.1.316's verdict on each (paths:, file), measured with its bundled node-ignore module
+# (docs/research/devkit-reuse-survey.md §2.2, scripts/b_globs.py).
+CLAUDE_PROBES = [
+    (["*.md"], "a.md", True),
+    (["*.md"], "docs/a.md", True),  # gitignore: a pattern without a slash matches at any depth
+    (["src/**"], "src/a/b.ts", True),
+    (["src/**/*.ts"], "src/a.ts", True),
+    (["src/*.ts"], "src/a/b.ts", False),
+    (["**/*.ts"], "a.ts", True),
+    ("src/**, lib/**", "lib/x.py", True),  # a comma-separated string, which the docs allow
+    (["*.{ts,tsx}"], "web/a.tsx", True),
+    (["src/*.{ts,tsx}"], "src/a.tsx", True),
+    (["/README.md"], "README.md", True),
+    (["docs/"], "docs/a.md", True),
+    (["tests/**", "!tests/fixtures/**"], "tests/fixtures/a.py", True),  # node-ignore: no re-include under a parent
+    (["photos \\[2024/**"], "photos [2024/a.jpg", True),
+    ([".env*"], "config/.env.local", True),
+    (["src"], "src/a.py", True),
+    (["a/**/b"], "a/b", True),
+    (["src/*"], "src/a/b.ts", True),  # a matched directory carries its contents
+    (["*.MD"], "a.md", True),  # node-ignore ignores case
+    (["devkit/*.py"], "devkit/rules.py", True),
+    (["plugins/**/agents/*.md"], "plugins/harness-ops/agents/builder.md", True),
+]
+KNOWN_MISS = (["tests/**", "!tests/fixtures/**"], "tests/fixtures/a.py")
+
+
+def test_loads_agrees_with_claude_code_on_the_probes_but_the_documented_negation():
+    missed = [(v, rel) for v, rel, want in CLAUDE_PROBES if rules.loads(rel, {"paths": v}) != want]
+    assert len(CLAUDE_PROBES) == 20
+    assert missed == [KNOWN_MISS]
+
+
+def test_patterns_split_commas_expand_braces_and_cut_a_trailing_globstar():
+    assert rules.patterns("src/**, lib/*.{ts,tsx}") == ["src", "lib/*.ts", "lib/*.tsx"]
+    assert rules.patterns(["a/{b,c}/**", 3, " ", "{x}"]) == ["a/b", "a/c", "x"]  # non-strings dropped, as Claude does
+    assert rules.patterns("{a,b},{c,d}") == ["a", "b", "c", "d"]
+
+
+def test_brace_expansion_over_the_1000_pattern_budget_is_left_unexpanded():
+    glob = "{a,b,c,d,e,f,g,h,i,j}" * 3  # 1,000 patterns: within budget
+    assert len(rules.expand_braces(glob)) == 1000
+    over = glob + "{k,l}"  # 2,000
+    assert rules.expand_braces(over) == [over]
+
+
+def test_brace_budget_is_shared_across_a_paths_value():
+    glob = "{a,b,c,d,e,f,g,h,i,j}" * 3
+    assert rules.patterns([glob, "x/{y,z}"])[-1] == "x/{y,z}"  # the first glob spent the budget
+
+
+def test_paths_only_globstar_loads_unconditionally():
+    assert rules.loads("anything/at/all.txt", {"paths": ["**"]})
+    assert rules.loads("x.py", {"paths": "**/**"})
+
+
+def test_check_passes_globs_claude_code_loads_that_full_match_missed(repo):
+    text = '---\npaths: "*.md, src, /pyproject.toml, src/*, *.PY"\n---\n- x (#1, 2026-01-01)\n'
+    _tree(repo, {".claude/rules/x.md": text})
+    assert rules.check_rules(_base(repo)).problems == []
+
+
+def test_check_fails_a_glob_claude_code_never_loads(repo):
+    _tree(repo, {".claude/rules/x.md": '---\npaths: ["src/*.md", "docs/*.py"]\n---\n- x (#1, 2026-01-01)\n'})
+    assert rules.check_rules(_base(repo)).problems == [
+        ".claude/rules/x.md: paths glob `src/*.md` matches no file",
+        ".claude/rules/x.md: paths glob `docs/*.py` matches no file",
+    ]
+
+
+def test_add_picks_a_rules_file_scoped_by_a_comma_string(repo):
+    _tree(repo, {".claude/rules/both.md": '---\npaths: "docs/**, src/app/**"\n---\n- x (#1, 2026-01-01)\n'})
+    path, _ = rules.add("src/app/main.py", "use the factory", 9, TODAY)
+    assert path == repo / ".claude/rules/both.md"
+
+
+def test_add_skips_a_file_whose_negation_excludes_the_path(repo):
+    _tree(repo, {".claude/rules/py.md": '---\npaths: ["*.py", "!lib.py"]\n---\n- x (#1, 2026-01-01)\n'})
+    path, _ = rules.add("src/lib.py", "keep it pure", 9, TODAY)
+    assert path == repo / ".claude/rules/src.md"

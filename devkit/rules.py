@@ -3,10 +3,13 @@ rules file whose `paths:` match; the gate's rules stage holds every rule line to
 and every `paths:` glob to at least one file (a renamed directory otherwise leaves a rule that never loads, silently:
 docs/research/decision-records-and-drift.md §3.3-3.4)."""
 
+import os
 import re
 import shlex
 from datetime import date
 from pathlib import Path, PurePosixPath
+
+import pathspec
 
 from devkit import checks, config, frontmatter
 from devkit.paths import root
@@ -17,9 +20,10 @@ BULLET = re.compile(r"^(?:[-*+]|\d+[.)])\s+(.*)$")  # a top-level item; an inden
 FENCE = re.compile(r"^\s*(```|~~~)")
 PROVENANCE = re.compile(r"\s*\(#(\d+), (\S+)\)\s*$")
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
-BRACES = re.compile(r"\{([^{}]*,[^{}]*)\}")
-# Glob syntax beyond stdlib full_match plus comma braces (extglob, negation, [^x], {1..3}): a glob using it that
-# matches nothing may be our matcher's blind spot, so it warns instead of failing.
+BRACE = re.compile(r"^([^{]*)\{([^}]+)\}(.*)\Z")  # Claude Code's: the first `{` up to the next `}`
+BRACE_BUDGET = (1000, 4 * 1024 * 1024)  # patterns, bytes; past either a glob stays unexpanded (memory docs)
+# Syntax that is easy to write expecting another glob dialect (extglob, negation, [^x], {1..3}): a glob using it that
+# matches nothing warns instead of failing.
 EXOTIC = re.compile(r"[!@+?*]\(|^!|\[\^|\[!|\{[^{},]*\.\.[^{},]*\}")
 MAX_WORDS = 25
 
@@ -34,21 +38,76 @@ def rule_files() -> list[Path]:
     return sorted(p for p in found if p.is_file())
 
 
-def expand_braces(glob: str) -> list[str]:
-    """`src/*.{ts,tsx}` -> [`src/*.ts`, `src/*.tsx`]; the form Claude Code's `paths:` examples use."""
-    m = BRACES.search(glob)
-    if not m:
+def expand_braces(glob: str, budget: list[int] | None = None) -> list[str]:
+    """`src/*.{ts,tsx}` -> [`src/*.ts`, `src/*.tsx`], as Claude Code 2.1.316 expands a `paths:` glob: alternatives
+    trimmed, and the glob left whole once `budget` ([patterns, bytes], shared by one `paths:` value) runs out."""
+    budget = budget if budget is not None else list(BRACE_BUDGET)
+    if "{" not in glob:
         return [glob]
-    return [g for alt in m.group(1).split(",") for g in expand_braces(glob[: m.start()] + alt + glob[m.end() :])]
+    out, stack = [], [glob]
+    while stack:
+        g = stack.pop()
+        m = BRACE.match(g)
+        if not m:
+            out.append(g)
+            continue
+        alts = [a.strip() for a in m.group(2).split(",")]
+        budget[1] -= len(g)
+        n = len(out) + len(stack) + len(alts)
+        if budget[1] < 0 or n > budget[0] or n * len(glob) > budget[1]:
+            return [glob]
+        stack += [m.group(1) + a + m.group(3) for a in reversed(alts)]
+    budget[0] -= len(out)
+    budget[1] -= len(out) * len(glob)
+    return out
+
+
+def split_globs(value: object) -> list[str]:
+    """A `paths:` value as Claude Code reads it: a list or a string, each string split at commas outside braces;
+    anything not a string is dropped."""
+    if isinstance(value, list):
+        return [g for v in value for g in split_globs(v)]
+    if not isinstance(value, str):
+        return []
+    parts, cur, depth = [], "", 0
+    for ch in value:
+        if ch == "," and depth == 0:
+            parts.append(cur.strip())
+            cur = ""
+            continue
+        depth += (ch == "{") - (ch == "}")
+        cur += ch
+    return [p for p in [*parts, cur.strip()] if p]
+
+
+def patterns(value: object) -> list[str]:
+    """The gitignore patterns Claude Code matches a `paths:` value with: split, braces expanded, a trailing `/**`
+    cut (`src/**` is `src`, which carries its contents)."""
+    budget = list(BRACE_BUDGET)
+    globs = [g for raw in split_globs(value) for g in expand_braces(raw, budget)]
+    return [g for g in (g.removesuffix("/**") for g in globs) if g]
+
+
+def spec(globs: list[str]) -> pathspec.GitIgnoreSpec:
+    """node-ignore's gitignore semantics, case-insensitive like its default: pathspec's GitIgnoreSpec agrees with it on
+    19 of 20 probes, re-including a file under an excluded parent where node-ignore does not
+    (docs/research/devkit-reuse-survey.md §2.2)."""
+    return pathspec.GitIgnoreSpec.from_lines([g.casefold() for g in globs])
 
 
 def globs_of(meta: dict | None) -> list[str]:
-    paths = (meta or {}).get("paths") or []
-    return [str(g) for g in ([paths] if isinstance(paths, str) else paths)]
+    return split_globs((meta or {}).get("paths"))
 
 
 def matches(rel: str, glob: str) -> bool:
-    return any(PurePosixPath(rel).full_match(g) for g in expand_braces(glob))
+    return spec(patterns(glob)).match_file(rel.casefold())
+
+
+def loads(rel: str, meta: dict | None) -> bool:
+    """Claude Code loads the rule when `rel` is read: all of its `paths:` patterns together decide (a later `!x`
+    excludes again), and a list of only `**` is unconditional."""
+    pats = patterns((meta or {}).get("paths"))
+    return all(p == "**" for p in pats) or spec(pats).match_file(rel.casefold())
 
 
 def normalize(lesson: str) -> str:
@@ -124,15 +183,33 @@ def added_lines(base: str) -> dict[str, set[int]]:
 
 def glob_hits(glob: str, files: list[str]) -> bool:
     """A tracked file matches, else any file on disk does (gitignored output such as `build/**` still loads rules)."""
-    if any(matches(f, glob) for f in files):
+    pats = patterns(glob)
+    match = spec(pats)
+    if any(match.match_file(f.casefold()) for f in files):
         return True
-    for g in expand_braces(glob):
-        try:
-            if next(iter(root().glob(g)), None) is not None:
+    top = root()
+    for base in sorted({_walk_base(p) for p in pats if not p.startswith("!")}):
+        for here, dirs, names in os.walk(top / base):
+            dirs[:] = [d for d in dirs if d != ".git"]
+            rel = Path(here).relative_to(top).as_posix()
+            prefix = "" if rel == "." else rel + "/"
+            if any(match.match_file((prefix + n).casefold()) for n in names):
                 return True
-        except (ValueError, NotImplementedError):
-            continue
     return False
+
+
+def _walk_base(pattern: str) -> str:
+    """The literal leading directories of an anchored pattern (one with a slash before its end), where a disk walk for
+    it can start; "" (the root) for a pattern that matches at any depth."""
+    body = pattern.rstrip("/")
+    if "/" not in body:
+        return ""
+    lead = []
+    for part in body.lstrip("/").split("/")[:-1]:
+        if any(c in part for c in "*?[\\"):
+            break
+        lead.append(part)
+    return "/".join(lead)
 
 
 def check_rules(base: str | None) -> Ran:
@@ -184,6 +261,8 @@ def target(rel: str) -> tuple[Path, list[str]]:
         try:
             meta, _ = frontmatter.split(path.read_text(encoding="utf-8"))
         except ValueError:
+            continue
+        if not loads(rel, meta):
             continue
         for glob in globs_of(meta):
             if matches(rel, glob) and (best is None or (_specificity(glob), str(path)) > best[:2]):
