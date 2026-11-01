@@ -45,9 +45,9 @@ Per item in review, by priority:
 - Broad research: the `harness-ops:research` skill.
 
 ## 5. Resume after a limit, crash or compaction
-Per worktree in `uv run dev status`:
-- Commits or edits: SendMessage a resume (what it had; "finish, gate, `dev pr`").
-- Neither: respawn, same prompt.
+`uv run dev status --resume` lists worktrees with commits or edits:
+- Listed: SendMessage its prompt (respawn if stopped).
+- Other claims: respawn, same prompt.
 - STALE claim (another machine, idle 6 h): `board claim --force` only after reading its last comment.
 
 ## 6. Keep the record
