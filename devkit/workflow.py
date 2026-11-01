@@ -25,7 +25,7 @@ from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 from devkit import backoff, board, branches, checks, config, consolidation, handoff, quota
-from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, tree_key
+from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, holders, tree_key
 from devkit.paths import git, main_checkout, root, state_dir
 from devkit.prtext import (  # re-exported: plugin scripts and devkit/train.py read these through devkit.workflow
     REUSE_FORMS,  # noqa: F401 - completion_gate.py imports it by name
@@ -65,11 +65,9 @@ def changed_paths(base: str, head: str) -> list[str]:
 
 
 def gate_holder() -> str:
-    lock = state_dir() / "gate.lock"
-    if not lock.exists():
-        return "idle"
-    out = subprocess.run(["flock", "-n", str(lock), "true"], capture_output=True, check=False)
-    return "idle" if out.returncode == 0 else f"running ({lock.read_text().strip()})"
+    """'idle', or 'running (<pid> <root>; ...)' for every gate holding a slot (#461)."""
+    found = holders(state_dir() / "gate.lock")
+    return f"running ({'; '.join(found)})" if found else "idle"
 
 
 def open_prs() -> dict[str, dict] | None:

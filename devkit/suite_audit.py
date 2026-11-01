@@ -817,7 +817,10 @@ def report(repo: Path, reruns: int | None = None, quick: bool = False, now: floa
     clone_runs: list[dict] = []
     tree: dict[str, str] | None = None
     if not quick and k > 0:
-        with gate.gate_lock(state_dir() / "gate.lock", on_wait=lambda: print("suite audit: waiting for a gate ...")):
+        lock = state_dir() / "gate.lock"
+        with gate.gate_lock(
+            lock, on_wait=lambda: print("suite audit: waiting for a gate ..."), slots=gate.gate_slots()
+        ):
             clone_runs, tree = rerun(repo, list(range(1, k + 1)), None if tier == "S" else suspects(ledger))
     try:
         runs = ci_runs()
