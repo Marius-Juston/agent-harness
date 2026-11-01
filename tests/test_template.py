@@ -344,6 +344,39 @@ def test_the_settings_leave_the_artifact_tool_to_the_lead(rendered):
     assert "enableArtifact" not in json.loads((rendered / ".claude/settings.json").read_text())
 
 
+CAP = "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS"
+
+
+def test_the_settings_leave_the_subagent_cap_to_the_machine(rendered):
+    # #393: a checked-in env value beats the owner's shell variable (an exported 24 kept running 12), and the cap is
+    # a per-machine choice; the spec says where it goes instead.
+    assert CAP not in json.loads((rendered / ".claude/settings.json").read_text()).get("env", {})
+    spec = (rendered / "docs/specs/multi-agent.md").read_text()
+    bullet = next(b for b in spec.split("\n- ") if CAP in b)
+    assert "settings.local.json" in bullet and "shell" in bullet
+
+
+def test_copier_update_keeps_the_owners_subagent_cap(tmp_path):
+    """A project from the previous release (which pinned the cap at 12) set its own, 24, in the git-ignored
+    settings.local.json. Updating to HEAD leaves that file alone and drops the pin, so nothing overrides the owner."""
+    dest = tmp_path / "prev"
+    data = {"project_name": "demo-project", "description": "A demo."}
+    run_copy(str(ROOT), dest, data=data, defaults=True, vcs_ref=_previous_release(), unsafe=False, quiet=True)
+    settings, local = dest / ".claude/settings.json", dest / ".claude/settings.local.json"
+    assert CAP in json.loads(settings.read_text())["env"]  # the release this guards against pinned it
+    local.write_text(json.dumps({"env": {CAP: "24"}}, indent=2) + "\n")
+    local_text = local.read_text()
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=dest, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=dest, check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "previous release, own cap"], cwd=dest, check=True)
+    run_update(dest, data=data, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
+    assert local.read_text() == local_text
+    text = settings.read_text()
+    assert "<<<<<<<" not in text and not settings.with_suffix(".json.rej").exists()
+    assert CAP not in json.loads(text).get("env", {})
+
+
 def test_the_settings_allow_the_read_only_board_commands(rendered):
     allow = json.loads((rendered / ".claude/settings.json").read_text())["permissions"]["allow"]
     for rule in (
