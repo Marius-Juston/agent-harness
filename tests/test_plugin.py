@@ -29,6 +29,19 @@ def test_the_plugin_has_the_seven_agents_and_three_skills():
     assert sorted(p.parent.name for p in (PLUGIN / "skills").glob("*/SKILL.md")) == ["harness", "lead", "research"]
 
 
+@pytest.mark.parametrize("agent", ["builder", "tester", "researcher"])
+def test_the_agents_that_run_commands_are_told_never_to_wrap_a_blocked_one(agent):
+    """#392: a worker put a denied install in a committed script and ran it; the gate's install check backs this."""
+    _, body = frontmatter.read(PLUGIN / f"agents/{agent}.md")
+    assert re.search(r"Never wrap a denied or guarded command .* in a script, subprocess or alias: ask the lead", body)
+
+
+def test_the_reviewer_blocks_an_install_allowlist_entry_the_owner_did_not_approve():
+    _, body = frontmatter.read(PLUGIN / "agents/reviewer.md")
+    rules = next(x for x in body.splitlines() if x.startswith("4. **Rules**"))
+    assert "install-allowlist entry the owner did not approve (Blocking)" in rules
+
+
 @pytest.mark.parametrize("agent", ["architect", "suite-auditor"])
 def test_the_read_only_agents_get_read_tools_only(agent):
     """#113, #114: the consolidation review and the suite audit propose and never edit; Bash is held read-only by

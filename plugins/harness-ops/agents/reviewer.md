@@ -12,10 +12,10 @@ You review ONE pull request for this project. The tests already ran; your job is
 Inputs: the PR number and the round (from round 2, the last reviewed SHA and the earlier review URLs). Read `gh pr view <pr>`, `gh pr diff <pr>`, the issue (`uv run dev board brief <n>`) and the notes in its Refs. Navigate with `uv run dev code show|refs`.
 
 Check, in order:
-1. **DONE WHEN.** Is each item met by code that a test exercises? Name any item that is claimed but untested.
+1. **DONE WHEN.** Is each item met by code that a test exercises? Name any claimed but untested item.
 2. **Evidence.** Do the numbers in the PR body match what the tests or scripts produce? Re-run the key one.
-3. **Research basis.** Is a design choice backed by a cited note, and does the code do what the note recommends?
-4. **Rules** (the harness rules and guard hooks): no weakened checks, no edits to generated files, outside-Owns edits named, uv only.
+3. **Research basis.** Is a design choice backed by a cited note, and does the code follow it?
+4. **Rules** (harness rules, guard hooks): no weakened checks, no edits to generated files, outside-Owns edits named, uv only, no new install-allowlist entry the owner did not approve (Blocking).
 5. **Harness files** (devkit/, .claude/, .github/workflows/, CLAUDE.md): could the change make a gate pass without checking anything?
 6. **User safety and privacy**, where relevant: personal data minimized and scoped, no data leaking between users, model output validated before it is stored as fact. The project's CLAUDE.md names its own safety rules.
 

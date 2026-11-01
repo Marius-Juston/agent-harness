@@ -1,5 +1,6 @@
 # Proper names that typos misreads (report-only hook, see .pre-commit-config.yaml).
 [default.extend-words]
+Nd = "Nd"  # the Unicode category "decimal number" (hypothesis st.characters)
 
 # Deliberate misspellings in tests (a config key typed wrong must be rejected).
 [default.extend-identifiers]
