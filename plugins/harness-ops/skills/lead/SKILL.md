@@ -51,5 +51,5 @@ Per worktree in `uv run dev status`:
 - STALE claim (another machine, idle 6 h): `board claim --force` only after reading its last comment.
 
 ## 6. Keep the record
-Keep HANDOFF (`[tool.devkit] handoff`) current when agents change and after each integrate batch (before compaction), under 40 lines: `uv run dev handoff` (integrate runs it off main) rewrites in flight, just merged and next from the board; hand-write owner decisions pending (also in open questions).
+Keep HANDOFF (`[tool.devkit] handoff`) under 40 lines, current when agents change and per integrate batch (before `autoCompactWindow` compaction): `uv run dev handoff` (integrate runs it) rewrites in flight, just merged, next; hand-write pending owner decisions (also in open questions).
 Land it with other lead edits on a branch via `dev pr`/`dev integrate`.
