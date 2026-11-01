@@ -758,6 +758,8 @@ def test_a_cached_doi_from_before_retraction_checks_is_checked_again(net):
 # Spelled in pieces so this file's own diff does not add an install command.
 INST = "in" + "stall"
 ADD, SYNC = "a" + "dd", "sy" + "nc"
+SH = "s" + "h"  # a name, so the statement-level pass does not fold the curl fixture below into `| sh`
+PI = "pi" + "p"
 
 
 def _added(path: str, *lines: str) -> str:
@@ -775,7 +777,7 @@ def _added(path: str, *lines: str) -> str:
         f"conda {INST} -y numpy",
         f"npm {INST} left-pad",
         f"sudo apt-get {INST} -y libfoo",
-        "curl -LsSf https://example.com/x.sh |" + " sh",
+        "curl -LsSf https://example.com/x.sh | " + SH,
         f"pip3 --quiet {INST} x",
         f"pip3.12 {INST} x",
         f"pipx {INST} black",
@@ -877,6 +879,107 @@ def test_a_long_run_of_option_dashes_finishes_fast_and_is_not_an_install():
 def test_a_settings_file_still_flags_an_install_outside_a_permission_rule():
     line = f'    "command": "pip {INST} x && run"'
     assert len(checks.install_findings(_added(".claude/settings.json", line), [])) == 1
+
+
+# Probes of docs/research/_scratch/devkit-reuse-survey/scripts/a_installs.py (#416 §a, #423): a command split over
+# a statement or built from string pieces, each with the line it is reported at. The line-level regex alone
+# catches only the last two.
+STATEMENT_PROBES = {
+    "list split over lines": (
+        2,
+        "run.py",
+        f'import subprocess\nsubprocess.run([\n    "{PI}",\n    "{INST}",\n    "x",\n])\n',
+    ),
+    "str + str": (2, "run.py", f'import os\nos.system("{PI} " + "{INST} x")\n'),
+    "implicit concat": (2, "run.py", f'import os\nos.system("p" "{PI[1:]} {INST} x")\n'),
+    "name bound to list": (
+        3,
+        "run.py",
+        f'import subprocess\nBASE = ["uv", "{PI}"]\nsubprocess.run(BASE + ["{INST}", "x"])\n',
+    ),
+    "f-string with name": (
+        3,
+        "run.py",
+        f'import subprocess\nTOOL = "{PI}"\nsubprocess.run(f"{{TOOL}} {INST} x".split())\n',
+    ),
+    "sh continuation": (2, "run.sh", f"#!/bin/sh\n{PI} \\\n  {INST} x\n"),
+    "bash continuation": (2, "run.bash", f"#!/bin/bash\nsudo apt-get \\\n  -y \\\n  {INST} gcc\n"),
+    "join of list, one line": (2, "run.py", f'import os\nos.system(" ".join(["{PI}", "{INST}", "x"]))\n'),
+    "sh one line": (2, "run.sh", f"#!/bin/sh\nuv {PI} {INST} x\n"),
+    "hint string": (1, "run.py", f'print("to fix it, run: {PI} {INST} devkit")\n'),
+}
+STATEMENT_BENIGN = {
+    "pip list": ("run.py", f'import subprocess\nsubprocess.run(["{PI}", "list"])\n'),
+    "sh comment": ("run.sh", f"#!/bin/sh\n# run {PI} {INST} yourself\nls\n"),
+    "comment inside a call": ("run.py", f'import subprocess\nsubprocess.run([  # not {PI} {INST}\n    "ls",\n])\n'),
+    "name bound twice": ("run.py", f'import os\nT = "{PI}"\nT = "ls"\nos.system(T + " {INST}")\n'),
+    "comment continued": ("run.sh", f"#!/bin/sh\n# {PI} \\\n{INST} x\n"),
+    "syntax error": ("run.py", f'os.system("{PI} " +\n'),
+}
+
+
+def _whole(path: str, text: str) -> tuple[str, dict[str, str]]:
+    """A diff adding every line of `text` as `path`, and the new texts by path."""
+    return _added(path, *text.splitlines()), {path: text}
+
+
+def _at(path: str, number: int, line: str) -> str:
+    """A diff adding one line at line `number` of `path`."""
+    return _added(path, line).replace("@@ -0,0 +1,1 @@", f"@@ -0,0 +{number},1 @@")
+
+
+@pytest.mark.parametrize("name", list(STATEMENT_PROBES))
+def test_a_command_built_over_a_statement_is_flagged_once(name):
+    line, path, text = STATEMENT_PROBES[name]
+    diff, new = _whole(path, text)
+    found = checks.install_findings(diff, [], new.get)
+    assert len(found) == 1 and found[0].startswith(f"{path}:{line}: package install: "), found
+
+
+@pytest.mark.parametrize("name", list(STATEMENT_BENIGN))
+def test_a_statement_without_an_install_is_not_flagged(name):
+    path, text = STATEMENT_BENIGN[name]
+    diff, new = _whole(path, text)
+    assert checks.install_findings(diff, [], new.get) == []
+
+
+def test_only_a_statement_touching_an_added_line_is_flagged():
+    text = f'import os\nos.system("{PI} " + "{INST} x")\nprint("ok")\n'
+    assert checks.install_findings(_at("run.py", 3, 'print("ok")'), [], {"run.py": text}.get) == []
+    touched = _at("run.py", 2, f'os.system("{PI} " + "{INST} x")')
+    assert len(checks.install_findings(touched, [], {"run.py": text}.get)) == 1
+
+
+def test_an_added_inner_line_flags_the_whole_call_and_the_continued_shell_line():
+    py = f'import subprocess\nsubprocess.run([\n    "{PI}",\n    "{INST}",\n])\n'
+    found = checks.install_findings(_at("run.py", 4, f'    "{INST}",'), [], {"run.py": py}.get)
+    assert len(found) == 1 and found[0].startswith("run.py:2: package install: subprocess.run")
+    sh = f"#!/bin/sh\n{PI} \\\n  {INST} x\n"
+    found = checks.install_findings(_at("run.sh", 3, f"  {INST} x"), [], {"run.sh": sh}.get)
+    assert len(found) == 1 and found[0].startswith("run.sh:2: package install: ")
+
+
+SOURCE_TOKENS = [" ", "\n", "\\", "#", '"', "'", "(", ")", "[", "]", "+", ",", "=", "f", "x", "os.system", PI, INST]
+
+
+@given(st.lists(st.sampled_from(SOURCE_TOKENS), max_size=40), st.sampled_from(["py", "sh", "bash"]))
+def test_the_statement_pass_never_crashes_and_keeps_every_line_finding(tokens, suffix):
+    path, text = f"run.{suffix}", "".join(tokens)
+    diff = _added(path, *(text.splitlines() or [""]))
+    assert set(checks.install_findings(diff, [])) <= set(checks.install_findings(diff, [], {path: text}.get))
+
+
+def test_an_unreadable_file_falls_back_to_the_line_check():
+    diff = _added("run.py", f'os.system("{PI} " + "{INST} x")', f"{PI} {INST} y")
+    assert checks.install_findings(diff, [], {}.get) == [f"run.py:2: package install: {PI} {INST} y"]
+
+
+def test_the_gate_reads_the_new_text_and_flags_a_list_split_over_lines(git_repo):
+    path, base, run = git_repo
+    (path / "run.py").write_text(STATEMENT_PROBES["list split over lines"][2])
+    run("add", ".")
+    ran = checks.check_installs(base)
+    assert not ran.ok and ran.problems[0].startswith("run.py:2: package install:")
 
 
 # --- decision table (#226) --------------------------------------------------------------------------------------------
