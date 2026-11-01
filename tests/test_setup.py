@@ -15,7 +15,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import lit, setup, workflow
+from devkit import lit, quota, setup
 
 SRC = "https://github.com/Marius-Juston/agent-harness"
 PIN = {"harness-ops@agent-harness": "Marius-Juston/agent-harness@v0.1.1", "astral@astral-sh": "astral-sh/x"}
@@ -234,7 +234,7 @@ def stub_project(tmp_path, monkeypatch):
     monkeypatch.setattr(setup.shutil, "which", lambda tool: f"/usr/bin/{tool}")
     monkeypatch.setattr(setup, "_trusted", lambda: True)
     monkeypatch.setattr(setup.lit, "key_report", lambda env: ({}, ""))
-    monkeypatch.setattr(workflow, "quota_reading", lambda: (10, 95))
+    monkeypatch.setattr(quota, "quota_reading", lambda: (10, 95))
     monkeypatch.setattr(setup, "remote_tags", lambda url: [])
     plugins = {"harness-ops@agent-harness": f"{remote}@v0.1.1"}
     monkeypatch.setattr(setup.config, "get", lambda: setup.config.Config(plugins=plugins))
