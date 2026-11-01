@@ -225,6 +225,49 @@ def _installed() -> list[dict]:
     return data if isinstance(data, list) else []
 
 
+# Binaries known MCP servers need on PATH at start, keyed by a substring of the server's name, command or args (its
+# package). Checked with shutil.which, which sees real executables only: the shell function Claude Code defines for
+# rg passes `command -v rg` in a session while the server, which starts without that shell, finds none (#390).
+MCP_PREREQS = {
+    "lean-lsp": {
+        "rg": "install ripgrep (apt install ripgrep / brew install ripgrep); a shell function or alias rg "
+        "does not count. Then reconnect the server (/mcp): it checks only at start"
+    },
+}
+
+
+def mcp_prereqs(servers: Mapping[str, object], which: Callable[[str], str | None]) -> list[tuple[bool, str, str]]:
+    """Doctor lines (ok, what, fix) for the binaries the configured MCP servers in MCP_PREREQS need."""
+    out = []
+    for name, spec in servers.items():
+        if not isinstance(spec, dict):
+            continue
+        words = [name, str(spec.get("command", "")), *map(str, spec.get("args") or [])]
+        for key, tools in MCP_PREREQS.items():
+            if any(key in w for w in words):
+                out += [
+                    (which(tool) is not None, f"{tool} on PATH as a real binary (MCP server {name} needs it)", fix)
+                    for tool, fix in tools.items()
+                ]
+    return out
+
+
+def _mcp_servers() -> dict:
+    """The project's `.mcp.json` servers, plus its local-scope ones from ~/.claude.json (`claude mcp add`)."""
+    servers: dict = {}
+    for path, pick in (
+        (root() / ".mcp.json", lambda d: d),
+        (Path.home() / ".claude.json", lambda d: (d.get("projects") or {}).get(str(root())) or {}),
+    ):
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(data, dict) and isinstance(found := pick(data).get("mcpServers"), dict):
+            servers |= found
+    return servers
+
+
 KEYS_DOC = "docs/SETUP.md, section 'Research API keys'"
 
 
@@ -270,6 +313,8 @@ def doctor() -> int:
             f"MCP server {name} connected",
             "approve project MCP servers in Claude Code (/mcp) or check the command",
         )
+    for line in mcp_prereqs(_mcp_servers(), shutil.which):
+        report(*line)
     report((root() / ".venv").exists(), "uv environment", "uv sync")
     if leaks := host_leaks(os.environ):
         print(f"WARN {leaks}")
