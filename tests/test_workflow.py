@@ -6,6 +6,7 @@ import json
 import random
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -14,7 +15,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, workflow
+from devkit import board, prtext, workflow
 from devkit import branches as local_branches
 from tests.test_board import mk
 from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate are fixtures
@@ -116,8 +117,8 @@ def test_empty_stdin_is_refused_before_anything_is_pushed(opened, monkeypatch):
 @pytest.mark.parametrize(
     ("body", "log"),
     [
-        (f"Closes #33\n\nsee https://{workflow.SESSION_URL}_1\n", ""),
-        ("Closes #33\n\nfine\n", f"fix x\n\nCo-Authored-By: C <c@x>\nClaude-Session: https://{workflow.SESSION_URL}\n"),
+        (f"Closes #33\n\nsee https://{prtext.SESSION_URL}_1\n", ""),
+        ("Closes #33\n\nfine\n", f"fix x\n\nCo-Authored-By: C <c@x>\nClaude-Session: https://{prtext.SESSION_URL}\n"),
     ],
 )
 def test_dev_pr_refuses_a_session_leak_in_a_public_repo(opened, monkeypatch, body, log):
@@ -225,33 +226,33 @@ def branch(tmp_path, monkeypatch):
 
 def test_a_new_dependency_needs_a_reuse_line(branch):
     branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', '"rich>=13", "HTTPX[http2]>=0.27"'))
-    assert workflow.reuse_needs("main") == ["dependency httpx"]
-    assert "has no `Reuse:` line" in workflow.reuse_problem("Closes #9\n\nadded httpx")
-    assert workflow.reuse_problem("Closes #9\n\nReuse: httpx PASS (chosen), requests HOLD dormant; fit: unsure") is None
+    assert prtext.reuse_needs("main") == ["dependency httpx"]
+    assert "has no `Reuse:` line" in prtext.reuse_problem("Closes #9\n\nadded httpx")
+    assert prtext.reuse_problem("Closes #9\n\nReuse: httpx PASS (chosen), requests HOLD dormant; fit: unsure") is None
 
 
 def test_a_new_dependency_group_entry_counts_too(branch):
     branch("pyproject.toml", PYPROJECT.replace('["pytest"]', '["pytest", "hypothesis"]'))
-    assert workflow.reuse_needs("main") == ["dependency hypothesis"]
+    assert prtext.reuse_needs("main") == ["dependency hypothesis"]
 
 
 def test_a_uv_dev_dependency_counts_and_the_project_itself_does_not(branch):
     """Review on #186: [tool.uv] dev-dependencies is uv's legacy group, and `p[extra]` is a self-reference."""
     extra = '[project.optional-dependencies]\nall = ["P[dev]"]\n[tool.uv]\ndev-dependencies = ["ruff"]\n'
     branch("pyproject.toml", PYPROJECT.replace("[dependency-groups]", extra + "[dependency-groups]"))
-    assert workflow.reuse_needs("main") == ["dependency ruff"]
+    assert prtext.reuse_needs("main") == ["dependency ruff"]
 
 
 def test_an_unparsable_pyproject_adds_no_dependency(branch):
     """A broken pyproject.toml fails the gate on its own; the reuse check does not guess at its names."""
     branch("pyproject.toml", PYPROJECT + "[broken\n")
-    assert workflow.reuse_needs("main") == []
+    assert prtext.reuse_needs("main") == []
 
 
 def test_a_new_non_test_module_needs_a_reuse_line(branch):
     branch("pkg/new.py", "Y = 2\n")
-    assert workflow.reuse_needs("main") == ["module pkg/new.py"]
-    assert "module pkg/new.py" in workflow.reuse_problem("Closes #9")
+    assert prtext.reuse_needs("main") == ["module pkg/new.py"]
+    assert "module pkg/new.py" in prtext.reuse_problem("Closes #9")
 
 
 def test_neither_needs_no_line(branch):
@@ -266,8 +267,8 @@ def test_neither_needs_no_line(branch):
     branch("docs/new.md", "text\n")
     _git(branch.repo, "mv", "pkg/old.py", "pkg/moved.py")
     _git(branch.repo, "commit", "-qm", "mv")
-    assert workflow.reuse_needs("main") == []
-    assert workflow.reuse_problem("Closes #9") is None
+    assert prtext.reuse_needs("main") == []
+    assert prtext.reuse_problem("Closes #9") is None
 
 
 @pytest.mark.parametrize(
@@ -286,7 +287,7 @@ def test_neither_needs_no_line(branch):
 )
 def test_each_documented_form_is_accepted(branch, line):
     branch("pkg/new.py", "Y = 2\n")
-    assert workflow.reuse_problem(f"Closes #9\n\nwhat changed\n{line}\n") is None
+    assert prtext.reuse_problem(f"Closes #9\n\nwhat changed\n{line}\n") is None
 
 
 @pytest.mark.parametrize(
@@ -303,7 +304,7 @@ def test_each_documented_form_is_accepted(branch, line):
 )
 def test_a_line_in_none_of_the_forms_is_refused(branch, line):
     branch("pkg/new.py", "Y = 2\n")
-    assert workflow.reuse_problem(f"Closes #9\n\n{line}\n") is not None
+    assert prtext.reuse_problem(f"Closes #9\n\n{line}\n") is not None
 
 
 def test_the_forms_are_documented_in_one_place():
@@ -313,7 +314,7 @@ def test_the_forms_are_documented_in_one_place():
         "Reuse: none: <reason>",
         "Reuse: none: harness adoption",
     ):
-        assert form in workflow.REUSE_FORMS
+        assert form in prtext.REUSE_FORMS
 
 
 # The fit clause (#196 F0, docs/research/software-discovery.md §10 item 9): each new dependency needs
@@ -336,7 +337,7 @@ HTTPX = '"rich>=13", "HTTPX[http2]>=0.27"'
 def test_a_new_dependency_with_a_fit_clause_is_accepted(branch, line):
     branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', HTTPX))
     branch("docs/research/http.md", "note\n")
-    assert workflow.reuse_problem(f"Closes #9\n\n{line}\n") is None
+    assert prtext.reuse_problem(f"Closes #9\n\n{line}\n") is None
 
 
 @pytest.mark.parametrize(
@@ -354,38 +355,38 @@ def test_a_new_dependency_with_a_fit_clause_is_accepted(branch, line):
 )
 def test_a_new_dependency_without_a_fit_clause_is_refused(branch, line):
     branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', HTTPX))
-    problem = workflow.reuse_problem(f"Closes #9\n\n{line}\n")
+    problem = prtext.reuse_problem(f"Closes #9\n\n{line}\n")
     assert problem is not None and "fit:" in problem and "httpx" in problem
 
 
 def test_a_fit_clause_outside_the_reuse_line_does_not_count(branch):
     branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', HTTPX))
-    assert workflow.reuse_problem("Closes #9\n\nReuse: httpx PASS\nfit: unsure\n") is not None
+    assert prtext.reuse_problem("Closes #9\n\nReuse: httpx PASS\nfit: unsure\n") is not None
 
 
 def test_each_new_dependency_needs_its_own_fit_or_a_bare_unsure(branch):
     branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', HTTPX + ', "tenacity>=9"'))
     named = "Reuse: httpx PASS, tenacity PASS; fit: httpx does HTTP/2 via httpx.Client"
-    assert "tenacity" in workflow.reuse_problem(f"Closes #9\n\n{named}\n")
+    assert "tenacity" in prtext.reuse_problem(f"Closes #9\n\n{named}\n")
     both = named + "; fit: tenacity does retry with backoff via tenacity.retry"
-    assert workflow.reuse_problem(f"Closes #9\n\n{both}\n") is None
-    assert workflow.reuse_problem(f"Closes #9\n\n{named}; fit: unsure\n") is None
+    assert prtext.reuse_problem(f"Closes #9\n\n{both}\n") is None
+    assert prtext.reuse_problem(f"Closes #9\n\n{named}; fit: unsure\n") is None
     split = "Reuse: httpx PASS, tenacity PASS; fit: httpx does HTTP/2 via httpx.Client\nReuse: fit: tenacity unsure"
-    assert workflow.reuse_problem(f"Closes #9\n\n{split}\n") is None
+    assert prtext.reuse_problem(f"Closes #9\n\n{split}\n") is None
 
 
 def test_harness_adoption_exempts_new_dependencies_and_other_none_reasons_do_not(branch):
     """Lead on #221: template-added dependencies are not the agent's pick, so `fit: unsure` there is not asked for."""
     branch("pyproject.toml", PYPROJECT.replace('"rich>=13"', HTTPX))
-    assert workflow.reuse_problem("Closes #9\n\nReuse: none: harness adoption\n") is None
-    assert workflow.reuse_problem("Closes #9\n\n- **Reuse:** None — Harness adoption (v0.1.8)\n") is None
+    assert prtext.reuse_problem("Closes #9\n\nReuse: none: harness adoption\n") is None
+    assert prtext.reuse_problem("Closes #9\n\n- **Reuse:** None — Harness adoption (v0.1.8)\n") is None
     for line in ("Reuse: none: glue code", "Reuse: none: not a harness adoption", "Reuse: httpx PASS"):
-        assert "fit clause" in workflow.reuse_problem(f"Closes #9\n\n{line}\n")
+        assert "fit clause" in prtext.reuse_problem(f"Closes #9\n\n{line}\n")
 
 
 def test_a_new_module_alone_needs_no_fit_clause(branch):
     branch("pkg/new.py", "Y = 2\n")
-    assert workflow.reuse_problem("Closes #9\n\nReuse: none: glue code\n") is None
+    assert prtext.reuse_problem("Closes #9\n\nReuse: none: glue code\n") is None
 
 
 NAMES = st.from_regex(r"[A-Za-z0-9][A-Za-z0-9._-]{0,20}", fullmatch=True).filter(lambda s: s.lower() != "unsure")
@@ -395,17 +396,31 @@ TEXT = st.from_regex(r"[A-Za-z0-9/()=.` ]{0,30}", fullmatch=True)
 @given(names=st.lists(NAMES, min_size=1, max_size=4), need=TEXT, api=TEXT, covered=st.data())
 def test_fit_missing_is_exactly_the_dependencies_without_a_named_clause(names, need, api, covered):
     """Property: a dependency is covered iff a `does ... via ...` clause names it (any case or separator spelling)."""
-    deps = sorted({workflow._normalized(n) for n in names})
+    deps = sorted({prtext._normalized(n) for n in names})
     chosen = covered.draw(st.lists(st.sampled_from(names), unique=True))
     clauses = "; ".join(f"fit: {n.upper()} does x{need} via y{api}" for n in chosen)
     body = f"Reuse: {names[0]} PASS; {clauses}\n"
-    assert workflow.fit_missing(body, deps) == [d for d in deps if d not in {workflow._normalized(n) for n in chosen}]
-    assert workflow.fit_missing(body + "Reuse: fit: unsure\n", deps) == []
+    assert prtext.fit_missing(body, deps) == [d for d in deps if d not in {prtext._normalized(n) for n in chosen}]
+    assert prtext.fit_missing(body + "Reuse: fit: unsure\n", deps) == []
 
 
 def test_the_fit_forms_are_documented():
     for form in ("fit: <package> does <need> via <API>", "fit: unsure"):
-        assert form in workflow.REUSE_FORMS
+        assert form in prtext.REUSE_FORMS
+
+
+def test_workflow_keeps_exporting_the_names_plugin_scripts_and_train_import():
+    """#444: completion_gate.py runs `from devkit.workflow import REUSE_FORMS, reuse_problem` and `_gate_passed` in the
+    project's environment, whose devkit may differ from its plugin; devkit/train.py reads the title and session-leak
+    rules through devkit.workflow. The rules live in devkit.prtext; workflow re-exports the same objects."""
+    gate = subprocess.run(
+        [sys.executable, "-c", "from devkit.workflow import REUSE_FORMS, reuse_problem, _gate_passed"],
+        capture_output=True,
+        text=True,
+    )
+    assert gate.returncode == 0, gate.stderr
+    for name in ("REUSE_FORMS", "reuse_problem", "SESSION_RULE", "session_leaks", "title_problem", "expected_title"):
+        assert getattr(workflow, name) is getattr(prtext, name), name
 
 
 # --- integrate: a merge that deletes another open issue's Owns (#230) ---------------------------------------------
@@ -1719,9 +1734,9 @@ def test_the_cycle_counts_markers_older_than_the_last_50_comments(fake_integrate
 
 def test_a_send_back_never_posts_a_token_or_a_session_link(fake_integrate, monkeypatch, capsys):  # noqa: F811
     posted = _github_keeps_comments(fake_integrate, monkeypatch)
-    url = "https://" + workflow.SESSION_URL + "_01abc"
+    url = "https://" + prtext.SESSION_URL + "_01abc"
     leak = f"test_a FAILED token=ghp_ABCDEF github_pat_11AB sk-0123456789abcdef AKIA0123456789ABCDEF {url}"
-    session = workflow.SESSION_URL
+    session = prtext.SESSION_URL
     sessions = [
         f"see {session}_02bare",  # no scheme
         f"see https://www.{session}_03www",
@@ -1967,7 +1982,7 @@ def test_brief_shows_fix_before_merge_and_feedback_does_not_repeat_it(monkeypatc
     ],
 )
 def test_conventional_title_takes_type_from_the_label_and_scope_from_the_component(title, labels, expected):
-    assert workflow.conventional_title(mk(7, labels, title=title)) == f"{expected} (#7)"
+    assert prtext.conventional_title(mk(7, labels, title=title)) == f"{expected} (#7)"
 
 
 @given(st.text(min_size=1, max_size=80), st.sampled_from([*board.TYPES, "unknown"]))
@@ -1975,10 +1990,10 @@ def test_every_generated_title_and_its_squash_subject_pass_the_check(title, kind
     """Whatever the issue title, `dev pr`'s title passes integrate's check, and so does the squash subject on main
     that release-please reads (integrate appends the PR number)."""
     issue = mk(7, [f"type:{kind}"], title=title.replace("\n", " ") + " x")
-    made = workflow.conventional_title(issue)
-    assert workflow.title_problem(made) is None, made
+    made = prtext.conventional_title(issue)
+    assert prtext.title_problem(made) is None, made
     subject, _ = workflow.squash_message(12, {"title": made, "body": "b"})
-    assert workflow.title_problem(subject) is None and subject.endswith("(#7) (#12)")
+    assert prtext.title_problem(subject) is None and subject.endswith("(#7) (#12)")
 
 
 @pytest.mark.parametrize(
@@ -2008,10 +2023,10 @@ def test_every_generated_title_and_its_squash_subject_pass_the_check(title, kind
     ],
 )
 def test_title_problem_accepts_only_conventional_titles(title, ok):
-    why = workflow.title_problem(title)
+    why = prtext.title_problem(title)
     assert (why is None) is ok
     if not ok:
-        assert workflow.TITLE_FORM in why
+        assert prtext.TITLE_FORM in why
 
 
 def test_dev_pr_opens_the_pr_with_the_conventional_title(monkeypatch):
@@ -2255,17 +2270,17 @@ def test_dependabot_opens_prs_with_conventional_titles(path):
         "github-actions": {"prefix": "ci", "include": "scope"},
     }
     for p in prefix.values():
-        assert workflow.title_problem(f"{p['prefix']}(deps): bump filelock from 4.1.1 to 4.2.1") is None
+        assert prtext.title_problem(f"{p['prefix']}(deps): bump filelock from 4.1.1 to 4.2.1") is None
 
 
 def test_expected_title_falls_back_to_the_form_without_a_readable_issue(monkeypatch):
-    assert workflow.expected_title({"body": "no link", "headRefName": "main"}) == repr(workflow.TITLE_FORM)
+    assert prtext.expected_title({"body": "no link", "headRefName": "main"}) == repr(prtext.TITLE_FORM)
 
     def unreadable(n):
         raise board.BoardError("offline")
 
     monkeypatch.setattr(board, "get", unreadable)
-    assert workflow.expected_title({"body": "Closes #5", "headRefName": "5-x"}) == repr(workflow.TITLE_FORM)
+    assert prtext.expected_title({"body": "Closes #5", "headRefName": "5-x"}) == repr(prtext.TITLE_FORM)
 
 
 @pytest.mark.parametrize(("title", "code"), [("fix(x): y (#1)", 0), ("Fix the thing", 1)])
