@@ -22,7 +22,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, MutableMapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import IO
 from xml.etree import ElementTree
@@ -329,6 +329,15 @@ def lock_role(env: Mapping[str, str]) -> dict:
     return {"priority": bool(env.get(PRIORITY_ENV)), "held": Path(env[HELD_ENV]) if env.get(HELD_ENV) else None}
 
 
+def take_lock_role(env: MutableMapping[str, str]) -> dict:
+    """lock_role, removing both variables from `env`: the gate's stages (pytest, a nested `dev check` in a test) must
+    neither inherit integrate's priority nor touch its held file."""
+    role = lock_role(env)
+    env.pop(PRIORITY_ENV, None)
+    env.pop(HELD_ENV, None)
+    return role
+
+
 @contextlib.contextmanager
 def gate_lock(
     path: Path, on_wait: Callable[[], None] = lambda: None, priority: bool = False, held: Path | None = None
@@ -336,7 +345,8 @@ def gate_lock(
     """One gate per machine. Opened with "a+" (never truncating) so a waiting gate does not erase the holder's pid.
     flock grants the lock in no fixed order, so a priority gate (integrate's) holds a shared lock on `<path>.priority`
     while it waits, and a worker gate that gets the lock meanwhile hands it back and waits until no priority gate
-    does (#385). Once the lock is held, `held` is created: integrate's deadline counts from there, not the wait."""
+    does (#385). By design, worker gates starve while integrate gates arrive back to back: a merge outranks a check.
+    Once the lock is held, `held` is created: integrate's deadline counts from there, not the wait."""
     with open(path, "a+") as lock, open(path.with_name(path.name + ".priority"), "a+") as queue:
         if priority:
             fcntl.flock(queue, fcntl.LOCK_SH)
@@ -453,6 +463,7 @@ def check(
             _say_dropped(dropped)
             cmd = [sys.executable, "-c", "from devkit.cli import main; main()", *sys.argv[1:]]
             return subprocess.run(cmd, cwd=root(), env=env, check=False).returncode
+    role = take_lock_role(os.environ)  # the re-run above kept them, the stages below must not see them
     base = checks.merge_base()
     key = tree_key(base)
     record = state_dir("gate") / f"{key}{'-full' if full else ''}.json" if key else None
@@ -463,7 +474,7 @@ def check(
     def waiting() -> None:
         print("gate: another gate runs on this machine; waiting for it ...", flush=True)
 
-    with gate_lock(state_dir() / "gate.lock", on_wait=waiting, **lock_role(os.environ)):
+    with gate_lock(state_dir() / "gate.lock", on_wait=waiting, **role):
         start = time.time()
         failed = 0
         for stage in stages(full, commands, base, help_rows):

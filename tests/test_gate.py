@@ -429,6 +429,36 @@ def test_integrates_gate_takes_the_lock_ahead_of_a_waiting_worker_gate(tmp_path,
     assert order == ["integrate", "worker"]
 
 
+def test_a_worker_gate_waits_while_an_integrate_gate_queues_even_with_the_lock_free(tmp_path):
+    """#385: a worker gate that gets the free lock while a priority gate waits hands it back, says it waits, and
+    takes it only once no priority gate waits."""
+    path = tmp_path / "gate.lock"
+    queue = open(tmp_path / "gate.lock.priority", "a+")  # noqa: SIM115 (an integrate gate queued: released below)
+    fcntl.flock(queue, fcntl.LOCK_SH)
+    waiting, acquired = threading.Event(), threading.Event()
+
+    def worker():
+        with gate.gate_lock(path, on_wait=waiting.set):
+            acquired.set()
+
+    t = threading.Thread(target=worker)
+    t.start()
+    assert waiting.wait(10)
+    assert not acquired.wait(0.3)
+    queue.close()
+    t.join(10)
+    assert acquired.is_set()
+
+
+def test_the_gate_takes_integrates_role_out_of_the_environment_its_stages_see(tmp_path):
+    """#385 review: pytest and a nested `dev check` under the gate must not inherit priority or the held file."""
+    env = {gate.PRIORITY_ENV: "1", gate.HELD_ENV: str(tmp_path / "held"), "OTHER": "x"}
+    assert gate.take_lock_role(env) == {"priority": True, "held": tmp_path / "held"}
+    assert env == {"OTHER": "x"}
+    rerun, _ = gate.rerun_env({gate.PRIORITY_ENV: "1", gate.HELD_ENV: "h"}, "/p")  # the re-run gate keeps them
+    assert rerun[gate.PRIORITY_ENV] == "1" and rerun[gate.HELD_ENV] == "h"
+
+
 def test_the_gate_marks_when_it_holds_the_lock_and_takes_its_role_from_the_environment(tmp_path):
     held = tmp_path / "held"
     role = gate.lock_role({gate.PRIORITY_ENV: "1", gate.HELD_ENV: str(held)})
