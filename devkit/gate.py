@@ -2,8 +2,11 @@
 
 - One gate per machine at a time (a lock in the shared git dir), so parallel agents queue instead of thrashing memory;
   integrate's gate goes ahead of the queued worker gates.
-- A pass is cached by tree_key: re-gating an unchanged clean tree is free; a dirty tree is never cached.
-- Each stage prints one line; a failing stage prints at most FAIL_LINES of its output and saves the rest.
+- A pass is cached by tree_key: re-gating an unchanged clean tree is free; a dirty tree is never cached. The pass
+  also records the test selection, so a conftest that narrows collection by branch cannot lend its pass to another.
+- The first line names the worktree, interpreter and devkit the gate runs; a devkit from elsewhere is a warning.
+- Each stage prints one line; a failing stage prints at most FAIL_LINES of its output and saves the rest in a log of
+  its own: worktrees share the state dir, so nothing a run writes there is named by stage and time alone.
 - A pytest run that passed nothing fails (nothing collected, everything skipped or deselected): it is not a pass.
 - The [tests] floors of ratchets.toml hold the run to a passed-test count and a line coverage; diff coverage is
   printed, never gated (docs/research/test-floors-and-coverage.md).
@@ -15,6 +18,7 @@ import argparse
 import contextlib
 import fcntl
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -28,6 +32,7 @@ from pathlib import Path, PurePosixPath
 from typing import IO
 from xml.etree import ElementTree
 
+import devkit
 from devkit import board, checks, config, docs, rules, weaken
 from devkit.paths import git, root, state_dir
 from devkit.ran import Ran
@@ -45,9 +50,14 @@ def free_gb() -> float:
     return 8.0
 
 
-def workers() -> int:
-    """pytest-xdist workers: half the cores, at most one per 2 GB free, at least 1."""
-    return max(1, min((os.cpu_count() or 2) // 2, int(free_gb() // 2), 16))
+def workers(slots: int | None = None, cores: int | None = None, gb: float | None = None) -> int:
+    """pytest-xdist workers: half the cores shared among the gate slots (#461), so `slots` gates running at once take
+    the cores one did, and at most one per 2 GB free (already net of the gates running now, so not divided); at least
+    1, at most 16."""
+    slots = gate_slots() if slots is None else slots
+    cores = (os.cpu_count() or 2) if cores is None else cores
+    gb = free_gb() if gb is None else gb
+    return max(1, min(cores // 2 // slots, int(gb // 2), 16))
 
 
 # pytest's final line, e.g. "== 3 passed, 1 skipped in 0.52s ==" or "3 passed in 65.1s (0:01:05)" under -q.
@@ -89,12 +99,38 @@ def record_history(junit: Path, history: Path, at: int, keep: int = HISTORY_RUNS
         except ValueError:
             seconds = 0.0
         tests[f"{case.get('classname', '')}::{case.get('name', '')}".lstrip(":")] = [outcome, seconds]
-    lines = history.read_text().splitlines() if history.exists() else []
-    lines = [*lines, json.dumps({"at": at, "tests": tests}, separators=(",", ":"))][-keep:]
     history.parent.mkdir(parents=True, exist_ok=True)
-    tmp = history.with_suffix(".tmp")
-    tmp.write_text("\n".join(lines) + "\n")
-    tmp.replace(history)
+    # Every worktree's gate shares this file: read, trim and replace it under a lock, or two gates finishing at once
+    # lose a run or mix theirs (#463).
+    with open(history.with_name(history.name + ".lock"), "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        lines = history.read_text().splitlines() if history.exists() else []
+        lines = [*lines, json.dumps({"at": at, "tests": tests}, separators=(",", ":"))][-keep:]
+        write_atomic(history, "\n".join(lines) + "\n")
+
+
+def write_atomic(path: Path, text: str) -> None:
+    """Replace `path` with `text` through a temporary file of a unique name beside it: a reader sees the old or the
+    new content, never a part, and two writers never share the temporary file."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def save_log(name: str, text: str) -> Path:
+    """A failing stage's full output, in a file no other run shares (O_EXCL, pid and a random suffix): two gates
+    failing in the same second each point at their own log (#463)."""
+    prefix = f"{name}-{int(time.time())}-{os.getpid()}-"
+    fd, path = tempfile.mkstemp(dir=state_dir("logs"), prefix=prefix, suffix=".log")
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
+    return Path(path)
 
 
 def _run(
@@ -124,8 +160,7 @@ def _run(
     elif out.returncode == 0 and "pytest" in cmd and not ran.checked:
         ran.problems.append(f"pytest exited 0 with 0 passed (all skipped or deselected?): {text.splitlines()[-1:]}")
     elif out.returncode != 0:
-        log = state_dir("logs") / f"{name.split()[0]}-{int(time.time())}.log"
-        log.write_text(text)
+        log = save_log(name.split()[0], text)
         lines = text.splitlines()
         ran.problems += lines[-FAIL_LINES:] + ([f"(full output: {log})"] if len(lines) > FAIL_LINES else [])
     return ran
@@ -321,6 +356,63 @@ def tree_key(base: str | None, repo: Path | None = None) -> str | None:
     return hashlib.sha256(json.dumps(parts).encode()).hexdigest()[:40]
 
 
+def selection(full: bool, cwd: Path | None = None) -> str | None:
+    """A fingerprint of the test ids the gate's test stage selects here, by `pytest --collect-only` (about a second on
+    this repository's ~2400 tests). The tree key misses a conftest that narrows collection by branch or environment:
+    the same tree selects other tests on a feature branch than on main, so a pass records this and a cached pass is
+    reused only while it matches (#462). None when collection fails. `--verbosity=-1` comes last, so it overrides
+    any -q or -v in the project's addopts and pytest lists one node id per line."""
+    cmd = [*pytest_cmd(["tests"], slow=full, n=1), "--collect-only", "--verbosity=-1"]
+    out = subprocess.run(cmd, cwd=cwd or root(), capture_output=True, text=True, check=False)
+    if out.returncode != 0:
+        return None
+    ids = sorted(itertools.takewhile(bool, (line.strip() for line in out.stdout.splitlines())))
+    return hashlib.sha256("\n".join(ids).encode()).hexdigest()[:40]
+
+
+def cached_pass(record: Path, full: bool, cwd: Path | None = None) -> dict | None:
+    """The pass `record` holds, when it may stand for a run here: it exists and selected the tests this checkout
+    selects now. A record without a selection (written before #462) is never reused."""
+    try:
+        saved = json.loads(record.read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(saved, dict) or not saved.get("tests"):
+        return None
+    now = selection(full, cwd)
+    if now != saved["tests"]:
+        print(f"gate: the cached pass for this tree selected other tests ({saved.get('root')}); re-running", flush=True)
+        return None
+    return saved
+
+
+def save_pass(record: Path, took: float, tests: str | None) -> None:
+    """Record a pass for cached_pass; without a test selection (collection failed afterwards) nothing is recorded."""
+    if tests:
+        data = {"when": time.strftime("%Y-%m-%d %H:%M"), "seconds": round(took), "root": str(root()), "tests": tests}
+        write_atomic(record, json.dumps(data))
+
+
+def identity(worktree: Path | None = None, code: Path | None = None, python: Path | None = None) -> list[str]:
+    """The gate's first line: the worktree it checks (root()) and the interpreter and devkit it runs, and a warning
+    for each of the two that lies in ANOTHER worktree of this repository: that gate runs a sibling's code or venv and
+    reports its results as this one's (#463). Anywhere else (a venv outside the project, an editable harness checkout)
+    is a setup, not a mix-up, and is only named."""
+    top = (worktree or root()).resolve()
+    code = (code or Path(devkit.__file__).parent).resolve()
+    python = python or Path(sys.executable)
+    python = python.parent.resolve() / python.name  # the link itself is not resolved: it points out of the venv
+    lines = [f"gate: {top} (python {python}, devkit {code})"]
+    listed = git("worktree", "list", "--porcelain", cwd=top, check=False).splitlines()
+    trees = [Path(line.removeprefix("worktree ")).resolve() for line in listed if line.startswith("worktree ")]
+    for what, path in (("devkit", code), ("python", python)):
+        # the deepest worktree holding the path: a worktree may sit inside the main checkout
+        owner = max((t for t in trees if path.is_relative_to(t)), key=lambda t: len(t.parts), default=None)
+        if owner and owner != top:
+            lines.append(f"gate: WARNING: {what} comes from {owner}, another worktree of this repository, not {top}")
+    return lines
+
+
 PRIORITY_ENV = "DEVKIT_GATE_PRIORITY"  # set by integrate: its gate takes the lock ahead of worker gates (#385)
 HELD_ENV = "DEVKIT_GATE_HELD"  # a file the gate creates once it holds the lock: integrate's deadline starts there
 
@@ -339,37 +431,94 @@ def take_lock_role(env: MutableMapping[str, str]) -> dict:
     return role
 
 
+SLOT_POLL_S = 0.2  # with several slots, how often a waiting gate tries them all again
+
+
+def gate_slots() -> int:
+    """How many gates may run at once on this machine: `[tool.devkit] gate_slots` (#461)."""
+    return config.get().gate_slots
+
+
+def slot_paths(path: Path, slots: int) -> list[Path]:
+    """The slots' lock files: `path` itself, then `<path>.1` ... `<path>.<slots-1>`."""
+    return [path, *(path.with_name(f"{path.name}.{i}") for i in range(1, slots))]
+
+
+def _on_disk(path: Path) -> list[Path]:
+    """The slot lock files of `path` that exist, whatever gate_slots made them, in slot order."""
+    found = [p for p in path.parent.glob(f"{path.name}.*") if p.name.removeprefix(path.name + ".").isdigit()]
+    return ([path] if path.exists() else []) + sorted(found, key=lambda p: int(p.name.rsplit(".", 1)[1]))
+
+
+def effective_slots(path: Path, slots: int) -> int:
+    """`slots`, or more when slot files on disk say a gate elsewhere runs with more (a worktree whose pyproject still
+    has the old gate_slots, or a caller that names none): a gate must not wait while a slot it does not know is free.
+    Lowering gate_slots therefore takes effect once the extra `<path>.<n>` files are deleted with no gate running."""
+    numbered = [int(p.name.rsplit(".", 1)[1]) for p in _on_disk(path) if p != path]
+    return max(slots, max(numbered, default=0) + 1)
+
+
+def holders(path: Path) -> list[str]:
+    """The pid and root of each gate holding a slot of `path` now, in slot order (any slot count, so a changed
+    gate_slots still shows a gate started under the old one)."""
+    found = []
+    for slot in _on_disk(path):
+        with open(slot, "a+") as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                f.seek(0)
+                found.append(f.read().strip())
+    return found
+
+
 @contextlib.contextmanager
 def gate_lock(
-    path: Path, on_wait: Callable[[], None] = lambda: None, priority: bool = False, held: Path | None = None
+    path: Path,
+    on_wait: Callable[[], None] = lambda: None,
+    priority: bool = False,
+    held: Path | None = None,
+    slots: int = 1,
 ) -> Iterator[None]:
-    """One gate per machine. Opened with "a+" (never truncating) so a waiting gate does not erase the holder's pid.
-    flock grants the lock in no fixed order, so a priority gate (integrate's) holds a shared lock on `<path>.priority`
-    while it waits, and a worker gate that gets the lock meanwhile hands it back and waits until no priority gate
-    does (#385). By design, worker gates starve while integrate gates arrive back to back: a merge outranks a check.
-    Once the lock is held, `held` is created: integrate's deadline counts from there, not the wait."""
-    with open(path, "a+") as lock, open(path.with_name(path.name + ".priority"), "a+") as queue:
-        if priority:
-            fcntl.flock(queue, fcntl.LOCK_SH)
+    """At most `slots` gates per machine (effective_slots: more when slot files on disk show more), one per lock file
+    of slot_paths (#461). Opened with "a+" (never truncating) so a waiting gate does not erase a holder's pid.
+    A gate tries every slot without blocking. Worker gates that find none free queue on `<path>.wait` (plain flock, so
+    in no fixed order), and only its holder waits for a slot (blocking on the one lock file, else trying all every
+    SLOT_POLL_S): one worker gate competes for slots at a time. flock grants a lock in no fixed order, so a priority gate
+    (integrate's) skips that queue and holds a shared lock on `<path>.priority` while it waits, and a worker gate that
+    gets a slot meanwhile hands it back and waits until no priority gate does (#385): integrate takes the next free
+    slot. By design, worker gates starve while integrate gates arrive back to back: a merge outranks a check.
+    Once a slot is held, `held` is created: integrate's deadline counts from there, not the wait."""
+    with contextlib.ExitStack() as stack:
+        locks = [stack.enter_context(open(p, "a+")) for p in slot_paths(path, effective_slots(path, slots))]
+        queue = stack.enter_context(open(path.with_name(path.name + ".priority"), "a+"))
+        turn = None if priority else stack.enter_context(open(path.with_name(path.name + ".wait"), "a+"))
         said = False
-        while True:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                if not said:
-                    on_wait()
-                    said = True
-                fcntl.flock(lock, fcntl.LOCK_EX)
-            if priority or _no_priority_waiter(queue):
-                break
-            fcntl.flock(lock, fcntl.LOCK_UN)
+
+        def say() -> None:
+            nonlocal said
             if not said:
                 on_wait()
                 said = True
+
+        if priority:
+            fcntl.flock(queue, fcntl.LOCK_SH)
+        if turn and not _try(turn):
+            if not _any_free(locks):  # else the queue's holder is only passing through to a free slot
+                say()
+            fcntl.flock(turn, fcntl.LOCK_EX)
+        while True:
+            lock = next((f for f in locks if _try(f)), None)
+            if lock is None:
+                say()
+                lock = _wait_slot(locks)
+            if priority or _no_priority_waiter(queue):
+                break
+            fcntl.flock(lock, fcntl.LOCK_UN)
+            say()
             fcntl.flock(queue, fcntl.LOCK_EX)  # granted once no priority gate waits
             fcntl.flock(queue, fcntl.LOCK_UN)
-        if priority:
-            fcntl.flock(queue, fcntl.LOCK_UN)
+        fcntl.flock(turn or queue, fcntl.LOCK_UN)  # the next queued worker gate's turn; or no longer a priority waiter
         lock.seek(0)
         lock.truncate()
         lock.write(f"{os.getpid()} {root()}\n")
@@ -377,6 +526,34 @@ def gate_lock(
         if held:
             held.touch()
         yield
+
+
+def _try(f: IO[str]) -> bool:
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
+    return True
+
+
+def _any_free(locks: list[IO[str]]) -> bool:
+    for f in locks:
+        if _try(f):
+            fcntl.flock(f, fcntl.LOCK_UN)
+            return True
+    return False
+
+
+def _wait_slot(locks: list[IO[str]]) -> IO[str]:
+    """Block until a slot is held: on the lock itself when there is one, else by trying them all every SLOT_POLL_S
+    (flock cannot wait on several files at once)."""
+    if len(locks) == 1:
+        fcntl.flock(locks[0], fcntl.LOCK_EX)
+        return locks[0]
+    while True:
+        time.sleep(SLOT_POLL_S)
+        if lock := next((f for f in locks if _try(f)), None):
+            return lock
 
 
 def _no_priority_waiter(queue: IO[str]) -> bool:
@@ -484,17 +661,19 @@ def check(
             cmd = [sys.executable, "-c", "from devkit.cli import main; main()", *sys.argv[1:]]
             return subprocess.run(cmd, cwd=root(), env=env, check=False).returncode
     role = take_lock_role(os.environ)  # the re-run above kept them, the stages below must not see them
+    for line in identity():
+        print(line, flush=True)
     base = checks.merge_base()
     key = tree_key(base)
     record = state_dir("gate") / f"{key}{'-full' if full else ''}.json" if key else None
-    if use_cache and record and record.exists():
-        print(f"RESULT: passed (cached for key {key[:10]}, {json.loads(record.read_text())['when']})")
+    if use_cache and record and record.exists() and (saved := cached_pass(record, full)):
+        print(f"RESULT: passed (cached for key {key[:10]}, {saved['when']})")
         return 0
 
     def waiting() -> None:
-        print("gate: another gate runs on this machine; waiting for it ...", flush=True)
+        print("gate: every gate slot on this machine is busy; waiting for one ...", flush=True)
 
-    with gate_lock(state_dir() / "gate.lock", on_wait=waiting, **role):
+    with gate_lock(state_dir() / "gate.lock", on_wait=waiting, slots=gate_slots(), **role):
         start = time.time()
         failed = 0
         for stage in stages(full, commands, base, help_rows, parser):
@@ -512,9 +691,7 @@ def check(
         print(f"RESULT: failed ({failed} stage(s), {took:.0f} s)")
         return 1
     if record:
-        record.write_text(
-            json.dumps({"when": time.strftime("%Y-%m-%d %H:%M"), "seconds": round(took), "root": str(root())})
-        )
+        save_pass(record, took, selection(full))
     print(f"RESULT: passed ({took:.0f} s)")
     return 0
 

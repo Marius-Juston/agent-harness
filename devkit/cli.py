@@ -21,6 +21,7 @@ from devkit import (
     gate,
     handoff,
     lit,
+    prtext,
     quota,
     reuse,
     rules,
@@ -453,7 +454,7 @@ def run(a: argparse.Namespace) -> int:
         case "pr":
             print(workflow.pr(a.number, a.summary, a.draft, a.partial))
         case "pr-title":
-            return workflow.check_title(a.title)
+            return prtext.check_title(a.title)
         case "integrate" if a.why:  # read-only, whatever other flags came with it
             return workflow.why(a.pr)
         case "integrate" if a.train is not None or a.more:

@@ -1,5 +1,6 @@
 """Gate and integrate integrity: the gate cannot be talked into a pass, and integrate merges what it gated."""
 
+import contextlib
 import fcntl
 import hashlib
 import json
@@ -17,7 +18,7 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, branches, config, gate, workflow
+from devkit import board, branches, config, gate, paths, workflow
 
 REAL_POPEN = subprocess.Popen
 
@@ -205,6 +206,171 @@ def test_ci_uploads_the_test_history_after_the_gate(workflow_file):
         and upload["with"]["path"] == f".git/devkit/{gate.HISTORY_FILE}"
     )
     assert upload["with"]["include-hidden-files"] is True  # .git is hidden, and skipped by default
+
+
+def test_gates_writing_the_history_at_the_same_time_lose_no_run(tmp_path):
+    junit, history = tmp_path / "j.xml", tmp_path / "state" / "h.jsonl"
+    junit.write_text('<testsuites><testsuite><testcase classname="t" name="a" time="0.1"/></testsuite></testsuites>')
+    writer = (
+        "import sys; from pathlib import Path; from devkit import gate\n"
+        "for at in range(int(sys.argv[3]), int(sys.argv[3]) + 25):\n"
+        "    gate.record_history(Path(sys.argv[1]), Path(sys.argv[2]), at=at, keep=1000)\n"
+    )
+    procs = [
+        REAL_POPEN([sys.executable, "-c", writer, str(junit), str(history), str(w * 100)], cwd=gate.root())
+        for w in range(4)
+    ]
+    assert all(p.wait(timeout=60) == 0 for p in procs)
+    runs = [json.loads(line) for line in history.read_text().splitlines()]  # every line whole
+    assert sorted(r["at"] for r in runs) == [w * 100 + i for w in range(4) for i in range(25)]
+    assert sorted(p.name for p in history.parent.iterdir()) == [history.name, history.name + ".lock"]  # no tmp left
+
+
+def _shared_state(monkeypatch, common):
+    """The machine state dir under `common`, as every worktree of one clone shares its git common dir; returns it."""
+    monkeypatch.setattr(paths, "common_dir", lambda: common)
+    return gate.state_dir()
+
+
+def _worktrees(repo, tmp_path, files):
+    """`repo` with `files` committed on main, and a second worktree on branch `feature` at the same commit."""
+    for name, text in files.items():
+        (repo / name).parent.mkdir(parents=True, exist_ok=True)
+        (repo / name).write_text(text)
+    _sh(repo, "git", "add", ".")
+    _sh(repo, "git", "commit", "-q", "-m", "tests")
+    other = tmp_path / "feature"
+    _sh(repo, "git", "worktree", "add", "-q", "-b", "feature", str(other))
+    return other
+
+
+def test_two_worktrees_gating_at_once_each_read_only_their_own_test_output(repo, tmp_path, monkeypatch):
+    # Both gates fail in the same second, share one state dir and one history: each must report its own output and
+    # point at its own full log (#463).
+    test = "import os\n\n\ndef test_{0}():\n    for i in range(30):\n        print('{0}-line', i)\n    assert False\n"
+    other = _worktrees(repo, tmp_path, {"test_m.py": test.format("main")})
+    (other / "test_m.py").write_text(test.format("feature"))
+    _sh(other, "git", "commit", "-qam", "feature")
+    state = _shared_state(monkeypatch, tmp_path / "common")
+    monkeypatch.setattr(gate, "FAIL_LINES", 3)
+    monkeypatch.setattr(gate.time, "time", lambda: 1000.0)  # the same second for both
+    history = state / gate.HISTORY_FILE
+    cmd = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-s", "test_m.py"]
+    barrier, results = threading.Barrier(2), {}
+
+    def gate_in(name, cwd):
+        barrier.wait()
+        results[name] = gate.tests_stage(cmd, {}, None, cwd=cwd, history=history)
+
+    threads = [threading.Thread(target=gate_in, args=a) for a in (("main", repo), ("feature", other))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=120)
+    logs = {}
+    for name, ran in results.items():
+        mine, theirs = f"{name}-line", "feature-line" if name == "main" else "main-line"
+        assert not ran.ok
+        text = "\n".join(ran.problems)
+        assert theirs not in text
+        (log,) = [p.removeprefix("(full output: ").removesuffix(")") for p in ran.problems if p.startswith("(full")]
+        logs[name] = Path(log).read_text()
+        assert mine in logs[name] and theirs not in logs[name]
+    assert set(logs) == {"main", "feature"} and len(list((state / "logs").iterdir())) == 2
+    runs = [json.loads(line)["tests"] for line in history.read_text().splitlines()]
+    assert sorted(next(iter(r)) for r in runs) == ["test_m::test_feature", "test_m::test_main"]
+
+
+def test_the_gate_names_its_worktree_interpreter_and_devkit_on_its_first_line():
+    first, *rest = gate.identity()
+    assert str(gate.root().resolve()) in first and str(Path(gate.__file__).parent.resolve()) in first
+    assert Path(sys.executable).name in first and rest == []
+
+
+def test_the_gate_warns_only_when_devkit_or_python_come_from_another_worktree_of_the_repo(repo, tmp_path):
+    other = _worktrees(repo, tmp_path, {"devkit/__init__.py": ""})
+    nested = repo / "wt" / "nested"  # a worktree inside the main checkout, as agent worktrees often are
+    _sh(repo, "git", "worktree", "add", "-q", "-b", "nested", str(nested))
+    own_code, own_python = repo / "devkit", repo / ".venv/bin/python"
+
+    def warnings(top, code=own_code, python=own_python):
+        return [line for line in gate.identity(top, code, python)[1:] if "WARNING" in line]
+
+    assert warnings(repo) == []
+    (devkit,) = warnings(repo, code=other / "devkit")
+    assert str(other.resolve()) in devkit and devkit.startswith("gate: WARNING: devkit")
+    (python,) = warnings(repo, python=other / ".venv/bin/python")
+    assert python.startswith("gate: WARNING: python")
+    assert len(warnings(other)) == 2  # the gate of `other` running main's devkit and venv
+    # a setup, not a mix-up: an editable harness checkout, a venv outside the project
+    assert warnings(repo, code=tmp_path / "harness/devkit", python=tmp_path / "venvs/p/bin/python") == []
+    assert warnings(nested, code=nested / "devkit", python=nested / ".venv/bin/python") == []  # deepest owner wins
+    assert len(warnings(nested)) == 2  # the main checkout around it is another worktree
+
+
+BRANCH_SCOPED_CONFTEST = """import subprocess
+
+
+def pytest_collection_modifyitems(config, items):
+    branch = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True).stdout.strip()
+    if branch != "main":  # a feature branch runs only its own chapter
+        out = [i for i in items if "chapter_b" in i.nodeid]
+        config.hook.pytest_deselected(items=out)
+        items[:] = [i for i in items if i not in out]
+"""
+
+
+CHAPTERS = {
+    "tests/conftest.py": BRANCH_SCOPED_CONFTEST,
+    "tests/test_chapter_a.py": "def test_a():\n    pass\n",
+    "tests/test_chapter_b.py": "def test_b():\n    pass\n",
+}
+
+
+def test_a_scoped_pass_on_a_feature_branch_is_not_reused_on_main_at_the_same_tree(repo, tmp_path):
+    other = _worktrees(repo, tmp_path, CHAPTERS)
+    assert gate.tree_key(None, repo) == gate.tree_key(None, other)  # the tree key alone cannot tell them apart
+    scoped, everything = gate.selection(False, other), gate.selection(False, repo)
+    assert scoped and everything and scoped != everything
+    record = tmp_path / "state" / "key.json"
+    record.parent.mkdir()
+    gate.save_pass(record, 12.0, scoped)  # the feature worktree's gate passed
+    assert gate.cached_pass(record, False, cwd=repo) is None  # main re-runs
+    assert gate.cached_pass(record, False, cwd=other)["seconds"] == 12  # the same selection still reuses it
+
+
+def test_a_pass_record_without_a_test_selection_is_never_reused(repo, tmp_path):
+    record = tmp_path / "old.json"
+    record.write_text(json.dumps({"when": "2026-01-01 00:00", "seconds": 1, "root": str(repo)}))
+    assert gate.cached_pass(record, False, cwd=repo) is None
+    record.write_text("not json")
+    assert gate.cached_pass(record, False, cwd=repo) is None
+    gate.save_pass(tmp_path / "none.json", 1.0, None)  # collection failed: nothing recorded
+    assert not (tmp_path / "none.json").exists()
+    assert gate.selection(False, cwd=repo) is None  # no tests dir: collection fails, no fingerprint
+
+
+def test_dev_check_on_main_reruns_after_a_scoped_pass_in_a_feature_worktree_at_the_same_tree(
+    repo, tmp_path, monkeypatch, capsys
+):
+    other = _worktrees(repo, tmp_path, CHAPTERS)
+    _shared_state(monkeypatch, tmp_path / "common")  # both worktrees share one record dir, as one clone's do
+    monkeypatch.setattr(gate, "clean_bytecode", lambda: True)  # already the re-run interpreter
+    monkeypatch.setattr(gate, "stages", lambda *a: [])  # the stages pass; what is reused is the question
+    monkeypatch.setattr(gate, "gate_lock", lambda *a, **k: contextlib.nullcontext())
+
+    def check_in(cwd):
+        monkeypatch.chdir(cwd)
+        paths.root.cache_clear()  # a new process per gate, as two worktrees' gates are
+        config.get.cache_clear()
+        assert gate.check({}) == 0
+        return capsys.readouterr().out
+
+    assert "cached" not in check_in(other)  # the feature worktree's scoped pass is recorded
+    assert "RESULT: passed (cached" in check_in(other)
+    out = check_in(repo)  # main, same tree and merge base, selects every chapter
+    assert "selected other tests" in out and "RESULT: passed (cached" not in out
+    assert "RESULT: passed (cached" in check_in(repo)  # main's own pass is recorded in turn
 
 
 def test_diff_coverage_never_fails_the_stage_when_it_cannot_measure(repo, monkeypatch):
@@ -474,6 +640,158 @@ def test_the_gate_marks_when_it_holds_the_lock_and_takes_its_role_from_the_envir
     assert gate.lock_role({}) == {"priority": False, "held": None}
     with gate.gate_lock(tmp_path / "gate.lock", **role):
         assert held.exists()
+
+
+def _hold(path, holder=None):
+    """A gate holding `path`, as another process's would look to flock (and to dev status, given `holder`)."""
+    f = open(path, "a+")  # noqa: SIM115 (held across the test, closed by it)
+    fcntl.flock(f, fcntl.LOCK_EX)
+    if holder:
+        f.write(f"{holder}\n")
+        f.flush()
+    return f
+
+
+def test_slot_paths_keep_the_first_slot_at_the_one_lock_path(tmp_path):
+    """#461: slot 0 is `gate.lock` itself, so gate_slots = 1 is the old single lock."""
+    path = tmp_path / "gate.lock"
+    assert gate.slot_paths(path, 1) == [path]
+    assert gate.slot_paths(path, 3) == [path, tmp_path / "gate.lock.1", tmp_path / "gate.lock.2"]
+
+
+def test_three_slots_hold_three_gates_at_once_and_a_fourth_waits(tmp_path):
+    """#461: with 3 slots, three gates hold one each at once and none says it waits (not even one that meets another
+    passing through the wait queue to a free slot); a fourth says it waits, and gets the
+    slot freed first."""
+    path = tmp_path / "gate.lock"
+    inside, release = threading.Barrier(4), threading.Event()
+    holder_waited, waiting, fourth_in = threading.Event(), threading.Event(), threading.Event()
+
+    def holder():
+        with gate.gate_lock(path, slots=3, on_wait=holder_waited.set):
+            inside.wait(10)
+            release.wait(10)
+
+    def fourth():
+        with gate.gate_lock(path, slots=3, on_wait=waiting.set):
+            fourth_in.set()
+
+    holders = [threading.Thread(target=holder) for _ in range(3)]
+    for t in holders:
+        t.start()
+    inside.wait(10)  # all three inside at once
+    assert not holder_waited.is_set()
+    assert len(gate.holders(path)) == 3
+    t4 = threading.Thread(target=fourth)
+    t4.start()
+    assert waiting.wait(10)
+    assert not fourth_in.wait(0.3)
+    release.set()
+    for t in [*holders, t4]:
+        t.join(10)
+    assert fourth_in.is_set()
+
+
+@pytest.mark.parametrize("round_", range(5))
+def test_integrates_gate_takes_the_next_free_slot_ahead_of_queued_worker_gates(tmp_path, round_):
+    """#461 with #385: both slots busy, two worker gates and then integrate's wait; the first slot freed goes to
+    integrate's gate, ahead of the worker gates that queued before it."""
+    path = tmp_path / "gate.lock"
+    busy = [_hold(p) for p in gate.slot_paths(path, 2)]
+    order: list[str] = []
+    names = ["worker-1", "worker-2", "integrate"]
+    waiting = {n: threading.Event() for n in names}
+    go = threading.Event()
+
+    def gate_run(name):
+        with gate.gate_lock(path, slots=2, on_wait=waiting[name].set, priority=name == "integrate"):
+            order.append(name)
+            go.wait(10)
+
+    threads = {n: threading.Thread(target=gate_run, args=(n,)) for n in names}
+    for name in names:
+        threads[name].start()
+        assert waiting[name].wait(10)
+    busy[1].close()  # one slot frees; the other stays busy
+    deadline = time.monotonic() + 10
+    while not order and time.monotonic() < deadline:
+        time.sleep(0.01)
+    time.sleep(0.3)  # a worker gate that wrongly took the slot would show up here
+    assert order == ["integrate"]
+    busy[0].close()
+    go.set()
+    for t in threads.values():
+        t.join(10)
+    assert order[0] == "integrate" and sorted(order[1:]) == ["worker-1", "worker-2"]
+
+
+def test_each_slot_records_its_holder_and_held_is_marked_once_a_slot_is_held(tmp_path):
+    """#461: every holder's pid and root is recorded per slot; integrate's deadline starts when its slot is held."""
+    path = tmp_path / "gate.lock"
+    first = _hold(path, "111 /first")
+    held = tmp_path / "held"
+    with gate.gate_lock(path, slots=2, held=held):
+        assert held.exists()
+        assert gate.holders(path) == ["111 /first", f"{os.getpid()} {gate.root()}"]
+    first.close()
+    assert gate.holders(path) == []
+
+
+def test_status_lists_every_gate_holder(monkeypatch, repo):
+    monkeypatch.chdir(repo)
+    assert workflow.gate_holder() == "idle"
+    state = workflow.state_dir()
+    a, b = _hold(state / "gate.lock", "1 /a"), _hold(state / "gate.lock.2", "2 /b")
+    assert workflow.gate_holder() == "running (1 /a; 2 /b)"
+    a.close()
+    b.close()
+
+
+def test_a_gate_configured_for_fewer_slots_still_takes_a_free_slot_another_gate_made(tmp_path):
+    """#477 review: a gate with slots=1 (the suite audit, or a worktree whose pyproject still says gate_slots = 1)
+    must not wait at the head of the queue while a slot made by a gate_slots = 3 gate is free: it uses every slot file
+    on disk."""
+    path = tmp_path / "gate.lock"
+    for p in gate.slot_paths(path, 3):
+        p.touch()  # as a gate_slots = 3 gate left them
+    assert gate.effective_slots(path, 1) == 3 and gate.effective_slots(path, 5) == 5
+    busy = _hold(path, "1 /three-slot-gate")
+    waited, inside = threading.Event(), threading.Event()
+
+    def narrow():
+        with gate.gate_lock(path, slots=1, on_wait=waited.set):
+            inside.set()
+
+    t = threading.Thread(target=narrow)
+    t.start()
+    assert inside.wait(10)
+    t.join(10)
+    assert not waited.is_set()
+    busy.close()
+
+
+@given(cores=st.integers(1, 512), gb=st.floats(0, 4096), slots=st.integers(1, 64))
+def test_workers_share_the_machine_among_the_gate_slots(cores, gb, slots):
+    """#461: N concurrent gates together take at most half the cores; each takes at most one worker per 2 GB free now
+    (free memory is already net of the gates running, so it is not divided again)."""
+    n = gate.workers(slots, cores=cores, gb=gb)
+    assert 1 <= n <= 16
+    assert n == 1 or (n * slots <= cores // 2 and n * 2 <= gb)
+    assert n == max(1, min(cores // 2 // slots, int(gb // 2), 16))
+    assert gate.workers(1, cores=cores, gb=gb) == max(1, min(cores // 2, int(gb // 2), 16))
+
+
+@pytest.mark.parametrize("value", [0, -1, True, "3", 1.5])
+def test_gate_slots_must_be_a_positive_integer(value):
+    with pytest.raises(config.ConfigError, match="gate_slots"):
+        config.parse({"gate_slots": value})
+
+
+def test_gate_slots_defaults_to_one_and_the_gate_reads_it(monkeypatch):
+    assert config.Config().gate_slots == 1
+    assert config.parse({"gate_slots": 4}).gate_slots == 4
+    monkeypatch.setattr(gate.config, "get", lambda: config.Config(gate_slots=3))
+    assert gate.gate_slots() == 3
 
 
 def _info(**over):
