@@ -617,6 +617,22 @@ def check_title(title: str | None) -> int:
     return 0
 
 
+def closes_problem(info: dict) -> str | None:
+    """Why the body of the PR `info` does not link the issue claimed on its `<n>-slug` branch, or None (#434: a body
+    rewritten with `gh pr edit` lost the `Closes #N` line `dev pr` wrote, so the merge left the issue open). Either
+    `Closes #N` (or another closing keyword) or `Refs #N` will do. A branch with no issue number, such as
+    Dependabot's or release-please's, claims none and is never refused."""
+    if not (m := re.match(r"(\d+)-", info.get("headRefName") or "")):
+        return None
+    n, body = int(m.group(1)), info.get("body") or ""
+    if n in board.keyword_numbers(board.CLOSES, body) + board.keyword_numbers(board.REFS, body):
+        return None
+    return (
+        f"the PR body has no 'Closes #{n}' or 'Refs #{n}' line for the issue claimed on branch "
+        f"{info['headRefName']!r}: add 'Closes #{n}' as its first line (or 'Refs #{n}' for a partial hand-back)"
+    )
+
+
 def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> str:
     """Push the gated branch and open its PR. A body without a `Closes #N` / `Refs #N` first line gets `Closes #N`
     (a complete hand-back: the merge closes the issue), or `Refs #N` with `partial` (the issue returns to ready).
@@ -1150,6 +1166,8 @@ def _merge_if_unchanged(
         return f"{SESSION_RULE} in the squash commit: edit the PR title or body, then rerun integrate"
     if info is not None and (why := title_problem(subject)):  # the title as re-read after the gate
         return f"{why} in the squash commit: edit the PR title, then rerun integrate"
+    if info is not None and (why := closes_problem(info)):  # the body as re-read after the gate
+        return f"{why}, then rerun integrate"
     if branch := (info or {}).get("headRefName"):
         retarget_stacked(branch, head, dry_run)
     if not dry_run:
@@ -1780,6 +1798,10 @@ def _integrate(
         return back("refused", [reason], [], reason=reason)
     if why := title_problem(info.get("title")):  # works with no Actions; override does not lift it
         reason = f"{why}; expected {expected_title(info)}: edit the PR title, then rerun integrate"
+        print(f"RESULT: refused: {reason}")
+        return back("refused", [reason], [], reason=reason)
+    if why := closes_problem(info):  # #434: override does not lift it either
+        reason = f"{why}, then rerun integrate"
         print(f"RESULT: refused: {reason}")
         return back("refused", [reason], [], reason=reason)
     if override is not None and not override.strip():
