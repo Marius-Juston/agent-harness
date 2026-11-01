@@ -540,8 +540,25 @@ def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> 
     url = board.gh(*args, input=body).strip()
     board.comment(number, f"PR ready for review: {url}\n\n{body[:1500]}")
     board.set_status(number, "review")
+    moved = [number, *_also_closed(number, body, branch)]
+    for n in moved[1:]:
+        board.comment(n, f"PR ready for review: {url} (closes this issue too)")
+        board.set_status(n, "review")
     ref = re.match(r"(Closes|Refs) #\d+", body)
-    return f"{url}\n#{number} status:review, {ref.group(0) if ref else ''}"
+    return f"{url}\n{' '.join(f'#{n}' for n in moved)} status:review, {ref.group(0) if ref else ''}"
+
+
+def _also_closed(number: int, body: str, branch: str) -> list[int]:
+    """Other open issues the PR body closes by keyword that are claimed on this branch (#384: one PR for two issues
+    left the second in-progress). An issue claimed on another branch is never moved: it is another worker's item."""
+    out = []
+    for n in board.keyword_numbers(board.CLOSES, body):
+        if n == number:
+            continue
+        issue = board.get(n)
+        if issue.state.upper() == "OPEN" and (c := issue.claim()) and c.branch == branch:
+            out.append(n)
+    return out
 
 
 # Owner rule (2026-10-05): a public repository never gets a session link or trailer in a commit, PR or comment.

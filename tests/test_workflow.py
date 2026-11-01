@@ -156,6 +156,36 @@ def test_partial_with_a_closes_line_is_refused_before_anything_is_pushed(opened,
     assert opened == []
 
 
+def _claimed(n, branch):
+    return mk(n, ["status:in-progress"], comments=[{"body": f"<!-- devkit:claim host=h agent=a branch={branch} -->"}])
+
+
+@pytest.fixture
+def statuses(opened, monkeypatch):
+    """Issues 33 and 34 claimed on the PR's branch `33-x`, 35 on another; returns the status each call set."""
+    issues = {33: _claimed(33, "33-x"), 34: _claimed(34, "33-x"), 35: _claimed(35, "35-y")}
+    moved = []
+    monkeypatch.setattr(board, "get", lambda n: issues[n])
+    monkeypatch.setattr(board, "set_status", lambda n, s: moved.append((n, s)))
+    return moved
+
+
+def test_every_closed_issue_claimed_on_the_branch_moves_to_review(statuses, monkeypatch):
+    """#384: one PR for two issues moved only the CLI's issue; the other stayed in-progress until relabelled by hand."""
+    monkeypatch.setattr("sys.stdin", io.StringIO("Closes #33\nCloses #34\n\nboth\n"))
+    lines = workflow.pr(33, "-", draft=False).splitlines()
+    assert statuses == [(33, "review"), (34, "review")]
+    assert lines == ["https://example/pr/1", "#33 #34 status:review, Closes #33"]
+
+
+def test_a_closed_issue_claimed_on_another_branch_is_left_alone(statuses, monkeypatch):
+    """#384: a Closes line must never move another worker's item."""
+    monkeypatch.setattr("sys.stdin", io.StringIO("Closes #33\nCloses #35\n\nbody\n"))
+    lines = workflow.pr(33, "-", draft=False).splitlines()
+    assert statuses == [(33, "review")]
+    assert lines == ["https://example/pr/1", "#33 status:review, Closes #33"]
+
+
 PYPROJECT = '[project]\nname = "p"\ndependencies = ["rich>=13"]\n[dependency-groups]\ndev = ["pytest"]\n'
 
 
