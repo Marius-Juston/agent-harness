@@ -17,7 +17,7 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, config, gate, workflow
+from devkit import board, branches, config, gate, workflow
 
 REAL_POPEN = subprocess.Popen
 
@@ -626,6 +626,7 @@ def fake_integrate(monkeypatch, tmp_path):
         return subprocess.CompletedProcess(cmd, code, "", "")
 
     monkeypatch.setattr(workflow, "git", git)
+    monkeypatch.setattr(branches, "git", git)
     monkeypatch.setattr(board, "gh", gh)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "comment", lambda *a, **k: None)
@@ -635,7 +636,7 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(board, "block", lambda n, reason: world["blocked"].append((n, reason)))
     monkeypatch.setattr(board, "set_status", lambda n, status: world["status"].append((n, status)))
     monkeypatch.setattr(workflow.time, "sleep", lambda s: None)
-    monkeypatch.setattr(workflow, "worktrees", lambda: [])
+    monkeypatch.setattr(branches, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
     workflow.config.get()  # resolve this repository's config with the real git, before subprocess.run is faked
