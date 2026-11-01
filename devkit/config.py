@@ -66,6 +66,9 @@ class Config:
     # docs/research/test-suite-design.md §6: the slowest passing test seen was 75 s.
     test_timeout_s: int = 300
     gate_deadline_s: int = 3600
+    # #385: gate_deadline_s counts from when integrate's gate holds the machine's gate lock; the wait for it (behind
+    # at most the running gate, since integrate's goes ahead of queued worker gates) has this bound of its own.
+    gate_lock_wait_s: int = 7200
     # `dev integrate --local-ci` (#76): a required check that has not queued after this long means Actions cannot run.
     local_ci_wait_s: int = 600
     # `dev integrate --local-ci`: required check context -> the commands (argument lists, run in the merged tree after
