@@ -74,16 +74,21 @@ Nothing assumes that two machines share a disk.
    `board sync`, so the template's `board.yml` is optional.
 9. **A merge train** (lead, a long review queue): `uv run dev integrate --train N <pr> <pr>...` takes N ready PRs in
    board priority order. Each member passes integrate's per-PR checks first; one that fails is sent back or held
-   exactly as a single integrate would, and the train goes on. The rest merge onto main one by one in a throwaway
-   worktree. A member that conflicts with main or with the members before it is sent back before any gate (a
-   conflict with earlier members is not counted as its cycle). Generated files are regenerated once, and one gate
-   runs on that candidate. On a pass each member lands as its own squash commit, main is pushed once, and each PR is
-   closed with a comment naming the train while its issues move as integrate moves them. On a failure the train
-   bisects by prefix: at most ceil(log2 N) gates find the first member whose addition breaks the gate, and only that
-   member goes through the fix loop. One more gate checks the members after it without it; if they fail too they
-   are deferred to the next train, never sent back. `--local-ci` posts its statuses on each landing member's head.
-   The last line is `RESULT-JSON: {"train", "outcome", "members", "gates_run"}`. `--override` and
-   `--consolidation-review` are single-PR only.
+   exactly as a single integrate would, and the train goes on. `--harness-ok 12 15` names the members whose harness
+   diff the lead read (a bare `--harness-ok` is refused in a train). The rest merge onto main one by one in a
+   throwaway worktree. A member that conflicts with main or with the members before it, or whose merge empties an
+   Owns entry of another open issue, is sent back before any gate (a conflict with earlier members is not counted
+   as its cycle). Generated files are regenerated, and one gate runs on that candidate. On a pass each member lands
+   as its own squash commit carrying its regenerated files, main is pushed once, and each PR is closed with a
+   comment naming the train while its issues move as integrate moves them. A member whose head, title, body or
+   feedback changed during the gate, or a main that moved, stops the train with nothing landed. On a failure the
+   train bisects by prefix: at most ceil(log2 N) gates find the first member whose addition breaks the gate, and
+   only that member goes through the fix loop. One more gate checks the members after it without it; if they fail
+   too they are deferred to the next train, never sent back. When only the full candidate failed, that spare gate
+   re-runs it before blaming the last member. With `--local-ci` each member first waits for Actions on its head;
+   a check that ran and failed refuses it, and statuses for the checks Actions never ran are posted on each member's
+   head only after main was pushed. The last line is `RESULT-JSON: {"train", "outcome", "members", "gates_run"}`.
+   `--override` and `--consolidation-review` are single-PR only.
 
 ## 2a. Conventions (`uv run dev board lint`)
 Every open item meets these. `board lint` lists what breaks them and exits 1. `--fix` makes the label edits that

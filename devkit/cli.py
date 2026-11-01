@@ -187,7 +187,13 @@ def build() -> argparse.ArgumentParser:
         metavar="N",
         help="merge N ready PRs (pr, then the others, in priority order) with one gate; bisect on failure",
     )
-    x.add_argument("--harness-ok", action="store_true", help="you read the diff of harness files it touches")
+    x.add_argument(
+        "--harness-ok",
+        type=int,
+        nargs="*",
+        metavar="PR",
+        help="you read the diff of harness files it touches; with --train, name each PR whose diff you read",
+    )
     x.add_argument("--dry-run", action="store_true")
     x.add_argument(
         "--override", metavar="REASON", help="merge despite unfinished PR feedback; the reason is logged on the PR"
@@ -458,9 +464,13 @@ def run(a: argparse.Namespace) -> int:
                     "and neither --override nor --consolidation-review"
                 )
                 return 2
-            return train.train(members, a.harness_ok, a.dry_run, a.local_ci)
+            if a.harness_ok == []:
+                print("integrate --train: name the PRs whose harness diff you read: --harness-ok 12 15")
+                return 2
+            return train.train(members, set(a.harness_ok or []), a.dry_run, a.local_ci)
         case "integrate":
-            return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
+            harness_ok = a.harness_ok is not None and (not a.harness_ok or a.pr in a.harness_ok)
+            return workflow.integrate(a.pr, harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
         case "cite-check":
             paths = [Path(p) for p in a.paths] or _changed_notes()
             if not paths:

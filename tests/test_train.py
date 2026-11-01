@@ -49,7 +49,9 @@ def world(tmp_path, monkeypatch):
                     "isDraft": False,
                     "title": pr["title"],
                     "body": pr["body"],
-                    "statusCheckRollup": pr.get("checks", []),
+                    "statusCheckRollup": pr["checks"].pop(0)
+                    if len(pr.get("checks", [])) > 1
+                    else pr.get("checks", [[]])[0],
                     "latestReviews": [],
                     "reviewDecision": "",
                 }
@@ -142,7 +144,7 @@ def three(w: dict, broken: int | None = None) -> None:
 
 def test_three_ready_prs_merge_with_one_gate_each_as_its_own_squash_commit(world, capsys):
     three(world)
-    code = cli.run(cli.parse(["integrate", "--train", "3", "1", "2", "3", "--harness-ok"]))  # the CLI entry point
+    code = cli.run(cli.parse(["integrate", "--train", "3", "1", "2", "3"]))  # the CLI entry point
     assert code == 0
     res = last_json(capsys.readouterr().out)
     assert res["outcome"] == "merged" and len(res["gates_run"]) == 1 and res["gates_run"][0]["members"] == [1, 2, 3]
@@ -199,13 +201,20 @@ def test_a_member_failing_admission_is_skipped_and_the_rest_merge(world, capsys,
     assert sent_back(world) == [2] and closed(world) == [1, 3]
 
 
-def test_harness_files_without_harness_ok_hold_the_member_and_send_nothing_back(world, capsys):
+def test_harness_ok_names_the_members_it_clears_and_holds_the_others_unsent(world, capsys):
     open_pr(world, 1, {"devkit/x.py": "x = 1\n"})
     open_pr(world, 2, {"devkit/y.py": "y = 1\n"})
-    assert train.train([1, 2], harness_ok=False, dry_run=False) == 1
+    code = cli.run(cli.parse(["integrate", "--train", "2", "1", "2", "--harness-ok", "2"]))
+    assert code == 1
     res = last_json(capsys.readouterr().out)
-    assert {v["outcome"] for v in res["members"].values()} == {"harness-review"}
-    assert res["gates_run"] == [] and sent_back(world) == [] and closed(world) == []
+    assert {k: v["outcome"] for k, v in res["members"].items()} == {"1": "harness-review", "2": "merged"}
+    assert [g["members"] for g in res["gates_run"]] == [[2]] and sent_back(world) == [] and closed(world) == [2]
+
+
+def test_a_bare_harness_ok_is_refused_for_a_train(world, capsys):
+    code = cli.run(cli.parse(["integrate", "--train", "2", "1", "2", "--harness-ok"]))
+    assert code == 2
+    assert "--harness-ok 12 15" in capsys.readouterr().out
 
 
 def test_a_dry_run_gates_but_lands_and_sends_back_nothing(world, capsys):
@@ -270,3 +279,197 @@ def test_feedback_arriving_during_the_gate_sends_that_member_back_and_lands_noth
     outcomes = {k: v["outcome"] for k, v in res["members"].items()}
     assert outcomes == {"1": "stopped", "2": "refused", "3": "stopped"} and res["outcome"] == "stopped"
     assert main_log(world) == before and closed(world) == [] and sent_back(world) == [2]
+
+
+def during_gate(monkeypatch, act) -> None:
+    """Run `act` once, right after the first gate finished."""
+    real, done = workflow.run_gate, []
+
+    def run_gate(*a, **kw):
+        passed = real(*a, **kw)
+        if not done:
+            done.append(act())
+        return passed
+
+    monkeypatch.setattr(workflow, "run_gate", run_gate)
+
+
+def outcomes_of(res: dict) -> dict[str, str]:
+    return {k: v["outcome"] for k, v in res["members"].items()}
+
+
+def test_main_moving_before_the_push_lands_nothing(world, capsys, monkeypatch):
+    three(world)
+    clone = world["clone"]
+
+    def land_elsewhere():
+        commit(clone, {"other.txt": "x\n"}, "another merge")
+        sh(clone, "git", "push", "-q", "origin", "main")
+
+    during_gate(monkeypatch, land_elsewhere)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
+    res = last_json(capsys.readouterr().out)
+    assert set(outcomes_of(res).values()) == {"stopped"} and "main moved" in res["reason"]
+    assert main_log(world) == ["another merge", "init"] and closed(world) == [] and sent_back(world) == []
+
+
+def test_a_member_head_moving_during_the_gate_lands_nothing(world, capsys, monkeypatch):
+    three(world)
+    origin, clone = world["origin"], world["clone"]
+
+    def push_to_pr2():
+        sh(clone, "git", "checkout", "-q", "102-pr2")
+        commit(clone, {"later.txt": "x\n"}, "later")
+        sh(clone, "git", "push", "-q", "origin", "102-pr2")
+        sh(clone, "git", "checkout", "-q", "-f", "main")
+
+    during_gate(monkeypatch, push_to_pr2)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
+    res = last_json(capsys.readouterr().out)
+    assert outcomes_of(res) == {"1": "stopped", "2": "stopped", "3": "stopped"}
+    assert res["members"]["2"]["reason"] == "the PR head moved during the gate"
+    assert main_log(world) == ["init"] and closed(world) == [] and out(origin, "git", "log", "-1", "--format=%s",
+                                                                       "102-pr2") == "later"  # fmt: skip
+
+
+def test_a_session_link_in_a_squash_subject_at_recheck_is_sent_back_and_lands_nothing(world, capsys, monkeypatch):
+    three(world)
+    link = "https://" + workflow.SESSION_URL + "_abc123"
+    during_gate(monkeypatch, lambda: world["prs"][2].update(title=f"feat(x): pr 2 {link} (#102)"))
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
+    res = last_json(capsys.readouterr().out)
+    assert outcomes_of(res) == {"1": "stopped", "2": "refused", "3": "stopped"}
+    assert workflow.SESSION_RULE in res["members"]["2"]["feedback"][0]
+    assert main_log(world) == ["init"] and closed(world) == [] and sent_back(world) == [2]
+    posted = next(e for e in world["events"] if e[:3] == ("gh", "pr", "comment"))
+    assert workflow.SESSION_URL not in posted[posted.index("--body") + 1]  # scrubbed by the fix loop
+
+
+def _deleting_pr(w: dict, n: int, path: str) -> None:
+    clone, branch = w["clone"], f"{n + 100}-pr{n}"
+    sh(clone, "git", "checkout", "-q", "-b", branch)
+    sh(clone, "git", "rm", "-q", path)
+    sh(clone, "git", "commit", "-q", "-m", branch)
+    sh(clone, "git", "push", "-q", "origin", branch)
+    sh(w["origin"], "git", "update-ref", f"refs/pull/{n}/head", out(clone, "git", "rev-parse", "HEAD"))
+    sh(clone, "git", "checkout", "-q", "-f", "main")
+    w["prs"][n] = {"branch": branch, "title": f"feat(x): pr {n} (#{n + 100})", "body": f"Closes #{n + 100}"}
+
+
+def test_a_member_deleting_what_another_open_issue_owns_is_sent_back_before_the_gate(world, capsys, monkeypatch):
+    open_pr(world, 1, note(world["clone"], "n1"))
+    _deleting_pr(world, 2, "docs/research/a.md")
+    open_pr(world, 3, note(world["clone"], "n3"))
+    owned = "docs/research/a.md"
+    monkeypatch.setattr(board, "fetch", lambda *a, **kw: [])
+    monkeypatch.setattr(board, "deleting_owns", lambda _i, deleted, *_a: {300: [owned]} if owned in deleted else {})
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
+    res = last_json(capsys.readouterr().out)
+    assert outcomes_of(res) == {"1": "merged", "2": "refused", "3": "merged"}
+    assert res["members"]["2"]["owns"] == {"300": [owned]} and res["members"]["2"]["cycle"] == 1
+    assert [g["members"] for g in res["gates_run"]] == [[1, 3]] and sent_back(world) == [2]
+    assert out(world["origin"], "git", "cat-file", "-t", f"refs/heads/main:{owned}") == "blob"
+
+
+def test_the_owns_check_fails_closed_when_the_board_cannot_be_read(world, capsys, monkeypatch):
+    open_pr(world, 1, note(world["clone"], "n1"))
+    _deleting_pr(world, 2, "docs/research/a.md")
+
+    def unreadable(*a, **kw):
+        raise board.BoardError("gh: rate limited")
+
+    monkeypatch.setattr(board, "fetch", unreadable)
+    assert train.train([1, 2], harness_ok=True, dry_run=False) == 1
+    res = last_json(capsys.readouterr().out)
+    assert set(outcomes_of(res).values()) == {"stopped"} and "deleted Owns" in res["reason"]
+    assert res["gates_run"] == [] and main_log(world) == ["init"] and closed(world) == []
+
+
+def test_local_ci_waits_for_a_check_running_at_admission_and_a_later_failure_keeps_it_off_main(
+    world, capsys, monkeypatch
+):
+    three(world)
+    run = {"__typename": "CheckRun", "name": "check", "workflowName": "ci", "status": "IN_PROGRESS"}
+    failed = run | {"status": "COMPLETED", "conclusion": "FAILURE"}
+    world["prs"][2]["checks"] = [[run], [failed]]  # running when the train reads the PR, failed when it waits
+    monkeypatch.setattr(workflow, "required_contexts", lambda: (["check"], []))
+    monkeypatch.setattr(workflow, "actions_enabled", lambda: False)
+    monkeypatch.setattr(train.config, "get", lambda: train.config.Config(local_ci={"check": []}))
+    assert train.train([1, 2], harness_ok=True, dry_run=False, local_ci=True) == 1
+    res = last_json(capsys.readouterr().out)
+    assert outcomes_of(res) == {"1": "merged", "2": "refused"} and "check check: failing" in str(res["members"]["2"])
+    assert closed(world) == [1] and [g["members"] for g in res["gates_run"]] == [[1]]
+    head2 = out(world["origin"], "git", "rev-parse", "refs/pull/2/head")
+    assert not any(e[:4] == ("gh", "api", "-X", "POST") and head2 in e[4] for e in world["events"])
+
+
+def test_local_ci_statuses_are_posted_only_after_the_push(world, capsys, monkeypatch):
+    three(world)
+    monkeypatch.setattr(workflow, "required_contexts", lambda: (["check"], []))
+    monkeypatch.setattr(workflow, "actions_enabled", lambda: False)
+    monkeypatch.setattr(train.config, "get", lambda: train.config.Config(local_ci={"check": []}))
+    main_at_post = []
+    real = board.gh
+
+    def gh(*args, **kw):
+        if args[:3] == ("api", "-X", "POST") and "/statuses/" in args[3]:
+            main_at_post.append(out(world["origin"], "git", "log", "-1", "--format=%s", "refs/heads/main"))
+        return real(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert train.train([1, 2], harness_ok=True, dry_run=False, local_ci=True) == 0
+    assert main_at_post == ["feat(x): pr 2 (#102) (#2)"] * 2
+
+
+def test_a_close_github_refuses_keeps_the_member_merged_and_closes_the_rest(world, capsys, monkeypatch):
+    three(world)
+    real = board.gh
+
+    def gh(*args, **kw):
+        if args[:3] == ("pr", "close", "1"):
+            raise board.BoardError("gh: 502")
+        return real(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
+    res = last_json(capsys.readouterr().out)
+    assert set(outcomes_of(res).values()) == {"merged"} and res["members"]["1"]["close_error"] == "gh: 502"
+    assert closed(world) == [2, 3] and [e[1] for e in world["events"] if e[0] == "merged_pr"] == [1, 2, 3]
+
+
+def test_a_flaky_full_gate_is_confirmed_once_and_then_lands_every_member(world, capsys, monkeypatch):
+    three(world)
+    real, calls = workflow.run_gate, []
+
+    def run_gate(tree, contexts, log):
+        calls.append(1)
+        if len(calls) == 1:  # the first full gate fails once, for no reason in the tree
+            log.write_text("FAIL tests\n  flaky\n")
+            return False
+        return real(tree, contexts, log)
+
+    monkeypatch.setattr(workflow, "run_gate", run_gate)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
+    res = last_json(capsys.readouterr().out)
+    assert [g["members"] for g in res["gates_run"]] == [[1, 2, 3], [1], [1, 2], [1, 2, 3]]
+    assert len(res["gates_run"]) - 1 <= train.bisect_bound(3)
+    assert set(outcomes_of(res).values()) == {"merged"} and res["members"]["3"]["flaky_gate"] is True
+    assert sent_back(world) == []
+
+
+def test_a_last_member_that_fails_twice_is_blamed_by_what_was_measured(world, capsys):
+    three(world, broken=3)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
+    res = last_json(capsys.readouterr().out)
+    assert [g["members"] for g in res["gates_run"]] == [[1, 2, 3], [1], [1, 2], [1, 2, 3]]
+    assert outcomes_of(res) == {"1": "merged", "2": "merged", "3": "gate-failed"}
+    posted = next(e for e in world["events"] if e[:3] == ("gh", "pr", "comment"))
+    assert "with #1, #2 merged passed the gate and adding this PR failed it (gated twice)" in posted[-1]
+
+
+def test_every_squash_commit_on_main_carries_its_regenerated_index(world, capsys):
+    three(world)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
+    shas = out(world["origin"], "git", "log", "--format=%H", "-3", "refs/heads/main").splitlines()[::-1]
+    rows = [out(world["origin"], "git", "show", f"{s}:{INDEX}") for s in shas]
+    assert rows == ["# Index\n- a\n- n1", "# Index\n- a\n- n1\n- n2", "# Index\n- a\n- n1\n- n2\n- n3"]
