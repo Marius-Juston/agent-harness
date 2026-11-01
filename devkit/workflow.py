@@ -12,6 +12,7 @@ import json
 import os
 import random
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -1321,12 +1322,14 @@ def deleted_owns(tree: Path, main: str, info: dict) -> dict[int, list[str]]:
 
 
 def regenerate(tree: Path) -> bool:
-    """`dev docs` in the merged tree, committing what it changed. True when it committed."""
-    docs = subprocess.run(
-        ["uv", "run", "--quiet", "dev", "docs"], cwd=tree, capture_output=True, text=True, check=False
-    )
-    if docs.returncode != 0:
-        raise RuntimeError(f"`dev docs` failed in the merged tree: {(docs.stdout + docs.stderr).strip()[-500:]}")
+    """`dev docs` in the merged tree, then each `[tool.devkit] regenerate` command in order (#386: a line hashing
+    other files, which `dev docs` does not know), committing what they changed. True when it committed."""
+    for argv in [["uv", "run", "--quiet", "dev", "docs"], *config.get().regenerate]:
+        ran = subprocess.run(argv, cwd=tree, capture_output=True, text=True, check=False)
+        if ran.returncode != 0:
+            raise RuntimeError(
+                f"`{shlex.join(argv)}` failed in the merged tree: {(ran.stdout + ran.stderr).strip()[-500:]}"
+            )
     if not git("status", "--porcelain", cwd=tree):
         return False
     git("add", "-A", cwd=tree)
