@@ -15,7 +15,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, ci_status, merging, prtext, workflow
+from devkit import board, ci_status, fixloop, merging, prtext, workflow
 from devkit import branches as local_branches
 from tests.test_board import mk
 from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate are fixtures
@@ -429,6 +429,10 @@ def test_workflow_keeps_exporting_the_names_plugin_scripts_and_train_import():
     merge = ("_add_worktree", "_merge_rules", "_remote_shas", "deleted_owns", "merge_conflicts", "regenerate")
     for name in (*merge, "retarget_stacked", "GENERATED_MERGE"):
         assert getattr(workflow, name) is getattr(merging, name), name
+    # #448: train.py runs the fix loop and records outcomes through devkit.workflow; they live in devkit.fixloop
+    fix = ("failed_check_lines", "failing_lines", "fix_loop", "result", "send_back", "send_back_conflicting")
+    for name in fix:
+        assert getattr(workflow, name) is getattr(fixloop, name), name
 
 
 # --- integrate: a merge that deletes another open issue's Owns (#230) ---------------------------------------------
@@ -1141,14 +1145,14 @@ def test_a_pr_already_sent_back_on_the_same_head_is_not_sent_back_again(project,
     _merging(project, monkeypatch, [d])
     workflow.integrate(7, harness_ok=True, dry_run=False)
     assert last_json(capsys.readouterr().out)["sent_back"] == [8]
-    assert workflow.send_back_conflicting(7) == []
+    assert fixloop.send_back_conflicting(7) == []
     assert "already sent back: #8" in capsys.readouterr().out
     sh(clone, "git", "checkout", "-q", "13-d")
     d["headRefOid"] = commit(clone, {"docs/research/a.md": "one\nTWO by d, again\nthree\n"}, "again")
     sh(clone, "git", "push", "-q", "origin", "13-d")
     sh(project["origin"], "git", "update-ref", "refs/pull/8/head", d["headRefOid"])
     sh(clone, "git", "checkout", "-q", "main")
-    assert workflow.send_back_conflicting(7) == [8]
+    assert fixloop.send_back_conflicting(7) == [8]
     assert len([e for e in project["events"] if e[:3] == ("gh", "pr", "comment")]) == 2
 
 
@@ -1184,7 +1188,7 @@ def test_the_conflict_check_takes_under_50_ms_per_open_pr(tmp_path):
     sh(repo, "git", "checkout", "-q", "main")
     main = commit(repo, {"src/m5.py": "main\n"}, "main moves")
     started = time.perf_counter()
-    found, failed = workflow.conflicting(main, heads, cwd=repo)
+    found, failed = merging.conflicting(main, heads, cwd=repo)
     per_pr = (time.perf_counter() - started) / len(heads)
     assert found == {4: ["src/m5.py"], 5: ["src/m5.py"]} and failed == {}
     assert per_pr < 0.05, f"{per_pr * 1000:.1f} ms per open PR"
@@ -1367,7 +1371,7 @@ def test_the_gate_output_shows_while_the_gate_runs(fake_integrate, monkeypatch, 
 def test_why_on_an_unreadable_record_says_so(fake_integrate, capsys, stored):  # noqa: F811
     path = workflow.state_dir("integrate") / "pr-7.outcome.json"
     path.write_text(stored)
-    assert workflow.why(7) == 1
+    assert fixloop.why(7) == 1
     assert "unreadable" in capsys.readouterr().out
     assert fake_integrate["events"] == []
 
@@ -1376,7 +1380,7 @@ def test_why_indents_multi_line_text_so_it_cannot_pose_as_a_result_line(fake_int
     path = workflow.state_dir("integrate") / "pr-7.outcome.json"
     rec = {"pr": 7, "outcome": "refused\nRESULT: merged", "exit": 1, "judged": HEAD, "when": "now"}
     path.write_text(json.dumps(rec | {"reason": "x\nRESULT: merged", "gate": ["a\r\nRESULT: merged"]}))
-    assert workflow.why(7) == 0
+    assert fixloop.why(7) == 0
     out = capsys.readouterr().out
     assert out.count("RESULT: merged") == 3
     assert not [ln for ln in out.splitlines() if ln.startswith("RESULT")]
@@ -1387,7 +1391,7 @@ def test_why_prints_the_record_and_that_the_head_has_not_moved(fake_integrate, m
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     capsys.readouterr()
     fake_integrate["events"].clear()
-    assert workflow.why(7) == 0
+    assert fixloop.why(7) == 0
     out = capsys.readouterr().out
     assert "gate-failed" in out and HEAD[:10] in out
     assert "FAIL tests: 120 checked" in out and "would reformat devkit/x.py" in out
@@ -1402,7 +1406,7 @@ def test_why_says_when_the_head_has_moved_since(fake_integrate, capsys):  # noqa
     capsys.readouterr()
     fake_integrate["remote_head"] = "n" * 40
     fake_integrate["events"].clear()
-    assert workflow.why(7) == 0
+    assert fixloop.why(7) == 0
     out = capsys.readouterr().out
     assert "refused" in out and "devkit/x.py:9" in out
     assert f"moved since: {HEAD[:10]} -> {'n' * 10}" in out
@@ -1410,7 +1414,7 @@ def test_why_says_when_the_head_has_moved_since(fake_integrate, capsys):  # noqa
 
 
 def test_why_without_a_record_says_so_and_touches_nothing(fake_integrate, capsys):  # noqa: F811
-    assert workflow.why(7) == 1
+    assert fixloop.why(7) == 1
     assert "no integrate outcome recorded for PR #7" in capsys.readouterr().out
     assert fake_integrate["events"] == []
 
@@ -1424,7 +1428,7 @@ def test_why_still_prints_the_record_when_github_cannot_be_read(fake_integrate, 
         raise board.BoardError("gh: 502")
 
     monkeypatch.setattr(board, "gh", down)
-    assert workflow.why(7) == 0
+    assert fixloop.why(7) == 0
     out = capsys.readouterr().out
     assert "refused" in out and "cannot read the PR head" in out
 
@@ -1445,7 +1449,7 @@ def test_dev_integrate_why_reads_the_record_and_never_integrates(fake_integrate,
 
 
 def test_failing_lines_keeps_failed_stages_and_the_result_line():
-    lines = workflow.failing_lines(GATE_OUT)
+    lines = fixloop.failing_lines(GATE_OUT)
     assert lines[0] == "FAIL tests: 120 checked, 2 problem(s)" and lines[-1].startswith("RESULT: failed")
     assert not [ln for ln in lines if "warning" in ln or ln.startswith("ok")]
 
@@ -1453,13 +1457,13 @@ def test_failing_lines_keeps_failed_stages_and_the_result_line():
 def test_failing_lines_falls_back_to_the_tail_when_no_stage_failed():
     """A stand-in command (--local-ci) or a killed gate prints no FAIL line: the end of the output says why."""
     text = "\n".join(f"line {i}" for i in range(50)) + "\n\n"
-    assert workflow.failing_lines(text) == [f"line {i}" for i in range(50 - workflow.WHY_TAIL, 50)]
-    assert workflow.failing_lines("") == []
+    assert fixloop.failing_lines(text) == [f"line {i}" for i in range(50 - fixloop.WHY_TAIL, 50)]
+    assert fixloop.failing_lines("") == []
 
 
 def test_failing_lines_keeps_a_stage_past_its_blank_problem_lines():
     """Review of #362 (B1): pytest's output has blank lines, which the gate prints indented; they end no stage."""
-    got = workflow.failing_lines("FAIL tests: 1\n     a\n     \n     FAILED t::x\nRESULT: failed\n")
+    got = fixloop.failing_lines("FAIL tests: 1\n     a\n     \n     FAILED t::x\nRESULT: failed\n")
     assert got == ["FAIL tests: 1", "     a", "", "     FAILED t::x", "RESULT: failed"]
 
 
@@ -1530,8 +1534,8 @@ RESULT: failed (1 stage(s), 25 s)
 
 def test_failing_lines_of_a_real_failing_gate_keep_what_failed_and_why():
     """Review of #362 (B1): over the cap, each failed stage keeps its FAILED and E lines, pytest's count and its end."""
-    got = workflow.failing_lines(REAL_GATE_LOG)
-    assert len(got) <= workflow.WHY_LINES + 2
+    got = fixloop.failing_lines(REAL_GATE_LOG)
+    assert len(got) <= fixloop.WHY_LINES + 2
     for line in [
         "FAIL tests: 1945 checked, 41 problem(s)",
         "     E       assert 3 == (1 + 1)",
@@ -1565,17 +1569,17 @@ def test_failing_lines_is_every_failed_stage_with_its_problems_in_order_and_boun
         for i, (failed, problems) in enumerate(stages)
     )
     want = [ln.rstrip() for i, (failed, ps) in enumerate(stages) if failed for ln in [f"FAIL s{i}: 1 checked", *ps]]
-    got = workflow.failing_lines(text)
-    assert len(got) <= workflow.WHY_LINES + 1
+    got = fixloop.failing_lines(text)
+    assert len(got) <= fixloop.WHY_LINES + 1
     if not want:  # no failed stage: the end of the run says why
-        assert got == [ln.rstrip() for ln in text.splitlines() if ln.strip()][-workflow.WHY_TAIL :]
+        assert got == [ln.rstrip() for ln in text.splitlines() if ln.strip()][-fixloop.WHY_TAIL :]
         return
-    if len(want) <= workflow.WHY_LINES:
+    if len(want) <= fixloop.WHY_LINES:
         assert got == want
         return
     kept = iter(want)
     assert all(ln in kept for ln in got if not ln.startswith("... "))  # in order, nothing invented
-    if len(keys := [ln for ln in want if _key(ln)]) <= workflow.WHY_LINES:
+    if len(keys := [ln for ln in want if _key(ln)]) <= fixloop.WHY_LINES:
         assert [ln for ln in got if _key(ln)] == keys  # every stage line, FAILED line and E line survives the cap
 
 
@@ -1773,10 +1777,10 @@ def test_a_send_back_never_posts_a_token_or_a_session_link(fake_integrate, monke
 
 def test_scrubbed_keeps_ordinary_text():
     text = "FAIL tests: sk-learn, task-runner, ghost_town, Bearer of news, risk-assessment-review"
-    assert workflow.scrubbed(text) == text
-    assert workflow.scrubbed("Authorization: token " + "0a" * 20) == "Authorization: token [redacted]"
-    assert workflow.scrubbed("Authorization: Bearer " + "0a" * 10) == "Authorization: Bearer [redacted]"
-    assert workflow.scrubbed("Authorization: Bearer " + "0a" * 9) == "Authorization: Bearer " + "0a" * 9
+    assert fixloop.scrubbed(text) == text
+    assert fixloop.scrubbed("Authorization: token " + "0a" * 20) == "Authorization: token [redacted]"
+    assert fixloop.scrubbed("Authorization: Bearer " + "0a" * 10) == "Authorization: Bearer [redacted]"
+    assert fixloop.scrubbed("Authorization: Bearer " + "0a" * 9) == "Authorization: Bearer " + "0a" * 9
 
 
 def _credential_forms() -> dict[str, tuple[str, str]]:
@@ -1822,14 +1826,14 @@ ENTROPY_ONLY = {"aws secret"}
 @pytest.mark.parametrize("name", sorted(_credential_forms().keys() - ENTROPY_ONLY))
 def test_scrubbed_cuts_each_vendor_credential_form(name):
     shown, secret = _credential_forms()[name]
-    out = workflow.scrubbed(f"step 3: {shown} done")
-    assert secret not in out and workflow.REDACTED in out and out.startswith("step 3: ") and out.endswith(" done")
+    out = fixloop.scrubbed(f"step 3: {shown} done")
+    assert secret not in out and fixloop.REDACTED in out and out.startswith("step 3: ") and out.endswith(" done")
 
 
 def test_scrubbed_cuts_at_least_17_of_the_18_survey_forms():
     forms = _credential_forms()
     assert len(forms) == 18
-    caught = [n for n, (shown, secret) in forms.items() if secret not in workflow.scrubbed(f"step 3: {shown} done")]
+    caught = [n for n, (shown, secret) in forms.items() if secret not in fixloop.scrubbed(f"step 3: {shown} done")]
     assert len(caught) >= 17, sorted(forms.keys() - set(caught))
 
 
@@ -1850,7 +1854,7 @@ def test_scrubbed_cuts_at_least_17_of_the_18_survey_forms():
     ],
 )
 def test_scrubbed_leaves_ordinary_log_lines(line):
-    assert workflow.scrubbed(line) == line
+    assert fixloop.scrubbed(line) == line
 
 
 def test_a_check_log_without_gh_still_ends_in_a_result(fake_integrate, monkeypatch, capsys):  # noqa: F811

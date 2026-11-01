@@ -18,7 +18,7 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, branches, ci_status, config, gate, merging, paths, workflow
+from devkit import board, branches, ci_status, config, fixloop, gate, merging, paths, workflow
 
 REAL_POPEN = subprocess.Popen
 
@@ -819,8 +819,9 @@ def test_merge_rechecks_both_shas_and_matches_the_head(monkeypatch):
     assert not calls
 
 
-def test_integrate_reads_the_fields_it_checks(monkeypatch):
+def test_integrate_reads_the_fields_it_checks(monkeypatch, tmp_path):
     seen = {}
+    monkeypatch.setattr(paths, "common_dir", lambda: tmp_path / ".git")  # its outcome record, not this clone's
 
     def gh(*args, **_):
         seen["fields"] = set(args[args.index("--json") + 1].split(","))
@@ -946,6 +947,7 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(workflow, "git", git)
     monkeypatch.setattr(branches, "git", git)
     monkeypatch.setattr(merging, "git", git)
+    monkeypatch.setattr(fixloop, "git", git)
     monkeypatch.setattr(board, "gh", gh)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "comment", lambda *a, **k: None)
@@ -957,16 +959,12 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(workflow.time, "sleep", lambda s: None)
     monkeypatch.setattr(branches, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
-    monkeypatch.setattr(workflow, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
+    # one git common dir under tmp_path: workflow and fixloop (the fix loop, outcome records) share its state dir
+    monkeypatch.setattr(paths, "common_dir", lambda: tmp_path / ".git")
     workflow.config.get()  # resolve this repository's config with the real git, before subprocess.run is faked
     monkeypatch.setattr(workflow.subprocess, "run", run)
     monkeypatch.setattr(workflow.subprocess, "Popen", lambda cmd, **kw: FinishedGate(run(cmd, **kw).returncode))
     return world
-
-
-def _made(path):
-    path.mkdir(parents=True, exist_ok=True)  # as paths.state_dir does
-    return path
 
 
 def _index(events, pred):
@@ -1578,7 +1576,9 @@ def _comments(ev):
 
 
 def _log_sha(tmp_path, tip):
-    return hashlib.sha256((tmp_path / "integrate" / f"pr-7-{tip[:12]}.log").read_bytes()).hexdigest()
+    return hashlib.sha256(
+        (tmp_path / ".git" / "devkit" / "integrate" / f"pr-7-{tip[:12]}.log").read_bytes()
+    ).hexdigest()
 
 
 def test_billing_blocked_checks_are_run_locally_posted_as_statuses_with_the_log_hash_then_merged(
