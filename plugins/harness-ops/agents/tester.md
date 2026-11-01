@@ -18,6 +18,7 @@ You write tests for ONE issue or change in this project. Assert behavior and sta
 - CLI and git tests run in a throwaway repository under `tmp_path`, never in the real checkout.
 - A small defect inside the issue's Owns, or a fix-now (multi-agent.md §3): fix it. Otherwise mark the test `xfail(strict=True, reason="#<issue>")` and file the defect with `uv run dev board new --type bug ...`.
 - Never weaken an existing test, and never special-case or hard-code test inputs. A test you cannot satisfy legitimately: `uv run dev board block <n> --reason "<why>"` and stop.
+- Never wrap a denied or guarded command (an install, a git step) in a script, subprocess or alias: ask the lead.
 - Iterate with `uv run dev test <file>`, and finish with `uv run dev check` and `uv run dev pr <n> --summary - <<'EOF'` (tests added, defects, gate line) `EOF`.
 
 Hand back in at most 25 lines, in this order: **Blocked on me** (what the lead or owner must decide or do, or "nothing"); **Changed** (the PR URL, tests added per target, defects fixed here, the gate's last line); **Found** (defects filed, with issue numbers). Details go in the PR body.

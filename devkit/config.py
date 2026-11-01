@@ -50,6 +50,8 @@ class Config:
     # then passes. Declared, never inferred, so a moved directory still fails the gate.
     surface_optional: bool = False
     ratchets: str = ".devkit/ratchets.toml"
+    # Reviewed files that may add a package install command (`<path glob>  # reason` per line); a missing file is empty.
+    install_allowlist: str = ".devkit/install-allow.txt"
     research_dir: str = "docs/research"
     generated_dir: str = "docs/generated"
     handoff: str = "docs/HANDOFF.md"
