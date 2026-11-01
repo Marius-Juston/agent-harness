@@ -19,28 +19,60 @@ from devkit import config, stats
 FIXTURE = Path(__file__).parent / "fixtures/transcript_usage.jsonl"
 
 
+def _fixture_run() -> stats.Run:
+    return stats.read_run(FIXTURE, "builder", "s")
+
+
 def test_output_tokens_match_final_usage_once_per_message():
-    run = stats.scan(FIXTURE)
+    run = _fixture_run()
     # msg_a final 781 (stream-start 6 ignored), msg_b only stream-start 8, msg_c final 698 logged three times
-    assert run["output"] == 781 + 8 + 698
-    assert run["messages"] == 3
-    assert run["partial"] == 1  # msg_b never logged a final usage: its 8 is a lower bound
+    assert run.output == 781 + 8 + 698
+    assert run.messages == 3
+    assert run.partial == 1  # msg_b never logged a final usage: its 8 is a lower bound
 
 
 def test_input_tokens_counted_once_per_message():
-    run = stats.scan(FIXTURE)
-    assert run["fresh"] == (3 + 500) + (2 + 0) + (1 + 200)
-    assert run["cached"] == 10000 + 12000 + 15000
-    assert run["calls"] == 3
-    assert run["result_chars"] == 12
+    run = _fixture_run()
+    assert run.fresh == (3 + 500) + (2 + 0) + (1 + 200)
+    assert run.cached == 10000 + 12000 + 15000
+    assert run.calls == 3 and run.tools == {"Read": 2, "Bash": 1}
+    assert run.result_chars == 12
 
 
 def test_report_names_the_usage_field(monkeypatch):
-    monkeypatch.setattr(stats, "collect", lambda: {"builder": [stats.scan(FIXTURE)]})
+    monkeypatch.setattr(stats, "load_runs", lambda dirs: [_fixture_run()])
     text = stats.report()
     assert "usage.output_tokens" in text
     assert "1,487" in text
     assert "33%" in text  # share of messages with only a stream-start usage
+
+
+def _assistant(mid: str, model: str, stop: str | None, out: int, tool: str = "") -> dict:
+    content = [{"type": "tool_use", "id": f"t{mid}", "name": tool, "input": {}}] if tool else []
+    usage = {"input_tokens": 1, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 10, "output_tokens": out}
+    msg = {"id": mid, "model": model, "stop_reason": stop, "content": content, "usage": usage}
+    return {"type": "assistant", "timestamp": "2026-11-01T00:00:00Z", "message": msg}
+
+
+def test_scorecard_skips_synthetic_turns_and_runs_without_a_real_turn(tmp_path, monkeypatch):
+    """Owner decision on #450: the scorecard counts as --cost does (load_runs)."""
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    real = [_assistant("m1", OPUS, "end_turn", 50, "Bash"), _assistant("m2", OPUS, None, 4)]
+    real.append(_assistant("syn", "<synthetic>", "stop_sequence", 0))
+    (proj / "a.jsonl").write_text("".join(json.dumps(r) + "\n" for r in real))
+    (proj / "empty.jsonl").write_text(json.dumps(_assistant("s2", "<synthetic>", "stop_sequence", 0)) + "\n")
+    (proj / "blank.jsonl").write_text("")
+    monkeypatch.setattr(stats, "project_dirs", lambda: [proj])
+    [row] = json.loads(stats.report(as_json=True))
+    assert (row["type"], row["runs"], row["calls"], row["output"]) == ("main session", 1, 1, 54)
+    assert row["partial_share"] == 0.5  # m2 of m1, m2; the synthetic turn is not a message
+
+
+def test_report_with_no_transcripts(monkeypatch):
+    monkeypatch.setattr(stats, "load_runs", lambda dirs: [])
+    assert stats.report() == "no transcripts for this checkout yet"
+    assert stats.report(as_json=True) == "[]"
 
 
 # --- cost, reviews and misses (#255; docs/research/harness-efficiency.md §2, §4, §9) -------------------------------
