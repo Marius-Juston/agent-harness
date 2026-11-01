@@ -6,9 +6,11 @@ Each check returns a `Ran` (devkit/ran.py): how much it examined and what it fou
 `[tool.devkit]` (devkit/config.py). Prose may *point* at those facts; these checks fail when a pointer dangles.
 """
 
+import argparse
 import fnmatch
 import json
 import re
+import shlex
 import subprocess
 import tomllib
 from pathlib import Path
@@ -80,6 +82,15 @@ MD_LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 BACKTICK = re.compile(r"`([^`\n]+)`")
 SOURCE_ON_LINE = re.compile(r"\]\(https?://|https?://|\[[^\]]+\]\([^)]+\.md")
 DEV_CMD = re.compile(r"uv run dev ([a-z][a-z-]*)(?: ([a-z][a-z-]*))?")
+# A backticked `uv run dev X ...` span is parsed by the CLI's own parser for unknown options and leftover positionals
+# (decision-records-and-drift.md §5 check 1a, §14.1 item 7). Its syntax rules were fitted on the history it was scored
+# on, so it is a warning; #236 flips this once a held-out replay shows 0 FP over 30 merges per repository.
+DEV_SPAN_GATE = False
+DEV_DOCS = (".md", ".sh", ".yml", ".json", ".jinja")
+DEV_SPAN = re.compile(r"(?<![\w/.$-])uv run dev ([a-z][a-z-]*)")
+SPAN_CUT = re.compile(r"&&|\|\||\s\|\s|;|\s>|2>|<<|\s&|,\s|(?<!\.)\.(?:\s|$)")  # shell operators, sentence ends
+NEGATIVE_REF = re.compile(r"\b(?:removed|reintroduc\w*|historical|no longer|formerly)\b", re.I)
+TEST_FILE = re.compile(r"(?:^|/)(?:test_[^/]*|[^/]*_test|conftest)\.py$")  # they plant bad spans on purpose
 
 
 def tracked(*patterns: str) -> list[Path]:
@@ -329,20 +340,113 @@ def check_links() -> Ran:
     return ran
 
 
-def check_dev_commands(commands: dict[str, set[str]]) -> Ran:
-    """Every `uv run dev X [Y]` written anywhere in prose, agents or skills names a real command."""
-    ran = Ran("dev commands named in docs")
-    for path in tracked("*.md", "*.sh", "*.yml", "*.json", "*.jinja"):
-        rel = path.relative_to(root())
-        if rel.is_relative_to(config.get().generated_dir):
+class _SpanError(Exception):
+    pass
+
+
+def _span_error(message: str = "", *_: object) -> None:
+    raise _SpanError(message)
+
+
+def loosen(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    """Make a parser read prose: no required options or subcommands, optional positionals, no type conversion (a
+    placeholder `N` is no int), and errors raised as `_SpanError` instead of printing and exiting. In place."""
+    parser.error = _span_error  # type: ignore[method-assign]
+    parser.exit = _span_error  # type: ignore[method-assign]
+    for a in parser._actions:
+        a.required = False
+        if isinstance(a, argparse._SubParsersAction):
+            for sub in set(a.choices.values()):
+                loosen(sub)
             continue
-        for m in DEV_CMD.finditer(path.read_text(encoding="utf-8", errors="replace")):
+        a.type = None
+        if not a.option_strings:
+            a.nargs = {None: "?", "+": "*"}.get(a.nargs, a.nargs)  # type: ignore[arg-type]
+    return parser
+
+
+def span_tokens(rest: str) -> list[str] | None:
+    """The arguments a span gives after `uv run dev X`, or None when it is no complete command. The syntax rules:
+    cut at shell operators; `...`, `a|b` and globs are elisions or alternatives; `<x>` and `N` are placeholders."""
+    if cut := SPAN_CUT.search(rest):
+        rest = rest[: cut.start()]
+    try:
+        tokens = shlex.split(rest)
+    except ValueError:
+        return None
+    out = []
+    for t in tokens:
+        if t in ("...", "…") or t.endswith(("..", "…")) or any(ch in t for ch in "|{}()*"):
+            return None
+        optional = t.startswith("[") and t.endswith("]")
+        t = t.strip("[]")
+        if re.fullmatch(r"<[^>]*>", t):
+            if optional:
+                continue
+            t = "1"
+        if t not in ("-h", "--help"):
+            out.append(re.sub(r"<[^>]*>", "x", t))
+    return out
+
+
+def span_problem(parser: argparse.ArgumentParser, commands: dict[str, set[str]], cmd: str, rest: str) -> str | None:
+    """What is wrong with one `uv run dev <cmd> <rest>` span, if anything, against a `loosen`ed parser."""
+    tokens = span_tokens(rest)
+    if tokens is None:
+        return None
+    if cmd not in commands:
+        return f"`uv run dev {cmd}` is not a command"
+    if tokens and commands[cmd] and tokens[0] not in commands[cmd] and not tokens[0].startswith("-"):
+        return f"`{tokens[0]}` is not a subcommand of {cmd}"
+    try:
+        _, extra = parser.parse_known_args([cmd, *tokens])
+    except _SpanError as e:
+        message = str(e)
+        return None if not message or "expected one argument" in message else message
+    if unknown := [e for e in extra if e.startswith("-") and e != "-"]:
+        return f"unknown option {' '.join(unknown)}"
+    return f"{' '.join(extra)} left over: no argument takes it" if extra else None
+
+
+def check_dev_commands(commands: dict[str, set[str]], parser: argparse.ArgumentParser | None = None) -> Ran:
+    """Every `uv run dev X [Y]` written anywhere in prose, agents or skills names a real command (a failure). Each
+    backticked span is also parsed for unknown options and leftover positionals (a warning until `DEV_SPAN_GATE`),
+    and so are spans in `.py` strings and comments outside test files (a warning only). Fenced blocks, research notes
+    and lines that mark a span as a historical or negative reference ("removed", "do not reintroduce") are exempt
+    from the parse. `parser` is a fresh `devkit.cli.build()` by default; it is loosened in place."""
+    if parser is None:
+        from devkit import cli  # cli imports this module
+
+        parser = cli.build()
+    loosen(parser)
+    ran = Ran("dev commands named in docs")
+    cfg = config.get()
+    for path in tracked(*(f"*{ext}" for ext in (*DEV_DOCS, ".py"))):
+        rel = path.relative_to(root())
+        doc = path.suffix in DEV_DOCS
+        if rel.is_relative_to(cfg.generated_dir) or not (doc or path.suffix == ".py"):
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for m in DEV_CMD.finditer(text) if doc else ():
             ran.checked += 1
             cmd, sub = m.group(1), m.group(2)
             if cmd not in commands:
                 ran.problems.append(f"{rel}: `uv run dev {cmd}` is not a command (see `uv run dev --help`)")
             elif sub and commands[cmd] and sub not in commands[cmd] and not sub.startswith("-"):
                 ran.problems.append(f"{rel}: `uv run dev {cmd} {sub}` is not a subcommand of {cmd}")
+        if rel.is_relative_to(cfg.research_dir) or (not doc and TEST_FILE.search(rel.as_posix())):
+            continue
+        for n, line in enumerate(strip_fences(text).splitlines(), 1):
+            if NEGATIVE_REF.search(line):
+                continue
+            for span in BACKTICK.findall(line):
+                for m in DEV_SPAN.finditer(span):
+                    ran.checked += not doc
+                    problem = span_problem(parser, commands, m.group(1), span[m.end() :])
+                    if problem is None or (doc and "is not a" in problem):
+                        continue  # in docs the name check above already failed it
+                    out = ran.problems if doc and DEV_SPAN_GATE else ran.warnings
+                    out.append(f"{rel}:{n}: `{span}`: {problem} (see `uv run dev {m.group(1)} --help`)")
     return ran
 
 
