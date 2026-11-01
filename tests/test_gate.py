@@ -18,7 +18,7 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, branches, config, gate, paths, workflow
+from devkit import board, branches, ci_status, config, gate, paths, workflow
 
 REAL_POPEN = subprocess.Popen
 
@@ -957,6 +957,7 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(branches, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
+    monkeypatch.setattr(ci_status, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
     workflow.config.get()  # resolve this repository's config with the real git, before subprocess.run is faked
     monkeypatch.setattr(workflow.subprocess, "run", run)
     monkeypatch.setattr(workflow.subprocess, "Popen", lambda cmd, **kw: FinishedGate(run(cmd, **kw).returncode))
@@ -1062,7 +1063,7 @@ def test_integrate_judges_each_check_by_its_latest_run(fake_integrate):
 def test_latest_checks_keeps_one_run_per_workflow_and_name():
     runs = [_run("a", conclusion="FAILURE"), _run("a", started="2026-10-11T13:00:00Z"), _run("a", workflow="w2")]
     status = {"__typename": "StatusContext", "context": "ci/x", "state": "SUCCESS"}
-    latest = workflow.latest_checks([*runs, status])
+    latest = ci_status.latest_checks([*runs, status])
     assert [c is runs[1] or c is runs[2] or c is status for c in latest] == [True] * 3 and len(latest) == 3
 
 
@@ -1200,7 +1201,7 @@ def clock(monkeypatch):
         state["now"] += s
 
     monkeypatch.setattr(workflow.time, "sleep", sleep)
-    monkeypatch.setattr(workflow, "CHECKS_CLOCK", lambda: state["now"])
+    monkeypatch.setattr(ci_status, "CHECKS_CLOCK", lambda: state["now"])
     return state
 
 
@@ -1210,9 +1211,9 @@ def _status(context, state):
 
 def test_pending_checks_counts_running_and_not_yet_registered_checks():
     info = {"statusCheckRollup": [_run("a", status="IN_PROGRESS"), _run("b"), _status("bot", "PENDING")]}
-    assert workflow.pending_checks(info, ["ci/b", "ci/c"]) == ["ci/a", "/bot", "ci/c (not started)"]
+    assert ci_status.pending_checks(info, ["ci/b", "ci/c"]) == ["ci/a", "/bot", "ci/c (not started)"]
     done = {"statusCheckRollup": [_run("a", conclusion="FAILURE"), _status("bot", "ERROR")]}
-    assert workflow.pending_checks(done, ["ci/a", "/bot"]) == []  # failed is complete: unfinished() judges it
+    assert ci_status.pending_checks(done, ["ci/a", "/bot"]) == []  # failed is complete: unfinished() judges it
 
 
 def test_after_pushing_an_update_integrate_waits_for_every_check_on_the_tip_then_merges(fake_integrate, clock, capsys):
@@ -1231,8 +1232,8 @@ def test_after_pushing_an_update_integrate_waits_for_every_check_on_the_tip_then
     ev = fake_integrate["events"]
     assert _index(ev, lambda e: e[:2] == ("git", "push")) < _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
     assert len(clock["sleeps"]) >= 3 and fake_integrate["after_push"] == [[_run("check"), _run("template")]]
-    floor = workflow.CHECKS_FLOOR_S
-    assert all(floor <= s <= floor + workflow.CHECKS_CAP_S for s in clock["sleeps"])
+    floor = ci_status.CHECKS_FLOOR_S
+    assert all(floor <= s <= floor + ci_status.CHECKS_CAP_S for s in clock["sleeps"])
     assert len(set(clock["sleeps"])) > 1  # jittered, not a fixed interval
     assert _last_json(capsys.readouterr().out)["outcome"] == "merged"
 
@@ -1613,7 +1614,7 @@ def test_a_required_check_that_never_queues_counts_as_actions_unavailable_after_
 ):
     fake_integrate["checks"] = []
     assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
-    assert 600 <= sum(clock["sleeps"]) < 600 + workflow.CHECKS_FLOOR_S + workflow.CHECKS_CAP_S
+    assert 600 <= sum(clock["sleeps"]) < 600 + ci_status.CHECKS_FLOOR_S + ci_status.CHECKS_CAP_S
     assert [s["context"] for s in actions["statuses"]] == ["check"]
 
 
