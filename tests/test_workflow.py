@@ -3,6 +3,7 @@ The PR summary's `Reuse:` line (#173), which the completion gate checks."""
 
 import io
 import json
+import random
 import shutil
 import subprocess
 import threading
@@ -1676,7 +1677,7 @@ def test_a_send_back_never_posts_a_token_or_a_session_link(fake_integrate, monke
         "see https%3A%2F%2Fclaude.ai%2Fcode%2F" + session.rsplit("/", 1)[1] + "_05encoded",
         "build\tstep\t2026-10-31T00:00:00Z Claude-Session: 06trailer",  # a --log-failed prefixed trailer
     ]
-    gate = GATE_OUT.replace("test_a FAILED", leak).replace("test_b FAILED", "Bearer abc.def")
+    gate = GATE_OUT.replace("test_a FAILED", leak).replace("test_b FAILED", "Bearer abc.def0123456789ghij")
     gate = gate.replace("     would reformat devkit/x.py", "\n".join(f"     {ln}" for ln in sessions))
     _gate_says(monkeypatch, gate, 1)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
@@ -1687,7 +1688,7 @@ def test_a_send_back_never_posts_a_token_or_a_session_link(fake_integrate, monke
         "github_pat_11AB",
         "sk-0123456789abcdef",
         "AKIA0123456789ABCDEF",
-        "abc.def",
+        "abc.def0123456789ghij",
         url,
         *marks,
     ):
@@ -1697,10 +1698,84 @@ def test_a_send_back_never_posts_a_token_or_a_session_link(fake_integrate, monke
 
 def test_scrubbed_keeps_ordinary_text():
     text = "FAIL tests: sk-learn, task-runner, ghost_town, Bearer of news, risk-assessment-review"
-    assert workflow.scrubbed(text) == "FAIL tests: sk-learn, task-runner, ghost_town, Bearer [redacted] news, " + (
-        "risk-assessment-review"
-    )
+    assert workflow.scrubbed(text) == text
     assert workflow.scrubbed("Authorization: token " + "0a" * 20) == "Authorization: token [redacted]"
+    assert workflow.scrubbed("Authorization: Bearer " + "0a" * 10) == "Authorization: Bearer [redacted]"
+    assert workflow.scrubbed("Authorization: Bearer " + "0a" * 9) == "Authorization: Bearer " + "0a" * 9
+
+
+def _credential_forms() -> dict[str, tuple[str, str]]:
+    """The 18 synthetic credential forms of docs/research/devkit-reuse-survey.md §2.3 (its c_scrub.py), name -> (the
+    token as a log prints it, the part that must not survive). Built at runtime from a seeded RNG and split literals,
+    so this file holds no secret-shaped string for the gitleaks pre-commit hook to flag."""
+    rng = random.Random(416)  # fake probe tokens, not secrets
+    an = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+    def rnd(n: int, alphabet: str = an) -> str:
+        return "".join(rng.choice(alphabet) for _ in range(n))
+
+    def j(*parts: str) -> tuple[str, str]:
+        return "".join(parts), "".join(parts)
+
+    gh_app, pg, pem = rnd(36), rnd(16), rnd(64, an + "+/")
+    return {
+        "github classic": j("gh", "p_", rnd(36)),
+        "github fine-grained": j("github", "_pat_", rnd(22), "_", rnd(59)),
+        "github app in url": (j("https://x-access-token:", "gh", "s_", gh_app, "@github.com/o/r.git")[0], gh_app),
+        "anthropic": j("sk", "-ant-api03-", rnd(93, an + "-_"), "AA"),
+        "openai project": j("sk", "-proj-", rnd(48)),
+        "aws key id": j("AK", "IA", rnd(16, "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")),
+        "aws secret": j("aws_secret", "_access_key = ", rnd(40, an + "+/")),
+        "slack bot": j("xo", "xb-", rnd(12, "0123456789"), "-", rnd(13, "0123456789"), "-", rnd(24)),
+        "google api": j("AI", "za", rnd(35, an + "-_")),
+        "pypi": j("py", "pi-AgEIcHlwaS5vcmc", rnd(70, an + "-_")),
+        "npm": j("np", "m_", rnd(36)),
+        "gitlab": j("gl", "pat-", rnd(20, an + "-_")),
+        "huggingface": j("h", "f_", rnd(34, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")),
+        "stripe live": j("sk", "_live_", rnd(24)),
+        "private key": (j("-----BEGIN RSA ", "PRIVATE KEY-----\\n", pem, "\\n-----END RSA PRIVATE KEY-----")[0], pem),
+        "jwt": j("ey", "JhbGciOiJIUzI1NiJ9.", "ey", "J", rnd(40, an + "-_"), ".", rnd(43, an + "-_")),
+        "url password": (j("postgres://admin:", pg, "@db.example.com:5432/app")[0], pg),
+        "bearer header": ("Authorization: Bearer " + (tok := rnd(40, an + "._-")), tok),
+    }
+
+
+# The one survey form a prefix pattern cannot catch: it needs entropy (gitleaks' generic-api-key rule).
+ENTROPY_ONLY = {"aws secret"}
+
+
+@pytest.mark.parametrize("name", sorted(_credential_forms().keys() - ENTROPY_ONLY))
+def test_scrubbed_cuts_each_vendor_credential_form(name):
+    shown, secret = _credential_forms()[name]
+    out = workflow.scrubbed(f"step 3: {shown} done")
+    assert secret not in out and workflow.REDACTED in out and out.startswith("step 3: ") and out.endswith(" done")
+
+
+def test_scrubbed_cuts_at_least_17_of_the_18_survey_forms():
+    forms = _credential_forms()
+    assert len(forms) == 18
+    caught = [n for n, (shown, secret) in forms.items() if secret not in workflow.scrubbed(f"step 3: {shown} done")]
+    assert len(caught) >= 17, sorted(forms.keys() - set(caught))
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "FAILED tests/test_auth.py::test_token_refresh_rejects_expired - AssertionError: assert 401 == 200",
+        "commit 3f9a1c0e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39 (HEAD -> 416-reuse-survey)",
+        "RESULT: failed (2 stage(s), 31 s)",
+        "Bearer of bad news: the gate failed",
+        "the token budget is 4000 words; tokenizer_config.json missing",
+        "uuid 8f14e45f-ceea-467f-a0e6-1a4f3c3b8f21 not found",
+        "sk-learn is not a package; use scikit-learn",
+        "E   ModuleNotFoundError: No module named 'detect_secrets'",
+        "##[error]Process completed with exit code 1.",
+        "base64 payload aGVsbG8gd29ybGQgdGhpcyBpcyBub3QgYSBzZWNyZXQ= decoded",
+        "served at http://localhost:8000/@scope/pkg; cloned ssh://git@github.com/o/r.git",
+    ],
+)
+def test_scrubbed_leaves_ordinary_log_lines(line):
+    assert workflow.scrubbed(line) == line
 
 
 def test_a_check_log_without_gh_still_ends_in_a_result(fake_integrate, monkeypatch, capsys):  # noqa: F811
