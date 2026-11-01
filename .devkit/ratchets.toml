@@ -37,5 +37,5 @@ approved_by = "Marius-Juston"
 # Coverage is a floor against a large drop, never a target; diff coverage is printed, never gated.
 # Evidence: docs/research/test-floors-and-coverage.md.
 [tests]
-min_tests = 1021       # passed tests in the default gate run: 95% of 1075 (2026-10-12)
-min_coverage = 81      # line % of devkit/ ([tool.coverage.run] source): 81.4% measured (2026-10-12)
+min_tests = 2246       # passed tests in the default gate run: 95% of 2365 (2026-11-01)
+min_coverage = 91      # line % of devkit/ ([tool.coverage.run] source): 91.7% measured (2026-11-01)
