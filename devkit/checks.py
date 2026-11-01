@@ -681,6 +681,105 @@ def check_installs(base: str | None) -> Ran:
     return ran
 
 
+DECISION_KEYS = {"id", "rule", "why", "enforced-by", "status", "by"}
+DECISION_STATUS = ("active", "superseded")
+LITERAL_WORDS = 5  # decision-records-and-drift.md §3.5: a short marker on the reason, never on the rule wording
+
+
+def _mark_problems(name: str, enforced: object) -> list[str]:
+    ok = isinstance(enforced, list) and all(
+        isinstance(m, dict) and set(m) == {"path", "literal"} and all(isinstance(v, str) for v in m.values())
+        for m in enforced
+    )
+    if not ok or not enforced:
+        return [f"{name}: `enforced-by` must be a non-empty list of {{path, literal}} strings"]
+    problems = []
+    for m in enforced:
+        words = len(m["literal"].split())
+        if not m["path"].strip() or not words:
+            problems.append(f"{name}: an enforced-by entry has an empty path or literal")
+        elif words > LITERAL_WORDS:
+            problems.append(f"{name}: literal {m['literal']!r} has {words} words, over {LITERAL_WORDS} words")
+    return problems
+
+
+def decision_rows(text: str) -> tuple[list[str], list[dict]]:
+    """(problems, rows) of a decision table. A table without a `decision` key is unconfigured: no rows, no problem.
+    A `decision` key holding zero rows is a problem, so an emptied table cannot pass as a checked one."""
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as e:
+        return [f"does not parse: {e}"], []
+    if "decision" not in data:
+        return [], []
+    rows = data["decision"]
+    if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
+        return ["`decision` must be an array of tables ([[decision]])"], []
+    if not rows:
+        return ["the [[decision]] array has zero rows: add a row or delete the key"], []
+    ids = [r.get("id") for r in rows]
+    problems: list[str] = []
+    for r in rows:
+        name = r["id"] if isinstance(r.get("id"), str) and r["id"].strip() else "<no id>"
+        if extra := sorted(set(r) - DECISION_KEYS):
+            problems.append(f"{name}: unknown key(s) {', '.join(extra)}")
+        problems += [
+            f"{name}: `{key}` must be a non-empty string"
+            for key in ("id", "rule", "why")
+            if not isinstance(r.get(key), str) or not r[key].strip()
+        ]
+        if r.get("id") is not None and ids.count(r["id"]) > 1:
+            problems.append(f"{name}: duplicate id")
+        status, by = r.get("status"), r.get("by")
+        if status not in DECISION_STATUS:
+            problems.append(f"{name}: `status` must be one of {' | '.join(DECISION_STATUS)}")
+        elif status == "superseded" and (by == r.get("id") or by not in ids):
+            problems.append(f"{name}: a superseded row needs `by` naming another row's id (got {by!r})")
+        elif status == "active" and by is not None:
+            problems.append(f"{name}: `by` belongs on a superseded row only")
+        problems += _mark_problems(name, r.get("enforced-by"))
+    return problems, rows
+
+
+def check_decisions() -> Ran:
+    """Each active decision's `enforced-by` literal still stands in its path, compared with whitespace collapsed so a
+    rewrap is no drift. A missing one is a warning naming the row: its precision was measured in-sample, so it stays a
+    warning until a held-out replay (decision-records-and-drift.md §5, check 7)."""
+    ran = Ran("decision table")
+    rel = config.get().decisions
+    try:
+        text = (root() / rel).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        text = ""
+    except (OSError, UnicodeDecodeError) as e:
+        ran.problems.append(f"{rel}: unreadable: {e}")
+        return ran
+    problems, rows = decision_rows(text)
+    ran.problems += [f"{rel}: {p}" for p in problems]
+    ran.checked = len(rows)
+    if not rows and not problems:
+        ran.allow_empty = True
+        ran.notes.append(f"{rel}: not configured (no [[decision]] rows)")
+    if problems:
+        return ran
+    flat: dict[str, str | None] = {}
+    for r in rows:
+        for m in r["enforced-by"] if r["status"] == "active" else []:
+            if m["path"] not in flat:
+                try:
+                    flat[m["path"]] = " ".join((root() / m["path"]).read_text(encoding="utf-8").split())
+                except (OSError, UnicodeDecodeError):
+                    flat[m["path"]] = None
+            if flat[m["path"]] is None:
+                ran.warnings.append(f"{r['id']}: {m['path']} is missing, and with it the literal {m['literal']!r}")
+            elif " ".join(m["literal"].split()) not in flat[m["path"]]:
+                ran.warnings.append(
+                    f"{r['id']}: literal {m['literal']!r} is missing from {m['path']} (rule: {r['rule']}). Restore the"
+                    f" reason, or mark the row superseded in {rel} in the same PR"
+                )
+    return ran
+
+
 def merge_base() -> str | None:
     for ref in ("origin/main", "main"):
         out = subprocess.run(

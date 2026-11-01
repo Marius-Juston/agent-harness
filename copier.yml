@@ -10,6 +10,7 @@ _skip_if_exists:
   - CLAUDE.md
   - README.md
   - CHANGELOG.md   # the project's own release notes
+  - .devkit/decisions.toml   # the project's own decision rows; a template header edit must never conflict with them
   - .claude/settings.local.json   # git-ignored, per machine: the default subagent cap, each machine's to change
 
 project_name:

@@ -1,0 +1,11 @@
+# Durable rules that only prose holds: no test or hook can check them. The project owns the rows. Each row's
+# `enforced-by` literal (5 words or fewer) is taken from the rule's REASON, not its wording, and `uv run dev check`
+# warns when an active literal leaves its path. Dropping or rewording a reason means superseding its row in the same
+# PR. Without a row the check reports "not configured"; `uv run dev docs` renders docs/generated/decisions.md.
+#
+# [[decision]]
+# id = "D01"
+# rule = "One line: what agents must or must not do."
+# why = "https://github.com/<owner>/<repo>/issues/<n>#issuecomment-<id>"   # where it was decided
+# enforced-by = [{ path = "path/the/rule/lives/in.md", literal = "a few words of its reason" }]
+# status = "active"   # or "superseded", with by = "<id of the row that replaces it>"

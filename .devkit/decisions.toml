@@ -1,0 +1,51 @@
+# Durable rules that only prose holds: no test or hook can check them. Each row's `enforced-by` literal (5 words or
+# fewer) is taken from the rule's REASON, not its wording, and `uv run dev check` warns when an active literal leaves
+# its path. Dropping or rewording a reason means superseding its row in the same PR (status = "superseded",
+# by = "<new id>"). Rendered to docs/generated/decisions.md by `uv run dev docs`. Evidence and schema:
+# docs/research/decision-records-and-drift.md §3.5; the six seeds are r2-mechanisms M1 (#220).
+
+[[decision]]
+id = "D01"
+rule = "The research API key setup lives in a 'Research API keys' section of the template's and this repository's SETUP.md."
+why = "https://github.com/Marius-Juston/agent-harness/issues/23#issuecomment-6110078863"
+enforced-by = [
+  { path = "docs/SETUP.md", literal = "goes to a shared pool" },
+  { path = "template/docs/SETUP.md", literal = "goes to a shared pool" },
+]
+status = "active"
+
+[[decision]]
+id = "D05"
+rule = "The template's security steps run inside the check job, never as a separate CI job."
+why = "https://github.com/Marius-Juston/agent-harness/issues/57#issuecomment-6126159088"
+enforced-by = [{ path = ".github/workflows/ci.yml", literal = "bill one runner" }]
+status = "active"
+
+[[decision]]
+id = "D07"
+rule = "A research note gets one audit, and one second audit only after a send-back; what is left goes to its open issues."
+why = "https://github.com/Marius-Juston/agent-harness/issues/84#issuecomment-6126618369"
+# The skill states no reason (a second cycle mostly re-rolls the verifier), so this literal is the rule's own.
+enforced-by = [{ path = "plugins/harness-ops/skills/research/SKILL.md", literal = "then one second audit" }]
+status = "active"
+
+[[decision]]
+id = "D08"
+rule = "scripts/repo_metrics.py is frozen: superseded by `uv run dev consolidation`, never extended or deleted."
+why = "https://github.com/Marius-Juston/agent-harness/issues/141#issuecomment-6137869528"
+enforced-by = [{ path = "scripts/repo_metrics.py", literal = "VERIFIED numbers rest on" }]
+status = "active"
+
+[[decision]]
+id = "D11"
+rule = "`dev reuse` checks the agent's own named candidates by default; search is an optional recall aid."
+why = "https://github.com/Marius-Juston/agent-harness/issues/169"
+enforced-by = [{ path = "devkit/reuse.py", literal = "hit the benchmark's answer" }]
+status = "active"
+
+[[decision]]
+id = "D12"
+rule = "Agents never curl or WebFetch the literature index APIs; they go through `uv run dev lit`."
+why = "https://github.com/Marius-Juston/agent-harness/issues/174#issuecomment-6147198151"
+enforced-by = [{ path = "plugins/harness-ops/agents/research-auditor.md", literal = "rate limits every agent shares" }]
+status = "active"
