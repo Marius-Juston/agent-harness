@@ -1,5 +1,6 @@
 """Gate and integrate integrity: the gate cannot be talked into a pass, and integrate merges what it gated."""
 
+import contextlib
 import fcntl
 import hashlib
 import json
@@ -205,6 +206,154 @@ def test_ci_uploads_the_test_history_after_the_gate(workflow_file):
         and upload["with"]["path"] == f".git/devkit/{gate.HISTORY_FILE}"
     )
     assert upload["with"]["include-hidden-files"] is True  # .git is hidden, and skipped by default
+
+
+def test_gates_writing_the_history_at_the_same_time_lose_no_run(tmp_path):
+    junit, history = tmp_path / "j.xml", tmp_path / "state" / "h.jsonl"
+    junit.write_text('<testsuites><testsuite><testcase classname="t" name="a" time="0.1"/></testsuite></testsuites>')
+    writer = (
+        "import sys; from pathlib import Path; from devkit import gate\n"
+        "for at in range(int(sys.argv[3]), int(sys.argv[3]) + 25):\n"
+        "    gate.record_history(Path(sys.argv[1]), Path(sys.argv[2]), at=at, keep=1000)\n"
+    )
+    procs = [
+        REAL_POPEN([sys.executable, "-c", writer, str(junit), str(history), str(w * 100)], cwd=gate.root())
+        for w in range(4)
+    ]
+    assert all(p.wait(timeout=60) == 0 for p in procs)
+    runs = [json.loads(line) for line in history.read_text().splitlines()]  # every line whole
+    assert sorted(r["at"] for r in runs) == [w * 100 + i for w in range(4) for i in range(25)]
+    assert sorted(p.name for p in history.parent.iterdir()) == [history.name, history.name + ".lock"]  # no tmp left
+
+
+def _shared_state(monkeypatch, state):
+    """Point the gate's machine state dir at `state`, as every worktree of one clone shares it."""
+
+    def state_dir(*parts):
+        path = state.joinpath(*parts)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    monkeypatch.setattr(gate, "state_dir", state_dir)
+
+
+def _worktrees(repo, tmp_path, files):
+    """`repo` with `files` committed on main, and a second worktree on branch `feature` at the same commit."""
+    for name, text in files.items():
+        (repo / name).parent.mkdir(parents=True, exist_ok=True)
+        (repo / name).write_text(text)
+    _sh(repo, "git", "add", ".")
+    _sh(repo, "git", "commit", "-q", "-m", "tests")
+    other = tmp_path / "feature"
+    _sh(repo, "git", "worktree", "add", "-q", "-b", "feature", str(other))
+    return other
+
+
+def test_two_worktrees_gating_at_once_each_read_only_their_own_test_output(repo, tmp_path, monkeypatch):
+    # Both gates fail in the same second, share one state dir and one history: each must report its own output and
+    # point at its own full log (#463).
+    test = "import os\n\n\ndef test_{0}():\n    for i in range(30):\n        print('{0}-line', i)\n    assert False\n"
+    other = _worktrees(repo, tmp_path, {"test_m.py": test.format("main")})
+    (other / "test_m.py").write_text(test.format("feature"))
+    _sh(other, "git", "commit", "-qam", "feature")
+    state = tmp_path / "state"
+    _shared_state(monkeypatch, state)
+    monkeypatch.setattr(gate, "FAIL_LINES", 3)
+    monkeypatch.setattr(gate.time, "time", lambda: 1000.0)  # the same second for both
+    history = state / gate.HISTORY_FILE
+    cmd = [sys.executable, "-m", "pytest", "-p", "no:cacheprovider", "-s", "test_m.py"]
+    barrier, results = threading.Barrier(2), {}
+
+    def gate_in(name, cwd):
+        barrier.wait()
+        results[name] = gate.tests_stage(cmd, {}, None, cwd=cwd, history=history)
+
+    threads = [threading.Thread(target=gate_in, args=a) for a in (("main", repo), ("feature", other))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=120)
+    logs = {}
+    for name, ran in results.items():
+        mine, theirs = f"{name}-line", "feature-line" if name == "main" else "main-line"
+        assert not ran.ok
+        text = "\n".join(ran.problems)
+        assert theirs not in text
+        (log,) = [p.removeprefix("(full output: ").removesuffix(")") for p in ran.problems if p.startswith("(full")]
+        logs[name] = Path(log).read_text()
+        assert mine in logs[name] and theirs not in logs[name]
+    assert set(logs) == {"main", "feature"} and len(list((state / "logs").iterdir())) == 2
+    runs = [json.loads(line)["tests"] for line in history.read_text().splitlines()]
+    assert sorted(next(iter(r)) for r in runs) == ["test_m::test_feature", "test_m::test_main"]
+
+
+def test_the_gate_names_its_worktree_and_interpreter_and_warns_about_a_devkit_from_elsewhere(tmp_path, monkeypatch):
+    first, *rest = gate.identity()
+    assert str(gate.root().resolve()) in first and sys.executable in first and rest == []
+    monkeypatch.setattr(gate, "root", lambda: tmp_path)  # this checkout's devkit now lies outside "the worktree"
+    first, warning = gate.identity()
+    assert str(tmp_path.resolve()) in first and "WARNING" in warning and str(Path(gate.__file__).parent) in warning
+
+
+BRANCH_SCOPED_CONFTEST = """import subprocess
+
+
+def pytest_collection_modifyitems(config, items):
+    branch = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True).stdout.strip()
+    if branch != "main":  # a feature branch runs only its own chapter
+        out = [i for i in items if "chapter_b" in i.nodeid]
+        config.hook.pytest_deselected(items=out)
+        items[:] = [i for i in items if i not in out]
+"""
+
+
+def test_a_scoped_pass_on_a_feature_branch_is_not_reused_on_main_at_the_same_tree(repo, tmp_path):
+    other = _worktrees(
+        repo,
+        tmp_path,
+        {
+            "tests/conftest.py": BRANCH_SCOPED_CONFTEST,
+            "tests/test_chapter_a.py": "def test_a():\n    pass\n",
+            "tests/test_chapter_b.py": "def test_b():\n    pass\n",
+        },
+    )
+    assert gate.tree_key(None, repo) == gate.tree_key(None, other)  # the tree key alone cannot tell them apart
+    scoped, everything = gate.selection(False, other), gate.selection(False, repo)
+    assert scoped and everything and scoped != everything
+    record = tmp_path / "state" / "key.json"
+    record.parent.mkdir()
+    gate.save_pass(record, 12.0, scoped)  # the feature worktree's gate passed
+    assert gate.cached_pass(record, False, cwd=repo) is None  # main re-runs
+    assert gate.cached_pass(record, False, cwd=other)["seconds"] == 12  # the same selection still reuses it
+
+
+def test_a_pass_record_without_a_test_selection_is_never_reused(repo, tmp_path):
+    record = tmp_path / "old.json"
+    record.write_text(json.dumps({"when": "2026-01-01 00:00", "seconds": 1, "root": str(repo)}))
+    assert gate.cached_pass(record, False, cwd=repo) is None
+    record.write_text("not json")
+    assert gate.cached_pass(record, False, cwd=repo) is None
+    gate.save_pass(tmp_path / "none.json", 1.0, None)  # collection failed: nothing recorded
+    assert not (tmp_path / "none.json").exists()
+    assert gate.selection(False, cwd=repo) is None  # no tests dir: collection fails, no fingerprint
+
+
+def test_check_reuses_a_pass_only_while_the_test_selection_matches(tmp_path, monkeypatch, capsys):
+    selected = {"now": "sel-1"}
+    monkeypatch.setattr(gate, "clean_bytecode", lambda: True)
+    _shared_state(monkeypatch, tmp_path)
+    monkeypatch.setattr(gate.checks, "merge_base", lambda: None)
+    monkeypatch.setattr(gate, "tree_key", lambda base: "k" * 40)
+    monkeypatch.setattr(gate, "stages", lambda *a: [])
+    monkeypatch.setattr(gate, "selection", lambda full, cwd=None: selected["now"])
+    monkeypatch.setattr(gate, "gate_lock", lambda *a, **k: contextlib.nullcontext())
+    assert gate.check({}) == 0 and "cached" not in capsys.readouterr().out
+    assert gate.check({}) == 0 and "RESULT: passed (cached" in capsys.readouterr().out
+    selected["now"] = "sel-2"  # same tree, another selection (another branch's conftest)
+    assert gate.check({}) == 0
+    out = capsys.readouterr().out
+    assert "selected other tests" in out and "RESULT: passed (cached" not in out
+    assert gate.check({}) == 0 and "RESULT: passed (cached" in capsys.readouterr().out  # the new pass is recorded
 
 
 def test_diff_coverage_never_fails_the_stage_when_it_cannot_measure(repo, monkeypatch):
