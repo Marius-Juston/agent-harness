@@ -34,7 +34,7 @@ def j(*parts):
     return "".join(parts)
 
 
-SECRETS = {
+FORMS = {  # probe label -> generated credential-shaped value (never printed)
     "github classic": j("gh", "p_", rnd(36)),
     "github fine-grained": j("github", "_pat_", rnd(22), "_", rnd(59)),
     "github app in url": j("https://x-access-token:", "gh", "s_", rnd(36), "@github.com/o/r.git"),
@@ -107,14 +107,15 @@ def arms(binary, line):
 def main():
     binary = sys.argv[1]
     hit = dict.fromkeys(["V1", "PROPOSED", "HEAD", "gitleaks"], 0)
-    print("probe | " + " | ".join(hit) + " | gitleaks rules")
-    for name, tok in SECRETS.items():
-        line = f"step 3: {tok} done"
-        a = arms(binary, line)
-        for k, v in a.items():
+    # Output names the probe form and each arm's verdict only: never a generated value or anything derived from it
+    # (CodeQL py/clear-text-logging-sensitive-data on PR #427).
+    print("probe | " + " | ".join(hit))
+    for label in list(FORMS):
+        verdicts = arms(binary, f"step 3: {FORMS[label]} done")
+        for k, v in verdicts.items():
             hit[k] += v
-        print(f"{name} | " + " | ".join(str(v) for v in a.values()) + f" | {','.join(gitleaks(binary, line)) or '-'}")
-    print(f"secrets {len(SECRETS)} caught: {hit}")
+        print(f"{label} | " + " | ".join("caught" if v else "missed" for v in verdicts.values()))
+    print(f"forms {len(FORMS)} caught: {hit}")
     fp = dict.fromkeys(hit, 0)
     for line in BENIGN:
         a = arms(binary, line)
