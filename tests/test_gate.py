@@ -18,7 +18,7 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, branches, ci_status, config, gate, merging, paths, workflow
+from devkit import board, branches, ci_status, config, fixloop, gate, merging, paths, workflow
 
 REAL_POPEN = subprocess.Popen
 
@@ -946,6 +946,7 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(workflow, "git", git)
     monkeypatch.setattr(branches, "git", git)
     monkeypatch.setattr(merging, "git", git)
+    monkeypatch.setattr(fixloop, "git", git)
     monkeypatch.setattr(board, "gh", gh)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "comment", lambda *a, **k: None)
@@ -958,6 +959,7 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(branches, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
+    monkeypatch.setattr(fixloop, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
     workflow.config.get()  # resolve this repository's config with the real git, before subprocess.run is faked
     monkeypatch.setattr(workflow.subprocess, "run", run)
     monkeypatch.setattr(workflow.subprocess, "Popen", lambda cmd, **kw: FinishedGate(run(cmd, **kw).returncode))

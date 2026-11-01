@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, config, docs, paths, prtext, setup, workflow
+from devkit import board, config, docs, fixloop, paths, prtext, setup, workflow
 
 ROOT = Path(__file__).resolve().parents[1]
 ATTRIBUTES = ROOT / "template/.gitattributes"
@@ -222,6 +222,7 @@ def project(tmp_path, monkeypatch):
     monkeypatch.setattr(board, "merged_pr", lambda *a: world["events"].append(("merged_pr", *a)) or ["#12 -> done"])
     monkeypatch.setattr(workflow, "main_checkout", lambda: clone)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: tmp_path.joinpath("state", *p))
+    monkeypatch.setattr(fixloop, "state_dir", lambda *p: tmp_path.joinpath("state", *p))
     yield world
     paths.root.cache_clear()
     paths.common_dir.cache_clear()

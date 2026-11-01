@@ -18,6 +18,7 @@ from devkit import (
     consolidation,
     docs,
     evals,
+    fixloop,
     gate,
     handoff,
     lit,
@@ -456,7 +457,7 @@ def run(a: argparse.Namespace) -> int:
         case "pr-title":
             return prtext.check_title(a.title)
         case "integrate" if a.why:  # read-only, whatever other flags came with it
-            return workflow.why(a.pr)
+            return fixloop.why(a.pr)
         case "integrate" if a.train is not None or a.more:
             members = [a.pr, *a.more]
             if a.train != len(members) or a.override or a.consolidation_review:

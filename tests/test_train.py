@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, ci_status, cli, paths, prtext, train, workflow
+from devkit import board, ci_status, cli, fixloop, paths, prtext, train, workflow
 from tests.test_merge_hygiene import ATTRIBUTES, INDEX, REAL_POPEN, REAL_RUN, commit, index, note, out, sh
 
 
@@ -97,6 +97,7 @@ def world(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(workflow, "main_checkout", lambda: clone)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: tmp_path.joinpath("state", *p))
+    monkeypatch.setattr(fixloop, "state_dir", lambda *p: tmp_path.joinpath("state", *p))
     monkeypatch.setattr(workflow, "repo_public", lambda: True)
     monkeypatch.setattr(train.handoff, "after_integrate", lambda: "")
     yield w
