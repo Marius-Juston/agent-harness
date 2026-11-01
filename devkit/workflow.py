@@ -22,6 +22,7 @@ import threading
 import time
 import tomllib
 import traceback
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 from devkit import backoff, board, checks, config, consolidation, handoff
@@ -632,6 +633,55 @@ def closes_problem(info: dict) -> str | None:
         f"the PR body has no 'Closes #{n}' or 'Refs #{n}' line for the issue claimed on branch "
         f"{info['headRefName']!r}: add 'Closes #{n}' as its first line (or 'Refs #{n}' for a partial hand-back)"
     )
+
+
+def _is_ancestor(sha: str, head: str) -> bool:
+    """Whether commit `sha` (maybe abbreviated) is an ancestor of `head` in this clone; False when it is unknown."""
+    try:
+        git("merge-base", "--is-ancestor", sha, head)
+    except RuntimeError:
+        return False
+    return True
+
+
+def review_problem(
+    touched: list[str],
+    reviews: list[dict],
+    head: str,
+    trusted: set[str],
+    rules: dict[str, str],
+    is_ancestor: Callable[[str], bool],
+) -> str | None:
+    """Why the PR at `head` lacks a review its `touched` paths require (`rules`, [tool.devkit] required_reviews), or
+    None (#391: a hand-back said a PR was audited, but no review existed). Each required reviewer needs a VERDICT
+    review (board.pr_feedback's `reviews`) by a `trusted` login whose body names it and whose SHA is the head or an
+    ancestor of it (`is_ancestor`); the latest such review must say `merge`. Only the gh user is trusted: anyone can
+    review a public repository's PR."""
+    needs: dict[str, list[str]] = {}
+    for path in touched:
+        for match, who in rules.items():
+            if board.owned(path, [match]):
+                needs.setdefault(who, []).append(path)
+    missing = []
+    for who, paths in needs.items():
+        judged = [
+            (r.get("submittedAt") or "", v[1])
+            for r in reviews
+            if board.login(r) in trusted
+            and (v := board.verdict_of(r.get("body") or ""))
+            and who in (r.get("body") or "")
+            and (head.lower().startswith(v[3].lower()) or is_ancestor(v[3]))
+        ]
+        last = sorted(judged, key=lambda j: j[0])[-1] if judged else None  # stable: of equal times, the later listed
+        if last is None or last[1] != "merge":
+            seen = f" (its latest says {last[1]!r})" if last else ""
+            missing.append(f"{', '.join(paths[:3])}{' ...' if len(paths) > 3 else ''} needs a review by {who}{seen}")
+    if not missing:
+        return None
+    return (
+        f"{'; '.join(missing)}: post a 'Verdict: merge, round N, {head[:7]}' review naming the reviewer as "
+        "the gh user on the PR head or an ancestor of it"
+    )  # the trusted logins stay out of the message: the gh user's own login is all an agent can post as
 
 
 def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> str:
@@ -1856,6 +1906,16 @@ def _integrate(
     if head != info["headRefOid"]:
         print(f"RESULT: stopped (the PR head moved while fetching: {info['headRefOid'][:10]} -> {head[:10]}); rerun")
         return done(1, "stopped", reason="the PR head moved while fetching")
+    rules = config.get().required_reviews
+    trusted = {board.gh_user()} - {""} if rules else set()  # asked only when a review can be required
+
+    def ancestor(sha: str) -> bool:
+        return _is_ancestor(sha, head)
+
+    if rules and (why := review_problem(touched, feedback["reviews"], head, trusted, rules, ancestor)):
+        reason = f"{why}, then rerun integrate"  # #391: override does not lift it
+        print(f"RESULT: refused: {reason}")
+        return back("refused", [reason], [], reason=reason)
     harness = [f for f in touched if is_harness(f)]
     if harness and not harness_ok:
         print("PR changes the harness (rules agents are judged by):\n  " + "\n  ".join(harness))

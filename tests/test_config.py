@@ -15,6 +15,9 @@ def test_an_empty_table_gives_the_template_defaults():
     assert "harness-ops@agent-harness" in cfg.plugins
     assert cfg.mcp_prereqs == {}  # doctor checks no MCP prerequisites unless the project names them
     assert config.parse({"mcp_prereqs": {"lean-lsp": ["rg"]}}).mcp_prereqs == {"lean-lsp": ["rg"]}
+    assert cfg.required_reviews == {}  # #391: integrate requires no review unless the project maps paths to one
+    rules = {"src/math/": "harness-ops:reviewer"}
+    assert config.parse({"required_reviews": rules}).required_reviews == rules
     assert cfg.regenerate == []  # integrate runs `dev docs` alone unless the project declares more (#386)
     assert config.parse({"regenerate": [["uv", "run", "rehash"]]}).regenerate == [["uv", "run", "rehash"]]
 
@@ -30,6 +33,8 @@ def test_an_empty_table_gives_the_template_defaults():
         ({"plugins": ["x"]}, "expected"),
         ({"mcp_prereqs": {"lean-lsp": "rg"}}, "list of binary names"),
         ({"mcp_prereqs": {"lean-lsp": [""]}}, "list of binary names"),
+        ({"required_reviews": {"src/math/": ["harness-ops:reviewer"]}}, "reviewer name"),
+        ({"required_reviews": {"": "harness-ops:reviewer"}}, "reviewer name"),
         ({"regenerate": ["uv", "run", "rehash"]}, "list of arguments"),
         ({"regenerate": [[]]}, "list of arguments"),
         ({"regenerate": [["uv", ""]]}, "list of arguments"),
