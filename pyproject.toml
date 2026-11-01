@@ -62,6 +62,20 @@ path_check_skip = ["plugins/", "template/"]
 # Dependabot bumps ci.yml only; `dev docs` (and so integrate) moves the template's copies of those pins with it (#431).
 action_pins = { ".github/workflows/ci.yml" = ["template/.github/workflows/*.yml"] }
 
+# The review trigger's code count leaves out research evidence (experiment scripts never imported) and the trees
+# reached only by path: eval fixtures from evals/scenarios/*.yaml, test fixtures, and the Copier template (#451).
+# This list replaces the default, so the default's migrations globs are restated.
+[tool.devkit.consolidation]
+exclude = [
+    "migrations/*",
+    "*/migrations/*",
+    "docs/research/_scratch/*",
+    "evals/conflicting/*",
+    "evals/reuse/*",
+    "tests/fixtures/*",
+    "template/*",
+]
+
 # `dev integrate --local-ci`: what stands in for each required CI job when Actions cannot run (ci.yml's commands).
 [tool.devkit.local_ci]
 check = []
