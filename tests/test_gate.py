@@ -17,7 +17,7 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, gate, workflow
+from devkit import board, config, gate, workflow
 
 REAL_POPEN = subprocess.Popen
 
@@ -278,6 +278,14 @@ def test_content_paths_are_not_harness(path):
 )
 def test_everything_else_is_harness(path):
     assert workflow.is_harness(path)
+
+
+def test_the_install_allowlist_is_harness_even_under_a_content_directory(monkeypatch):
+    """#392: an allowlist entry lets a branch past the install check, so the lead reads it."""
+    cfg = config.Config(install_allowlist="docs/research/allow.txt")
+    monkeypatch.setattr(config, "get", lambda: cfg)
+    assert workflow.is_harness("docs/research/allow.txt")
+    assert not workflow.is_harness("docs/research/other.txt")
 
 
 def test_cache_key_covers_untracked_ignored_python_and_python_version(repo, monkeypatch):

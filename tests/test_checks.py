@@ -775,6 +775,18 @@ def _added(path: str, *lines: str) -> str:
         f"sudo apt-get {INST} -y libfoo",
         "curl -LsSf https://example.com/x.sh |" + " sh",
         f"pip3 --quiet {INST} x",
+        f"pip3.12 {INST} x",
+        f"pipx {INST} black",
+        "uv pip sync requirements.lock",
+        "poetry add httpx",
+        "pdm add httpx",
+        "bun add zod",
+        f"sudo dnf {INST} -y gcc",
+        f"yum {INST} gcc",
+        "pacman -Syu --noconfirm gcc",
+        f"zypper {INST} gcc",
+        f'echo "#1"; pip {INST} x',
+        f"echo '#'; pip {INST} x",
     ],
 )
 def test_an_added_install_command_is_flagged_with_file_and_line(line):
@@ -790,6 +802,9 @@ def test_an_added_install_command_is_flagged_with_file_and_line(line):
         ("scripts/run.py", "pip_installed = check()"),
         ("scripts/run.py", f"uv add requests  # not {INST}ing behind a guard"),
         ("scripts/run.py", "curl -o x https://example.com/x.sh"),
+        ("scripts/run.sh", f"run_tests  # then pip {INST} x"),
+        (".claude/settings.json", f'      "Bash(pip {INST}*)",'),
+        ("template/.claude/settings.json.jinja", f'      "Bash(uv pip {INST}*)"'),
     ],
 )
 def test_prose_comments_and_lookalikes_are_not_installs(path, line):
@@ -844,3 +859,8 @@ def test_the_gate_passes_a_clean_diff_and_warns_without_a_base(git_repo):
     assert checks.check_installs(base).ok
     ran = checks.check_installs(None)
     assert ran.ok and ran.warnings
+
+
+def test_a_settings_file_still_flags_an_install_outside_a_permission_rule():
+    line = f'    "command": "pip {INST} x && run"'
+    assert len(checks.install_findings(_added(".claude/settings.json", line), [])) == 1

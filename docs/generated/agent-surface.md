@@ -9,8 +9,8 @@
 | harness-ops:architect | opus | high | Read, Grep, Glob, Bash | 426 | Read-only consolidation review of the whole repository, run when `uv run dev orient` says a review is due or the owner asks for one. |
 | harness-ops:builder | opus | medium | all | 619 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
 | harness-ops:research-auditor | opus | high | Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers | 600 | Adversarial, read-only audit of one research note. |
-| harness-ops:researcher | opus | high | all | 599 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
-| harness-ops:reviewer | opus | medium | Read, Grep, Glob, Bash | 594 | Read-only pre-merge review of one PR against its issue's DONE WHEN, the research it cites and the project rules. |
+| harness-ops:researcher | opus | high | all | 600 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
+| harness-ops:reviewer | opus | medium | Read, Grep, Glob, Bash | 597 | Read-only pre-merge review of one PR against its issue's DONE WHEN, the research it cites and the project rules. |
 | harness-ops:suite-auditor | opus | medium | Read, Grep, Glob, Bash | 272 | Read-only judgement pass of a size-tiered test-suite audit, run when `uv run dev suite-audit report` lists judgement items. |
 | harness-ops:tester | opus | high | all | 285 | Writes adversarial, property-based and regression tests for one issue or one merged change (inputs nobody planned for, wrong state, crashes midway), fixes sm... |
 
@@ -116,8 +116,8 @@
 | plugins/harness-ops/agents/architect.md | 426 | 600 |
 | plugins/harness-ops/agents/builder.md | 619 | 650 |
 | plugins/harness-ops/agents/research-auditor.md | 600 | 600 |
-| plugins/harness-ops/agents/researcher.md | 599 | 600 |
-| plugins/harness-ops/agents/reviewer.md | 594 | 600 |
+| plugins/harness-ops/agents/researcher.md | 600 | 600 |
+| plugins/harness-ops/agents/reviewer.md | 597 | 600 |
 | plugins/harness-ops/agents/suite-auditor.md | 272 | 600 |
 | plugins/harness-ops/agents/tester.md | 285 | 600 |
 | plugins/harness-ops/skills/harness/SKILL.md | 558 | 650 |

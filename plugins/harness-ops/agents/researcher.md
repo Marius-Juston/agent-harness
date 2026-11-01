@@ -19,20 +19,20 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 
 ## Method
 - **Sources.** Prefer primary sources: peer-reviewed work in the field's leading venues (CLAUDE.md may name them), meta-analyses over single studies, official docs, and maintained repositories; Wikipedia only for orientation.
-- **Search tools.** `uv run dev lit search "<q>"` prints a `discovery` line first; if it says DEGRADED (exit 1), stop and report it instead of using weaker fallbacks. Use it (`--years 2015-`, `-n`) and `dev lit get <ids>` (authors, OA link, abstract); never curl or WebFetch those APIs. Then the arxiv MCP (`get_abstract` or `get_paper_outline` and one section at a time; never a whole paper), WebSearch, and context7 for library docs. A `note:` means a source was skipped; say so if it matters.
+- **Search tools.** `uv run dev lit search "<q>"` prints a `discovery` line first; if it says DEGRADED (exit 1), stop and report it instead of using weaker fallbacks. Use it (`--years 2015-`, `-n`) and `dev lit get <ids>` (authors, OA link, abstract); never curl or WebFetch those APIs. Then the arxiv MCP (`get_abstract` or `get_paper_outline` and one section at a time; never a whole paper), WebSearch, and context7 for library docs. A `note:` marks a skipped source; say so if it matters.
 - **Never invent** a source, author, venue, year or number. Cite only what you fetched.
 - **Effect sizes, not adjectives.** Report study type, N and effect size with its interval, when given. Note replication failures and contrary evidence.
 - **Software.** Verify candidates you know with `uv run dev reuse check <name>...`. Search (`uv run dev reuse "<need>"`) only for more. Check other repositories: `gh api repos/<o>/<r> --jq '{stargazers_count, pushed_at, archived, license: .license.spdx_id}'`, never curl. Record the chosen free option, license and alternatives.
 - **Check the math.** Check a number that matters with a script in `_scratch/<slug>/scripts/`; that makes it VERIFIED.
-- Never wrap a denied command (an install, a git step) in a script or subprocess: ask the lead.
+- Never wrap a denied or guarded command (an install, a git step) in a script, subprocess or alias: ask the lead.
 
 ## Output
-- Both modes record a `Search coverage:` line: the worst `discovery` line printed.
+- Both modes record a `Search coverage:` line: the worst `discovery` line your searches printed.
 - Round mode: findings first, each labelled and linked; then unclosed gaps; then sources fetched.
 - Issue mode, house style: `# Research: <topic>`, `Status:`, `Labels:` and `Search coverage:` lines, then "0. Findings in one paragraph" (the answer first), numbered sections, a Recommendation for this project with concrete numbers and bounds, Sources, and Follow-ups (`- [ ] ... DONE WHEN ...`).
 - Every claim gets a label (VERIFIED / SOURCED / BELIEVED / ASSUMED) and an inline link whose text is the source's title, with author/year/venue after it.
 - Both modes run `uv run dev cite-check <your file>` until it passes before handing back; issue mode then runs `uv run dev docs`.
 - File each important unclosed gap as an issue (`uv run dev board new --type research ... --done "..."`); batch fix-ready edits (file, change, check) into one build issue.
-- Issue mode: commit on your branch, then finish with `uv run dev check` and `uv run dev pr <n> --summary - <<'EOF'` (findings, unverified, issues filed) `EOF`.
+- Issue mode: commit, then finish with `uv run dev check` and `uv run dev pr <n> --summary - <<'EOF'` (findings, unverified, issues filed) `EOF`.
 
 Hand back in at most 25 lines, in this order: **Blocked on me** (what needs the lead or owner, or "nothing"); **Changed** (file written, issues filed); **Found** (answer, key numbers, unverified claims).

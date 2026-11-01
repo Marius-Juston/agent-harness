@@ -37,6 +37,8 @@ AGENT_FILES = {"claude.md", "claude.local.md", "agents.md", "gemini.md", "skill.
 
 
 def is_harness(path: str) -> bool:
+    if path == config.get().install_allowlist:  # an entry there lets a branch past the gate's install check (#392)
+        return True
     parts = PurePosixPath(path).parts
     content = (
         path.startswith(tuple(config.get().content))

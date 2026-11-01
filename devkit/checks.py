@@ -605,12 +605,31 @@ def check_generated(render: dict[str, str]) -> Ran:
 # guard (#392): pip / uv pip / uv tool, conda and its kin, npm/pnpm/yarn, system package managers, and a piped
 # installer. Matched after quotes, commas and brackets become spaces, so `["pip", "install"]` reads as `pip install`.
 INSTALL = re.compile(
-    r"\b(?:pip3?|conda|mamba|micromamba|apt|apt-get|brew|gem|cargo)(?:\s+--?[\w=.-]+)*\s+install\b"
-    r"|\buv\s+tool\s+install\b|\b(?:npm|pnpm)\s+(?:install|i|add)\b|\byarn\s+(?:global\s+)?add\b"
+    r"\b(?:pip(?:3(?:\.\d+)?)?|pipx|conda|mamba|micromamba|apt|apt-get|dnf|yum|zypper|brew|gem|cargo)"
+    r"(?:\s+--?[\w=.-]+)*\s+install\b"
+    r"|\buv\s+tool\s+install\b|\buv\s+pip\s+sync\b|\b(?:poetry|pdm|bun)\s+add\b|\bpacman\b[^|;&]*\s-S\w*"
+    r"|\b(?:npm|pnpm)\s+(?:install|i|add)\b|\byarn\s+(?:global\s+)?add\b"
     r"|\b(?:curl|wget)\b[^|]*\|\s*(?:sudo\s+)?(?:bash|dash|zsh|sh)\b"
 )
 INSTALL_PUNCT = re.compile(r"[\"'`,()\[\]{}]")
 PROSE_SUFFIXES = (".md", ".rst", ".txt", ".md.jinja", ".rst.jinja")
+# A permission rule string in a Claude Code settings file, such as the template's deny rule for installs: it
+# forbids the command rather than running it.
+SETTINGS_FILE = re.compile(r"(?:^|/)\.claude/settings[\w.-]*\.json(?:\.jinja)?$")
+PERMISSION_RULE = re.compile(r"^\s*\"\w+\(.*\)\"\s*,?\s*$")
+
+
+def _uncommented(text: str) -> str:
+    """The line up to a `#` comment: one at the start or after whitespace, outside quotes (`echo "#1"` is code)."""
+    quote = ""
+    for i, c in enumerate(text):
+        if quote:
+            quote = "" if c == quote and text[i - 1] != "\\" else quote
+        elif c in "\"'`":
+            quote = c
+        elif c == "#" and (i == 0 or text[i - 1].isspace()):
+            return text[:i]
+    return text
 
 
 def install_allowlist(text: str) -> list[str]:
@@ -627,9 +646,11 @@ def install_findings(diff: str, allowed: list[str]) -> list[str]:
     for f in parse(diff):
         if not f.new or f.new.endswith(PROSE_SUFFIXES) or any(fnmatch.fnmatch(f.new, g) for g in allowed):
             continue
+        rules = bool(SETTINGS_FILE.search(f.new))
         for ln in f.added:
-            code = ln.text.split("#", 1)[0]
-            if INSTALL.search(INSTALL_PUNCT.sub(" ", code)):
+            if rules and PERMISSION_RULE.match(ln.text):
+                continue
+            if INSTALL.search(INSTALL_PUNCT.sub(" ", _uncommented(ln.text))):
                 out.append(f"{ln.path}:{ln.number}: package install: {ln.text.strip()}")
     return out
 
