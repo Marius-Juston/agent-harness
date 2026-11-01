@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -223,7 +224,7 @@ def stub_project(tmp_path, monkeypatch):
     monkeypatch.setattr(workflow, "quota_reading", lambda: (10, 95))
     monkeypatch.setattr(setup, "remote_tags", lambda url: [])
     plugins = {"harness-ops@agent-harness": f"{remote}@v0.1.1"}
-    monkeypatch.setattr(setup.config, "get", lambda: SimpleNamespace(plugins=plugins))
+    monkeypatch.setattr(setup.config, "get", lambda: setup.config.Config(plugins=plugins))
     monkeypatch.setattr(setup, "pinned_plugin_root", lambda: pinned)
     head = tmp_path / "head"
     return SimpleNamespace(
@@ -644,30 +645,37 @@ def test_doctor_prints_the_host_leak_warning(stub_project, monkeypatch, capsys):
 
 
 LEAN = {"lean-lsp": {"command": "uvx", "args": ["lean-lsp-mcp"]}}
+NEEDS_RG = {"lean-lsp": ["rg"]}
 
 
-def test_mcp_prereqs_flag_a_missing_real_binary_of_a_known_server():
-    missing = setup.mcp_prereqs(LEAN, lambda tool: None)
+def test_mcp_prereqs_flag_a_missing_real_binary_of_a_configured_server():
+    missing = setup.mcp_prereqs(LEAN, NEEDS_RG, lambda tool: None)
     assert [(ok, "rg" in what and "lean-lsp" in what) for ok, what, _ in missing] == [(False, True)]
-    assert "ripgrep" in missing[0][2] and "shell function" in missing[0][2]
-    assert all(ok for ok, _, _ in setup.mcp_prereqs(LEAN, lambda tool: f"/usr/bin/{tool}"))
+    assert "install rg as a real binary" in missing[0][2] and "shell function" in missing[0][2]
+    assert all(ok for ok, _, _ in setup.mcp_prereqs(LEAN, NEEDS_RG, lambda tool: f"/usr/bin/{tool}"))
+    assert setup.mcp_prereqs(LEAN, {}, lambda tool: None) == []  # the default table checks nothing
 
 
 def test_mcp_prereqs_match_by_package_under_any_name_and_ignore_unknown_servers():
     renamed = {"lean": {"command": "uvx", "args": ["--from", "lean-lsp-mcp==0.9", "lean-lsp-mcp"]}}
-    assert [ok for ok, _, _ in setup.mcp_prereqs(renamed, lambda tool: None)] == [False]
+    assert [ok for ok, _, _ in setup.mcp_prereqs(renamed, NEEDS_RG, lambda tool: None)] == [False]
     other = {"playwright": {"command": "npx", "args": ["@playwright/mcp"]}, "odd": "not a dict"}
-    assert setup.mcp_prereqs(other, lambda tool: None) == []
+    assert setup.mcp_prereqs(other, NEEDS_RG, lambda tool: None) == []
 
 
 def test_doctor_reports_a_missing_real_rg_when_lean_lsp_is_configured(stub_project, monkeypatch, capsys):
-    (stub_project.project / ".mcp.json").write_text(json.dumps({"mcpServers": LEAN}))
+    project = stub_project.project
+    (project / "pyproject.toml").write_text('[tool.devkit]\nmcp_prereqs = { "lean-lsp" = ["rg"] }\n')
+    table = tomllib.loads((project / "pyproject.toml").read_text())["tool"]["devkit"]
+    cfg = setup.config.parse(table | {"plugins": stub_project.plugins})
+    monkeypatch.setattr(setup.config, "get", lambda: cfg)
+    (project / ".mcp.json").write_text(json.dumps({"mcpServers": LEAN}))
     monkeypatch.setattr(setup.shutil, "which", lambda tool: None if tool == "rg" else f"/usr/bin/{tool}")
     assert setup.doctor() == 1
     assert "FIX  rg on PATH as a real binary (MCP server lean-lsp needs it)" in capsys.readouterr().out
 
 
-def test_mcp_servers_merge_the_project_file_and_this_projects_local_scope(tmp_path, monkeypatch):
+def test_mcp_servers_merge_user_project_and_this_projects_local_scope(tmp_path, monkeypatch):
     project, home = tmp_path / "proj", tmp_path / "home"
     project.mkdir()
     home.mkdir()
@@ -676,7 +684,11 @@ def test_mcp_servers_merge_the_project_file_and_this_projects_local_scope(tmp_pa
     assert setup._mcp_servers() == {}
     (project / ".mcp.json").write_text(json.dumps({"mcpServers": {"a": {"command": "x"}}}))
     local = {str(project): {"mcpServers": LEAN}, "/elsewhere": {"mcpServers": {"b": {}}}}
-    (home / ".claude.json").write_text(json.dumps({"projects": local}))
-    assert set(setup._mcp_servers()) == {"a", "lean-lsp"}
+    user = {"u": {"command": "y"}, "a": {"command": "user's a"}}
+    (home / ".claude.json").write_text(json.dumps({"mcpServers": user, "projects": local}))
+    servers = setup._mcp_servers()
+    assert set(servers) == {"a", "u", "lean-lsp"} and servers["a"] == {"command": "x"}  # project scope beats user
+    (home / ".claude.json").write_text(json.dumps({"projects": []}))
+    assert set(setup._mcp_servers()) == {"a"}
     (home / ".claude.json").write_text("not json")
     assert set(setup._mcp_servers()) == {"a"}
