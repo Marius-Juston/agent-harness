@@ -2136,6 +2136,7 @@ def test_review_problem_needs_a_trusted_merge_verdict_naming_the_reviewer_on_the
     assert (why is None) == ok, why
     if not ok:
         assert "src/math/lemma.py" in why and "harness-ops:reviewer" in why
+        assert "lead" not in why  # no login in the message (CodeQL py/clear-text-logging on PR #456)
 
 
 def test_review_problem_with_no_rules_requires_nothing():

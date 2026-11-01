@@ -680,8 +680,8 @@ def review_problem(
         return None
     return (
         f"{'; '.join(missing)}: post a 'Verdict: merge, round N, {head[:7]}' review naming the reviewer as "
-        f"{' or '.join(sorted(trusted)) or 'the gh user'} on the PR head or an ancestor of it"
-    )
+        "the gh user on the PR head or an ancestor of it"
+    )  # the trusted logins stay out of the message: the gh user's own login is all an agent can post as
 
 
 def pr(number: int, summary: str | None, draft: bool, partial: bool = False) -> str:
