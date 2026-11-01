@@ -24,7 +24,7 @@ import traceback
 from pathlib import Path, PurePosixPath
 
 from devkit import backoff, board, checks, config, consolidation
-from devkit.gate import free_gb, tree_key
+from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, tree_key
 from devkit.paths import default_branch, git, main_checkout, root, state_dir
 from devkit.suite_audit import orient_lines
 
@@ -827,11 +827,18 @@ def local_ci_refusal(contexts: list[str], bound: list[str]) -> str | None:
 GATE = ["uv", "run", "--quiet", "dev", "check", "--no-cache"]  # what integrate runs in the merged tree
 
 
-def bounded_run(cmd: list[str], timeout_s: float, **kwargs: object) -> int | None:
+HELD_POLL_S = 1.0  # how often bounded_run looks for its `held` file while the command waits for the gate lock
+
+
+def bounded_run(
+    cmd: list[str], timeout_s: float, held: Path | None = None, wait_s: float = 0, **kwargs: object
+) -> int | None:
     """Run `cmd` in a session of its own and return its exit code, or None when it outran `timeout_s`: then the whole
     process group (uv, the gate, its pytest workers) is killed, since killing only `uv` would leave the gate under it
-    holding the machine's gate lock. An interrupt, SIGTERM or SIGHUP to this process kills the group too, since none
-    of them reaches a separate session (in the main thread only, where Python can handle signals)."""
+    holding the machine's gate lock. With `held`, `timeout_s` counts from when that file appears (the gate holds the
+    lock, #385) and the time before it is bounded by `wait_s`. An interrupt, SIGTERM or SIGHUP to this process kills
+    the group too, since none of them reaches a separate session (in the main thread only, where Python can handle
+    signals)."""
     main = threading.current_thread() is threading.main_thread()
     old = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGHUP)} if main else {}
     for s, handler in old.items():
@@ -840,10 +847,16 @@ def bounded_run(cmd: list[str], timeout_s: float, **kwargs: object) -> int | Non
     try:
         with subprocess.Popen(cmd, start_new_session=True, **kwargs) as proc:  # type: ignore[call-overload]
             try:
-                return proc.wait(timeout=timeout_s)
-            except subprocess.TimeoutExpired:
-                _kill_group(proc)
-                return None
+                start, running = time.monotonic(), held is None
+                while True:
+                    if not running and held is not None and held.exists():
+                        start, running = time.monotonic(), True
+                    left = start + (timeout_s if running else wait_s) - time.monotonic()
+                    if left <= 0:
+                        _kill_group(proc)
+                        return None
+                    with contextlib.suppress(subprocess.TimeoutExpired):
+                        return proc.wait(timeout=left if running else min(left, HELD_POLL_S))
             except BaseException:
                 _kill_group(proc)
                 raise
@@ -862,21 +875,31 @@ def _kill_group(proc: subprocess.Popen) -> None:
     proc.wait()
 
 
-def run_gate(tree: Path, contexts: list[str], log: Path) -> bool | None:
+def run_gate(tree: Path, contexts: list[str], log: Path) -> bool | str:
     """The gate, then (`--local-ci`) each required context's own stand-in commands, in the merged tree; all output
-    goes to `log` (kept for `--why`) and, as it comes, to stdout (`_follow`). True when every one passed, None when
-    the gate ran past `gate_deadline_s`."""
-    commands = config.get().local_ci
+    goes to `log` (kept for `--why`) and, as it comes, to stdout (`_follow`). True when every one passed, the reason
+    when the gate was stopped: it waited past `gate_lock_wait_s` for the machine's gate lock, which it takes ahead of
+    worker gates, or ran past `gate_deadline_s` once it held it (#385)."""
+    cfg = config.get()
     stop = threading.Event()
-    with log.open("w") as out:
+    with log.open("w") as out, tempfile.TemporaryDirectory(prefix="gate-held-") as marks:
         follower = threading.Thread(target=_follow, args=(log, stop), daemon=True)
         follower.start()
         try:
             out.write(f"## gate: uv run dev check --no-cache in {tree}\n")
             out.flush()
-            code = bounded_run(GATE, config.get().gate_deadline_s, cwd=tree, stdout=out, stderr=subprocess.STDOUT)
-            ok = None if code is None else code == 0
-            for argv in [a for c in contexts for a in commands.get(c, [])] if ok else []:
+            held = Path(marks) / "held"
+            env = os.environ | {PRIORITY_ENV: "1", HELD_ENV: str(held)}
+            kw = {"cwd": tree, "stdout": out, "stderr": subprocess.STDOUT, "env": env}
+            code = bounded_run(GATE, cfg.gate_deadline_s, held=held, wait_s=cfg.gate_lock_wait_s, **kw)
+            ok: bool | str = code == 0
+            if code is None:
+                ok = (
+                    f"the gate ran past {cfg.gate_deadline_s} s (gate_deadline_s) once it held the gate lock"
+                    if held.exists()
+                    else f"the gate waited past {cfg.gate_lock_wait_s} s (gate_lock_wait_s) for the machine's gate lock"
+                )
+            for argv in [a for c in contexts for a in cfg.local_ci.get(c, [])] if ok is True else []:
                 with tempfile.TemporaryDirectory(prefix="local-ci-") as tmpdir:
                     cmd = [a.replace("{tmpdir}", tmpdir) for a in argv]
                     out.write(f"## {' '.join(cmd)}\n")
@@ -1537,18 +1560,15 @@ def _integrate(
             f"gating PR #{pr_number} ({head[:10]}) merged with main {main[:10]} as {tip[:10]} in {tmp} ...", flush=True
         )
         run_log = state_dir("integrate") / f"pr-{pr_number}-{tip[:12]}.log"
-        deadline = config.get().gate_deadline_s
         print(f"gate output (also kept in {run_log}):", flush=True)
         passed = run_gate(tmp, contexts if local_ci else [], run_log)
         said = {"gate": failing_lines(run_log.read_text(errors="replace")), "log": str(run_log)}
-        if passed is None:
-            # the deadline also counts any wait for this machine's gate lock, so the output, not this line, says why
-            reason = f"the gate, counting any wait for the machine's gate lock, ran past {deadline} s (gate_deadline_s)"
+        if isinstance(passed, str):
             print(
-                f"RESULT: stopped ({reason}) and was killed; its output shows a hung stage or a wait on another gate "
+                f"RESULT: stopped ({passed}) and was killed; its output shows a hung stage or a wait on another gate "
                 "(`uv run dev status` names the holder), then rerun integrate"
             )
-            return done(1, "stopped", reason=reason, **said)
+            return done(1, "stopped", reason=passed, **said)
         if not passed:
             print(f"RESULT: stopped (merged tree fails the gate); comment on PR #{pr_number} and send it back")
             return done(1, "gate-failed", reason="the merged tree fails the gate", **said)

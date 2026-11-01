@@ -97,7 +97,10 @@ open); of several labels, the highest priority and the furthest status are kept;
   lock and sizes its test workers to free memory. Researchers and reviewers run no tests and start at once.
 - **Quota.** `uv run dev usage-poll` (detached) records the weekly usage percent, and the spawn hook refuses new
   agents at `[tool.devkit] quota_cap`. At the cap, commit, push the branch and hand off; do not start new work.
-- **Concurrency.** The `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` setting (`.claude/settings.json`) bounds spawns.
+- **Concurrency.** `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` bounds spawns. It is per machine: the template renders it
+  once as 24 in the gitignored `settings.local.json` under `.claude/` (`env`), which `copier update` never touches;
+  change it there. Its `env` beats the shell, so a shell value applies only once you remove it from that file. Never
+  set it in the checked-in settings.json.
   In practice: up to about 6 researchers, and as many builders as there are disjoint Owns and free memory.
 
 ## 5. Long sessions and compaction

@@ -183,6 +183,7 @@ def test_copier_update_never_conflicts_on_project_owned_files(tmp_path):
     dest = tmp_path / "prev"
     data = {"project_name": "demo-project", "description": "A demo."}
     run_copy(str(ROOT), dest, data=data, defaults=True, vcs_ref=_previous_release(), unsafe=False, quiet=True)
+    assert yaml.safe_load((dest / ".copier-answers.yml").read_text())["harness_ref"] == _previous_release()
     for name in ("CLAUDE.md", "README.md"):
         p = dest / name
         p.write_text(p.read_text().replace("demo-project", "Demo Project, edited by its owner") + "\nOwn line.\n")
@@ -191,9 +192,8 @@ def test_copier_update_never_conflicts_on_project_owned_files(tmp_path):
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=dest, check=True)
     subprocess.run(["git", "add", "-A"], cwd=dest, check=True)
     subprocess.run([*git, "commit", "-q", "-m", "previous release, edited"], cwd=dest, check=True)
-    # a stored answer beats the new default, so the pin moves only when the update passes it (as README says)
-    pin = {**data, "harness_ref": f"v{version()}"}
-    run_update(dest, data=pin, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
+    # plain `copier update --defaults`: the older release's stored harness_ref answer must not hold the pins (#163)
+    run_update(dest, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
     for name, text in edited.items():
         assert (dest / name).read_text() == text, name
     files = [p for p in dest.rglob("*") if p.is_file() and ".git" not in p.parts]
@@ -203,7 +203,12 @@ def test_copier_update_never_conflicts_on_project_owned_files(tmp_path):
     py = tomllib.loads((dest / "pyproject.toml").read_text())  # the pinned requirement reaches existing projects
     url = f"git+https://github.com/Marius-Juston/agent-harness@v{version()}"
     assert py["dependency-groups"]["dev"] == [f"agent-harness @ {url}"]
-    assert py["tool"]["uv"]["sources"]["agent-harness"]["git"] == "https://github.com/Marius-Juston/agent-harness"
+    source = py["tool"]["uv"]["sources"]["agent-harness"]
+    assert source == {"git": "https://github.com/Marius-Juston/agent-harness", "tag": f"v{version()}"}
+    assert py["tool"]["devkit"]["plugins"]["harness-ops@agent-harness"] == f"Marius-Juston/agent-harness@v{version()}"
+    market = json.loads((dest / ".claude/settings.json").read_text())["extraKnownMarketplaces"]["agent-harness"]
+    assert market["source"]["ref"] == f"v{version()}"
+    assert "harness_ref" not in yaml.safe_load((dest / ".copier-answers.yml").read_text())
 
 
 STANDARD = ("CONTRIBUTING.md", "SECURITY.md", ".editorconfig", "CHANGELOG.md")
@@ -342,6 +347,65 @@ def test_the_settings_leave_the_artifact_tool_to_the_lead(rendered):
     # #256, owner decision: only the workers withhold the ~12.9k-token Artifact schema (tests/test_plugin.py). A
     # `false` here would also take Artifacts from the lead, and no other settings file could turn it back on.
     assert "enableArtifact" not in json.loads((rendered / ".claude/settings.json").read_text())
+
+
+CAP = "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS"
+
+
+def test_the_settings_leave_the_subagent_cap_to_the_machine(rendered):
+    # #393: a checked-in env value beats the owner's shell variable (an exported 24 kept running 12), and the cap is
+    # a per-machine choice; the spec says where it goes instead.
+    assert CAP not in json.loads((rendered / ".claude/settings.json").read_text()).get("env", {})
+    spec = (rendered / "docs/specs/multi-agent.md").read_text()
+    bullet = next(b for b in spec.split("\n- ") if CAP in b)
+    assert "settings.local.json" in bullet and "shell" in bullet
+
+
+def test_a_fresh_render_defaults_the_subagent_cap_to_24_in_settings_local(rendered):
+    # #401, owner decision: a large default, 24, rendered once into the git-ignored settings.local.json, which
+    # `_skip_if_exists` keeps out of every `copier update`, so each machine can change it. The spec says so.
+    assert json.loads((rendered / ".claude/settings.local.json").read_text())["env"][CAP] == "24"
+    assert ".claude/settings.local.json" in yaml.safe_load((ROOT / "copier.yml").read_text())["_skip_if_exists"]
+    assert ".claude/settings.local.json" in (rendered / ".gitignore").read_text().splitlines()
+    for spec in (ROOT / "docs/specs/multi-agent.md", rendered / "docs/specs/multi-agent.md"):
+        bullet = next(b for b in spec.read_text().split("\n- ") if CAP in b)
+        assert "24" in bullet and "settings.local.json" in bullet, spec
+
+
+def test_copier_update_gives_a_project_without_settings_local_the_default_cap(tmp_path):
+    """A project from the previous release has no settings.local.json; updating to HEAD renders the 24 default."""
+    dest = tmp_path / "prev"
+    data = {"project_name": "demo-project", "description": "A demo."}
+    run_copy(str(ROOT), dest, data=data, defaults=True, vcs_ref=_previous_release(), unsafe=False, quiet=True)
+    local = dest / ".claude/settings.local.json"
+    local.unlink(missing_ok=True)
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=dest, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=dest, check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "previous release"], cwd=dest, check=True)
+    run_update(dest, data=data, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
+    assert json.loads(local.read_text())["env"][CAP] == "24"
+
+
+def test_copier_update_keeps_the_owners_subagent_cap(tmp_path):
+    """A project from the previous release (which pinned the cap at 12) set its own, 7, in the git-ignored
+    settings.local.json. Updating to HEAD leaves that file alone and drops the pin, so nothing overrides the owner."""
+    dest = tmp_path / "prev"
+    data = {"project_name": "demo-project", "description": "A demo."}
+    run_copy(str(ROOT), dest, data=data, defaults=True, vcs_ref=_previous_release(), unsafe=False, quiet=True)
+    settings, local = dest / ".claude/settings.json", dest / ".claude/settings.local.json"
+    assert CAP in json.loads(settings.read_text())["env"]  # the release this guards against pinned it
+    local.write_text(json.dumps({"env": {CAP: "7"}, "model": "own"}) + "\n")  # not the default's value or layout
+    local_text = local.read_text()
+    git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=dest, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=dest, check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "previous release, own cap"], cwd=dest, check=True)
+    run_update(dest, data=data, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
+    assert local.read_text() == local_text
+    text = settings.read_text()
+    assert "<<<<<<<" not in text and not settings.with_suffix(".json.rej").exists()
+    assert CAP not in json.loads(text).get("env", {})
 
 
 def test_the_settings_allow_the_read_only_board_commands(rendered):
