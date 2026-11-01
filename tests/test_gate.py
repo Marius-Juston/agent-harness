@@ -1229,8 +1229,8 @@ def actions(fake_integrate, monkeypatch, clock):
     inner = board.gh
 
     def gh(*args, **kw):
-        if args[0] != "api" or args[1] == "graphql":
-            return inner(*args, **kw)
+        if args[0] != "api" or args[1] in ("graphql", "user") or any(a.endswith("/comments") for a in args):
+            return inner(*args, **kw)  # the PR conversation and the gh user (#110's fix loop) are fake_integrate's
         fake_integrate["events"].append(("gh", *args))
         path = next(a for a in args[1:] if a.startswith("repos/"))
         if path.endswith("/protection/required_status_checks"):

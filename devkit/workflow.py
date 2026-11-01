@@ -1190,11 +1190,26 @@ def regenerate(tree: Path) -> bool:
 
 FIX_LINES = 40  # failing lines a fix-loop comment carries: the local gate's, or the failed Actions jobs' log tail
 NEXT_STEP = "fix each item above, run `uv run dev check`, push, and hand back"
+# Credentials a gate or job log can print, cut from a fix-loop comment before it is posted: GitHub tokens (classic and
+# fine-grained), API keys of the `sk-` form, AWS access key ids and HTTP bearer tokens.
+SECRET = re.compile(
+    r"\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]{8,}|AKIA[A-Z0-9]{12,})"
+    r"|(?<=[Bb]earer )[A-Za-z0-9._~+/=-]+"
+)
+REDACTED = "[redacted]"
+
+
+def scrubbed(text: str) -> str:
+    """`text` with each SECRET cut, and each line carrying a session link or a Claude-Session trailer (SESSION_LEAK)
+    replaced, before integrate posts it: a log line is not the worker's to edit once it is on a PR. Session lines go
+    whatever the repository's visibility (`repo_public` fails closed to public anyway)."""
+    lines = [REDACTED if SESSION_LEAK.search(ln) else ln for ln in text.split("\n")]
+    return SECRET.sub(REDACTED, "\n".join(lines))
 
 
 def failed_check_lines(info: dict) -> list[str]:
     """The last FIX_LINES lines of `gh run view --job <id> --log-failed` over the PR's failing Actions checks (a
-    status context has no log to fetch). A log GitHub will not give is one line naming the check."""
+    status context has no log to fetch). A log GitHub will not give (or no gh at all) is one line naming the check."""
     lines: list[str] = []
     for c in latest_checks(info.get("statusCheckRollup") or []):
         if c.get("__typename") == "StatusContext" or c.get("status") != "COMPLETED":
@@ -1203,7 +1218,7 @@ def failed_check_lines(info: dict) -> list[str]:
             continue
         try:
             log = board.gh("run", "view", "-R", board.repo(), "--job", m[1], "--log-failed")
-        except board.BoardError as exc:
+        except (board.BoardError, OSError) as exc:
             lines.append(f"check {_named(c)}: no failed log from GitHub ({exc})")
             continue
         lines += [ln.rstrip() for ln in log.splitlines() if ln.strip()]
@@ -1214,6 +1229,19 @@ def _fenced(lines: list[str]) -> str:
     """`lines` as a fenced block no backtick run inside can close."""
     fence = "`" * max([3, *(len(r) + 1 for ln in lines for r in re.findall(r"`+", ln))])
     return "\n".join([f"{fence}text", *lines, fence])
+
+
+def fix_cycle(last: re.Match | None, head: str, counted: bool) -> int:
+    """The fix cycle of a send-back on `head` after the latest marker `last`: a cycle is a head integrate failed on,
+    so the same head keeps the number (a rerun, new feedback, a new gate duration). After a capped round (cycle
+    FIX_CAP, issues blocked 'needs owner') the next head starts at 1: the owner who unblocks grants a fresh round.
+    A send-back that is not `counted` (a conflict another merge caused) adds nothing."""
+    if last is None:
+        return int(counted)
+    cycle = int(last[1])
+    if last[2] == head:
+        return cycle
+    return (0 if cycle >= board.FIX_CAP else cycle) + counted
 
 
 def fix_loop(
@@ -1228,34 +1256,37 @@ def fix_loop(
     step: str = NEXT_STEP,
 ) -> dict:
     """Close the fix loop on a PR integrate did not merge (#110), with no lead relay: comment the `reasons`, the last
-    FIX_LINES `failing` lines and the PR's unresolved feedback on the PR, under a board.FIX_MARK that `board brief`
-    shows as 'Fix before merge'; then move each issue the PR links back to in-progress, its claim kept, so the worker
-    is resumed or respawned on it. A `counted` send-back is one more fix cycle; at board.FIX_CAP the issues are blocked
-    'needs owner' instead. The same content on the same head as the last comment posts and counts nothing (a rerun).
-    Returns the result fields: `cycle`, `fix` (in-progress, needs owner, already posted, dry run), `resume` (the
-    claims' agent@host) or, when GitHub refused a write, `fix_error`: the outcome stands either way."""
+    FIX_LINES `failing` lines and the PR's unresolved feedback on the PR (`scrubbed`), under a board.FIX_MARK that
+    `board brief` shows as 'Fix before merge'; then move each issue the PR links back to in-progress, its claim kept,
+    so the worker is resumed or respawned on it. The cycle (`fix_cycle`) comes from the gh user's latest marker among
+    all the PR's comments; at board.FIX_CAP the issues are blocked 'needs owner' instead. The same content on the same
+    head as that marker posts nothing. Returns the result fields: `cycle`, `fix` (in-progress, needs owner, already
+    posted, dry run), `resume` (the claims' agent@host) or, when GitHub refused a read or a write, `fix_error`: the
+    outcome stands either way."""
     branch = info.get("headRefName", "")
     closes, own = board.linked(info.get("body") or "", branch)
     issues = closes + own
     try:
         fb = board.pr_feedback(pr_number)
+        marked = board.fix_comments(pr_number)
+        trusted = {board.gh_user()} - {""}
         workers = list(dict.fromkeys(f"{c.agent}@{c.host}" for n in issues if (c := board.get(n).claim())))
     except (board.BoardError, OSError, ValueError, KeyError) as exc:
         print(f"warning: no fix loop on PR #{pr_number}: cannot read it or its issues ({exc}); comment it by hand")
         return {"fix_error": f"cannot read the PR or its issues: {exc}"}
-    feedback = board.pr_feedback_lines(fb)
+    feedback = board.pr_feedback_lines(fb | {"trusted": fb.get("trusted", set()) | trusted})
     failing = failing[-FIX_LINES:]
-    previous, last = board.fix_loop_state(fb.get("comments") or [])
+    _, last = board.fix_loop_state(marked, trusted)
+    mark = board.FIX_MARK.search(last["body"]) if last else None
     key = hashlib.sha256(json.dumps([outcome, reasons, failing, feedback]).encode()).hexdigest()[:12]
-    if last is not None and (m := board.FIX_MARK.search(last["body"])) and (m[2], m[3]) == (head, key):
-        print(f"PR #{pr_number} already has this failure on {head[:10]} (fix cycle {previous}): nothing posted")
-        return {"cycle": previous, "fix": "already posted", "resume": workers}
-    cycle = previous + counted
+    cycle = fix_cycle(mark, head, counted)
+    if mark and (mark[2], mark[3]) == (head, key):
+        print(f"PR #{pr_number} already has this failure on {head[:10]} (fix cycle {cycle}): nothing posted")
+        return {"cycle": cycle, "fix": "already posted", "resume": workers}
     capped = counted and cycle >= board.FIX_CAP
     who = ", ".join(workers) or "the worker that opened it"
     refs = ", ".join(f"#{n}" for n in issues) or "no linked issue"
     parts = [
-        f"<!-- devkit:fix-loop cycle={cycle} head={head} key={key} outcome={outcome} -->",
         f"`dev integrate`: PR #{pr_number} was not merged: **{outcome}** on head {head[:10]} "
         f"(fix cycle {cycle} of {board.FIX_CAP}).",
         "\n".join(reasons),
@@ -1267,14 +1298,15 @@ def fix_loop(
     if capped:
         parts.append(
             f"This is fix cycle {cycle} of {board.FIX_CAP}: {refs} blocked 'needs owner'. The owner decides: fix it by "
-            "hand, re-scope the issue, or close the PR."
+            "hand, re-scope the issue, or close the PR; the next head after an unblock starts a fresh round."
         )
     else:
         parts.append(
             f"Resume {who} on branch `{branch}`: {step}. Then the lead reruns integrate. {refs} stay in progress, "
             "claims kept; `uv run dev board brief <n>` shows this comment as 'Fix before merge'."
         )
-    body = "\n\n".join(p for p in parts if p)
+    marker = f"<!-- devkit:fix-loop cycle={cycle} head={head} key={key} outcome={outcome} -->"
+    body = marker + "\n" + scrubbed("\n\n".join(p for p in parts if p))
     if dry_run:
         print(f"would comment on PR #{pr_number} and move {refs} to {'blocked' if capped else 'in-progress'}")
         return {"cycle": cycle, "fix": "dry run", "resume": workers}
@@ -1282,7 +1314,7 @@ def fix_loop(
         board.gh("pr", "comment", str(pr_number), "-R", board.repo(), "--body", body)
         for n in issues:
             if capped:
-                board.block(n, f"needs owner: PR #{pr_number} failed integrate {cycle} times (last: {outcome})")
+                board.block(n, f"needs owner: PR #{pr_number} failed integrate on {cycle} heads (last: {outcome})")
             else:
                 board.set_status(n, "in-progress")
     except (board.BoardError, OSError) as exc:
