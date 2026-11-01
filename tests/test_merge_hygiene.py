@@ -179,7 +179,7 @@ def project(tmp_path, monkeypatch):
                     "headRefName": world["branch"],
                     "state": "OPEN",
                     "isDraft": False,
-                    "title": "t",
+                    "title": "feat: t (#12)",
                     "body": world["body"],
                     "statusCheckRollup": [],
                     "latestReviews": [],
@@ -332,7 +332,7 @@ def test_integrate_squash_merges_with_the_pr_title_and_body(project, capsys):
     assert last_json(capsys.readouterr().out)["outcome"] == "merged"
     call = _merge_call(project)
     assert "--squash" in call and "--merge" not in call and "--rebase" not in call
-    assert call[call.index("--subject") + 1] == "t (#7)"
+    assert call[call.index("--subject") + 1] == "feat: t (#12) (#7)"
     assert call[call.index("--body") + 1] == "Closes #12\n\nwhat changed"  # not the branch commit message "12-c"
     assert call[call.index("--match-head-commit") + 1] == tip
 
@@ -369,7 +369,7 @@ def test_integrate_refuses_a_session_leak_in_a_public_repo_before_the_gate(proje
     else:
         real = board.gh
         leak = f'"title": "see https://{workflow.SESSION_URL}_1"'
-        monkeypatch.setattr(board, "gh", lambda *a, **k: real(*a, **k).replace('"title": "t"', leak))
+        monkeypatch.setattr(board, "gh", lambda *a, **k: real(*a, **k).replace('"title": "feat: t (#12)"', leak))
     open_pr(project, note(project["clone"], "c"))
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     res = last_json(capsys.readouterr().out)

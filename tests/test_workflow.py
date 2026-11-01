@@ -8,7 +8,6 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from hypothesis import given
@@ -50,7 +49,7 @@ def opened(monkeypatch):
     monkeypatch.setattr(workflow, "git", lambda *a: "33-x" if a[0] == "branch" else "")
     monkeypatch.setattr(workflow, "_gate_passed", lambda: True)
     monkeypatch.setattr(workflow, "main_conflicts", lambda: [])
-    monkeypatch.setattr(board, "get", lambda n: SimpleNamespace(title="t"))
+    monkeypatch.setattr(board, "get", lambda n: mk(n, ["type:build"], title="t"))
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "comment", lambda n, text: None)
     monkeypatch.setattr(board, "set_status", lambda n, s: None)
@@ -908,7 +907,7 @@ def remote(tmp_path, monkeypatch):
     monkeypatch.chdir(clone)
     monkeypatch.setattr(workflow, "_gate_passed", lambda: True)
     monkeypatch.setattr(workflow, "pr_areas", lambda: [])
-    monkeypatch.setattr(board, "get", lambda n: SimpleNamespace(title="t"))
+    monkeypatch.setattr(board, "get", lambda n: mk(n, ["type:build"], title="t"))
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "comment", lambda n, text: None)
     monkeypatch.setattr(board, "set_status", lambda n, s: None)
@@ -1811,3 +1810,134 @@ def test_brief_shows_fix_before_merge_and_feedback_does_not_repeat_it(monkeypatc
     assert "## Fix before merge (PR #7, gate-failed, fix cycle 1 of 3" in text
     assert "     tests/test_x.py::test_a FAILED" in text
     assert board.pr_feedback_lines(fb) == []  # the send-back shows once, whole, not cut in the feedback list
+
+
+# Conventional Commits PR titles (#100): `dev pr` writes them, `dev integrate` and CI refuse others.
+
+
+@pytest.mark.parametrize(
+    ("title", "labels", "expected"),
+    [
+        (
+            "dev pr: Conventional title from the issue",
+            ["type:build"],
+            "feat(dev-pr): Conventional title from the issue",
+        ),
+        ("integrate: stop on a moved head", ["type:bug"], "fix(integrate): stop on a moved head"),
+        ("ci.yml: fold the plugin job", ["type:infra"], "ci(ci.yml): fold the plugin job"),
+        ("test: gate lock-wait is timing-sensitive", ["type:test"], "test: gate lock-wait is timing-sensitive"),
+        ("Research: reuse survey", ["type:research"], "docs: reuse survey"),
+        ("Epic: one board", ["type:epic"], "feat: one board"),
+        ("harness-ops/C++ #x: y", [], "feat(harness-ops-c-x): y"),
+        ("no component here", ["type:bug"], "fix: no component here"),
+    ],
+)
+def test_conventional_title_takes_type_from_the_label_and_scope_from_the_component(title, labels, expected):
+    assert workflow.conventional_title(mk(7, labels, title=title)) == f"{expected} (#7)"
+
+
+@given(st.text(min_size=1, max_size=80), st.sampled_from([*board.TYPES, "unknown"]))
+def test_every_generated_title_and_its_squash_subject_pass_the_check(title, kind):
+    """Whatever the issue title, `dev pr`'s title passes integrate's check, and so does the squash subject on main
+    that release-please reads (integrate appends the PR number)."""
+    issue = mk(7, [f"type:{kind}"], title=title.replace("\n", " ") + " x")
+    made = workflow.conventional_title(issue)
+    assert workflow.title_problem(made) is None, made
+    subject, _ = workflow.squash_message(12, {"title": made, "body": "b"})
+    assert workflow.title_problem(subject) is None and subject.endswith("(#7) (#12)")
+
+
+@pytest.mark.parametrize(
+    ("title", "ok"),
+    [
+        ("feat(dev-pr): outcome (#100)", True),
+        ("fix: outcome (#1) (#12)", True),  # the squash subject: integrate appends the PR number
+        ("feat!: breaking (#3)", True),
+        ("chore(deps.lock): bump (#3)", True),
+        ("ci(.github/workflows): pin (#3)", True),
+        ("fix: outcome", False),  # no issue number
+        ("fix:  (#12)", False),  # an empty outcome (commitizen accepts it, #416)
+        ("fix: (#12)", False),
+        ("fix : outcome (#1)", False),
+        ("feature: outcome (#1)", False),
+        ("feat(): outcome (#1)", False),
+        ("dev pr: outcome (#100)", False),  # a component, not a type
+        ("Feat: outcome (#1)", False),
+        ("feat(dev pr): outcome (#1)", False),  # a scope with a space
+        ("feat:outcome (#1)", False),
+        ("feat: ", False),
+        ("feat: a\nb (#1)", False),
+        ("", False),
+        (None, False),
+    ],
+)
+def test_title_problem_accepts_only_conventional_titles(title, ok):
+    why = workflow.title_problem(title)
+    assert (why is None) is ok
+    if not ok:
+        assert workflow.TITLE_FORM in why
+
+
+def test_dev_pr_opens_the_pr_with_the_conventional_title(monkeypatch):
+    """#100: the PR title (the squash subject on main) is `type(scope): outcome (#n)`, not the bare issue title."""
+    created = []
+    monkeypatch.setattr(workflow, "git", lambda *a: "100-x" if a[0] == "branch" else "")
+    monkeypatch.setattr(workflow, "_gate_passed", lambda: True)
+    monkeypatch.setattr(workflow, "main_conflicts", lambda: [])
+    monkeypatch.setattr(workflow, "pr_areas", lambda: [])
+    monkeypatch.setattr(board, "get", lambda n: mk(n, ["type:build"], title="dev pr: conventional titles"))
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board, "comment", lambda n, text: None)
+    monkeypatch.setattr(board, "set_status", lambda n, s: None)
+    monkeypatch.setattr(board, "gh", lambda *a, input=None: created.append(a) or "https://example/pr/1\n")
+    monkeypatch.setattr("sys.stdin", io.StringIO("body\n"))
+    workflow.pr(100, "-", draft=False)
+    args = created[-1]
+    assert args[args.index("--title") + 1] == "feat(dev-pr): conventional titles (#100)"
+
+
+def test_integrate_refuses_a_non_conventional_title_with_the_expected_form(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    """No Actions needed: integrate itself refuses before the gate, names the title `dev pr` would give, and sends it
+    back through the fix loop; --override does not lift it."""
+    real = board.gh
+    monkeypatch.setattr(board, "gh", lambda *a, **k: real(*a, **k).replace('"feat: t (#5)"', '"Stop on a moved head"'))
+    monkeypatch.setattr(board, "get", lambda n: mk(n, ["type:bug"], title="integrate: stop on a moved head"))
+    assert workflow.integrate(7, harness_ok=True, dry_run=False, override="ship it") == 1
+    out = capsys.readouterr().out
+    assert "RESULT: refused" in out and "'fix(integrate): stop on a moved head (#5)'" in out
+    assert _record()["outcome"] == "refused" and "Conventional Commits" in _record()["reason"]
+    assert not any(e[0] == "run" for e in fake_integrate["events"])
+    assert not _merged(fake_integrate["events"])
+
+
+def test_expected_title_falls_back_to_the_form_without_a_readable_issue(monkeypatch):
+    assert workflow.expected_title({"body": "no link", "headRefName": "main"}) == repr(workflow.TITLE_FORM)
+
+    def unreadable(n):
+        raise board.BoardError("offline")
+
+    monkeypatch.setattr(board, "get", unreadable)
+    assert workflow.expected_title({"body": "Closes #5", "headRefName": "5-x"}) == repr(workflow.TITLE_FORM)
+
+
+@pytest.mark.parametrize(("title", "code"), [("fix(x): y (#1)", 0), ("Fix the thing", 1)])
+def test_dev_pr_title_reads_the_title_from_the_environment(monkeypatch, capsys, title, code):
+    from devkit import cli
+
+    monkeypatch.setenv("PR_TITLE", title)
+    assert cli.run(cli.parse(["pr-title"])) == code
+    assert ("FAIL" in capsys.readouterr().out) is bool(code)
+
+
+def test_ci_checks_the_title_through_env_never_by_interpolation():
+    """The title is attacker-controlled text: `${{ }}` inside `run:` would make it script (template injection).
+    The check re-runs on a title edit, and runs `dev pr-title`, the same check integrate applies."""
+    import yaml
+
+    flow = yaml.safe_load((Path(workflow.root()) / ".github/workflows/pr-title.yml").read_text())
+    assert "edited" in flow[True]["pull_request"]["types"]  # PyYAML reads the `on:` key as True
+    steps = [s for job in flow["jobs"].values() for s in job["steps"]]
+    runs = [s for s in steps if "run" in s]
+    assert runs and all("${{" not in s["run"] for s in runs)
+    check = next(s for s in runs if "dev pr-title" in s["run"])
+    assert check["env"]["PR_TITLE"] == "${{ github.event.pull_request.title }}"

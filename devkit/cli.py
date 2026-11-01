@@ -168,6 +168,8 @@ def build() -> argparse.ArgumentParser:
     )
     x.add_argument("--draft", action="store_true")
     x.add_argument("--partial", action="store_true", help="some DONE WHEN item is not met: 'Refs #N', not 'Closes #N'")
+    x = sub.add_parser("pr-title", help="CI: fail unless the PR title is Conventional Commits (title from PR_TITLE)")
+    x.add_argument("--title", default=os.environ.get("PR_TITLE"), help="default: the PR_TITLE environment variable")
     x = sub.add_parser("integrate", help="lead: re-gate a PR merged onto main in a throwaway worktree, then merge it")
     x.add_argument("pr", type=int)
     x.add_argument("--harness-ok", action="store_true", help="you read the diff of harness files it touches")
@@ -427,6 +429,8 @@ def run(a: argparse.Namespace) -> int:
             return run_board(a)
         case "pr":
             print(workflow.pr(a.number, a.summary, a.draft, a.partial))
+        case "pr-title":
+            return workflow.check_title(a.title)
         case "integrate" if a.why:  # read-only, whatever other flags came with it
             return workflow.why(a.pr)
         case "integrate":
