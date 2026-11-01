@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, cli, paths, train, workflow
+from devkit import board, cli, paths, prtext, train, workflow
 from tests.test_merge_hygiene import ATTRIBUTES, INDEX, REAL_POPEN, REAL_RUN, commit, index, note, out, sh
 
 
@@ -334,7 +334,7 @@ def test_a_member_head_moving_during_the_gate_lands_nothing(world, capsys, monke
 
 def test_a_session_link_in_a_squash_subject_at_recheck_is_sent_back_and_lands_nothing(world, capsys, monkeypatch):
     three(world)
-    link = "https://" + workflow.SESSION_URL + "_abc123"
+    link = "https://" + prtext.SESSION_URL + "_abc123"
     during_gate(monkeypatch, lambda: world["prs"][2].update(title=f"feat(x): pr 2 {link} (#102)"))
     assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
     res = last_json(capsys.readouterr().out)
@@ -342,7 +342,7 @@ def test_a_session_link_in_a_squash_subject_at_recheck_is_sent_back_and_lands_no
     assert workflow.SESSION_RULE in res["members"]["2"]["feedback"][0]
     assert main_log(world) == ["init"] and closed(world) == [] and sent_back(world) == [2]
     posted = next(e for e in world["events"] if e[:3] == ("gh", "pr", "comment"))
-    assert workflow.SESSION_URL not in posted[posted.index("--body") + 1]  # scrubbed by the fix loop
+    assert prtext.SESSION_URL not in posted[posted.index("--body") + 1]  # scrubbed by the fix loop
 
 
 def _deleting_pr(w: dict, n: int, path: str) -> None:
@@ -473,3 +473,133 @@ def test_every_squash_commit_on_main_carries_its_regenerated_index(world, capsys
     shas = out(world["origin"], "git", "log", "--format=%H", "-3", "refs/heads/main").splitlines()[::-1]
     rows = [out(world["origin"], "git", "show", f"{s}:{INDEX}") for s in shas]
     assert rows == ["# Index\n- a\n- n1", "# Index\n- a\n- n1\n- n2", "# Index\n- a\n- n1\n- n2\n- n3"]
+
+
+def _branch_on(repo: Path, name: str) -> bool:
+    return bool(out(repo, "git", "branch", "--list", name))
+
+
+def test_a_landed_member_leaves_no_branch_behind_locally_or_on_origin(world, capsys):
+    three(world)
+    assert all(_branch_on(world["clone"], f"10{n}-pr{n}") for n in (1, 2, 3))
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
+    for n in (1, 2, 3):
+        assert not _branch_on(world["clone"], f"10{n}-pr{n}")  # drop_branch: the gated head contains it
+        assert not _branch_on(world["origin"], f"10{n}-pr{n}")  # deleted under a lease on the gated head
+    close = next(e for e in world["events"] if e[:3] == ("gh", "pr", "close"))
+    assert "--delete-branch" not in close
+
+
+def test_a_head_moving_after_the_push_keeps_its_pr_open_and_its_branch(world, capsys, monkeypatch):
+    three(world)
+    clone, real, moved = world["clone"], board.gh, []
+
+    def gh(*args, **kw):
+        if args[:3] == ("pr", "view", "2") and args[-1] == "headRefOid" and not moved:
+            sh(clone, "git", "checkout", "-q", "102-pr2")
+            moved.append(commit(clone, {"late.txt": "x\n"}, "late"))
+            sh(clone, "git", "push", "-q", "origin", "102-pr2")
+            sh(clone, "git", "checkout", "-q", "-f", "main")
+        return real(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
+    res = last_json(capsys.readouterr().out)
+    assert set(outcomes_of(res).values()) == {"merged"} and "stays open" in res["members"]["2"]["kept_open"]
+    assert closed(world) == [1, 3] and [e[1] for e in world["events"] if e[0] == "merged_pr"] == [1, 3]
+    assert out(world["origin"], "git", "rev-parse", "refs/heads/102-pr2") == moved[0]  # branch kept, not deleted
+
+
+def test_a_pr_stacked_on_a_member_is_retargeted_to_main_before_the_close(world, capsys, monkeypatch):
+    three(world)
+    real = board.gh
+
+    def gh(*args, **kw):
+        if args[:2] == ("pr", "list") and "--base" in args and args[args.index("--base") + 1] == "101-pr1":
+            world["events"].append(("gh", *args))
+            return json.dumps([{"number": 9, "headRefName": "109-x"}])
+        return real(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
+    ev = world["events"]
+    edit = next(i for i, e in enumerate(ev) if e[:4] == ("gh", "pr", "edit", "9"))
+    assert ev[edit][-2:] == ("--base", "main")
+    assert edit < next(i for i, e in enumerate(ev) if e[:4] == ("gh", "pr", "close", "1"))
+    assert "retargeted stacked PR #9" in capsys.readouterr().out
+
+
+def test_a_board_update_github_refuses_keeps_the_member_merged(world, capsys, monkeypatch):
+    three(world)
+
+    def merged_pr(n, *a):
+        if n == 1:
+            raise board.BoardError("gh: 502")
+        world["events"].append(("merged_pr", n))
+        return [f"#{n + 100} -> done"]
+
+    monkeypatch.setattr(board, "merged_pr", merged_pr)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
+    res = last_json(capsys.readouterr().out)
+    assert set(outcomes_of(res).values()) == {"merged"}
+    assert res["members"]["1"]["board_error"] == "gh: 502" and res["members"]["1"]["moved"] == []
+    assert res["members"]["2"]["moved"] == ["#102 -> done"] and closed(world) == [1, 2, 3]
+
+
+def test_a_regenerate_failing_on_an_intermediate_step_stops_with_its_own_reason(world, capsys, monkeypatch):
+    three(world)
+    real, calls = workflow.regenerate, []
+
+    def regenerate(tree):
+        calls.append(tree)
+        if len(calls) > 1:  # the candidate's regenerate passed; the first intermediate step's fails
+            raise RuntimeError("`uv run dev docs` failed in the merged tree: boom")
+        return real(tree)
+
+    monkeypatch.setattr(workflow, "regenerate", regenerate)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
+    res = last_json(capsys.readouterr().out)
+    assert res["reason"].startswith("regenerating generated files on PR #1's step failed")
+    assert "push" not in res["reason"] and set(outcomes_of(res).values()) == {"stopped"}
+    assert main_log(world) == ["init"] and closed(world) == []
+
+
+def test_the_regenerated_tree_is_checked_for_deleted_owns_too(world, capsys, monkeypatch):
+    three(world)
+    real, calls = workflow.deleted_owns, []
+
+    def deleted_owns(tree, base, info):
+        calls.append(info["headRefName"])
+        if len(calls) > 3 and info["headRefName"] == "102-pr2":  # past the three merge-time checks
+            return {300: ["docs/research/owned.md"]}
+        return real(tree, base, info)
+
+    monkeypatch.setattr(workflow, "deleted_owns", deleted_owns)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
+    res = last_json(capsys.readouterr().out)
+    assert outcomes_of(res) == {"1": "stopped", "2": "refused", "3": "stopped"}
+    assert res["members"]["2"]["owns"] == {"300": ["docs/research/owned.md"]} and sent_back(world) == [2]
+    assert len(res["gates_run"]) == 1 and main_log(world) == ["init"] and closed(world) == []
+
+
+def test_a_bare_harness_ok_on_a_single_integrate_still_clears_it(world, monkeypatch):
+    seen = []
+    monkeypatch.setattr(workflow, "integrate", lambda pr, ok, *a: seen.append((pr, ok)) or 0)
+    for argv in (["integrate", "7", "--harness-ok"], ["integrate", "7", "--harness-ok", "7"], ["integrate", "7"]):
+        code = cli.run(cli.parse(argv))
+        assert code == 0
+    assert seen == [(7, True), (7, True), (7, False)]
+
+
+@pytest.mark.parametrize(
+    ("argv", "says"),
+    [
+        (["integrate", "--train", "3", "7", "7", "8"], "named twice"),
+        (["integrate", "--train", "2", "7", "8", "--harness-ok", "9"], "not in the train"),
+        (["integrate", "7", "--harness-ok", "9"], "not PR 7"),
+    ],
+)
+def test_the_cli_refuses_duplicate_members_and_stray_harness_ok_numbers(world, capsys, argv, says):
+    code = cli.run(cli.parse(argv))
+    assert code == 2
+    assert says in capsys.readouterr().out and world["events"] == []

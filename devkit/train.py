@@ -273,44 +273,85 @@ def _recheck(members: list[Member], main: str, dry_run: bool) -> str | None:
     return None
 
 
-def _land(members: list[Member], built: Built, main: str, tree: Path, dry_run: bool) -> str:
-    """Each member as its own squash commit on main, in order, its subject and body `squash_message`. Each commit
-    carries its step's tree with generated files regenerated (the last one is the gated tip itself), so every commit
-    on main is consistent and main ends on exactly the gated tree. Pushes main once (a fast-forward: refused if main
-    moved). Returns the new main."""
-    parent = main
+def _regenerated_steps(members: list[Member], built: Built, main: str, tree: Path, dry_run: bool) -> list[str]:
+    """Per member, the commit its squash commit will carry: its step with generated files regenerated (the last one is
+    the gated tip itself), so every commit on main is consistent. Each is checked against the one before it with
+    `deleted_owns`, as single integrate checks its regenerated tree. Done before `_recheck`, so the push follows the
+    recheck at once. A member whose regenerated step empties another open issue's Owns entry is sent back and stops
+    the train (TrainStop); so does a regenerate that fails or a board that cannot be read (fail closed)."""
+    commits, prev = [], main
     for i, m in enumerate(members):
-        if i == len(members) - 1:
-            top = built.tip
-        else:
-            workflow.git("checkout", "-q", "--detach", "-f", built.steps[i], cwd=tree)
-            workflow.regenerate(tree)
-            top = workflow.git("rev-parse", "HEAD", cwd=tree)
+        try:
+            if i == len(members) - 1:
+                workflow.git("checkout", "-q", "--detach", "-f", built.tip, cwd=tree)
+            else:
+                workflow.git("checkout", "-q", "--detach", "-f", built.steps[i], cwd=tree)
+                workflow.regenerate(tree)
+        except RuntimeError as exc:
+            raise TrainStop(f"regenerating generated files on PR #{m.number}'s step failed: {exc}") from exc
+        top = workflow.git("rev-parse", "HEAD", cwd=tree)
+        try:
+            gone = workflow.deleted_owns(tree, prev, m.info)
+        except (OSError, RuntimeError) as exc:  # a gh failure is a BoardError, a RuntimeError
+            raise TrainStop(f"cannot read the board to check deleted Owns: {exc}") from exc
+        if gone:
+            m.outcome, m.fields = "refused", {"reason": "deletes paths open issues own", "owns": gone}
+            _send_back_owns(m, dry_run)
+            raise TrainStop(f"PR #{m.number}'s regenerated tree deletes what open issues own: rerun the train")
+        commits.append(top)
+        prev = top
+    return commits
+
+
+def _squash_chain(members: list[Member], commits: list[str], built: Built, main: str) -> str:
+    """Each member as its own squash commit on main, in order, its subject and body `squash_message` of the PR as
+    `_recheck` read it; only local `commit-tree` calls, so nothing slow sits between the recheck and the push.
+    Returns the last commit, whose tree is exactly the gated tree."""
+    parent = main
+    for m, top in zip(members, commits, strict=True):
         subject, body = workflow.squash_message(m.number, m.info)
         parent = workflow.git("commit-tree", f"{top}^{{tree}}", "-p", parent, "-m", subject, "-m", body)
         m.fields["commit"] = parent
     if workflow.git("rev-parse", f"{parent}^{{tree}}") != workflow.git("rev-parse", f"{built.tip}^{{tree}}"):
         raise RuntimeError("the squash commits do not end on the gated tree")
-    if dry_run:
-        print(f"would push {parent[:10]} ({len(members)} squash commits) to main")
-    else:
-        workflow.git("push", "origin", f"{parent}:refs/heads/main")
     return parent
 
 
 def _close_merged(m: Member, names: str, tip: str) -> None:
-    """The member's commit is on main: retarget PRs stacked on it, close it with a comment naming the train, and
-    move its issues as integrate moves them. A step GitHub refuses is recorded (`close_error`, `board_error`) and the
-    rest still run: the member stays merged."""
+    """The member's commit is on main. Re-read its head: one that moved since the gate (the worker pushed after the
+    push of main) leaves the PR open, its branch kept and its issues where they are (`kept_open`). Otherwise
+    retarget PRs stacked on it, close it with a comment naming the train, delete its branch only if it still points
+    at the gated head (a lease), and move its issues as integrate moves them. A step GitHub refuses is recorded
+    (`close_error`, `branch_error`, `board_error`) and the rest still run: the member stays merged. `gh pr close` has
+    no `--match-head-commit`, so the re-read and the lease bound the window instead."""
     branch = m.info.get("headRefName", "")
+    try:
+        now = workflow._remote_shas(m.number)[0]
+    except (board.BoardError, RuntimeError, OSError, ValueError, KeyError) as exc:
+        now = f"unreadable: {exc}"
+    if now != m.head:
+        m.fields["kept_open"] = (
+            f"the PR head moved after the gate ({m.head[:10]} -> {now[:10]}): its train commit is on main, the PR "
+            "stays open and its branch kept; read the new commits, then close it or let them go to a new PR"
+        )
+        print(f"train: PR #{m.number} landed but {m.fields['kept_open']}")
+        return
     note = f"Merged by `dev integrate --train` in train {names} as {m.fields['commit']} on main (main now {tip[:10]})."
+    closed = False
     try:
         if branch:
             workflow.retarget_stacked(branch, m.head)
-        board.gh("pr", "close", str(m.number), "-R", board.repo(), "--comment", note, "--delete-branch")
+        board.gh("pr", "close", str(m.number), "-R", board.repo(), "--comment", note)
+        closed = True
     except (board.BoardError, RuntimeError, OSError) as exc:
         m.fields["close_error"] = str(exc)
         print(f"train: PR #{m.number} landed but closing it failed ({exc}): close it by hand")
+    if closed and branch:
+        try:  # refused if the worker pushed since: the branch is kept
+            workflow.git("push", f"--force-with-lease=refs/heads/{branch}:{m.head}", "origin", f":refs/heads/{branch}")
+        except RuntimeError as exc:
+            m.fields["branch_error"] = str(exc)
+            print(f"train: kept remote branch {branch}: {exc}")
     try:
         m.fields["moved"] = board.merged_pr(m.number, m.info.get("body") or "", branch, m.info["baseRefName"])
     except (board.BoardError, RuntimeError, OSError) as exc:
@@ -431,17 +472,22 @@ def _train(members: list[Member], gates: list[dict], harness_ok: set[int] | bool
         if not landing:
             print("RESULT: gate-failed: no member passes the gate")
             return _result(members, gates, 1, "gate-failed")
+        commits = _regenerated_steps(landing, landed, main, tree, dry_run)
         if why := _recheck(landing, main, dry_run):
             _stop_rest(landing, why)
             print(f"RESULT: stopped ({why})")
             return _result(members, gates, 1, "stopped", reason=why)
-        try:
-            tip = _land(landing, landed, main, tree, dry_run)
-        except RuntimeError as exc:
-            for m in landing:
-                m.outcome, m.fields = "stopped", {"reason": f"cannot push main: {exc}"}
-            print(f"RESULT: stopped (cannot push main; did it move? rerun the train): {exc}")
-            return _result(members, gates, 1, "stopped", reason=f"cannot push main: {exc}")
+        tip = _squash_chain(landing, commits, landed, main)
+        if dry_run:
+            print(f"would push {tip[:10]} ({len(landing)} squash commits) to main")
+        else:
+            try:  # a fast-forward: refused if main moved since the recheck
+                workflow.git("push", "origin", f"{tip}:refs/heads/main")
+            except RuntimeError as exc:
+                for m in landing:
+                    m.outcome, m.fields = "stopped", {"reason": f"cannot push main: {exc}"}
+                print(f"RESULT: stopped (cannot push main; did it move? rerun the train): {exc}")
+                return _result(members, gates, 1, "stopped", reason=f"cannot push main: {exc}")
     finally:
         workflow.git("worktree", "remove", "--force", str(tree), check=False)
         for ref in (main_ref, *refs.values()):

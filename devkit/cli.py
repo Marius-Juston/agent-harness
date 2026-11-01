@@ -465,12 +465,21 @@ def run(a: argparse.Namespace) -> int:
                     "and neither --override nor --consolidation-review"
                 )
                 return 2
+            if len(set(members)) != len(members):
+                print(f"integrate --train: a PR is named twice: {' '.join(map(str, members))}")
+                return 2
             if a.harness_ok == []:
                 print("integrate --train: name the PRs whose harness diff you read: --harness-ok 12 15")
                 return 2
+            if stray := sorted(set(a.harness_ok or []) - set(members)):
+                print(f"integrate --train: --harness-ok names {', '.join(map(str, stray))}, not in the train")
+                return 2
             return train.train(members, set(a.harness_ok or []), a.dry_run, a.local_ci)
         case "integrate":
-            harness_ok = a.harness_ok is not None and (not a.harness_ok or a.pr in a.harness_ok)
+            if stray := sorted(set(a.harness_ok or []) - {a.pr}):
+                print(f"integrate: --harness-ok names {', '.join(map(str, stray))}, not PR {a.pr}")
+                return 2
+            harness_ok = a.harness_ok is not None
             return workflow.integrate(a.pr, harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
         case "cite-check":
             paths = [Path(p) for p in a.paths] or _changed_notes()
