@@ -476,6 +476,131 @@ def test_the_gate_marks_when_it_holds_the_lock_and_takes_its_role_from_the_envir
         assert held.exists()
 
 
+def _hold(path, holder=None):
+    """A gate holding `path`, as another process's would look to flock (and to dev status, given `holder`)."""
+    f = open(path, "a+")  # noqa: SIM115 (held across the test, closed by it)
+    fcntl.flock(f, fcntl.LOCK_EX)
+    if holder:
+        f.write(f"{holder}\n")
+        f.flush()
+    return f
+
+
+def test_slot_paths_keep_the_first_slot_at_the_one_lock_path(tmp_path):
+    """#461: slot 0 is `gate.lock` itself, so gate_slots = 1 is the old single lock."""
+    path = tmp_path / "gate.lock"
+    assert gate.slot_paths(path, 1) == [path]
+    assert gate.slot_paths(path, 3) == [path, tmp_path / "gate.lock.1", tmp_path / "gate.lock.2"]
+
+
+def test_three_slots_hold_three_gates_at_once_and_a_fourth_waits(tmp_path):
+    """#461: with 3 slots, three gates hold one each at once without waiting; a fourth says it waits, and gets the
+    slot freed first."""
+    path = tmp_path / "gate.lock"
+    inside, release = threading.Barrier(4), threading.Event()
+    holder_waited, waiting, fourth_in = threading.Event(), threading.Event(), threading.Event()
+
+    def holder():
+        with gate.gate_lock(path, slots=3, on_wait=holder_waited.set):
+            inside.wait(10)
+            release.wait(10)
+
+    def fourth():
+        with gate.gate_lock(path, slots=3, on_wait=waiting.set):
+            fourth_in.set()
+
+    holders = [threading.Thread(target=holder) for _ in range(3)]
+    for t in holders:
+        t.start()
+    inside.wait(10)  # all three inside at once
+    assert not holder_waited.is_set()
+    assert len(gate.holders(path)) == 3
+    t4 = threading.Thread(target=fourth)
+    t4.start()
+    assert waiting.wait(10)
+    assert not fourth_in.wait(0.3)
+    release.set()
+    for t in [*holders, t4]:
+        t.join(10)
+    assert fourth_in.is_set()
+
+
+@pytest.mark.parametrize("round_", range(5))
+def test_integrates_gate_takes_the_next_free_slot_ahead_of_queued_worker_gates(tmp_path, round_):
+    """#461 with #385: both slots busy, two worker gates and then integrate's wait; the first slot freed goes to
+    integrate's gate, ahead of the worker gates that queued before it."""
+    path = tmp_path / "gate.lock"
+    busy = [_hold(p) for p in gate.slot_paths(path, 2)]
+    order: list[str] = []
+    names = ["worker-1", "worker-2", "integrate"]
+    waiting = {n: threading.Event() for n in names}
+    go = threading.Event()
+
+    def gate_run(name):
+        with gate.gate_lock(path, slots=2, on_wait=waiting[name].set, priority=name == "integrate"):
+            order.append(name)
+            go.wait(10)
+
+    threads = {n: threading.Thread(target=gate_run, args=(n,)) for n in names}
+    for name in names:
+        threads[name].start()
+        assert waiting[name].wait(10)
+    busy[1].close()  # one slot frees; the other stays busy
+    deadline = time.monotonic() + 10
+    while not order and time.monotonic() < deadline:
+        time.sleep(0.01)
+    time.sleep(0.3)  # a worker gate that wrongly took the slot would show up here
+    assert order == ["integrate"]
+    busy[0].close()
+    go.set()
+    for t in threads.values():
+        t.join(10)
+    assert order[0] == "integrate" and sorted(order[1:]) == ["worker-1", "worker-2"]
+
+
+def test_each_slot_records_its_holder_and_held_is_marked_once_a_slot_is_held(tmp_path):
+    """#461: every holder's pid and root is recorded per slot; integrate's deadline starts when its slot is held."""
+    path = tmp_path / "gate.lock"
+    first = _hold(path, "111 /first")
+    held = tmp_path / "held"
+    with gate.gate_lock(path, slots=2, held=held):
+        assert held.exists()
+        assert gate.holders(path) == ["111 /first", f"{os.getpid()} {gate.root()}"]
+    first.close()
+    assert gate.holders(path) == []
+
+
+def test_status_lists_every_gate_holder(monkeypatch, tmp_path):
+    monkeypatch.setattr(workflow, "state_dir", lambda *a: tmp_path)
+    assert workflow.gate_holder() == "idle"
+    a, b = _hold(tmp_path / "gate.lock", "1 /a"), _hold(tmp_path / "gate.lock.2", "2 /b")
+    assert workflow.gate_holder() == "running (1 /a; 2 /b)"
+    a.close()
+    b.close()
+
+
+@given(cores=st.integers(1, 512), gb=st.floats(0, 4096), slots=st.integers(1, 64))
+def test_workers_share_the_machine_among_the_gate_slots(cores, gb, slots):
+    """#461: N concurrent gates together take at most half the cores and one worker per 2 GB free."""
+    n = gate.workers(slots, cores=cores, gb=gb)
+    assert 1 <= n <= 16
+    assert n == 1 or (n * slots <= cores // 2 and n * slots * 2 <= gb)
+    assert gate.workers(1, cores=cores, gb=gb) == max(1, min(cores // 2, int(gb // 2), 16))
+
+
+@pytest.mark.parametrize("value", [0, -1, True, "3", 1.5])
+def test_gate_slots_must_be_a_positive_integer(value):
+    with pytest.raises(config.ConfigError, match="gate_slots"):
+        config.parse({"gate_slots": value})
+
+
+def test_gate_slots_defaults_to_one_and_the_gate_reads_it(monkeypatch):
+    assert config.Config().gate_slots == 1
+    assert config.parse({"gate_slots": 4}).gate_slots == 4
+    monkeypatch.setattr(gate.config, "get", lambda: config.Config(gate_slots=3))
+    assert gate.gate_slots() == 3
+
+
 def _info(**over):
     info = {"baseRefName": "main", "isCrossRepository": False, "headRefOid": "a" * 40, "state": "OPEN"}
     return info | over

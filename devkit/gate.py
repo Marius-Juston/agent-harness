@@ -44,9 +44,13 @@ def free_gb() -> float:
     return 8.0
 
 
-def workers() -> int:
-    """pytest-xdist workers: half the cores, at most one per 2 GB free, at least 1."""
-    return max(1, min((os.cpu_count() or 2) // 2, int(free_gb() // 2), 16))
+def workers(slots: int | None = None, cores: int | None = None, gb: float | None = None) -> int:
+    """pytest-xdist workers: half the cores, at most one per 2 GB free, shared among the gate slots (#461), so
+    `slots` gates running at once take no more than one did; at least 1, at most 16."""
+    slots = gate_slots() if slots is None else slots
+    cores = (os.cpu_count() or 2) if cores is None else cores
+    gb = free_gb() if gb is None else gb
+    return max(1, min(cores // 2 // slots, int(gb // 2) // slots, 16))
 
 
 # pytest's final line, e.g. "== 3 passed, 1 skipped in 0.52s ==" or "3 passed in 65.1s (0:01:05)" under -q.
@@ -338,37 +342,81 @@ def take_lock_role(env: MutableMapping[str, str]) -> dict:
     return role
 
 
+SLOT_POLL_S = 0.2  # with several slots, how often a waiting gate tries them all again
+
+
+def gate_slots() -> int:
+    """How many gates may run at once on this machine: `[tool.devkit] gate_slots` (#461)."""
+    return config.get().gate_slots
+
+
+def slot_paths(path: Path, slots: int) -> list[Path]:
+    """The slots' lock files: `path` itself, then `<path>.1` ... `<path>.<slots-1>`."""
+    return [path, *(path.with_name(f"{path.name}.{i}") for i in range(1, slots))]
+
+
+def holders(path: Path) -> list[str]:
+    """The pid and root of each gate holding a slot of `path` now, in slot order (any slot count, so a changed
+    gate_slots still shows a gate started under the old one)."""
+    found = []
+    for slot in sorted(path.parent.glob(f"{path.name}*"), key=lambda p: (p != path, len(p.name), p.name)):
+        if slot != path and not slot.name.removeprefix(path.name + ".").isdigit():
+            continue
+        with open(slot, "a+") as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                f.seek(0)
+                found.append(f.read().strip())
+    return found
+
+
 @contextlib.contextmanager
 def gate_lock(
-    path: Path, on_wait: Callable[[], None] = lambda: None, priority: bool = False, held: Path | None = None
+    path: Path,
+    on_wait: Callable[[], None] = lambda: None,
+    priority: bool = False,
+    held: Path | None = None,
+    slots: int = 1,
 ) -> Iterator[None]:
-    """One gate per machine. Opened with "a+" (never truncating) so a waiting gate does not erase the holder's pid.
-    flock grants the lock in no fixed order, so a priority gate (integrate's) holds a shared lock on `<path>.priority`
-    while it waits, and a worker gate that gets the lock meanwhile hands it back and waits until no priority gate
-    does (#385). By design, worker gates starve while integrate gates arrive back to back: a merge outranks a check.
-    Once the lock is held, `held` is created: integrate's deadline counts from there, not the wait."""
-    with open(path, "a+") as lock, open(path.with_name(path.name + ".priority"), "a+") as queue:
-        if priority:
-            fcntl.flock(queue, fcntl.LOCK_SH)
+    """At most `slots` gates per machine, one per lock file of slot_paths (#461). Opened with "a+" (never truncating)
+    so a waiting gate does not erase a holder's pid.
+    A gate tries every slot without blocking. Worker gates that find none free queue on `<path>.wait`; its holder
+    waits for a slot (blocking on the one lock file, else trying all every SLOT_POLL_S), so a newcomer cannot take a
+    slot freed for a gate that queued before it. flock grants a lock in no fixed order, so a priority gate
+    (integrate's) skips that queue and holds a shared lock on `<path>.priority` while it waits, and a worker gate that
+    gets a slot meanwhile hands it back and waits until no priority gate does (#385): integrate takes the next free
+    slot. By design, worker gates starve while integrate gates arrive back to back: a merge outranks a check.
+    Once a slot is held, `held` is created: integrate's deadline counts from there, not the wait."""
+    with contextlib.ExitStack() as stack:
+        locks = [stack.enter_context(open(p, "a+")) for p in slot_paths(path, slots)]
+        queue = stack.enter_context(open(path.with_name(path.name + ".priority"), "a+"))
+        turn = None if priority else stack.enter_context(open(path.with_name(path.name + ".wait"), "a+"))
         said = False
-        while True:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                if not said:
-                    on_wait()
-                    said = True
-                fcntl.flock(lock, fcntl.LOCK_EX)
-            if priority or _no_priority_waiter(queue):
-                break
-            fcntl.flock(lock, fcntl.LOCK_UN)
+
+        def say() -> None:
+            nonlocal said
             if not said:
                 on_wait()
                 said = True
+
+        if priority:
+            fcntl.flock(queue, fcntl.LOCK_SH)
+        if turn and not _try(turn):
+            say()
+            fcntl.flock(turn, fcntl.LOCK_EX)
+        while True:
+            lock = next((f for f in locks if _try(f)), None)
+            if lock is None:
+                say()
+                lock = _wait_slot(locks)
+            if priority or _no_priority_waiter(queue):
+                break
+            fcntl.flock(lock, fcntl.LOCK_UN)
+            say()
             fcntl.flock(queue, fcntl.LOCK_EX)  # granted once no priority gate waits
             fcntl.flock(queue, fcntl.LOCK_UN)
-        if priority:
-            fcntl.flock(queue, fcntl.LOCK_UN)
+        fcntl.flock(turn or queue, fcntl.LOCK_UN)  # the next queued worker gate's turn; or no longer a priority waiter
         lock.seek(0)
         lock.truncate()
         lock.write(f"{os.getpid()} {root()}\n")
@@ -376,6 +424,26 @@ def gate_lock(
         if held:
             held.touch()
         yield
+
+
+def _try(f: IO[str]) -> bool:
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False
+    return True
+
+
+def _wait_slot(locks: list[IO[str]]) -> IO[str]:
+    """Block until a slot is held: on the lock itself when there is one, else by trying them all every SLOT_POLL_S
+    (flock cannot wait on several files at once)."""
+    if len(locks) == 1:
+        fcntl.flock(locks[0], fcntl.LOCK_EX)
+        return locks[0]
+    while True:
+        time.sleep(SLOT_POLL_S)
+        if lock := next((f for f in locks if _try(f)), None):
+            return lock
 
 
 def _no_priority_waiter(queue: IO[str]) -> bool:
@@ -475,9 +543,9 @@ def check(
         return 0
 
     def waiting() -> None:
-        print("gate: another gate runs on this machine; waiting for it ...", flush=True)
+        print("gate: every gate slot on this machine is busy; waiting for one ...", flush=True)
 
-    with gate_lock(state_dir() / "gate.lock", on_wait=waiting, **role):
+    with gate_lock(state_dir() / "gate.lock", on_wait=waiting, slots=gate_slots(), **role):
         start = time.time()
         failed = 0
         for stage in stages(full, commands, base, help_rows):
