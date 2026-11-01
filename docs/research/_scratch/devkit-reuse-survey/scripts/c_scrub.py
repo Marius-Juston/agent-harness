@@ -4,8 +4,12 @@ flag on ordinary log lines?
 usage (repository root): uv run python docs/research/_scratch/devkit-reuse-survey/scripts/c_scrub.py GITLEAKS_BIN
 Probe tokens are built at runtime from a seeded RNG and split literals, so this file holds no secret-shaped string
 (the gitleaks pre-commit hook scans it). gitleaks runs as `gitleaks stdin` with its default rules, one probe at a
-time. EXTRA is the prefix set proposed for scrubbed(): the deterministic-prefix forms gitleaks caught and SECRET
-did not.
+time. Arms:
+  V1       SECRET as it was when this note was written (devkit/workflow.py at 7f2ba80, copied below);
+  PROPOSED V1 with a 20-character minimum after `Bearer `, plus EXTRA (the nine vendor-prefix forms and URL
+           userinfo that gitleaks caught and V1 did not), self-contained so its benign count is its own;
+  HEAD     workflow.scrubbed() of the checkout this runs in (after #422 merged as PR #428, the shipped version);
+  gitleaks default rules.
 """
 
 import json
@@ -83,27 +87,42 @@ def gitleaks(binary, text):
         return [f["RuleID"] for f in json.loads(rep.read_text() or "[]")]
 
 
+V1 = re.compile(  # devkit/workflow.py SECRET at 7f2ba80
+    r"\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]{8,}|AKIA[A-Z0-9]{12,})"
+    r"|(?<=[Bb]earer )[A-Za-z0-9._~+/=-]+|(?<=[Tt]oken )[A-Za-z0-9_]{20,}"
+)
+V1_BEARER20 = re.compile(V1.pattern.replace("[A-Za-z0-9._~+/=-]+|", "[A-Za-z0-9._~+/=-]{20,}|"))
+assert V1_BEARER20.pattern != V1.pattern  # noqa: S101 - research script
+
+
+def arms(binary, line):
+    return {
+        "V1": bool(V1.search(line)),
+        "PROPOSED": bool(V1_BEARER20.search(line) or EXTRA.search(line)),
+        "HEAD": workflow.scrubbed(line) != line,
+        "gitleaks": bool(gitleaks(binary, line)),
+    }
+
+
 def main():
     binary = sys.argv[1]
-    cur = ext = gl = 0
-    print("probe | scrubbed() | scrubbed()+EXTRA | gitleaks rules")
+    hit = dict.fromkeys(["V1", "PROPOSED", "HEAD", "gitleaks"], 0)
+    print("probe | " + " | ".join(hit) + " | gitleaks rules")
     for name, tok in SECRETS.items():
         line = f"step 3: {tok} done"
-        c = workflow.scrubbed(line) != line
-        e = c or bool(EXTRA.search(line))
-        g = gitleaks(binary, line)
-        cur, ext, gl = cur + c, ext + e, gl + bool(g)
-        print(f"{name} | {c} | {e} | {','.join(g) or '-'}")
-    print(f"secrets {len(SECRETS)}: scrubbed() {cur}, +EXTRA {ext}, gitleaks {gl}")
-    fc = fe = fg = 0
+        a = arms(binary, line)
+        for k, v in a.items():
+            hit[k] += v
+        print(f"{name} | " + " | ".join(str(v) for v in a.values()) + f" | {','.join(gitleaks(binary, line)) or '-'}")
+    print(f"secrets {len(SECRETS)} caught: {hit}")
+    fp = dict.fromkeys(hit, 0)
     for line in BENIGN:
-        c = workflow.scrubbed(line) != line
-        e = c or bool(EXTRA.search(line))
-        g = gitleaks(binary, line)
-        fc, fe, fg = fc + c, fe + e, fg + bool(g)
-        if c or e or g:
-            print(f"FP? {line!r}: scrubbed={c} extra={e} gitleaks={g}")
-    print(f"benign {len(BENIGN)}: flagged by scrubbed() {fc}, +EXTRA {fe}, gitleaks {fg}")
+        a = arms(binary, line)
+        for k, v in a.items():
+            fp[k] += v
+        if any(a.values()):
+            print(f"FP? {line!r}: {a}")
+    print(f"benign {len(BENIGN)} flagged: {fp}")
 
 
 main()

@@ -8,4 +8,13 @@ const mod = { exports: {} };
 factory({}, mod);
 const ignore = mod.exports;
 const cases = JSON.parse(fs.readFileSync(0, "utf8"));
-console.log(JSON.stringify(cases.map(([globs, p]) => ignore().add(globs).ignores(p))));
+// Claude Code's xst() first drops each pattern node-ignore cannot compile (its Kf(): add([p]).test("probe") throws).
+const compiles = (g) => {
+  try {
+    ignore().add([g]).test("probe");
+    return true;
+  } catch {
+    return false;
+  }
+};
+console.log(JSON.stringify(cases.map(([globs, p]) => ignore().add(globs.filter(compiles)).ignores(p))));

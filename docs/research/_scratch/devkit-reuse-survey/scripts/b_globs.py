@@ -81,30 +81,80 @@ def gitignorespec(value, rel):
     return pathspec.GitIgnoreSpec.from_lines(globs).match_file(rel.casefold())
 
 
-def main():
-    cases = [[split_and_expand(v), rel] for v, rel in PROBES]
+def with_parents(value, rel):
+    """gitignorespec, plus git's rule that a file under an excluded parent directory cannot be re-included."""
+    globs = [g.casefold() for g in split_and_expand(value)]
+    spec = pathspec.GitIgnoreSpec.from_lines(globs)
+    parts = rel.casefold().split("/")
+    parents = ["/".join(parts[:i]) + "/" for i in range(1, len(parts))]
+    return any(spec.match_file(p) for p in parents) or spec.match_file(rel.casefold())
+
+
+ARMS = {"devkit": devkit, "pathspec": pathspec_match, "GitIgnoreSpec+casefold": gitignorespec, "+parents": with_parents}
+
+
+def run(name, probes, ignore_js):
+    cases = [[split_and_expand(v), rel] for v, rel in probes]
     ref = json.loads(
         subprocess.run(
-            ["node", str(HERE / "b_ignore_run.js"), sys.argv[1]],
+            ["node", str(HERE / "b_ignore_run.js"), ignore_js],
             input=json.dumps(cases),
             capture_output=True,
             text=True,
             check=True,
         ).stdout
     )
-    dk_miss = ps_miss = gs_miss = 0
-    print("paths | file | claude | devkit | pathspec | gitignorespec+casefold")
-    for (v, rel), c in zip(PROBES, ref, strict=True):
-        d, p, g = devkit(v, rel), pathspec_match(v, rel), gitignorespec(v, rel)
-        dk_miss += d != c
-        ps_miss += p != c
-        gs_miss += g != c
-        mark = " <-" if c != d or c != p or c != g else ""
-        print(f"{v!r} | {rel} | {c} | {d} | {p} | {g}{mark}")
-    print(
-        f"probes {len(PROBES)}: disagree with Claude Code: devkit {dk_miss}, pathspec {ps_miss},"
-        f" GitIgnoreSpec+casefold {gs_miss}"
-    )
+    miss = dict.fromkeys(ARMS, 0)
+    print(f"\n[{name}] paths | file | claude | " + " | ".join(ARMS))
+    for (v, rel), c in zip(probes, ref, strict=True):
+        got = {k: f(v, rel) for k, f in ARMS.items()}
+        for k, g in got.items():
+            miss[k] += g != c
+        mark = " <-" if any(g != c for g in got.values()) else ""
+        print(f"{v!r} | {rel} | {c} | " + " | ".join(str(g) for g in got.values()) + mark)
+    print(f"[{name}] probes {len(probes)}: disagree with Claude Code: {miss}")
 
 
-main()
+# Held out: written by the research-auditor after reading v1 of the note (PR #427 audit, 2026-11-01), so no arm was
+# tuned on them.
+HELDOUT = [
+    (["**/test_*.py"], "tests/test_a.py"),
+    (["docs/**/*.md"], "docs/a.md"),
+    (["*.py"], "a/b/c.py"),
+    (["foo/*/bar"], "foo/x/y/bar"),
+    (["?.md"], "docs/a.md"),
+    (["[abc].md"], "b.md"),
+    (["a/b"], "x/a/b"),
+    (["**/node_modules"], "web/node_modules/x.js"),
+    (["src/**/*.test.ts"], "src/a/b.test.ts"),
+    (["!*.md"], "a.md"),
+    (["#foo"], "#foo"),
+    (["\\#foo"], "#foo"),
+    ("*.md, !README.md", "README.md"),
+    (["docs/*"], "docs/sub/a.md"),
+    (["src/**/*"], "src/a.py"),
+    (["**/*.{md,mdx}"], "a/b.mdx"),
+    (["{src,lib}/**"], "lib/a.py"),
+    (["Makefile"], "sub/Makefile"),
+    (["*.Py"], "a.PY"),
+    ([".github/workflows/*.yml"], ".github/workflows/ci.yml"),
+    (["a/**/b/**"], "a/x/b/c"),
+    (["*/a.md"], "x/y/a.md"),
+    (["src/a.ts/"], "src/a.ts"),
+    (["tests/"], "tests/a.py"),
+    (["src/[!a]*.ts"], "src/b.ts"),
+    (["*.py", "!keep.py"], "keep.py"),
+    (["docs/**", "!docs/keep.md"], "docs/keep.md"),
+    (["docs/*.md", "!docs/keep.md"], "docs/keep.md"),
+    (["src/", "!src/a.py"], "src/a.py"),
+    (["**/*.md"], "a/b/c/d.md"),
+    (["src/**/**/x"], "src/x"),
+    (["a/*.md"], "A/b.md"),
+    (["*"], "a/b"),
+    (["src/**/test/**"], "src/test/a.py"),
+    (["src/{a,b}/{c,d}.ts"], "src/b/d.ts"),
+]
+
+if __name__ == "__main__":
+    run("in-sample", PROBES, sys.argv[1])
+    run("held-out", HELDOUT, sys.argv[1])
