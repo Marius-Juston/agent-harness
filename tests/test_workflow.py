@@ -15,7 +15,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, prtext, workflow
+from devkit import board, ci_status, prtext, workflow
 from devkit import branches as local_branches
 from tests.test_board import mk
 from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate are fixtures
@@ -421,6 +421,10 @@ def test_workflow_keeps_exporting_the_names_plugin_scripts_and_train_import():
     assert gate.returncode == 0, gate.stderr
     for name in ("REUSE_FORMS", "reuse_problem", "SESSION_RULE", "session_leaks", "title_problem", "expected_title"):
         assert getattr(workflow, name) is getattr(prtext, name), name
+    # #445: train.py reads the PR-check readers and waits through devkit.workflow; they live in devkit.ci_status
+    train = ("actions_enabled", "await_actions", "local_ci_refusal", "only_pending", "required_contexts", "standing")
+    for name in (*train, "unfinished"):
+        assert getattr(workflow, name) is getattr(ci_status, name), name
 
 
 # --- integrate: a merge that deletes another open issue's Owns (#230) ---------------------------------------------
