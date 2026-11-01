@@ -27,6 +27,7 @@ from devkit import (
     rules,
     setup,
     stats,
+    train,
     workflow,
 )
 from devkit.paths import pin_git_output, root
@@ -180,7 +181,20 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("--title", default=os.environ.get("PR_TITLE"), help="default: the PR_TITLE environment variable")
     x = sub.add_parser("integrate", help="lead: re-gate a PR merged onto main in a throwaway worktree, then merge it")
     x.add_argument("pr", type=int)
-    x.add_argument("--harness-ok", action="store_true", help="you read the diff of harness files it touches")
+    x.add_argument("more", type=int, nargs="*", metavar="PR", help="with --train: the other members, in priority order")
+    x.add_argument(
+        "--train",
+        type=int,
+        metavar="N",
+        help="merge N ready PRs (pr, then the others, in priority order) with one gate; bisect on failure",
+    )
+    x.add_argument(
+        "--harness-ok",
+        type=int,
+        nargs="*",
+        metavar="PR",
+        help="you read the diff of harness files it touches; with --train, name each PR whose diff you read",
+    )
     x.add_argument("--dry-run", action="store_true")
     x.add_argument(
         "--override", metavar="REASON", help="merge despite unfinished PR feedback; the reason is logged on the PR"
@@ -443,8 +457,30 @@ def run(a: argparse.Namespace) -> int:
             return prtext.check_title(a.title)
         case "integrate" if a.why:  # read-only, whatever other flags came with it
             return workflow.why(a.pr)
+        case "integrate" if a.train is not None or a.more:
+            members = [a.pr, *a.more]
+            if a.train != len(members) or a.override or a.consolidation_review:
+                print(
+                    f"integrate --train N takes exactly N PRs (got --train {a.train} and {len(members)}), "
+                    "and neither --override nor --consolidation-review"
+                )
+                return 2
+            if len(set(members)) != len(members):
+                print(f"integrate --train: a PR is named twice: {' '.join(map(str, members))}")
+                return 2
+            if a.harness_ok == []:
+                print("integrate --train: name the PRs whose harness diff you read: --harness-ok 12 15")
+                return 2
+            if stray := sorted(set(a.harness_ok or []) - set(members)):
+                print(f"integrate --train: --harness-ok names {', '.join(map(str, stray))}, not in the train")
+                return 2
+            return train.train(members, set(a.harness_ok or []), a.dry_run, a.local_ci)
         case "integrate":
-            return workflow.integrate(a.pr, a.harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
+            if stray := sorted(set(a.harness_ok or []) - {a.pr}):
+                print(f"integrate: --harness-ok names {', '.join(map(str, stray))}, not PR {a.pr}")
+                return 2
+            harness_ok = a.harness_ok is not None
+            return workflow.integrate(a.pr, harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
         case "cite-check":
             paths = [Path(p) for p in a.paths] or _changed_notes()
             if not paths:
