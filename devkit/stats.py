@@ -9,6 +9,8 @@ Token counts come from each message's `usage`. Claude Code writes one line per c
 message's usage; older builds wrote the stream-start usage (stop_reason null, output_tokens near zero) on all but the
 last line. So each message id counts once, with its largest `usage.output_tokens`, which is the final one when it was
 logged. Messages that never logged a final usage are counted as "partial"; their output is a lower bound.
+`<synthetic>` messages (written by Claude Code, not the model) are skipped, and a run without a real assistant message
+is not a run: one reader (read_run, load_runs) feeds every view, so the scorecard and `--cost` count alike (#450).
 
 Three views judge harness changes (docs/research/harness-efficiency.md §2, §4, §9; #255): `--cost` prices each token
 kind per agent type and per merged issue, `--reviews` counts review rounds per (merged PR, reviewer role), `--misses`
@@ -22,7 +24,6 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from devkit import board, config, paths
 from devkit.paths import main_checkout
@@ -44,73 +45,15 @@ def _result_chars(content: object) -> int:
     return 0
 
 
-def scan(path: Path) -> dict:
-    run: dict[str, Any] = {
-        "calls": 0,
-        "fresh": 0,
-        "cached": 0,
-        "output": 0,
-        "messages": 0,
-        "partial": 0,
-        "result_chars": 0,
-        "big": 0,
-        "tools": defaultdict(int),
-    }
-    usage: dict[str, tuple[bool, dict]] = {}  # message id -> (final?, usage) of its most complete record
-    for line in path.open(encoding="utf-8", errors="replace"):
-        try:
-            d = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        msg = d.get("message") or {}
-        if d.get("type") == "assistant":
-            u = msg.get("usage") or {}
-            key = msg.get("id") or f"line{len(usage)}"
-            final = msg.get("stop_reason") is not None
-            seen = usage.get(key)
-            if seen is None or (final, u.get("output_tokens", 0)) > (seen[0], seen[1].get("output_tokens", 0)):
-                usage[key] = (final, u)
-            for c in msg.get("content") or []:
-                if isinstance(c, dict) and c.get("type") == "tool_use":
-                    run["calls"] += 1
-                    run["tools"][c.get("name", "?")] += 1
-        elif d.get("type") == "user" and isinstance(msg.get("content"), list):
-            for c in msg["content"]:
-                if isinstance(c, dict) and c.get("type") == "tool_result":
-                    n = _result_chars(c.get("content"))
-                    run["result_chars"] += n
-                    run["big"] += n if n > BIG_RESULT else 0
-    for final, u in usage.values():
-        run["fresh"] += u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
-        run["cached"] += u.get("cache_read_input_tokens", 0)
-        run["output"] += u.get("output_tokens", 0)
-        run["partial"] += not final
-    run["messages"] = len(usage)
-    return run
-
-
-def collect() -> dict[str, list[dict]]:
-    by_type: dict[str, list[dict]] = defaultdict(list)
-    for proj in project_dirs():
-        for session in proj.glob("*.jsonl"):
-            by_type["main session"].append(scan(session))
-        for sub in proj.glob("*/subagents/*.jsonl"):
-            meta = sub.with_suffix(".meta.json")
-            kind = json.loads(meta.read_text()).get("agentType", "?") if meta.exists() else "?"
-            by_type[kind].append(scan(sub))
-    return by_type
-
-
 def report(as_json: bool = False) -> str:
-    data = collect()
+    data: dict[str, list[Run]] = defaultdict(list)
+    for r in load_runs(project_dirs()):
+        data[r.kind].append(r)
     rows = []
     for kind, runs in sorted(data.items(), key=lambda kv: -len(kv[1])):
-        med = lambda k, runs=runs: int(statistics.median(r[k] for r in runs))  # noqa: E731
-        chars = sum(r["result_chars"] for r in runs) or 1
-        tools: dict[str, int] = defaultdict(int)
-        for r in runs:
-            for t, n in r["tools"].items():
-                tools[t] += n
+        med = lambda k, runs=runs: int(statistics.median(getattr(r, k) for r in runs))  # noqa: E731
+        chars = sum(r.result_chars for r in runs) or 1
+        tools: Counter[str] = sum((r.tools for r in runs), Counter())
         top = ", ".join(f"{t} {n}" for t, n in sorted(tools.items(), key=lambda kv: -kv[1])[:4])
         rows.append(
             {
@@ -120,8 +63,8 @@ def report(as_json: bool = False) -> str:
                 "fresh": med("fresh"),
                 "cached": med("cached"),
                 "output": med("output"),
-                "partial_share": round(sum(r["partial"] for r in runs) / (sum(r["messages"] for r in runs) or 1), 2),
-                "big_share": round(sum(r["big"] for r in runs) / chars, 2),
+                "partial_share": round(sum(r.partial for r in runs) / (sum(r.messages for r in runs) or 1), 2),
+                "big_share": round(sum(r.big for r in runs) / chars, 2),
                 "top_tools": top,
             }
         )
@@ -137,8 +80,8 @@ def report(as_json: bool = False) -> str:
             f"{r['type'][:23]:<24}{r['runs']:>5}{r['calls']:>7}{r['fresh']:>11,}{r['cached']:>12,}{r['output']:>9,}"
             f"{r['big_share'] * 100:>5.0f}%  {r['top_tools']}"
         )
-    msgs = sum(r["messages"] for runs in data.values() for r in runs) or 1
-    partial = sum(r["partial"] for runs in data.values() for r in runs) / msgs
+    msgs = sum(r.messages for runs in data.values() for r in runs) or 1
+    partial = sum(r.partial for runs in data.values() for r in runs) / msgs
     out.append(
         "out tok = usage.output_tokens of each message's final record, once per message id;"
         f" {partial:.0%} of messages logged only a stream-start usage (their output is a lower bound)."
@@ -173,6 +116,34 @@ class Run:
     prompt: str = ""
     turns: list[dict] = field(default_factory=list)
     billed: list[dict] = field(default_factory=list)  # modelUsage of each Claude Code process (`cost-state`)
+    tools: Counter[str] = field(default_factory=Counter)  # tool_use blocks by tool name
+    result_chars: int = 0  # tool-result characters
+    big: int = 0  # of those, in results over BIG_RESULT characters
+
+    @property
+    def calls(self) -> int:
+        return self.tools.total()
+
+    @property
+    def fresh(self) -> int:
+        return sum(t["input"] + t["write_1h"] + t["write_5m"] for t in self.turns)
+
+    @property
+    def cached(self) -> int:
+        return sum(t["read"] for t in self.turns)
+
+    @property
+    def output(self) -> int:
+        return sum(t["logged"] for t in self.turns)
+
+    @property
+    def messages(self) -> int:
+        return len(self.turns)
+
+    @property
+    def partial(self) -> int:
+        """Messages that never logged a final usage (stop_reason set): their output is a lower bound."""
+        return sum(not t["final"] for t in self.turns)
 
 
 def _records(path: Path) -> Iterable[dict]:
@@ -226,9 +197,25 @@ def read_run(path: Path, kind: str, session: str, desc: str = "") -> Run:
                     "read": u.get("cache_read_input_tokens", 0),
                     "logged": 0,
                     "vis": 0,
+                    "final": False,
                 }
             turn["logged"] = max(turn["logged"], u.get("output_tokens", 0))
             turn["vis"] += _visible(msg.get("content"))
+            turn["final"] = turn["final"] or msg.get("stop_reason") is not None
+            run.tools.update(
+                c.get("name", "?")
+                for c in msg.get("content") or []
+                if isinstance(c, dict) and c.get("type") == "tool_use"
+            )
+        elif t == "user" and isinstance(msg.get("content"), list):
+            for c in msg["content"]:
+                if isinstance(c, dict) and c.get("type") == "tool_result":
+                    n = _result_chars(c.get("content"))
+                    run.result_chars += n
+                    run.big += n if n > BIG_RESULT else 0
+            if not run.prompt:
+                text = _text(msg["content"])
+                run.prompt = "" if text.startswith("<system-reminder>") else text.strip()
         elif t == "user" and not run.prompt:
             text = _text(msg.get("content"))
             run.prompt = "" if text.startswith("<system-reminder>") else text.strip()
