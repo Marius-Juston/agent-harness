@@ -387,14 +387,23 @@ def test_copier_update_gives_a_project_without_settings_local_the_default_cap(tm
     assert json.loads(local.read_text())["env"][CAP] == "24"
 
 
-def test_copier_update_keeps_the_owners_subagent_cap(tmp_path):
-    """A project from the previous release (which pinned the cap at 12) set its own, 7, in the git-ignored
-    settings.local.json. Updating to HEAD leaves that file alone and drops the pin, so nothing overrides the owner."""
+def _head_commit() -> str:
+    # The committed HEAD, not copier's "HEAD", which renders a dirty tree as a commit a later update cannot find.
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+@pytest.mark.parametrize("old_ref", [_previous_release, _head_commit], ids=["previous-release", "unpinned"])
+def test_copier_update_keeps_the_owners_subagent_cap(tmp_path, old_ref):
+    """A project from an earlier render set its own cap, 7, in the git-ignored settings.local.json. Updating to HEAD
+    leaves that file byte-identical and settings.json without a cap, so nothing overrides the owner. Releases up to
+    v0.1.14 pinned 12 in settings.json, which the update must drop; later ones pin nothing, as HEAD does (#402)."""
     dest = tmp_path / "prev"
     data = {"project_name": "demo-project", "description": "A demo."}
-    run_copy(str(ROOT), dest, data=data, defaults=True, vcs_ref=_previous_release(), unsafe=False, quiet=True)
+    run_copy(str(ROOT), dest, data=data, defaults=True, vcs_ref=old_ref(), unsafe=False, quiet=True)
     settings, local = dest / ".claude/settings.json", dest / ".claude/settings.local.json"
-    assert CAP in json.loads(settings.read_text())["env"]  # the release this guards against pinned it
+    assert json.loads(settings.read_text()).get("env", {}).get(CAP) in (None, "12")  # the only pin ever shipped
     local.write_text(json.dumps({"env": {CAP: "7"}, "model": "own"}) + "\n")  # not the default's value or layout
     local_text = local.read_text()
     git = ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
