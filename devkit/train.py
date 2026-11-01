@@ -7,7 +7,8 @@ main as its own squash commit and main is pushed once. On a failure the train bi
 find the first member whose addition breaks the gate, sends back only that member (the #110 fix loop), and gates the
 rest once more without it (docs/research/agent-harness.md §12b).
 
-Every integrate function is called through the module that defines it now (`devkit.workflow`, `devkit.branches`),
+Every integrate function is called through the module that defines it now (`devkit.workflow`, `devkit.branches`,
+`devkit.ci_status`),
 so a later move that re-exports it there keeps the train working (#441).
 """
 
@@ -21,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from devkit import board, branches, config, handoff, workflow
+from devkit import board, branches, ci_status, config, handoff, workflow
 
 
 class TrainStop(Exception):
@@ -116,12 +117,12 @@ def _admit(m: Member, main: str, harness_ok: bool, dry_run: bool, contexts: list
     ignore: frozenset[str] = frozenset()
     if contexts and dry_run:
         print(f"would wait for Actions on {m.head[:10]} and stand in for what it never runs: {', '.join(contexts)}")
-        now = workflow.standing(info.get("statusCheckRollup") or [], contexts, enabled, {})
+        now = ci_status.standing(info.get("statusCheckRollup") or [], contexts, enabled, {})
         ignore = frozenset(c for c, s in now.items() if s != "failed")
         m.stood = sorted(c for c, s in now.items() if s == "never-ran")
     elif contexts:
         print(f"train: waiting for Actions on #{n} {m.head[:10]} ({', '.join(contexts)}) ...", flush=True)
-        state, now = workflow.await_actions(n, m.head, contexts)
+        state, now = ci_status.await_actions(n, m.head, contexts)
         if state == "moved":
             return stop("stopped", reason="the PR head moved while waiting for Actions")
         if state == "timeout":
@@ -133,8 +134,8 @@ def _admit(m: Member, main: str, harness_ok: bool, dry_run: bool, contexts: list
         if info["headRefOid"] != m.head:
             return stop("stopped", reason="the PR head moved while waiting for Actions")
     feedback = board.pr_feedback(n)
-    if todo := workflow.unfinished(info, feedback, ignore):
-        if workflow.only_pending(info, feedback, ignore):
+    if todo := ci_status.unfinished(info, feedback, ignore):
+        if ci_status.only_pending(info, feedback, ignore):
             return stop("waiting", reason="checks still run on its head: it joins a later train", pending=todo)
         return back([f"- {t}" for t in todo], workflow.failed_check_lines(info), reason="unfinished feedback",
                     feedback=todo)  # fmt: skip
@@ -410,13 +411,13 @@ def _train(members: list[Member], gates: list[dict], harness_ok: set[int] | bool
     contexts: list[str] = []
     enabled = True
     if local_ci:
-        contexts, bound = workflow.required_contexts()
-        if why := workflow.local_ci_refusal(contexts, bound):
+        contexts, bound = ci_status.required_contexts()
+        if why := ci_status.local_ci_refusal(contexts, bound):
             for m in members:
                 m.outcome, m.fields = "refused", {"reason": f"--local-ci: {why}"}
             print(f"RESULT: refused: --local-ci: {why}")
             return _result(members, gates, 1, "refused", reason=f"--local-ci: {why}")
-        enabled = workflow.actions_enabled()
+        enabled = ci_status.actions_enabled()
     for m in members:
         m.info = json.loads(board.gh("pr", "view", str(m.number), "-R", board.repo(), "--json", workflow.PR_FIELDS))
     refs = {m.number: f"refs/devkit/train/pr-{m.number}" for m in members}

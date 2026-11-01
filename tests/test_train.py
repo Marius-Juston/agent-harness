@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, cli, paths, prtext, train, workflow
+from devkit import board, ci_status, cli, paths, prtext, train, workflow
 from tests.test_merge_hygiene import ATTRIBUTES, INDEX, REAL_POPEN, REAL_RUN, commit, index, note, out, sh
 
 
@@ -229,8 +229,8 @@ def test_a_dry_run_gates_but_lands_and_sends_back_nothing(world, capsys):
 
 def test_local_ci_posts_statuses_on_each_member_head(world, capsys, monkeypatch):
     three(world)
-    monkeypatch.setattr(workflow, "required_contexts", lambda: (["check"], []))
-    monkeypatch.setattr(workflow, "actions_enabled", lambda: False)
+    monkeypatch.setattr(ci_status, "required_contexts", lambda: (["check"], []))
+    monkeypatch.setattr(ci_status, "actions_enabled", lambda: False)
     monkeypatch.setattr(train.config, "get", lambda: train.config.Config(local_ci={"check": []}))
     assert train.train([1, 2], harness_ok=True, dry_run=False, local_ci=True) == 0
     posts = [e for e in world["events"] if e[:4] == ("gh", "api", "-X", "POST")]
@@ -392,8 +392,8 @@ def test_local_ci_waits_for_a_check_running_at_admission_and_a_later_failure_kee
     run = {"__typename": "CheckRun", "name": "check", "workflowName": "ci", "status": "IN_PROGRESS"}
     failed = run | {"status": "COMPLETED", "conclusion": "FAILURE"}
     world["prs"][2]["checks"] = [[run], [failed]]  # running when the train reads the PR, failed when it waits
-    monkeypatch.setattr(workflow, "required_contexts", lambda: (["check"], []))
-    monkeypatch.setattr(workflow, "actions_enabled", lambda: False)
+    monkeypatch.setattr(ci_status, "required_contexts", lambda: (["check"], []))
+    monkeypatch.setattr(ci_status, "actions_enabled", lambda: False)
     monkeypatch.setattr(train.config, "get", lambda: train.config.Config(local_ci={"check": []}))
     assert train.train([1, 2], harness_ok=True, dry_run=False, local_ci=True) == 1
     res = last_json(capsys.readouterr().out)
@@ -405,8 +405,8 @@ def test_local_ci_waits_for_a_check_running_at_admission_and_a_later_failure_kee
 
 def test_local_ci_statuses_are_posted_only_after_the_push(world, capsys, monkeypatch):
     three(world)
-    monkeypatch.setattr(workflow, "required_contexts", lambda: (["check"], []))
-    monkeypatch.setattr(workflow, "actions_enabled", lambda: False)
+    monkeypatch.setattr(ci_status, "required_contexts", lambda: (["check"], []))
+    monkeypatch.setattr(ci_status, "actions_enabled", lambda: False)
     monkeypatch.setattr(train.config, "get", lambda: train.config.Config(local_ci={"check": []}))
     main_at_post = []
     real = board.gh
