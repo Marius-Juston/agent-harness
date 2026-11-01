@@ -404,6 +404,70 @@ def test_a_waiting_gate_keeps_the_holders_pid(tmp_path):
     assert path.read_text().split()[1] != "/holder"
 
 
+@pytest.mark.parametrize("round_", range(10))
+def test_integrates_gate_takes_the_lock_ahead_of_a_waiting_worker_gate(tmp_path, round_):
+    """#385: a worker gate holds the lock while a worker gate and then integrate's (priority) gate wait for it; when
+    the holder ends, integrate's gate gets it next, every time (flock alone grants it in no fixed order)."""
+    path = tmp_path / "gate.lock"
+    holder = open(path, "a+")  # noqa: SIM115 (held across the threads)
+    fcntl.flock(holder, fcntl.LOCK_EX)
+    order: list[str] = []
+    waiting = {"worker": threading.Event(), "integrate": threading.Event()}
+
+    def gate_run(name, priority):
+        with gate.gate_lock(path, on_wait=waiting[name].set, priority=priority):
+            order.append(name)
+            time.sleep(0.05)
+
+    threads = {n: threading.Thread(target=gate_run, args=(n, n == "integrate")) for n in waiting}
+    for name in ("worker", "integrate"):
+        threads[name].start()
+        assert waiting[name].wait(10)
+    holder.close()
+    for t in threads.values():
+        t.join(10)
+    assert order == ["integrate", "worker"]
+
+
+def test_a_worker_gate_waits_while_an_integrate_gate_queues_even_with_the_lock_free(tmp_path):
+    """#385: a worker gate that gets the free lock while a priority gate waits hands it back, says it waits, and
+    takes it only once no priority gate waits."""
+    path = tmp_path / "gate.lock"
+    queue = open(tmp_path / "gate.lock.priority", "a+")  # noqa: SIM115 (an integrate gate queued: released below)
+    fcntl.flock(queue, fcntl.LOCK_SH)
+    waiting, acquired = threading.Event(), threading.Event()
+
+    def worker():
+        with gate.gate_lock(path, on_wait=waiting.set):
+            acquired.set()
+
+    t = threading.Thread(target=worker)
+    t.start()
+    assert waiting.wait(10)
+    assert not acquired.wait(0.3)
+    queue.close()
+    t.join(10)
+    assert acquired.is_set()
+
+
+def test_the_gate_takes_integrates_role_out_of_the_environment_its_stages_see(tmp_path):
+    """#385 review: pytest and a nested `dev check` under the gate must not inherit priority or the held file."""
+    env = {gate.PRIORITY_ENV: "1", gate.HELD_ENV: str(tmp_path / "held"), "OTHER": "x"}
+    assert gate.take_lock_role(env) == {"priority": True, "held": tmp_path / "held"}
+    assert env == {"OTHER": "x"}
+    rerun, _ = gate.rerun_env({gate.PRIORITY_ENV: "1", gate.HELD_ENV: "h"}, "/p")  # the re-run gate keeps them
+    assert rerun[gate.PRIORITY_ENV] == "1" and rerun[gate.HELD_ENV] == "h"
+
+
+def test_the_gate_marks_when_it_holds_the_lock_and_takes_its_role_from_the_environment(tmp_path):
+    held = tmp_path / "held"
+    role = gate.lock_role({gate.PRIORITY_ENV: "1", gate.HELD_ENV: str(held)})
+    assert role == {"priority": True, "held": held}
+    assert gate.lock_role({}) == {"priority": False, "held": None}
+    with gate.gate_lock(tmp_path / "gate.lock", **role):
+        assert held.exists()
+
+
 def _info(**over):
     info = {"baseRefName": "main", "isCrossRepository": False, "headRefOid": "a" * 40, "state": "OPEN"}
     return info | over
@@ -1428,7 +1492,8 @@ def test_integrate_stops_when_the_gate_runs_past_its_deadline(fake_integrate, mo
     """#43: a hung gate is killed at `gate_deadline_s` and integrate ends `stopped`, never merging."""
     monkeypatch.setattr(workflow.config, "get", lambda: workflow.config.Config(gate_deadline_s=1))
     monkeypatch.setattr(workflow.subprocess, "Popen", REAL_POPEN)  # a real process, sleeping past the deadline
-    monkeypatch.setattr(workflow, "GATE", [sys.executable, "-c", "import time; time.sleep(60)"])
+    hung = f"import os, pathlib, time; pathlib.Path(os.environ[{gate.HELD_ENV!r}]).touch(); time.sleep(60)"
+    monkeypatch.setattr(workflow, "GATE", [sys.executable, "-c", hung])  # holds the lock, then hangs
     started = time.monotonic()
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     assert time.monotonic() - started < 30
@@ -1437,3 +1502,50 @@ def test_integrate_stops_when_the_gate_runs_past_its_deadline(fake_integrate, mo
     res = _last_json(out)
     assert res["outcome"] == "stopped" and "1 s" in res["reason"]
     assert not _merged(fake_integrate["events"])
+
+
+def test_integrate_stops_when_its_gate_waits_past_the_lock_wait_bound(fake_integrate, monkeypatch, capsys):
+    """#385: a gate that never gets the machine's gate lock is stopped at `gate_lock_wait_s`, and says so."""
+    cfg = workflow.config.Config(gate_deadline_s=60, gate_lock_wait_s=1)
+    monkeypatch.setattr(workflow.config, "get", lambda: cfg)
+    monkeypatch.setattr(workflow, "HELD_POLL_S", 0.05)
+    monkeypatch.setattr(workflow.subprocess, "Popen", REAL_POPEN)
+    monkeypatch.setattr(workflow, "GATE", [sys.executable, "-c", "import time; time.sleep(60)"])
+    started = time.monotonic()
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert time.monotonic() - started < 30
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] == "stopped" and "gate_lock_wait_s" in res["reason"]
+    assert not _merged(fake_integrate["events"])
+
+
+def test_integrate_whose_gate_waits_for_the_lock_longer_than_its_deadline_is_not_stopped(
+    fake_integrate, monkeypatch, capsys, tmp_path
+):
+    """#385: gate_deadline_s counts the gate's run, not its wait for the machine's gate lock. A worker gate holds the
+    lock for 3 s; integrate's gate (the real gate_lock, as integrate's environment sets it) waits for it, then runs
+    well under its 2 s deadline, and integrate goes on to merge."""
+    cfg = workflow.config.Config(gate_deadline_s=2, gate_lock_wait_s=60)
+    monkeypatch.setattr(workflow.config, "get", lambda: cfg)
+    monkeypatch.setattr(workflow, "HELD_POLL_S", 0.05)
+    monkeypatch.setattr(workflow.subprocess, "Popen", REAL_POPEN)
+    lock = tmp_path / "gate.lock"
+    stand_in = (
+        "import os, time\nfrom pathlib import Path\nfrom devkit import gate\n"
+        f"os.chdir({str(Path(__file__).parents[1])!r})  # gate_lock names the holding repo\n"
+        f"with gate.gate_lock(Path({str(lock)!r}), **gate.lock_role(os.environ)):\n    time.sleep(0.5)\n"
+    )
+    monkeypatch.setattr(workflow, "GATE", [sys.executable, "-c", stand_in])
+    worker = open(lock, "a+")  # noqa: SIM115 (released by the timer)
+    fcntl.flock(worker, fcntl.LOCK_EX)
+    release = threading.Timer(3, worker.close)
+    release.start()
+    started = time.monotonic()
+    try:
+        workflow.integrate(7, harness_ok=True, dry_run=False)
+    finally:
+        release.join()
+    assert time.monotonic() - started >= 3  # it did wait, longer than gate_deadline_s
+    res = _last_json(capsys.readouterr().out)
+    assert res["outcome"] != "stopped", res
+    assert _merged(fake_integrate["events"]), res
