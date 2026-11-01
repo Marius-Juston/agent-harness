@@ -142,7 +142,8 @@ def three(w: dict, broken: int | None = None) -> None:
 
 def test_three_ready_prs_merge_with_one_gate_each_as_its_own_squash_commit(world, capsys):
     three(world)
-    assert cli.run(cli.parse(["integrate", "--train", "3", "1", "2", "3", "--harness-ok"])) == 0
+    code = cli.run(cli.parse(["integrate", "--train", "3", "1", "2", "3", "--harness-ok"]))  # the CLI entry point
+    assert code == 0
     res = last_json(capsys.readouterr().out)
     assert res["outcome"] == "merged" and len(res["gates_run"]) == 1 and res["gates_run"][0]["members"] == [1, 2, 3]
     assert {k: v["outcome"] for k, v in res["members"].items()} == {"1": "merged", "2": "merged", "3": "merged"}
@@ -229,7 +230,8 @@ def test_local_ci_posts_statuses_on_each_member_head(world, capsys, monkeypatch)
 
 
 def test_the_cli_refuses_a_count_that_does_not_match(world, capsys):
-    assert cli.run(cli.parse(["integrate", "--train", "3", "1", "2"])) == 2
+    code = cli.run(cli.parse(["integrate", "--train", "3", "1", "2"]))
+    assert code == 2
     assert "exactly N PRs" in capsys.readouterr().out
 
 
@@ -250,3 +252,21 @@ def test_members_after_the_culprit_that_still_fail_are_deferred_not_sent_back(wo
     assert outcomes == {"1": "merged", "2": "gate-failed", "3": "deferred"}
     assert len(res["gates_run"]) - 1 == train.bisect_bound(3)
     assert sent_back(world) == [2] and closed(world) == [1]
+
+
+def test_feedback_arriving_during_the_gate_sends_that_member_back_and_lands_nothing(world, capsys, monkeypatch):
+    three(world)
+    before = main_log(world)
+    thread = {"path": "docs/research/n2.md", "line": 1, "comments": {"nodes": [{"body": "why?", "url": "u"}]}}
+
+    def feedback(n):
+        late = n == 2 and world["gates"]
+        return {"since": "", "comments": [], "reviews": [], "threads": [thread] if late else []}
+
+    monkeypatch.setattr(board, "pr_feedback", feedback)
+    code = train.train([1, 2, 3], harness_ok=True, dry_run=False)
+    assert code == 1
+    res = last_json(capsys.readouterr().out)
+    outcomes = {k: v["outcome"] for k, v in res["members"].items()}
+    assert outcomes == {"1": "stopped", "2": "refused", "3": "stopped"} and res["outcome"] == "stopped"
+    assert main_log(world) == before and closed(world) == [] and sent_back(world) == [2]
