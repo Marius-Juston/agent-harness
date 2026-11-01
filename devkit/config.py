@@ -82,6 +82,10 @@ class Config:
             "astral@astral-sh": "astral-sh/claude-code-plugins",
         }
     )
+    # `dev doctor` (#390): MCP server match (a substring of a configured server's name, command or args) -> the real
+    # binaries it needs on PATH, e.g. `mcp_prereqs = { "lean-lsp" = ["rg"] }`. A shell function of that name does not
+    # count: the server starts without the shell.
+    mcp_prereqs: dict[str, list[str]] = field(default_factory=dict)
     consolidation: dict[str, object] = field(default_factory=lambda: dict(CONSOLIDATION))
     prices: dict[str, dict[str, float]] = field(default_factory=lambda: {k: dict(v) for k, v in PRICES.items()})
 
@@ -99,6 +103,9 @@ def parse(data: dict) -> Config:
         kind = getattr(want, "__origin__", want)
         if (isinstance(kind, type) and not isinstance(value, kind)) or (kind is int and isinstance(value, bool)):
             raise ConfigError(f"[tool.devkit] {key} = {value!r}: expected {want}")
+    for match, tools in data.get("mcp_prereqs", {}).items():
+        if not (isinstance(tools, list) and all(isinstance(t, str) and t for t in tools)):
+            raise ConfigError(f"[tool.devkit.mcp_prereqs] {match} = {tools!r}: expected a list of binary names")
     if "consolidation" in data:
         data = {**data, "consolidation": _consolidation(data["consolidation"])}
     if "prices" in data:
