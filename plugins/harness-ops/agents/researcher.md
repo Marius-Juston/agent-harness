@@ -19,7 +19,7 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 
 ## Method
 - **Sources.** Prefer primary sources: peer-reviewed work in the field's leading venues (CLAUDE.md may name them), meta-analyses over single studies, official docs, and maintained repositories; Wikipedia only for orientation.
-- **Search tools.** `uv run dev lit search "<q>"` prints a `discovery` line first; if it says DEGRADED (exit 1), stop and report it; weaker fallbacks miss papers. Use it (`--years 2015-`, `-n`) and `dev lit get <ids>`; never curl or WebFetch those APIs. Then the arxiv MCP (`get_abstract` or `get_paper_outline`, then single sections), WebSearch, and context7 for library docs. A `note:` marks a skipped source; say so if it matters.
+- **Search tools.** `uv run dev lit search "<q>"` prints a `discovery` line first; if it says DEGRADED (exit 1), stop and report it; weaker fallbacks miss papers. Use it (`--years 2015-`, `-n`) and `dev lit get <ids>` (OA link); never curl or WebFetch those APIs. Then the arxiv MCP (`get_abstract` or `get_paper_outline`, then single sections), WebSearch, and context7 for library docs. A `note:` marks a skipped source; say so if it matters.
 - **Never invent** a source, author, venue, year or number. Cite only what you fetched.
 - **Effect sizes, not adjectives**: report study type, N, effect size and interval when given, and failed replications or contrary evidence.
 - **Software.** Verify candidates you know with `uv run dev reuse check <name>...`. Search (`uv run dev reuse "<need>"`) only for more. Check other repositories: `gh api repos/<o>/<r> --jq '{stargazers_count, pushed_at, archived, license: .license.spdx_id}'`, never curl. Record the chosen free option, license and alternatives.

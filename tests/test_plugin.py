@@ -435,11 +435,14 @@ def test_the_research_skill_defaults_to_depth_with_an_owner_override():
     """#84: researchers were 50 % of spend and round runs cost about $3-4 each (harness-efficiency.md §2), so the
     default is 3 researchers x 2 rounds; 'wide' is the owner's override and enumeration questions may fan out to 8."""
     _, skill = frontmatter.read(PLUGIN / "skills/research/SKILL.md")
+    skill = " ".join(skill.split())
     assert "3 researchers and 2 rounds" in skill
     assert "'wide'" in skill and "5 researchers and 3 rounds" in skill and "enumeration question" in skill
     assert re.search(r"enumeration question[^.]*up to 8", skill)
-    stop = skill.split("**Stop or loop.**", 1)[1].split("\n## ", 1)[0]
-    assert "only if the last changed the recommendation, and only once" in stop and "4 rounds" not in stop
+    stop = skill.split("**Stop or loop.**", 1)[1].split(" ## ", 1)[0]
+    assert "only if the last round's N > 0, and only once" in stop and "4 rounds" not in stop
+    assert "round limit is reached" in stop and "the contrarian is one of them" in skill
+    assert "(in the question or the issue)" in skill and "keeps the default rounds" in skill
 
 
 def test_the_gaps_file_counts_what_changed_and_what_is_new():

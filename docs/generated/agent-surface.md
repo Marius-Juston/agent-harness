@@ -9,7 +9,7 @@
 | harness-ops:architect | opus | high | Read, Grep, Glob, Bash | 426 | Read-only consolidation review of the whole repository, run when `uv run dev orient` says a review is due or the owner asks for one. |
 | harness-ops:builder | opus | medium | all | 619 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
 | harness-ops:research-auditor | opus | high | Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers | 600 | Adversarial, read-only audit of one research note. |
-| harness-ops:researcher | opus | high | all | 598 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
+| harness-ops:researcher | opus | high | all | 600 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
 | harness-ops:reviewer | opus | medium | Read, Grep, Glob, Bash | 597 | Read-only pre-merge review of one PR against its issue's DONE WHEN, the research it cites and the project rules. |
 | harness-ops:suite-auditor | opus | medium | Read, Grep, Glob, Bash | 272 | Read-only judgement pass of a size-tiered test-suite audit, run when `uv run dev suite-audit report` lists judgement items. |
 | harness-ops:tester | opus | high | all | 285 | Writes adversarial, property-based and regression tests for one issue or one merged change (inputs nobody planned for, wrong state, crashes midway), fixes sm... |
@@ -20,7 +20,7 @@
 |---|---|---|---|
 | harness-ops:harness | model + /harness-ops:harness | 558 | How to change a project's agent surface safely — CLAUDE.md, .claude/ settings and agents, skills, hooks, the [tool.devkit] config, CI — without drift or bloa... |
 | harness-ops:lead | model + /harness-ops:lead | 720 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
-| harness-ops:research | model + /harness-ops:research | 639 | Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reve... |
+| harness-ops:research | model + /harness-ops:research | 650 | Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reve... |
 
 ## Hooks
 
@@ -95,6 +95,7 @@
 | `reuse` | reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); `"<need>"` searches for more (GitHub, ecosyste.ms, deps.dev; shares dev lit's cache and rate limits) |
 | `research` | research notes: new |
 | `research new` | create <research_dir>/<slug>.md from the house template |
+| `gotcha` | append a one-line lesson to the .claude/rules file scoped to a path |
 | `setup` | once per machine/clone: uv sync, git config, plugin install, then doctor |
 | `doctor` | read-only: what this machine still needs |
 | `usage-poll` | record the weekly usage percent every 10 min for the spawn guard (detach it) |
@@ -116,10 +117,11 @@
 | plugins/harness-ops/agents/architect.md | 426 | 600 |
 | plugins/harness-ops/agents/builder.md | 619 | 650 |
 | plugins/harness-ops/agents/research-auditor.md | 600 | 600 |
-| plugins/harness-ops/agents/researcher.md | 598 | 600 |
+| plugins/harness-ops/agents/researcher.md | 600 | 600 |
 | plugins/harness-ops/agents/reviewer.md | 597 | 600 |
 | plugins/harness-ops/agents/suite-auditor.md | 272 | 600 |
 | plugins/harness-ops/agents/tester.md | 285 | 600 |
+| plugins/harness-ops/commands/gotcha.md | 177 | 650 |
 | plugins/harness-ops/skills/harness/SKILL.md | 558 | 650 |
 | plugins/harness-ops/skills/lead/SKILL.md | 720 | 720 |
-| plugins/harness-ops/skills/research/SKILL.md | 639 | 650 |
+| plugins/harness-ops/skills/research/SKILL.md | 650 | 650 |
