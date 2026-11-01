@@ -571,10 +571,11 @@ def test_each_slot_records_its_holder_and_held_is_marked_once_a_slot_is_held(tmp
     assert gate.holders(path) == []
 
 
-def test_status_lists_every_gate_holder(monkeypatch, tmp_path):
-    monkeypatch.setattr(workflow, "state_dir", lambda *a: tmp_path)
+def test_status_lists_every_gate_holder(monkeypatch, repo):
+    monkeypatch.chdir(repo)
     assert workflow.gate_holder() == "idle"
-    a, b = _hold(tmp_path / "gate.lock", "1 /a"), _hold(tmp_path / "gate.lock.2", "2 /b")
+    state = workflow.state_dir()
+    a, b = _hold(state / "gate.lock", "1 /a"), _hold(state / "gate.lock.2", "2 /b")
     assert workflow.gate_holder() == "running (1 /a; 2 /b)"
     a.close()
     b.close()
