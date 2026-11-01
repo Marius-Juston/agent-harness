@@ -23,7 +23,7 @@ import tomllib
 import traceback
 from pathlib import Path, PurePosixPath
 
-from devkit import backoff, board, checks, config, consolidation
+from devkit import backoff, board, checks, config, consolidation, handoff
 from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, tree_key
 from devkit.paths import default_branch, git, main_checkout, root, state_dir
 from devkit.suite_audit import orient_lines
@@ -1898,6 +1898,7 @@ def _integrate(
         print(f"conflict check of the new main skipped ({exc}): each open PR meets it at its own integrate")
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):
         git("-C", str(main_checkout()), "pull", "--ff-only", check=False)
+    print(handoff.after_integrate())  # the board-derived HANDOFF sections (#394); never fails the merge
     print(f"RESULT: merged PR #{pr_number}" + (f"; {', '.join(moved)}" if moved else ""))
     return done(0, "merged", moved=moved, sent_back=sent, **update)
 

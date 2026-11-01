@@ -52,4 +52,5 @@ Per worktree in `uv run dev status`:
 
 ## 6. Keep the record
 Update HANDOFF (`[tool.devkit] handoff`, default `docs/HANDOFF.md`) when agents change and after each integrate batch (before `autoCompactWindow` compaction), under 40 lines: in flight (issue, agent, branch), just merged, next (ranked startable items, why), owner decisions pending (also in open questions).
+`uv run dev handoff` rewrites the first three from the board and git log (integrate runs it off the default branch); write the rest by hand, it keeps them byte for byte.
 Land it with other lead edits on a branch via `dev pr`/`dev integrate`.

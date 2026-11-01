@@ -18,6 +18,7 @@ from devkit import (
     docs,
     evals,
     gate,
+    handoff,
     lit,
     reuse,
     rules,
@@ -67,6 +68,7 @@ def build() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
     sub.add_parser("orient", help="session start: handoff, board, worktrees, gate, memory, quota (~60 lines)")
+    sub.add_parser("handoff", help="rewrite the handoff file's in flight, just merged and next sections from the board")
     s = sub.add_parser("status", help="this machine: gate, agent worktrees, free memory, quota")
     s.add_argument("--json", action="store_true")
     s = sub.add_parser("worktree", help="local branches: prune those of merged or superseded PRs")
@@ -405,6 +407,8 @@ def run(a: argparse.Namespace) -> int:
     match a.cmd:
         case "orient":
             print(workflow.orient())
+        case "handoff":
+            print(handoff.refresh())
         case "status":
             print(workflow.status(a.json))
         case "worktree":
