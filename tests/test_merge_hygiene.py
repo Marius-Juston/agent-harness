@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, config, docs, paths, setup, workflow
+from devkit import board, config, docs, paths, prtext, setup, workflow
 
 ROOT = Path(__file__).resolve().parents[1]
 ATTRIBUTES = ROOT / "template/.gitattributes"
@@ -430,7 +430,7 @@ def test_a_failing_regenerate_command_stops_before_the_gate(tmp_path, monkeypatc
 
 # --- squash merges (#292): the commit on main is the PR title and body, never the branch's messages -------------
 
-LEAK_BODY = f"Closes #12\n\nsummary\n\nClaude-Session: https://{workflow.SESSION_URL}_x"
+LEAK_BODY = f"Closes #12\n\nsummary\n\nClaude-Session: https://{prtext.SESSION_URL}_x"
 
 
 def _visibility(monkeypatch, seen: str) -> None:
@@ -487,7 +487,7 @@ def test_integrate_refuses_a_session_leak_in_a_public_repo_before_the_gate(proje
         project["body"] = LEAK_BODY
     else:
         real = board.gh
-        leak = f'"title": "see https://{workflow.SESSION_URL}_1"'
+        leak = f'"title": "see https://{prtext.SESSION_URL}_1"'
         monkeypatch.setattr(board, "gh", lambda *a, **k: real(*a, **k).replace('"title": "feat: t (#12)"', leak))
     open_pr(project, note(project["clone"], "c"))
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
@@ -532,19 +532,19 @@ def test_visibility_fails_closed(monkeypatch):
     st.text(),
     st.text(),
     st.sampled_from(
-        [f"https://{workflow.SESSION_URL}_1", f"HTTP://{workflow.SESSION_URL.upper()}_AB", "\nClaude-Session: x"]
+        [f"https://{prtext.SESSION_URL}_1", f"HTTP://{prtext.SESSION_URL.upper()}_AB", "\nClaude-Session: x"]
     ),
 )
 def test_a_session_link_or_trailer_anywhere_is_a_leak(before, after, leak):
-    assert workflow.session_leaks(body=before + leak + after) == ["body"]
+    assert prtext.session_leaks(body=before + leak + after) == ["body"]
 
 
 def test_text_about_the_rule_is_not_a_leak():
     """Issue #292's own wording names the path and the trailer; only a real link or a trailer line is a leak."""
-    issue = f"no {workflow.SESSION_URL} URL or Claude-Session trailer in public commits, PRs or issues"
-    assert workflow.session_leaks(issue=issue, rule=workflow.SESSION_RULE, none=None) == []
-    assert workflow.session_leaks(mid_line="the rule bans a Claude-Session: trailer") == []
-    assert workflow.session_leaks(bare=f"https://{workflow.SESSION_URL}s", word=f"{workflow.SESSION_URL}_01") == []
+    issue = f"no {prtext.SESSION_URL} URL or Claude-Session trailer in public commits, PRs or issues"
+    assert prtext.session_leaks(issue=issue, rule=prtext.SESSION_RULE, none=None) == []
+    assert prtext.session_leaks(mid_line="the rule bans a Claude-Session: trailer") == []
+    assert prtext.session_leaks(bare=f"https://{prtext.SESSION_URL}s", word=f"{prtext.SESSION_URL}_01") == []
 
 
 def test_stacked_prs_are_retargeted_to_main_before_the_parent_merges(monkeypatch, capsys):
