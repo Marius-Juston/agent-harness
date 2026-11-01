@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Measure a Python repository's test suite without changing it (agent-harness #112).
 
+FROZEN (#451): evidence, never extended or deleted. Kept unchanged because the test-suite-design note's
+VERIFIED numbers were measured with it; `uv run dev suite-audit` is the maintained tool.
+
 Static part (stdlib only, reads tracked files through git):
   - test and code LOC (non-blank, non-comment lines of tracked .py files);
   - test functions, parametrize cases, markers, fixtures and I/O signals per test;

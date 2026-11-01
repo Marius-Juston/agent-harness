@@ -1119,12 +1119,12 @@ def test_an_unreadable_decision_table_is_a_problem(tmp_path, monkeypatch):
 def test_the_shipped_decision_tables_pass_with_short_literals():
     from devkit.paths import root
 
-    for rel, rows in ((".devkit/decisions.toml", 6), ("template/.devkit/decisions.toml", 0)):
+    for rel, rows in ((".devkit/decisions.toml", 7), ("template/.devkit/decisions.toml", 0)):
         text = (root() / rel).read_text()
         problems, parsed = checks.decision_rows(text)
         assert problems == [] and len(parsed) == rows, (rel, problems)
     ran = checks.check_decisions()
-    assert ran.ok and ran.checked == 6 and not ran.warnings, ran.warnings
+    assert ran.ok and ran.checked == 7 and not ran.warnings, ran.warnings
     # Project-owned: `copier update` must never merge a template header edit into a project's rows.
     owned = yaml.safe_load((root() / "copier.yml").read_text())["_skip_if_exists"]
     assert ".devkit/decisions.toml" in owned
