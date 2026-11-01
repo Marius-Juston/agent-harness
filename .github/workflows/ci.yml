@@ -26,6 +26,11 @@ jobs:
         # pinned: audit-command and sbom-export are preview features whose flags may change
         with: { enable-cache: true, version: "0.12.23" }
       - run: uv sync --locked
+      # Dependabot bumps ci.yml but not the template's copies of its pins (#431); `dev integrate` regenerates them
+      # and pushes that tree, whose own run (the lead's push, a no-op here) is gated as it stands.
+      - name: copy Dependabot's pin bumps into the template (dev docs)
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        run: uv run dev docs
       - name: gate (same command agents run)
         if: github.event_name != 'schedule'
         env:
