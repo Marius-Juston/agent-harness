@@ -116,17 +116,26 @@ def test_dev_handoff_rewrites_the_file(tmp_path, monkeypatch):
     assert handoff.refresh() == "docs/HANDOFF.md already current"
 
 
-def test_after_integrate_leaves_the_default_branch_checkout_clean(monkeypatch):
+def test_after_integrate_leaves_the_default_branch_checkout_clean(tmp_path, monkeypatch):
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/HANDOFF.md").write_text(OLD)
+    monkeypatch.setattr(handoff, "root", lambda: tmp_path)
     monkeypatch.setattr(handoff, "git", lambda *a, **k: "main")
-    monkeypatch.setattr(handoff, "refresh", lambda: (_ for _ in ()).throw(AssertionError("refreshed on main")))
+    monkeypatch.setattr(board, "fetch", lambda **k: fixture_board())
+    monkeypatch.setattr(board, "closed_numbers", set)
     assert "not refreshed" in handoff.after_integrate()
+    assert (tmp_path / "docs/HANDOFF.md").read_text() == OLD
 
 
-def test_after_integrate_never_raises(monkeypatch):
+def test_after_integrate_never_raises(tmp_path, monkeypatch):
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs/HANDOFF.md").write_text(OLD)
+    monkeypatch.setattr(handoff, "root", lambda: tmp_path)
     monkeypatch.setattr(handoff, "git", lambda *a, **k: "394-x")
 
-    def boom():
-        raise OSError("disk full")
+    def boom(**k):
+        raise RuntimeError("gh crashed")
 
-    monkeypatch.setattr(handoff, "refresh", boom)
-    assert handoff.after_integrate() == "handoff not refreshed: disk full"
+    monkeypatch.setattr(board, "fetch", boom)
+    assert handoff.after_integrate() == "handoff not refreshed: gh crashed"
+    assert (tmp_path / "docs/HANDOFF.md").read_text() == OLD
