@@ -4,27 +4,93 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
-## Unreleased
+## v0.1.15 (2026-11-01)
+
+The lead relays less: `copier update` moves the pins on its own, integrate sends a failing PR straight back to its
+worker, PR titles follow Conventional Commits, and durable rules get a decision table the gate watches. Four
+hand-rolled matchers were replaced or hardened from the #416 reuse survey
+([devkit-reuse-survey.md](docs/research/devkit-reuse-survey.md)).
 
 ### Upgrading a project
-A plain `uvx copier update` moves the devkit and plugin pins again; `--data harness_ref=<tag>` is no longer needed.
-This takes effect from the first release that carries the fix, and that update moves the pins even when the project
-still holds an older stored answer. `uv run dev doctor` warns when a project's pins lag its template (an update made
-with a plain `copier update` before this fix) and names the `--data harness_ref=<tag>` command that repairs it.
-After the update, run `uv run dev docs`: it writes the new `docs/generated/decisions.md`, which the gate's
-generated-docs stage needs. `.devkit/decisions.toml` is project-owned: copier creates it once and never updates it,
-and the gate warns when an active row's reason literal leaves its path. (#226)
+Run `uvx copier update` (a plain update now moves the devkit and plugin pins: `--data harness_ref=<tag>` is no
+longer needed, and this update moves them even when `.copier-answers.yml` still holds an older stored answer), then
+`uv sync && uv run dev setup && uv run dev docs && uv run dev check`. `uv run dev doctor` warns when a project's
+pins lag its template (an update made with a plain `copier update` before this fix) and names the
+`--data harness_ref=<tag>` command that repairs it. (#163) These can need attention:
+- **Run `uv run dev docs` after the update.** It writes the new `docs/generated/decisions.md`, which the gate's
+  generated-docs stage needs and the template's HARNESS.md links. `.devkit/decisions.toml` is project-owned: copier
+  creates it once and never updates it, and the gate's new "decision table" stage warns when an active row's
+  `enforced-by` literal leaves its path. (#226)
+- **Retitle open PRs.** `uv run dev integrate` refuses a PR whose title is not Conventional Commits
+  (`type(scope): outcome`, lowercase type, ` (#n)` optional), before the gate and whatever `--override` says. `dev pr`
+  writes such titles from the issue, so only PRs opened by hand or before the update need it
+  (`gh pr edit <n> --title ...`). The template's `dependabot.yml` gives Dependabot PRs `build(deps):` / `ci(deps):`
+  titles. A project whose main does not use Conventional Commits opts out with `conventional_titles = false` under
+  `[tool.devkit]`. (#100)
+- **Raised dependency floors.** The devkit now requires `pytest>=9.2.0`, `hypothesis>=6.170.13`, `ruff>=0.17.3`,
+  `zizmor>=1.31.1` and `diff-cover>=11.0.0` (and the template's dev group `copier>=9.19.1`). A project that pins
+  any of them lower must raise its pin, or `uv sync` cannot resolve. pytest 9.2 makes `-c` with a missing path a
+  usage error and the `indirect`, `ids` and `scope` arguments of `parametrize` keyword-only. (#426)
+- **`pathspec` is a new runtime dependency** of the devkit (`pathspec>=1.1`, MPL-2.0, used unmodified), for rule
+  `paths:` matching. (#421)
+- **The subagent cap moved to `settings.local.json` (under `.claude/`).** The checked-in `settings.json` no longer
+  pins `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (12), because a checked-in `env` beats the owner's shell. The template
+  renders the git-ignored `settings.local.json` once with a default of 24 and `copier update` never touches it again;
+  change the cap there, per machine. An owner's own value in either file is kept. (#393, #401)
+- **New gate stages.** "package installs in code and scripts" fails an added line of code or script that runs a
+  package install (pip, apt, npm, conda, `curl | sh` and others), also through a subprocess or a `" ".join([...])`;
+  list a file that legitimately does so in `.devkit/install-allow.txt` with its reason (`[tool.devkit]
+  install_allowlist`). (#392, #423) "rules provenance and paths" checks rules-file bullets for provenance and real
+  paths. (#78) Backticked `dev` command spans in docs with a bad flag or a leftover positional are warnings for now.
+  (#229)
 
-`uv run dev integrate` now refuses a PR whose title is not Conventional Commits (`type(scope): outcome`, lowercase
-type, ` (#n)` optional), before the gate and whatever `--override` says; `dev pr` writes such titles from the issue,
-so only PRs opened by hand or before the update need retitling (`gh pr edit <n> --title ...`). The template's
-`dependabot.yml` gives Dependabot PRs `build(deps):` / `ci(deps):` titles. A project whose main does not use
-Conventional Commits opts out with `conventional_titles = false` under `[tool.devkit]`. (#100)
+### Added
+- `.devkit/decisions.toml`, a `decision table` gate stage and the generated `docs/generated/decisions.md`: durable
+  prose-only rules with `enforced-by` markers the gate checks. (#226)
+- `uv run dev gotcha <path> <lesson>` and `/harness-ops:gotcha`: a one-line lesson goes into the path-scoped Claude
+  Code rules file with its issue and date, checked by the gate's rules stage. (#78)
+- Integrate closes the fix loop: a conflict, failed gate or fixable refusal posts one PR comment with the reasons,
+  the last 40 failing lines and the open feedback, moves the item back to in-progress with its claim kept, and names
+  the worker to resume; `board brief` shows it as "Fix before merge". The 3rd failed cycle blocks it `needs owner`.
+  Tokens and session links are cut from the comment. (#110)
+- `dev pr` writes a Conventional Commits title from the issue, `dev pr-title` checks one, and integrate refuses a
+  non-conforming title. (#100)
+- The gate's package-install stage and `.devkit/install-allow.txt`; builder, tester and researcher must never wrap a
+  denied or guarded command in a script, subprocess or alias. (#392)
+- `dev doctor` checks the binaries configured MCP servers need (e.g. ripgrep for lean-lsp-mcp). (#390)
+- The research note on libraries to replace hand-rolled matchers and parsers in devkit. (#416)
+
+### Changed
+- `harness_ref` is never asked: it is always the template's own release, and an update drops the stored
+  answer. (#163)
+- Rule `paths:` globs are matched as Claude Code matches them (node-ignore semantics, brace expansion, comma
+  splitting) with pathspec's `GitIgnoreSpec`; patterns that do not compile are dropped with a warning. (#421)
+- The install check matches whole Python statements (stdlib `ast` with folded string constants) and joined shell
+  continuations, not single lines. (#423)
+- `scrubbed()` also redacts gitleaks' vendor-prefix credentials (Slack, GCP, PyPI, npm, GitLab, Hugging Face,
+  Stripe, private keys, JWTs, URL passwords); `Bearer` needs 20 or more characters, so "Bearer of news" stays. (#422)
+- `check_dev_commands` parses each `uv run dev` span with devkit's own parser, so its options cannot drift from
+  the CLI. (#229)
+- The research skill defaults to 3 researchers and 2 rounds (5 and 3 under 'wide'), with one extra round only when
+  the last changed the recommendation; researchers quote and locate each claim and tag single-source ones. (#84)
+- A gate waiting for the machine lock behind a worker's check no longer uses up integrate's deadline: the deadline
+  starts once the lock is held, the wait is bounded by `gate_lock_wait_s` (7200), and integrate's gate goes
+  first. (#385)
+- `dev pr` with several `Closes #N` moves every closed issue claimed on the branch to status:review. (#384)
+- One `dev integrate --local-ci` merge was verified end to end with Actions not running. (#108)
+- Dependency bumps: filelock 4.2.1, the python group (#426), `astral-sh/setup-uv` 10.3.3 and
+  `actions/upload-artifact` 7.0.2 (also in the template's `gate.yml`). (#383, #424, #425)
 
 ### Fixed
 - `copier update` reused the `harness_ref` answer stored in `.copier-answers.yml` over the new release's default, so
-  template files moved while the dev-group, uv-source and plugin pins stayed on the old tag. `harness_ref` is no
-  longer asked: it is always the template's own release, and an update drops the stored answer. (#163)
+  template files moved while the dev-group, uv-source and plugin pins stayed on the old tag. (#163)
+- `board new` printed ` (ready)` and exited 0 when label creation or `gh issue create` failed or returned no issue
+  URL; it now exits non-zero with the cause. (#387)
+- The template pinned the subagent cap in the checked-in `settings.json`, overriding the owner's shell. (#393)
+- The gate lock-wait integrate test raced a timer under `dev test --affected` load; it now synchronises on
+  events. (#407)
+- The copier-update subagent-cap test assumed the previous release pinned the cap, and would fail once a release
+  without the pin shipped. (#402)
 
 ## v0.1.14 (2026-10-21)
 
