@@ -39,7 +39,7 @@ python_version:
 # template (#163). `--data harness_ref=<ref>` still overrides it.
 harness_ref:
   type: str
-  default: v0.1.14
+  default: v0.1.15
   when: false
 
 # For testing a harness checkout before release (its CI does): install the devkit from this local path instead of
