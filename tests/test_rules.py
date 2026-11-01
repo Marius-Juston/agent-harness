@@ -171,12 +171,10 @@ def test_check_with_no_rules_passes_empty(repo):
     assert ran.ok and ran.checked == 0
 
 
-def test_check_is_a_gate_stage_given_the_merge_base(monkeypatch):
-    seen = []
-    monkeypatch.setattr(rules, "check_rules", seen.append)
+def test_check_is_a_gate_stage_given_the_merge_base():
     (stage,) = [s for s in gate.stages(False, {}, "BASE") if "check_rules" in s.__code__.co_names]
-    stage()
-    assert seen == ["BASE"]
+    assert stage.__code__.co_freevars == ("base",)
+    assert [c.cell_contents for c in stage.__closure__] == ["BASE"]
 
 
 def test_checkable_lesson_gets_an_issue_template_not_a_rule(repo):
