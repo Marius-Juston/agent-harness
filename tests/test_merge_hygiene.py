@@ -440,7 +440,7 @@ def test_stacked_prs_are_retargeted_to_main_before_the_parent_merges(monkeypatch
     monkeypatch.setattr(board, "gh", gh)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(workflow, "_remote_shas", lambda n: ("h1" * 10, "m1"))
-    info = {"title": "parent", "body": "Closes #12", "headRefName": "12-parent"}
+    info = {"title": "feat: parent", "body": "Closes #12", "headRefName": "12-parent"}
     assert workflow._merge_if_unchanged(7, "h1" * 10, "m1", info=info) is None
     listing = next(i for i, c in enumerate(calls) if c[:2] == ("pr", "list"))
     assert calls[listing][calls[listing].index("--base") + 1] == "12-parent"

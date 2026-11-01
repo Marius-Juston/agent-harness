@@ -4,6 +4,8 @@ updates:
     directory: /
     schedule: { interval: monthly }
     groups: { python: { patterns: ["*"] } }
+    commit-message: { prefix: build, include: scope } # a Conventional PR title: build(deps): bump ...
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: monthly }
+    commit-message: { prefix: ci, include: scope } # ci(deps): bump ...

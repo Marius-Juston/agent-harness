@@ -1830,6 +1830,12 @@ def test_brief_shows_fix_before_merge_and_feedback_does_not_repeat_it(monkeypatc
         ("Epic: one board", ["type:epic"], "feat: one board"),
         ("harness-ops/C++ #x: y", [], "feat(harness-ops-c-x): y"),
         ("no component here", ["type:bug"], "fix: no component here"),
+        ("Release v0.1.15", ["type:infra"], "chore(release): v0.1.15"),
+        ("release: v0.1.15 notes and pins", ["type:build"], "chore(release): v0.1.15 notes and pins"),
+        ("Release 1.2.0: bundle", ["type:build"], "chore(release): 1.2.0: bundle"),
+        ("fix(x): keep this", ["type:build"], "fix(x): keep this"),
+        ("feat!: drop the old flag", ["type:bug"], "feat!: drop the old flag"),
+        ("Released notes: wording", ["type:build"], "feat(released-notes): wording"),
     ],
 )
 def test_conventional_title_takes_type_from_the_label_and_scope_from_the_component(title, labels, expected):
@@ -1855,7 +1861,9 @@ def test_every_generated_title_and_its_squash_subject_pass_the_check(title, kind
         ("feat!: breaking (#3)", True),
         ("chore(deps.lock): bump (#3)", True),
         ("ci(.github/workflows): pin (#3)", True),
-        ("fix: outcome", False),  # no issue number
+        ("fix: outcome", True),  # the issue number is optional: Dependabot and release-please write none
+        ("build(deps): bump filelock from 4.1.1 to 4.2.1", True),
+        ("chore(main): release 0.1.15", True),
         ("fix:  (#12)", False),  # an empty outcome (commitizen accepts it, #416)
         ("fix: (#12)", False),
         ("fix : outcome (#1)", False),
@@ -1908,6 +1916,52 @@ def test_integrate_refuses_a_non_conventional_title_with_the_expected_form(fake_
     assert _record()["outcome"] == "refused" and "Conventional Commits" in _record()["reason"]
     assert not any(e[0] == "run" for e in fake_integrate["events"])
     assert not _merged(fake_integrate["events"])
+
+
+def test_a_title_edited_during_the_gate_is_checked_again_before_the_merge(monkeypatch):
+    """The title integrate checked first is not the one it merges with: the squash subject is re-read after the gate."""
+    calls = []
+    monkeypatch.setattr(board, "gh", lambda *a, **k: calls.append(a) or "")
+    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(workflow, "_remote_shas", lambda n: ("h1", "m1"))
+    monkeypatch.setattr(workflow, "repo_public", lambda: True)
+    reason = workflow._merge_if_unchanged(7, "h1", "m1", info={"title": "Stop on a moved head", "body": "b"})
+    assert reason and "Conventional Commits" in reason and "squash commit" in reason
+    assert not [c for c in calls if c[:2] == ("pr", "merge")]
+    assert workflow._merge_if_unchanged(7, "h1", "m1", info={"title": "fix: stop on a moved head", "body": "b"}) is None
+    merge = next(c for c in calls if c[:2] == ("pr", "merge"))
+    assert merge[merge.index("--subject") + 1] == "fix: stop on a moved head (#7)"
+
+
+def test_conventional_titles_false_turns_the_check_off(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    """A project whose main does not use Conventional Commits opts out with `[tool.devkit] conventional_titles = false`:
+    integrate merges any title and `dev pr-title` passes."""
+    from devkit import cli, config
+
+    assert config.Config().conventional_titles is True
+    monkeypatch.setattr(config, "get", lambda: config.parse({"conventional_titles": False}))
+    real = board.gh
+    monkeypatch.setattr(board, "gh", lambda *a, **k: real(*a, **k).replace('"feat: t (#5)"', '"Stop on a moved head"'))
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert _merged(fake_integrate["events"])
+    assert cli.run(cli.parse(["pr-title", "--title", "Fix the thing"])) == 0
+    with pytest.raises(config.ConfigError):
+        config.parse({"conventional_titles": "no"})
+
+
+@pytest.mark.parametrize("path", [".github/dependabot.yml", "template/.github/dependabot.yml"])
+def test_dependabot_opens_prs_with_conventional_titles(path):
+    """Dependabot's PRs reach integrate too: `build(deps): bump ...` for uv, `ci(deps): bump ...` for actions."""
+    import yaml
+
+    updates = yaml.safe_load((Path(workflow.root()) / path).read_text())["updates"]
+    prefix = {u["package-ecosystem"]: u["commit-message"] for u in updates}
+    assert prefix == {
+        "uv": {"prefix": "build", "include": "scope"},
+        "github-actions": {"prefix": "ci", "include": "scope"},
+    }
+    for p in prefix.values():
+        assert workflow.title_problem(f"{p['prefix']}(deps): bump filelock from 4.1.1 to 4.2.1") is None
 
 
 def test_expected_title_falls_back_to_the_form_without_a_readable_issue(monkeypatch):
