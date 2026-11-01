@@ -4,20 +4,24 @@ and every `paths:` glob to at least one file (a renamed directory otherwise leav
 docs/research/decision-records-and-drift.md §3.3-3.4)."""
 
 import re
+import shlex
 from datetime import date
 from pathlib import Path, PurePosixPath
 
-from devkit import checks, frontmatter
+from devkit import checks, config, frontmatter
 from devkit.paths import root
 from devkit.ran import Ran
 
 RULES_DIR = ".claude/rules"  # where Claude Code loads project rules (code.claude.com/docs/en/memory)
-BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(.*)$")
+BULLET = re.compile(r"^(?:[-*+]|\d+[.)])\s+(.*)$")  # a top-level item; an indented sub-bullet is not a rule
+FENCE = re.compile(r"^\s*(```|~~~)")
 PROVENANCE = re.compile(r"\s*\(#(\d+), (\S+)\)\s*$")
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 BRACES = re.compile(r"\{([^{}]*,[^{}]*)\}")
-ROOT_FILE = re.compile(r"^[\w.-]+\.(?:py|md|toml|json|ya?ml|sh|txt|cfg|ini|lock|ts|tsx|js|jinja)$")
-NOT_A_PATH = set("<>*?{}[]$()= ") | {"\t"}
+# Glob syntax beyond stdlib full_match plus comma braces (extglob, negation, [^x], {1..3}): a glob using it that
+# matches nothing may be our matcher's blind spot, so it warns instead of failing.
+EXOTIC = re.compile(r"[!@+?*]\(|^!|\[\^|\[!|\{[^{},]*\.\.[^{},]*\}")
+MAX_WORDS = 25
 
 
 def tracked() -> list[Path]:
@@ -57,20 +61,25 @@ def lesson_of(line: str) -> str:
     return PROVENANCE.sub("", m.group(1) if m else line)
 
 
-def named_paths(line: str) -> list[str]:
-    """Backticked repository paths a line names: `dir/file` forms and top-level files; commands, placeholders, globs
-    and URLs are not paths."""
-    out = []
-    for token in checks.BACKTICK.findall(line):
-        token = re.sub(r":\d+$", "", token).rstrip("/")
-        if not token or token[0] in "/~-" or "://" in token or NOT_A_PATH & set(token):
-            continue
-        if checks.REPO_PATH.match(token) or ROOT_FILE.match(token):
-            out.append(token)
-    return out
+def top_dirs() -> set[str]:
+    return {p.relative_to(root()).parts[0] for p in tracked() if len(p.relative_to(root()).parts) > 1}
 
 
-def line_problems(line: str) -> list[str]:
+def named_paths(line: str, top: set[str]) -> list[str]:
+    """Backticked repository paths a line names, by check_links' rule: a `dir/...` token whose first segment is a
+    top-level directory, without placeholders or globs (`origin/main`, `text/html` and `conftest.py` are not)."""
+    return [
+        t
+        for t in checks.BACKTICK.findall(line)
+        if checks.REPO_PATH.match(t) and t.split("/")[0] in top and not any(c in t for c in "<>*{}")
+    ]
+
+
+def path_problems(line: str, top: set[str]) -> list[str]:
+    return [f"names `{p}`, which does not exist" for p in named_paths(line, top) if not (root() / p).exists()]
+
+
+def provenance_problems(line: str) -> list[str]:
     m = PROVENANCE.search(line)
     out = []
     if not m or not DATE.fullmatch(m.group(2)):
@@ -80,15 +89,60 @@ def line_problems(line: str) -> list[str]:
             date.fromisoformat(m.group(2))
         except ValueError:
             out.append(f"{m.group(2)} is not a date")
-    out += [f"names `{p}`, which does not exist" for p in named_paths(line) if not (root() / p).exists()]
     return out
 
 
-def check_rules() -> Ran:
-    """Every rule line ends with (#issue, YYYY-MM-DD) and names only paths that exist; every `paths:` glob matches a
-    file."""
+def rule_lines(body: str, first: int) -> list[tuple[int, str]]:
+    """(line number, text) of each top-level bullet outside fenced code blocks."""
+    out, fenced = [], False
+    for n, line in enumerate(body.splitlines(), first):
+        if FENCE.match(line):
+            fenced = not fenced
+        elif not fenced and BULLET.match(line):
+            out.append((n, line))
+    return out
+
+
+def added_lines(base: str) -> dict[str, set[int]]:
+    """Line numbers each rules file adds against `base` (untracked files: every line), so rules a project wrote by
+    hand before this check never fail on update."""
+    rels = [str(p.relative_to(root())) for p in rule_files()]
+    if not rels:
+        return {}
+    out: dict[str, set[int]] = {}
+    current = None
+    for line in checks.git("diff", "-U0", "--no-color", "--no-ext-diff", base, "--", *rels, cwd=root()).splitlines():
+        if line.startswith("+++ "):
+            current = line[6:] if line.startswith("+++ b/") else None
+        elif current and (m := re.match(r"@@ -\S+ \+(\d+)(?:,(\d+))? @@", line)):
+            start, count = int(m.group(1)), int(m.group(2) or 1)
+            out.setdefault(current, set()).update(range(start, start + count))
+    for rel in checks.git("ls-files", "--others", "--exclude-standard", "--", *rels, cwd=root()).splitlines():
+        out[rel] = set(range(1, (root() / rel).read_text(errors="replace").count("\n") + 2))
+    return out
+
+
+def glob_hits(glob: str, files: list[str]) -> bool:
+    """A tracked file matches, else any file on disk does (gitignored output such as `build/**` still loads rules)."""
+    if any(matches(f, glob) for f in files):
+        return True
+    for g in expand_braces(glob):
+        try:
+            if next(iter(root().glob(g)), None) is not None:
+                return True
+        except (ValueError, NotImplementedError):
+            continue
+    return False
+
+
+def check_rules(base: str | None) -> Ran:
+    """Rule lines added against `base` end with (#issue, YYYY-MM-DD); every rule line names only paths that exist;
+    every `paths:` glob matches a file."""
     ran = Ran("rules provenance and paths", allow_empty=True)
-    files = None
+    files: list[str] | None = None
+    top: set[str] = set()
+    added = None
+    skip = tuple(config.get().path_check_skip)
     for path in rule_files():
         rel = path.relative_to(root())
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -97,16 +151,24 @@ def check_rules() -> Ran:
         except ValueError as exc:
             ran.problems.append(f"{rel}: frontmatter does not parse ({exc}); Claude Code loads it unscoped")
             continue
+        if files is None:
+            files = [str(p.relative_to(root())) for p in tracked()]
+            top = top_dirs()
+            added = added_lines(base) if base else None
+            if added is None:
+                ran.warnings.append("no merge base with main: provenance of new rule lines not checked")
         for glob in globs_of(meta):
             ran.checked += 1
-            files = files if files is not None else [str(p.relative_to(root())) for p in tracked()]
-            if not any(matches(f, glob) for f in files):
-                ran.problems.append(f"{rel}: paths glob `{glob}` matches no file")
-        offset = text.count("\n") - body.count("\n")
-        for n, line in enumerate(body.splitlines(), offset + 1):
-            if BULLET.match(line):
-                ran.checked += 1
-                ran.problems += [f"{rel}:{n}: {p}" for p in line_problems(line)]
+            if not glob_hits(glob, files):
+                where = ran.warnings if EXOTIC.search(glob) else ran.problems
+                where.append(f"{rel}: paths glob `{glob}` matches no file")
+        new = (added or {}).get(str(rel), set())
+        for n, line in rule_lines(body, text.count("\n") - body.count("\n") + 1):
+            ran.checked += 1
+            if n in new:
+                ran.problems += [f"{rel}:{n}: {p}" for p in provenance_problems(line)]
+            if not str(rel).startswith(skip):
+                ran.problems += [f"{rel}:{n}: {p}" for p in path_problems(line, top)]
     return ran
 
 
@@ -145,6 +207,8 @@ def add(rel: str, lesson: str, issue: int, today: date) -> tuple[Path, bool]:
         raise ValueError("the lesson is empty")
     if "\n" in lesson:
         raise ValueError("a lesson is one line")
+    if len(lesson.split()) > MAX_WORDS:
+        raise ValueError(f"a lesson is at most {MAX_WORDS} words; this one has {len(lesson.split())}")
     if PROVENANCE.search(lesson):
         raise ValueError("leave the provenance out: it is added from --issue and today's date")
     rel = PurePosixPath(rel.strip()).as_posix().rstrip("/")
@@ -153,7 +217,7 @@ def add(rel: str, lesson: str, issue: int, today: date) -> tuple[Path, bool]:
     if not (root() / rel).exists():
         raise ValueError(f"{rel} does not exist")
     line = f"- {lesson} (#{issue}, {today.isoformat()})"
-    if problems := line_problems(line):
+    if problems := provenance_problems(line) + path_problems(line, top_dirs()):
         raise ValueError("; ".join(problems))
     path, globs = target(rel)
     if globs:
@@ -169,10 +233,17 @@ def add(rel: str, lesson: str, issue: int, today: date) -> tuple[Path, bool]:
 
 def checkable_issue(rel: str, lesson: str, issue: int) -> str:
     """The issue to file instead of a rule when a test or hook can catch the mistake: prose is advice, a check holds."""
-    q = lesson.replace("'", "'\\''")
-    return (
-        f"uv run dev board new --type build --title 'check: {q}' "
-        f"--done 'a hook or test fails when this is broken: {q}' --owns {rel} --refs {issue}"
+    return shlex.join(
+        [
+            *["uv", "run", "dev", "board", "new", "--type", "build", "--title"],
+            f"check: {lesson}",
+            "--done",
+            f"a hook or test fails when this is broken: {lesson}",
+            "--owns",
+            rel,
+            "--refs",
+            str(issue),
+        ]
     )
 
 
