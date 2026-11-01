@@ -429,3 +429,38 @@ def test_the_workers_withhold_the_tools_they_never_call(agent):
     meta, _ = frontmatter.read(PLUGIN / f"agents/{agent}.md")
     assert "tools" not in meta  # an allowlist would also drop the MCP tools researchers use; trim the pool instead
     assert {t.strip() for t in str(meta["disallowedTools"]).split(",")} == WITHHELD[agent]
+
+
+def test_the_research_skill_defaults_to_depth_with_an_owner_override():
+    """#84: researchers were 50 % of spend and round runs cost about $3-4 each (harness-efficiency.md §2), so the
+    default is 3 researchers x 2 rounds; 'wide' is the owner's override and enumeration questions may fan out to 8."""
+    _, skill = frontmatter.read(PLUGIN / "skills/research/SKILL.md")
+    assert "3 researchers and 2 rounds" in skill
+    assert "'wide'" in skill and "5 researchers and 3 rounds" in skill and "enumeration question" in skill
+    assert re.search(r"enumeration question[^.]*up to 8", skill)
+    stop = skill.split("**Stop or loop.**", 1)[1].split("\n## ", 1)[0]
+    assert "only if the last changed the recommendation, and only once" in stop and "4 rounds" not in stop
+
+
+def test_the_gaps_file_counts_what_changed_and_what_is_new():
+    _, skill = frontmatter.read(PLUGIN / "skills/research/SKILL.md")
+    gap = skill.split("**Gap pass.**", 1)[1].split("\n4. ", 1)[0]
+    assert "`findings that changed the recommendation: N, new primary sources: M`" in gap
+    assert "`single-source`" in gap
+
+
+def test_the_research_audit_runs_a_second_cycle_only_after_send_back():
+    """#84: verifier strictness alone moved unsupported-citation rates from about 3 % to 18 % on identical outputs,
+    so a second audit mostly re-rolls the verifier; it runs only when the first one sent the note back."""
+    _, skill = frontmatter.read(PLUGIN / "skills/research/SKILL.md")
+    audit = skill.split("## 3. Audit", 1)[1].split("\n## ", 1)[0]
+    assert "re-reads the flagged sources" in audit and "one second audit" in audit and "2 cycles" not in audit
+
+
+def test_the_researcher_quotes_and_locates_each_recommendation_driving_claim():
+    """#84: a recommendation-driving claim carries a verbatim quote with its locator and two independent sources,
+    or the `single-source` tag (DRNOISE)."""
+    _, body = frontmatter.read(PLUGIN / "agents/researcher.md")
+    rule = next(x for x in body.splitlines() if "recommendation-driving claim" in x)
+    assert "verbatim quote" in rule and "locator" in rule
+    assert "two independent sources" in rule and "`single-source`" in rule
