@@ -25,8 +25,7 @@ From a clone to a pull request: [CONTRIBUTING.md](CONTRIBUTING.md); vulnerabilit
 - **Gate:** `uv run dev check`: drift checks, word budgets, generated docs, lint and tests. CI runs the same command.
 
 ## Updating the harness
-`uvx copier check-update` says whether a newer agent-harness release exists; `uvx copier update --data harness_ref=<tag>`
-applies it (three-way, so local edits are kept), including the pinned devkit and plugin versions. Then `uv sync`. It never
+`uvx copier check-update` says whether a newer agent-harness release exists; `uvx copier update` applies it (three-way, so local edits are kept), including the pinned devkit and plugin versions. Then `uv sync`. It never
 touches CLAUDE.md or this README: the generic agent rules live in `.devkit/HARNESS.md`, which CLAUDE.md @-imports.
 
 What exists is generated, never hand-listed: [docs/generated/agent-surface.md](docs/generated/agent-surface.md).

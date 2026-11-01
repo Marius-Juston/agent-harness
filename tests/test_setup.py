@@ -71,6 +71,19 @@ def test_template_behind_warns_with_the_fix():
     assert len(out) == 1 and "v0.1.0" in out[0] and "v0.1.1" in out[0] and "copier update" in out[0]
 
 
+def test_pins_stuck_behind_the_template_warn_with_the_explicit_ref():
+    """#163: before v0.1.15 `copier update` reused the stored harness_ref answer, so the template moved while the
+    devkit and plugin pins stayed; a plain update does not repair that state, so the hint names the ref."""
+    answers = {"_commit": "v0.1.14", "_src_path": "gh:Marius-Juston/agent-harness", "harness_ref": "v0.1.10"}
+    out = setup.staleness(answers, {}, tags("v0.1.14"))
+    assert len(out) == 1 and "v0.1.10" in out[0] and "--data harness_ref=v0.1.14" in out[0]
+    offline = setup.staleness(answers, {}, lambda url: [])
+    assert len(offline) == 1 and "--data harness_ref=v0.1.14" in offline[0]
+    ahead = setup.staleness(answers, {}, tags("v0.1.14", "v0.1.15"))
+    assert any("--data harness_ref=v0.1.15" in line for line in ahead)
+    assert setup.staleness({**answers, "harness_ref": "v0.1.14"}, {}, tags("v0.1.14")) == []
+
+
 def test_plugin_pin_behind_warns():
     out = setup.staleness({}, PIN, tags("v0.1.1", "v0.2.0"))
     assert len(out) == 1 and "harness-ops@agent-harness" in out[0] and "v0.2.0" in out[0]

@@ -183,6 +183,7 @@ def test_copier_update_never_conflicts_on_project_owned_files(tmp_path):
     dest = tmp_path / "prev"
     data = {"project_name": "demo-project", "description": "A demo."}
     run_copy(str(ROOT), dest, data=data, defaults=True, vcs_ref=_previous_release(), unsafe=False, quiet=True)
+    assert yaml.safe_load((dest / ".copier-answers.yml").read_text())["harness_ref"] == _previous_release()
     for name in ("CLAUDE.md", "README.md"):
         p = dest / name
         p.write_text(p.read_text().replace("demo-project", "Demo Project, edited by its owner") + "\nOwn line.\n")
@@ -191,9 +192,8 @@ def test_copier_update_never_conflicts_on_project_owned_files(tmp_path):
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=dest, check=True)
     subprocess.run(["git", "add", "-A"], cwd=dest, check=True)
     subprocess.run([*git, "commit", "-q", "-m", "previous release, edited"], cwd=dest, check=True)
-    # a stored answer beats the new default, so the pin moves only when the update passes it (as README says)
-    pin = {**data, "harness_ref": f"v{version()}"}
-    run_update(dest, data=pin, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
+    # plain `copier update --defaults`: the older release's stored harness_ref answer must not hold the pins (#163)
+    run_update(dest, defaults=True, overwrite=True, vcs_ref="HEAD", unsafe=False, quiet=True)
     for name, text in edited.items():
         assert (dest / name).read_text() == text, name
     files = [p for p in dest.rglob("*") if p.is_file() and ".git" not in p.parts]
@@ -203,7 +203,12 @@ def test_copier_update_never_conflicts_on_project_owned_files(tmp_path):
     py = tomllib.loads((dest / "pyproject.toml").read_text())  # the pinned requirement reaches existing projects
     url = f"git+https://github.com/Marius-Juston/agent-harness@v{version()}"
     assert py["dependency-groups"]["dev"] == [f"agent-harness @ {url}"]
-    assert py["tool"]["uv"]["sources"]["agent-harness"]["git"] == "https://github.com/Marius-Juston/agent-harness"
+    source = py["tool"]["uv"]["sources"]["agent-harness"]
+    assert source == {"git": "https://github.com/Marius-Juston/agent-harness", "tag": f"v{version()}"}
+    assert py["tool"]["devkit"]["plugins"]["harness-ops@agent-harness"] == f"Marius-Juston/agent-harness@v{version()}"
+    market = json.loads((dest / ".claude/settings.json").read_text())["extraKnownMarketplaces"]["agent-harness"]
+    assert market["source"]["ref"] == f"v{version()}"
+    assert "harness_ref" not in yaml.safe_load((dest / ".copier-answers.yml").read_text())
 
 
 STANDARD = ("CONTRIBUTING.md", "SECURITY.md", ".editorconfig", "CHANGELOG.md")
