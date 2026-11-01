@@ -42,11 +42,13 @@ Nothing assumes that two machines share a disk.
    The reply to the lead is at most 25 lines.
 7. **Integrate** (lead). Read the PR and check its numbers against the data, then run `uv run dev integrate <pr>`.
    This merges the PR onto `origin/main` in a throwaway worktree and re-runs the gate there. A worker's report is
-   not evidence. The merged tree is main merged into the PR, with generated files regenerated (`dev docs`); when
-   that differs from the PR head, integrate pushes it to the PR branch first. A conflict, a failed gate or a
-   refusal the worker can fix is sent back with no lead relay: one PR comment carries the reasons, the last 40
-   failing lines (the local gate's, or `gh run view --log-failed` of a failing check) and the unresolved feedback;
-   the item goes back to in-progress with its claim kept, the worker to resume is named, and `board brief` shows
+   not evidence. The merged tree is main merged into the PR, with generated files regenerated (`dev docs`, then the
+   `[tool.devkit] regenerate` commands for files such as a hash line, marked `merge=devkit-generated` so the merge
+   keeps one side); when that differs from the PR head, integrate pushes it to the PR branch first. A conflict, a
+   failed gate or a refusal the worker can fix is sent back with no lead relay: one PR comment carries the
+   reasons, the last 40 failing lines (the local gate's, or `gh run view --log-failed` of a failing check) and the
+   unresolved feedback; the item goes back to in-progress with its claim kept, the worker to resume is named, and
+   `board brief` shows
    that comment as 'Fix before merge'. A cycle is a PR head integrate failed on (a rerun on the same head keeps
    its number); after the 3rd (`cycle` in the result) the item is blocked 'needs owner', and the next head after
    the owner unblocks it starts a fresh round. Integrate and the workers act as one gh user (one account), so only

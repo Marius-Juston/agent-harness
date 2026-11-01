@@ -28,6 +28,9 @@ agent-harness = { git = "https://github.com/Marius-Juston/agent-harness", tag = 
 # The harness-ops plugin provides the agents and skills; set false once the project has its own in .claude/.
 surface_optional = true
 quota_cap = 95
+# Commands integrate runs in the merged tree after `uv run dev docs`, committing what they change: for a file no merge
+# can combine, such as a line hashing other files. Mark that file `merge=devkit-generated` in .gitattributes too.
+# regenerate = [["uv", "run", "python", "scripts/rehash.py"]]
 
 [tool.devkit.plugins]
 "harness-ops@agent-harness" = "Marius-Juston/agent-harness@{{ harness_ref }}"

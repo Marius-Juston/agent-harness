@@ -15,6 +15,8 @@ def test_an_empty_table_gives_the_template_defaults():
     assert "harness-ops@agent-harness" in cfg.plugins
     assert cfg.mcp_prereqs == {}  # doctor checks no MCP prerequisites unless the project names them
     assert config.parse({"mcp_prereqs": {"lean-lsp": ["rg"]}}).mcp_prereqs == {"lean-lsp": ["rg"]}
+    assert cfg.regenerate == []  # integrate runs `dev docs` alone unless the project declares more (#386)
+    assert config.parse({"regenerate": [["uv", "run", "rehash"]]}).regenerate == [["uv", "run", "rehash"]]
 
 
 @pytest.mark.parametrize(
@@ -28,6 +30,9 @@ def test_an_empty_table_gives_the_template_defaults():
         ({"plugins": ["x"]}, "expected"),
         ({"mcp_prereqs": {"lean-lsp": "rg"}}, "list of binary names"),
         ({"mcp_prereqs": {"lean-lsp": [""]}}, "list of binary names"),
+        ({"regenerate": ["uv", "run", "rehash"]}, "list of arguments"),
+        ({"regenerate": [[]]}, "list of arguments"),
+        ({"regenerate": [["uv", ""]]}, "list of arguments"),
     ],
 )
 def test_a_typo_or_a_wrong_type_is_an_error_not_a_default(data, match):
