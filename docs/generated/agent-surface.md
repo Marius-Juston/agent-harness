@@ -95,6 +95,7 @@
 | `reuse` | reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); `"<need>"` searches for more (GitHub, ecosyste.ms, deps.dev; shares dev lit's cache and rate limits) |
 | `research` | research notes: new |
 | `research new` | create <research_dir>/<slug>.md from the house template |
+| `gotcha` | append a one-line lesson to the .claude/rules file scoped to a path |
 | `setup` | once per machine/clone: uv sync, git config, plugin install, then doctor |
 | `doctor` | read-only: what this machine still needs |
 | `usage-poll` | record the weekly usage percent every 10 min for the spawn guard (detach it) |
@@ -120,6 +121,7 @@
 | plugins/harness-ops/agents/reviewer.md | 594 | 600 |
 | plugins/harness-ops/agents/suite-auditor.md | 272 | 600 |
 | plugins/harness-ops/agents/tester.md | 263 | 600 |
+| plugins/harness-ops/commands/gotcha.md | 177 | 650 |
 | plugins/harness-ops/skills/harness/SKILL.md | 558 | 650 |
 | plugins/harness-ops/skills/lead/SKILL.md | 720 | 720 |
 | plugins/harness-ops/skills/research/SKILL.md | 646 | 650 |
