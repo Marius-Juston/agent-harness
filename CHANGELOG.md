@@ -4,6 +4,60 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.16 (2026-11-01)
+
+Integrate needs the lead less: it regenerates declared hash lines and copied action pins when a PR's head is merged
+with a moved main, refuses a PR whose body no longer links its branch's issue or that lacks a required review, and
+`dev handoff` and `dev status --resume` rebuild the state a lead needs after a restart from the board and the
+worktrees.
+
+### Upgrading a project
+Run `uvx copier update`, then `uv sync && uv run dev setup && uv run dev docs && uv run dev check`. These can need
+attention:
+- **PR bodies must link the branch's issue.** `uv run dev integrate` refuses a PR on an `<n>-slug` branch whose body
+  has neither `Closes #n` (or another closing keyword) nor `Refs #n`, before the gate and whatever `--override`
+  says, and sends it back through the fix loop. `dev pr` writes the line, so only PRs opened or edited by hand need
+  it (`gh pr edit <n> --body ...`). Branches without an `<n>-` prefix (Dependabot, release-please) are never
+  refused. (#434)
+- **New opt-in `[tool.devkit]` keys**, all off by default, so nothing changes until a project sets them:
+  - `regenerate`: a list of argv lists integrate runs after `dev docs` in the merged tree, so a PR whose only
+    conflict with main is a generated line (a hash ledger, say) merges without a send-back. Mark each such file
+    `merge=devkit-generated` in `.gitattributes`; a failing command stops integrate before the gate. The template's
+    `pyproject.toml` has a commented example. (#386)
+  - `required_reviews`: changed-path glob or prefix -> reviewer agent name. Integrate refuses a PR touching such a
+    path until a trusted verdict review naming that reviewer says `merge` on the head or an ancestor of it;
+    `--override` does not lift it. (#391)
+  - `action_pins`: source workflow -> globs of its copies. `dev docs` moves a copy's action commit pins to the
+    source's, and the gate's generated-docs stage fails when a copy lags. (#431)
+- **Raised ratchet floors apply to this repository only** (`min_tests` 2246, `min_coverage` 91 in its own
+  `.devkit/ratchets.toml`); a project's floors are its own. (#439)
+
+### Added
+- `[tool.devkit] regenerate`: integrate runs the declared commands after `dev docs` in the merged tree and commits
+  what they change. (#386)
+- `[tool.devkit] required_reviews` and integrate's required-review refusal. (#391)
+- `[tool.devkit] action_pins` and pin syncing in `dev docs`; this repository syncs the template's workflows to
+  `ci.yml`, and its CI runs `dev docs` before the gate on Dependabot PRs. (#431)
+- `uv run dev handoff` rebuilds the handoff file's In flight, Just merged and Next sections from the board and the
+  default branch's log, keeping every hand-written section byte for byte; integrate refreshes it after a merge unless
+  the checkout is on the default branch. A missing handoff file is a no-op. (#394)
+- `uv run dev status --resume` lists every agent worktree with commits ahead of main or uncommitted edits, with its
+  issue, branch, open PR, last commit, first unresolved review thread and a one-line resume prompt (`--json`
+  too). (#388)
+
+### Changed
+- `dev integrate` refuses a PR body without `Closes`/`Refs` for its branch's issue, and checks the body again after
+  the gate. (#434)
+- The lead skill resumes from `dev status --resume` (section 5) and names `dev handoff` (section 6). (#388, #394)
+- This repository's ratchet floors: `min_tests` 1021 -> 2246, `min_coverage` 81 -> 91. (#439)
+
+### Fixed
+- A PR whose `<n>-slug` branch claims an issue could merge after its body lost the `Closes` line, leaving the issue
+  open. (#434)
+- Dependabot bumps of `ci.yml` left the template's `gate.yml` and `board.yml` on an older `astral-sh/setup-uv` pin;
+  both now match `ci.yml` (10.3.3). (#431)
+- The copier-update conflict test failed on every branch past v0.1.15, which no longer stores `harness_ref`. (#388)
+
 ## v0.1.15 (2026-11-01)
 
 The lead relays less: `copier update` moves the pins on its own, integrate sends a failing PR straight back to its
