@@ -81,6 +81,11 @@ class Config:
     # the gate passed; "{tmpdir}" becomes a fresh empty directory) that stand in for it. [] = the gate alone. A required
     # context without an entry is never posted: integrate refuses instead.
     local_ci: dict[str, list[list[str]]] = field(default_factory=lambda: {"check": []})
+    # #386: commands (argument lists, run in order in the merged tree after `dev docs`) that rewrite files a merge
+    # cannot, e.g. a ledger line hashing other files: `regenerate = [["uv", "run", "python", "scripts/rehash.py"]]`.
+    # Mark each such file `merge=devkit-generated` in `.gitattributes` so merging main keeps one side; integrate then
+    # runs these and commits what they changed, as it does for generated docs.
+    regenerate: list[list[str]] = field(default_factory=list)
     # Claude Code plugins `dev setup` installs at project scope: "plugin@marketplace" -> marketplace source.
     plugins: dict[str, str] = field(
         default_factory=lambda: {
@@ -128,6 +133,9 @@ def parse(data: dict) -> Config:
             raise ConfigError(
                 f"[tool.devkit.required_reviews] {match!r} = {who!r}: expected a path glob -> reviewer name"
             )
+    for argv in data.get("regenerate", []):
+        if not (isinstance(argv, list) and argv and all(isinstance(a, str) and a for a in argv)):
+            raise ConfigError(f"[tool.devkit] regenerate entry {argv!r}: expected a command as a list of arguments")
     if "consolidation" in data:
         data = {**data, "consolidation": _consolidation(data["consolidation"])}
     if "prices" in data:

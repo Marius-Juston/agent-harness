@@ -1,17 +1,19 @@
 """Merge hygiene in throwaway git repositories (#11, #38): generated files never block a merge, notes agents rewrite
 conflict instead of interleaving, and integrate brings a PR that is behind main up to date by itself."""
 
+import hashlib
 import json
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, docs, paths, setup, workflow
+from devkit import board, config, docs, paths, setup, workflow
 
 ROOT = Path(__file__).resolve().parents[1]
 ATTRIBUTES = ROOT / "template/.gitattributes"
@@ -344,6 +346,86 @@ def test_a_dependabot_bump_of_ci_alone_merges_and_the_template_follows(project, 
     assert res["outcome"] == "merged" and res["regenerated"] and res["head"] != bumped
     for rel in (CI, GATE):
         assert out(project["origin"], "git", "show", f"{res['head']}:{rel}") == _workflow(new, "v7.0.2").strip()
+
+
+# --- declared regenerate commands (#386): a hash line over other files never needs a worker round trip -----------
+
+LEDGER = "trusted.sha256"
+REHASH = """import hashlib, pathlib
+defs = sorted(pathlib.Path("defs").glob("*.txt"))
+pathlib.Path("trusted.sha256").write_text(hashlib.sha256(b"".join(p.read_bytes() for p in defs)).hexdigest() + "\\n")
+"""
+
+
+def _ledger(tree: Path) -> str:
+    """What REHASH writes for the definitions in `tree`."""
+    defs = sorted((tree / "defs").glob("*.txt"))
+    return hashlib.sha256(b"".join(p.read_bytes() for p in defs)).hexdigest() + "\n"
+
+
+def _declare_ledger(project: dict, monkeypatch, marked: bool) -> None:
+    """Main gets two definition files, the ledger hashing them, REHASH and `[tool.devkit] regenerate`; `marked`
+    adds the ledger to `.gitattributes` as a generated file. The gate fails on a stale ledger."""
+    clone = project["clone"]
+    rule = f"{LEDGER} merge=devkit-generated\n" if marked else ""
+    pyproject = f"[tool.devkit]\nregenerate = [[{json.dumps(sys.executable)}, 'rehash.py']]\n"
+    files = {"defs/x.txt": "x1\n", "defs/y.txt": "y1\n", "rehash.py": REHASH, "pyproject.toml": pyproject}
+    commit(clone, {**files, ".gitattributes": ATTRIBUTES.read_text() + rule}, "ledger")
+    commit(clone, {LEDGER: _ledger(clone)}, "hash")
+    sh(clone, "git", "push", "-q", "origin", "main")
+    declared = config.parse(tomllib.loads(pyproject)["tool"]["devkit"])
+    monkeypatch.setattr(config, "get", lambda: declared)
+    fake = subprocess.run  # the fixture's: `dev docs` writes the index, the gate fails on a stale one
+
+    def run(cmd, **kw):
+        if list(cmd[:2]) == ["uv", "run"] and "docs" not in cmd:
+            tree = Path(kw["cwd"])
+            if (tree / LEDGER).read_text() != _ledger(tree):
+                return subprocess.CompletedProcess(cmd, 1, f"{LEDGER} is stale", "")
+        return fake(cmd, **kw)
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+
+def _edit_defs(project: dict, path: str, text: str) -> dict[str, str]:
+    """`path` rewritten to `text`, with the ledger line the worker recomputes for it."""
+    clone = project["clone"]
+    (clone / path).write_text(text)
+    return {path: text, LEDGER: _ledger(clone)}
+
+
+def test_a_pr_whose_only_conflict_is_a_declared_hash_line_merges_without_a_send_back(project, capsys, monkeypatch):
+    """#386: two PRs edit different definition files and each recomputes the one ledger line. The second, behind
+    main, conflicts only on that line; integrate keeps one side, runs the declared `regenerate` command after
+    `dev docs`, gates the recomputed ledger and merges, with no comment sent back to the worker."""
+    _declare_ledger(project, monkeypatch, marked=True)
+    old = open_pr(project, _edit_defs(project, "defs/y.txt", "y2\n"))
+    land_on_main(project, _edit_defs(project, "defs/x.txt", "x2\n"))
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    res = last_json(capsys.readouterr().out)
+    assert res["outcome"] == "merged" and res["regenerated"] and res["head"] != old
+    assert out(project["origin"], "git", "show", f"{res['head']}:{LEDGER}") == hashlib.sha256(b"x2\ny2\n").hexdigest()
+    assert not any(e[:3] == ("gh", "pr", "comment") for e in project["events"])
+    assert not project["status"] and not project["blocked"]
+
+
+def test_without_the_generated_mark_the_hash_line_still_conflicts(project, capsys, monkeypatch):
+    """The command alone does not merge the line: an unmarked ledger is a real conflict, sent back as before."""
+    _declare_ledger(project, monkeypatch, marked=False)
+    open_pr(project, _edit_defs(project, "defs/y.txt", "y2\n"))
+    land_on_main(project, _edit_defs(project, "defs/x.txt", "x2\n"))
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert last_json(capsys.readouterr().out)["conflicts"] == [LEDGER]
+
+
+def test_a_failing_regenerate_command_stops_before_the_gate(tmp_path, monkeypatch):
+    """A declared command that fails leaves the merged tree unknown: integrate stops rather than gate it."""
+    monkeypatch.setattr(config, "get", lambda: config.Config(regenerate=[[sys.executable, "-c", "exit(3)"]]))
+    real = subprocess.run
+    monkeypatch.setattr(subprocess, "run", lambda cmd, **kw: real(["true"] if cmd[:2] == ["uv", "run"] else cmd, **kw))
+    sh(tmp_path, "git", "init", "-q")
+    with pytest.raises(RuntimeError, match="exit\\(3\\)"):
+        workflow.regenerate(tmp_path)
 
 
 # --- squash merges (#292): the commit on main is the PR title and body, never the branch's messages -------------
