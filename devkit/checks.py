@@ -7,12 +7,15 @@ Each check returns a `Ran` (devkit/ran.py): how much it examined and what it fou
 """
 
 import argparse
+import ast
 import fnmatch
 import json
 import re
 import shlex
 import subprocess
 import tomllib
+import warnings
+from collections.abc import Callable
 from pathlib import Path
 
 from devkit import config, frontmatter
@@ -716,6 +719,7 @@ INSTALL = re.compile(
     r"|\b(?:curl|wget)\b[^|]*\|\s*(?:sudo\s+)?(?:bash|dash|zsh|sh)\b"
 )
 INSTALL_PUNCT = re.compile(r"[\"'`,()\[\]{}]")
+INSTALL_SHOWN = 160  # characters of a multi-line statement quoted in a finding
 PROSE_SUFFIXES = (".md", ".rst", ".txt", ".md.jinja", ".rst.jinja")
 # A permission rule string in a Claude Code settings file, such as the template's deny rule for installs: it
 # forbids the command rather than running it.
@@ -741,9 +745,99 @@ def install_allowlist(text: str) -> list[str]:
     return [g for line in text.splitlines() if (g := line.split("#", 1)[0].strip())]
 
 
-def install_findings(diff: str, allowed: list[str]) -> list[str]:
+def _is_install(text: str) -> bool:
+    return bool(INSTALL.search(" ".join(INSTALL_PUNCT.sub(" ", text).split())))
+
+
+def _collapsed(segment: str) -> str:
+    """A multi-line source segment as one line, comments cut."""
+    return " ".join(" ".join(_uncommented(ln) for ln in segment.splitlines()).split())
+
+
+def _bound_once(tree: ast.AST) -> dict[str, str]:
+    """Names assigned exactly once in the module, to a str or a list/tuple of str constants (joined by spaces)."""
+    count: dict[str, int] = {}
+    value: dict[str, str] = {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name):
+            name, v = n.targets[0].id, n.value
+            count[name] = count.get(name, 0) + 1
+            if isinstance(v, ast.Constant) and isinstance(v.value, str):
+                value[name] = v.value
+            elif isinstance(v, (ast.List, ast.Tuple)):
+                strs = [e.value for e in v.elts if isinstance(e, ast.Constant) and isinstance(e.value, str)]
+                if len(strs) == len(v.elts):
+                    value[name] = " ".join(strs)
+    return {k: v for k, v in value.items() if count[k] == 1}
+
+
+def _folded(node: ast.AST, names: dict[str, str]) -> str:
+    """The strings an expression is built from, in order: constants, once-bound names, `+`, f-strings, lists and
+    call arguments (so `" ".join([...])` and `f"{TOOL} x".split()` fold too). Anything else contributes nothing."""
+    match node:
+        case ast.Constant(value=str() as s):
+            return s
+        case ast.Name(id=i) if i in names:
+            return names[i]
+        case ast.BinOp(op=ast.Add(), left=a, right=b):
+            return " ".join(x for x in (_folded(a, names), _folded(b, names)) if x)
+        case ast.JoinedStr(values=vs):
+            return "".join(_folded(v.value if isinstance(v, ast.FormattedValue) else v, names) for v in vs)
+        case ast.List(elts=es) | ast.Tuple(elts=es):
+            return " ".join(x for e in es if (x := _folded(e, names)))
+        case ast.Call(func=f, args=args):
+            base = _folded(f.value, names) if isinstance(f, ast.Attribute) else ""
+            return " ".join(x for x in (base, *(_folded(a, names) for a in args)) if x)
+    return ""
+
+
+def _python_installs(text: str, added: set[int]) -> list[tuple[int, int, str]]:
+    """(first line, last line, collapsed source) of each innermost call touching an added line whose source or folded
+    strings run an install. Unparsable text gives nothing (the line check still runs)."""
+    try:
+        with warnings.catch_warnings():  # a file's own SyntaxWarning (an invalid escape) is not this check's output
+            warnings.simplefilter("ignore")
+            tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return []
+    names = _bound_once(tree)
+    hits = []
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call) and added & set(range(n.lineno, (n.end_lineno or n.lineno) + 1)):
+            seg = _collapsed(ast.get_source_segment(text, n) or "")
+            if _is_install(seg) or _is_install(_folded(n, names)):
+                hits.append((n, seg))
+    # a matching call inside a matching call is the one reported: `os.system(" ".join([...]))` once, not twice
+    keep = [(h, seg) for h, seg in hits if not any(o is not h and _contains(h, o) for o, _ in hits)]
+    return [(h.lineno, h.end_lineno or h.lineno, seg) for h, seg in keep]
+
+
+def _contains(outer: ast.AST, inner: ast.AST) -> bool:
+    return any(c is inner for c in ast.walk(outer))
+
+
+def _shell_installs(text: str, added: set[int]) -> list[tuple[int, int, str]]:
+    """(first line, last line, joined text) of each logical shell line (physical lines joined at a trailing
+    backslash, comments cut) touching an added line that runs an install."""
+    out = []
+    start, parts = 0, []
+    for i, ln in enumerate(text.splitlines(), 1):
+        body = _uncommented(ln).rstrip()
+        start, parts = (start, [*parts, body]) if parts else (i, [body])
+        if body.endswith("\\"):
+            continue
+        joined = " ".join(" ".join(p.removesuffix("\\") for p in parts).split())
+        if added & set(range(start, i + 1)) and _is_install(joined):
+            out.append((start, i, joined))
+        parts = []
+    return out
+
+
+def install_findings(diff: str, allowed: list[str], read: Callable[[str], str | None] | None = None) -> list[str]:
     """file:line of each added line of code or script in a `git diff -U0` that runs a package install, outside the
-    allowlisted path globs. Prose files are skipped; a line-level heuristic, so a command split over lines escapes."""
+    allowlisted path globs. Prose files are skipped. With `read` (path -> new text, None if unreadable), a `.py`
+    call or a backslash-continued `.sh`/`.bash` line touching an added line is matched as a whole (#423), so an
+    install list split over lines or built from string pieces is caught too."""
     from devkit.weaken import parse  # weaken imports this module
 
     out = []
@@ -751,12 +845,27 @@ def install_findings(diff: str, allowed: list[str]) -> list[str]:
         if not f.new or f.new.endswith(PROSE_SUFFIXES) or any(fnmatch.fnmatch(f.new, g) for g in allowed):
             continue
         rules = bool(SETTINGS_FILE.search(f.new))
+        found: dict[int, str] = {}
         for ln in f.added:
             if rules and PERMISSION_RULE.match(ln.text):
                 continue
-            if INSTALL.search(INSTALL_PUNCT.sub(" ", _uncommented(ln.text))):
-                out.append(f"{ln.path}:{ln.number}: package install: {ln.text.strip()}")
+            if _is_install(_uncommented(ln.text)):
+                found[ln.number] = ln.text.strip()
+        text = read(f.new) if read and f.new.endswith((".py", ".sh", ".bash")) else None
+        if text is not None:
+            whole = _python_installs if f.new.endswith(".py") else _shell_installs
+            for start, end, src in whole(text, {ln.number for ln in f.added}):
+                if not any(n in found for n in range(start, end + 1)):  # its own line already reported it
+                    found[start] = src if len(src) <= INSTALL_SHOWN else src[: INSTALL_SHOWN - 3] + "..."
+        out += [f"{f.new}:{n}: package install: {found[n]}" for n in sorted(found)]
     return out
+
+
+def _new_text(rel: str) -> str | None:
+    try:
+        return (root() / rel).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
 def check_installs(base: str | None) -> Ran:
@@ -776,7 +885,7 @@ def check_installs(base: str | None) -> Ran:
     ran.checked = len(files)
     if any(line.endswith(f" b/{listed}") for line in files):
         ran.warnings.append(f"{listed} changed on this branch: the reviewer checks each new entry")
-    if found := install_findings(diff, allowed):
+    if found := install_findings(diff, allowed, _new_text):
         ran.problems += found
         ran.problems.append(
             "installs go to the owner: never wrap a blocked command in a script or subprocess. Ask the lead, or, once"
