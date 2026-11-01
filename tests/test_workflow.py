@@ -15,6 +15,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from devkit import board, workflow
+from devkit import branches as local_branches
 from tests.test_board import mk
 from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate are fixtures
     HEAD,
@@ -762,7 +763,7 @@ def test_worktree_prune_deletes_branches_their_merged_or_superseding_pr_contains
         _pr(9, "main", "MERGED", merged),
         _pr(10, "8-nopr", "MERGED", nopr, fork=True),
     ]
-    lines = workflow.prune_branches(dry_run)
+    lines = local_branches.prune_branches(dry_run)
     said = "\n".join(lines)
     gone = "would delete branch" if dry_run else "deleted branch"
     for name in ("1-merged", "2-behind", "3-superseded"):
@@ -779,12 +780,12 @@ def test_worktree_prune_deletes_branches_their_merged_or_superseding_pr_contains
 def test_drop_branch_fails_closed_without_a_head_to_compare(branches):
     repo, _ = branches
     tip = _branch(repo, "1-x", "x")
-    assert workflow.drop_branch("2-gone", [tip]) == "no local branch 2-gone"
+    assert local_branches.drop_branch("2-gone", [tip]) == "no local branch 2-gone"
     assert (
-        workflow.drop_branch("1-x", ["--all", "HEAD"])
+        local_branches.drop_branch("1-x", ["--all", "HEAD"])
         == "kept branch 1-x: no merged head in this clone to compare it with"
     )
-    assert "this clone lacks the merged head" in workflow.drop_branch("1-x", ["f" * 40])
+    assert "this clone lacks the merged head" in local_branches.drop_branch("1-x", ["f" * 40])
     assert _local(repo, "1-x") == tip
 
 
@@ -872,32 +873,32 @@ def test_drop_branch_keeps_a_branch_a_worktree_is_rebasing_or_bisecting(branches
     `bisect reset` needs the branch back."""
     repo, _ = branches
     tip = _stop_mid(repo, tmp_path, how)
-    assert workflow.drop_branch("1-x", [tip]) == f"kept branch 1-x: checked out in {tmp_path / 'wt'}"
+    assert local_branches.drop_branch("1-x", [tip]) == f"kept branch 1-x: checked out in {tmp_path / 'wt'}"
     assert _local(repo, "1-x") == tip
 
 
 def test_drop_branch_keeps_a_branch_that_moved_after_the_check(branches, monkeypatch):
     repo, _ = branches
     tip = _branch(repo, "1-x", "x")
-    real = workflow.git
+    real = local_branches.git
 
     def git(*args, **kw):
         if args[:2] == ("update-ref", "-d"):  # another push lands between the check and the delete
             sh(repo, "git", "branch", "-f", "1-x", "main")
         return real(*args, **kw)
 
-    monkeypatch.setattr(workflow, "git", git)
-    assert workflow.drop_branch("1-x", [tip]).startswith("kept branch 1-x: ")
+    monkeypatch.setattr(local_branches, "git", git)
+    assert local_branches.drop_branch("1-x", [tip]).startswith("kept branch 1-x: ")
     assert _local(repo, "1-x") == out(repo, "git", "rev-parse", "main")
 
 
 def test_worktree_prune_refuses_when_the_pr_list_may_be_cut_off(branches, monkeypatch):
     repo, prs = branches
     tip = _branch(repo, "1-x", "x")
-    monkeypatch.setattr(workflow, "PRUNE_LIMIT", 2)
+    monkeypatch.setattr(local_branches, "PRUNE_LIMIT", 2)
     prs += [_pr(1, "1-x", "MERGED", tip), _pr(2, "2-y", "CLOSED", tip)]
     with pytest.raises(board.BoardError, match="nothing deleted"):
-        workflow.prune_branches()
+        local_branches.prune_branches()
     assert _local(repo, "1-x") == tip
 
 
