@@ -27,7 +27,6 @@ from devkit.ci_status import (  # re-exported: devkit/train.py reads these throu
     CHECK_PASSED,
     JOB_URL,
     _named,
-    _waiting_file,
     actions_enabled,
     await_actions,
     await_checks,
@@ -418,6 +417,11 @@ def refusal(info: dict) -> str | None:
     if info["isCrossRepository"]:
         return "PR comes from a fork: integrate only merges branches of this repository"
     return None
+
+
+def _waiting_file(pr_number: int) -> Path:
+    """Where a timed-out wait records the tip it pushed and the checks expected on it, so a rerun resumes there."""
+    return state_dir("integrate") / f"pr-{pr_number}.waiting.json"
 
 
 GATE = ["uv", "run", "--quiet", "dev", "check", "--no-cache"]  # what integrate runs in the merged tree

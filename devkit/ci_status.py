@@ -8,10 +8,8 @@ import json
 import random
 import re
 import time
-from pathlib import Path
 
 from devkit import backoff, board, config
-from devkit.paths import state_dir
 
 CHECK_PASSED = {
     "SUCCESS",
@@ -124,11 +122,6 @@ def await_checks(
             return "timeout", pending
         time.sleep(min(left, backoff.wait(attempt, 0, CHECKS_RNG, CHECKS_BASE_S, CHECKS_CAP_S, CHECKS_FLOOR_S)))
     raise AssertionError("unreachable")
-
-
-def _waiting_file(pr_number: int) -> Path:
-    """Where a timed-out wait records the tip it pushed and the checks expected on it, so a rerun resumes there."""
-    return state_dir("integrate") / f"pr-{pr_number}.waiting.json"
 
 
 # `dev integrate --local-ci` (#76): merging must work with no Actions minutes. When Actions cannot run a required

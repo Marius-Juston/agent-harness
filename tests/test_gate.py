@@ -957,7 +957,6 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(branches, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
-    monkeypatch.setattr(ci_status, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
     workflow.config.get()  # resolve this repository's config with the real git, before subprocess.run is faked
     monkeypatch.setattr(workflow.subprocess, "run", run)
     monkeypatch.setattr(workflow.subprocess, "Popen", lambda cmd, **kw: FinishedGate(run(cmd, **kw).returncode))
