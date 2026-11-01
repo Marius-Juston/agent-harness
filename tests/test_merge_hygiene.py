@@ -11,7 +11,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, paths, setup, workflow
+from devkit import board, docs, paths, setup, workflow
 
 ROOT = Path(__file__).resolve().parents[1]
 ATTRIBUTES = ROOT / "template/.gitattributes"
@@ -307,6 +307,43 @@ def test_an_old_pr_cannot_bring_back_union_merges_for_notes(project, capsys):
     res = last_json(capsys.readouterr().out)
     assert res["outcome"] == "conflict" and res["conflicts"] == ["docs/research/a.md"]
     assert out(project["origin"], "git", "rev-parse", "refs/heads/12-c") == old
+
+
+CI, GATE = ".github/workflows/ci.yml", "template/.github/workflows/gate.yml"
+PINS = {CI: ["template/.github/workflows/*.yml"]}
+
+
+def _workflow(sha: str, version: str) -> str:
+    return f"jobs:\n  check:\n    steps:\n      - uses: actions/upload-artifact@{sha} # {version}\n"
+
+
+def test_a_dependabot_bump_of_ci_alone_merges_and_the_template_follows(project, capsys, monkeypatch):
+    """#431 (PR #424): Dependabot bumps an action in ci.yml only. integrate's `dev docs` (here the real pin sync
+    of `[tool.devkit] action_pins`) moves the template's pin, the gate (failing on stale pins, as check_generated
+    does) passes on that tree, and the PR merges with no hand edit; the head pushed to its branch carries both."""
+    clone, old, new = project["clone"], "a" * 40, "b" * 40
+    commit(clone, {CI: _workflow(old, "v7.0.1"), GATE: _workflow(old, "v7.0.1")}, "workflows")
+    sh(clone, "git", "push", "-q", "origin", "main")
+    fake = subprocess.run  # the fixture's: `dev docs` writes the index, the gate fails on a stale one
+
+    def run(cmd, **kw):
+        if list(cmd[:2]) == ["uv", "run"]:
+            tree, docs_run = Path(kw["cwd"]), "docs" in cmd
+            for rel, text in docs.pinned_mirrors(tree, PINS).items():
+                if docs_run:
+                    (tree / rel).write_text(text)
+                elif (tree / rel).read_text() != text:
+                    return subprocess.CompletedProcess(cmd, 1, f"{rel} is stale", "")
+        return fake(cmd, **kw)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    project["branch"], project["body"] = "dependabot/github_actions/upload-artifact", "Closes #12"
+    bumped = open_pr(project, {CI: _workflow(new, "v7.0.2")})
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    res = last_json(capsys.readouterr().out)
+    assert res["outcome"] == "merged" and res["regenerated"] and res["head"] != bumped
+    for rel in (CI, GATE):
+        assert out(project["origin"], "git", "show", f"{res['head']}:{rel}") == _workflow(new, "v7.0.2").strip()
 
 
 # --- squash merges (#292): the commit on main is the PR title and body, never the branch's messages -------------
