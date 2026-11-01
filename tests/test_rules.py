@@ -362,6 +362,11 @@ def test_check_fails_a_glob_claude_code_never_loads(repo):
     ]
 
 
+def test_an_unanchored_glob_finds_gitignored_output_at_any_depth(repo):
+    _tree(repo, {"build/deep/out.log": "", ".claude/rules/logs.md": '---\npaths: ["*.LOG", "build/deep/*.log"]\n---\n'})
+    assert rules.check_rules(_base(repo)).problems == []
+
+
 def test_add_picks_a_rules_file_scoped_by_a_comma_string(repo):
     _tree(repo, {".claude/rules/both.md": '---\npaths: "docs/**, src/app/**"\n---\n- x (#1, 2026-01-01)\n'})
     path, _ = rules.add("src/app/main.py", "use the factory", 9, TODAY)
