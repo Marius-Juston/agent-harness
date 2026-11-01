@@ -958,17 +958,12 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(workflow.time, "sleep", lambda s: None)
     monkeypatch.setattr(branches, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
-    monkeypatch.setattr(workflow, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
-    monkeypatch.setattr(fixloop, "state_dir", lambda *p: _made(tmp_path.joinpath(*p)))
+    # one git common dir under tmp_path: workflow and fixloop (the fix loop, outcome records) share its state dir
+    monkeypatch.setattr(paths, "common_dir", lambda: tmp_path / ".git")
     workflow.config.get()  # resolve this repository's config with the real git, before subprocess.run is faked
     monkeypatch.setattr(workflow.subprocess, "run", run)
     monkeypatch.setattr(workflow.subprocess, "Popen", lambda cmd, **kw: FinishedGate(run(cmd, **kw).returncode))
     return world
-
-
-def _made(path):
-    path.mkdir(parents=True, exist_ok=True)  # as paths.state_dir does
-    return path
 
 
 def _index(events, pred):
@@ -1580,7 +1575,9 @@ def _comments(ev):
 
 
 def _log_sha(tmp_path, tip):
-    return hashlib.sha256((tmp_path / "integrate" / f"pr-7-{tip[:12]}.log").read_bytes()).hexdigest()
+    return hashlib.sha256(
+        (tmp_path / ".git" / "devkit" / "integrate" / f"pr-7-{tip[:12]}.log").read_bytes()
+    ).hexdigest()
 
 
 def test_billing_blocked_checks_are_run_locally_posted_as_statuses_with_the_log_hash_then_merged(
