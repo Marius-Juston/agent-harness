@@ -251,6 +251,13 @@ def test_the_lead_skill_dispatch_escalates_effort_in_order():
     assert "Log every dispatch: `board beat" in dispatch
 
 
+def test_the_lead_skill_resumes_from_dev_status_resume():
+    """#388: section 5 (Resume) points the lead to the per-worktree respawn prompts."""
+    _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
+    resume = body.split("## 5. Resume", 1)[1].split("\n## ", 1)[0]
+    assert "`uv run dev status --resume`" in resume and "SendMessage its prompt" in resume
+
+
 def test_the_lead_skill_preloads_dev_status_without_aborting():
     _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
     cmds = checks.INJECTION.findall(body)
