@@ -494,7 +494,8 @@ def test_slot_paths_keep_the_first_slot_at_the_one_lock_path(tmp_path):
 
 
 def test_three_slots_hold_three_gates_at_once_and_a_fourth_waits(tmp_path):
-    """#461: with 3 slots, three gates hold one each at once without waiting; a fourth says it waits, and gets the
+    """#461: with 3 slots, three gates hold one each at once and none says it waits (not even one that meets another
+    passing through the wait queue to a free slot); a fourth says it waits, and gets the
     slot freed first."""
     path = tmp_path / "gate.lock"
     inside, release = threading.Barrier(4), threading.Event()

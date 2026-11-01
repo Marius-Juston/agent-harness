@@ -403,7 +403,8 @@ def gate_lock(
         if priority:
             fcntl.flock(queue, fcntl.LOCK_SH)
         if turn and not _try(turn):
-            say()
+            if not _any_free(locks):  # else the queue's holder is only passing through to a free slot
+                say()
             fcntl.flock(turn, fcntl.LOCK_EX)
         while True:
             lock = next((f for f in locks if _try(f)), None)
@@ -432,6 +433,14 @@ def _try(f: IO[str]) -> bool:
     except BlockingIOError:
         return False
     return True
+
+
+def _any_free(locks: list[IO[str]]) -> bool:
+    for f in locks:
+        if _try(f):
+            fcntl.flock(f, fcntl.LOCK_UN)
+            return True
+    return False
 
 
 def _wait_slot(locks: list[IO[str]]) -> IO[str]:
