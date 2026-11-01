@@ -509,7 +509,7 @@ def repin_skewed(everywhere: bool = False) -> list[str]:
 def git_steps() -> list[tuple[str, list[str]]]:
     """Per-clone git config. The merge driver lets a merge keep one side of a generated file (`.gitattributes` names
     it); `dev docs` regenerates it afterwards, and the gate fails if nobody did."""
-    from devkit.workflow import GENERATED_MERGE
+    from devkit.merging import GENERATED_MERGE
 
     return [
         ("git rerere (replays conflict resolutions across worktrees)", ["git", "config", "rerere.enabled", "true"]),

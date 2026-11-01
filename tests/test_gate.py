@@ -18,7 +18,7 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, branches, ci_status, config, gate, paths, workflow
+from devkit import board, branches, ci_status, config, gate, merging, paths, workflow
 
 REAL_POPEN = subprocess.Popen
 
@@ -945,6 +945,7 @@ def fake_integrate(monkeypatch, tmp_path):
 
     monkeypatch.setattr(workflow, "git", git)
     monkeypatch.setattr(branches, "git", git)
+    monkeypatch.setattr(merging, "git", git)
     monkeypatch.setattr(board, "gh", gh)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     monkeypatch.setattr(board, "comment", lambda *a, **k: None)
