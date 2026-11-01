@@ -819,8 +819,9 @@ def test_merge_rechecks_both_shas_and_matches_the_head(monkeypatch):
     assert not calls
 
 
-def test_integrate_reads_the_fields_it_checks(monkeypatch):
+def test_integrate_reads_the_fields_it_checks(monkeypatch, tmp_path):
     seen = {}
+    monkeypatch.setattr(paths, "common_dir", lambda: tmp_path / ".git")  # its outcome record, not this clone's
 
     def gh(*args, **_):
         seen["fields"] = set(args[args.index("--json") + 1].split(","))
