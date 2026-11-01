@@ -52,6 +52,7 @@ class Config:
     ratchets: str = ".devkit/ratchets.toml"
     # Reviewed files that may add a package install command (`<path glob>  # reason` per line); a missing file is empty.
     install_allowlist: str = ".devkit/install-allow.txt"
+    decisions: str = ".devkit/decisions.toml"  # durable rules with enforced-by literals (#226); a missing file is none
     research_dir: str = "docs/research"
     generated_dir: str = "docs/generated"
     handoff: str = "docs/HANDOFF.md"

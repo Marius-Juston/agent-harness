@@ -396,6 +396,7 @@ def stages(
         checks.check_links,
         lambda: checks.check_dev_commands(commands),
         checks.check_research_notes,
+        checks.check_decisions,
         board.check_board,
         lambda: checks.check_ratchets(base),
         lambda: weaken.check_weakening(base),

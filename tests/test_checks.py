@@ -876,3 +876,122 @@ def test_a_long_run_of_option_dashes_finishes_fast_and_is_not_an_install():
 def test_a_settings_file_still_flags_an_install_outside_a_permission_rule():
     line = f'    "command": "pip {INST} x && run"'
     assert len(checks.install_findings(_added(".claude/settings.json", line), [])) == 1
+
+
+# --- decision table (#226) --------------------------------------------------------------------------------------------
+
+ROW = """
+[[decision]]
+id = "D01"
+rule = "Never curl the index APIs."
+why = "https://github.com/o/r/issues/1"
+enforced-by = [{{ path = "docs/rule.md", literal = "{literal}" }}]
+status = "{status}"
+{extra}
+"""
+ENFORCED = '[{ path = "docs/rule.md", literal = "shared rate limits" }]'
+
+
+def decisions(tmp_path, monkeypatch, table: str | None, rule_text: str = "never curl: shared rate limits apply"):
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    (tmp_path / "docs").mkdir(exist_ok=True)
+    (tmp_path / "docs/rule.md").write_text(f"# Rules\n{rule_text}\n")
+    if table is not None:
+        path = tmp_path / config.Config().decisions
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(table)
+    return checks.check_decisions()
+
+
+def row(literal="shared rate limits", status="active", extra="") -> str:
+    return ROW.format(literal=literal, status=status, extra=extra)
+
+
+def test_decisions_present_literal_passes_and_counts_rows(tmp_path, monkeypatch):
+    ran = decisions(tmp_path, monkeypatch, row() + row().replace('"D01"', '"D02"'))
+    assert ran.ok and ran.checked == 2 and not ran.warnings and not ran.problems
+
+
+def test_decisions_literal_matches_across_a_line_wrap(tmp_path, monkeypatch):
+    ran = decisions(tmp_path, monkeypatch, row(), rule_text="never curl: shared rate\n  limits apply")
+    assert ran.ok and not ran.warnings
+
+
+def test_decisions_missing_literal_warns_naming_the_row(tmp_path, monkeypatch):
+    ran = decisions(tmp_path, monkeypatch, row(), rule_text="never curl these APIs")
+    assert ran.ok and ran.checked == 1
+    (warning,) = ran.warnings
+    assert "D01" in warning and "shared rate limits" in warning and "docs/rule.md" in warning
+
+
+def test_decisions_missing_path_warns(tmp_path, monkeypatch):
+    table = row().replace("docs/rule.md", "docs/gone.md")
+    ran = decisions(tmp_path, monkeypatch, table)
+    assert ran.ok and len(ran.warnings) == 1 and "D01" in ran.warnings[0] and "docs/gone.md" in ran.warnings[0]
+
+
+def test_decisions_superseded_row_is_not_checked_for_its_literal(tmp_path, monkeypatch):
+    """The reversal is explicit: the PR that drops the reason flips the row to superseded, and the warning stops."""
+    old = row(literal="shared, cached client", status="superseded", extra='by = "D02"')
+    new = row().replace('"D01"', '"D02"')
+    ran = decisions(tmp_path, monkeypatch, old + new)
+    assert ran.ok and ran.checked == 2 and not ran.warnings
+
+
+@pytest.mark.parametrize(
+    ("table", "needle"),
+    [
+        ("[[decision]\n", "does not parse"),
+        (row(status="maybe"), "status"),
+        (row(status="superseded"), "by"),
+        (row(status="superseded", extra='by = "D99"'), "D99"),
+        (row(literal="one two three four five six"), "5 words"),
+        (row(literal=""), "literal"),
+        (row().replace('rule = "Never curl the index APIs."\n', ""), "rule"),
+        (row().replace('why = "https://github.com/o/r/issues/1"\n', ""), "why"),
+        (row(extra='colour = "red"'), "colour"),
+        (row() + row(), "duplicate"),
+        (row().replace(ENFORCED, "[]"), "enforced-by"),
+        (row().replace(ENFORCED, '["docs/rule.md"]'), "enforced-by"),
+        ("decision = []\n", "zero rows"),
+        ('decision = "x"\n', "decision"),
+    ],
+)
+def test_decisions_bad_schema_fails(tmp_path, monkeypatch, table, needle):
+    ran = decisions(tmp_path, monkeypatch, table)
+    assert not ran.ok
+    assert any(needle in p for p in ran.problems), ran.problems
+
+
+@pytest.mark.parametrize("table", [None, "", "# Decisions: none yet.\n"])
+def test_decisions_missing_or_header_only_table_is_not_configured_not_a_failure(tmp_path, monkeypatch, table):
+    ran = decisions(tmp_path, monkeypatch, table)
+    assert ran.ok and ran.checked == 0
+    assert any("not configured" in n or "no decisions" in n for n in ran.notes)
+
+
+def test_decisions_index_renders_rows_and_only_when_the_table_exists(tmp_path, monkeypatch):
+    from devkit import docs
+
+    monkeypatch.setattr(docs, "root", lambda: tmp_path)
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    assert docs.decisions_index() is None
+    path = tmp_path / config.Config().decisions
+    path.parent.mkdir(parents=True)
+    path.write_text("# none yet\n")
+    assert "No decisions" in docs.decisions_index()
+    path.write_text(row() + row(status="superseded", extra='by = "D01"').replace('id = "D01"', 'id = "D00"'))
+    out = docs.decisions_index()
+    assert "| D01 |" in out and "Never curl the index APIs." in out and "superseded by D01" in out
+    assert "`shared rate limits`" in out and "docs/rule.md" in out
+
+
+def test_the_shipped_decision_tables_pass_with_short_literals():
+    from devkit.paths import root
+
+    for rel, rows in ((".devkit/decisions.toml", 6), ("template/.devkit/decisions.toml", 0)):
+        text = (root() / rel).read_text()
+        problems, parsed = checks.decision_rows(text)
+        assert problems == [] and len(parsed) == rows, (rel, problems)
+    ran = checks.check_decisions()
+    assert ran.ok and ran.checked == 6 and not ran.warnings, ran.warnings
