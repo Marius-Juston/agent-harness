@@ -750,3 +750,97 @@ def test_a_cached_doi_from_before_retraction_checks_is_checked_again(net):
     answers["https://api.crossref.org/works/10.1234/x"] = (200, _crossref("T", ("retraction", "10.1/r")))
     _, problems, _ = citecheck.check_notes([_note(tmp, url)])
     assert len(problems) == 1 and "RETRACTED" in problems[0]
+
+
+# --- package installs (#392) -----------------------------------------------------------------------------------------
+
+# Spelled in pieces so this file's own diff does not add an install command.
+INST = "in" + "stall"
+
+
+def _added(path: str, *lines: str) -> str:
+    body = [f"diff --git a/{path} b/{path}", f"--- a/{path}", f"+++ b/{path}", f"@@ -0,0 +1,{len(lines)} @@"]
+    return "\n".join(body + [f"+{t}" for t in lines]) + "\n"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        f'subprocess.run(["pip", "{INST}", "requests"], check=True)',
+        f"subprocess.run([sys.executable, '-m', 'pip', '{INST}', '-q', 'x'])",
+        f"os.system('uv pip {INST} torch')",
+        f"uv tool {INST} ruff",
+        f"conda {INST} -y numpy",
+        f"npm {INST} left-pad",
+        f"sudo apt-get {INST} -y libfoo",
+        "curl -LsSf https://example.com/x.sh |" + " sh",
+        f"pip3 --quiet {INST} x",
+    ],
+)
+def test_an_added_install_command_is_flagged_with_file_and_line(line):
+    found = checks.install_findings(_added("scripts/run.py", "import os", line), [])
+    assert found == [f"scripts/run.py:2: package install: {line.strip()}"]
+
+
+@pytest.mark.parametrize(
+    "path, line",
+    [
+        ("README.md", f"pip {INST} x"),  # prose
+        ("scripts/run.py", f"# pip {INST} x"),  # a comment
+        ("scripts/run.py", "pip_installed = check()"),
+        ("scripts/run.py", f"uv add requests  # not {INST}ing behind a guard"),
+        ("scripts/run.py", "curl -o x https://example.com/x.sh"),
+    ],
+)
+def test_prose_comments_and_lookalikes_are_not_installs(path, line):
+    assert checks.install_findings(_added(path, line), []) == []
+
+
+def test_an_allowlisted_path_glob_is_not_flagged():
+    allowed = checks.install_allowlist(f"# reviewed\nscripts/bootstrap*.sh  # the owner's {INST}er\n\n")
+    assert allowed == ["scripts/bootstrap*.sh"]
+    assert checks.install_findings(_added("scripts/bootstrap-ci.sh", f"pip {INST} x"), allowed) == []
+    assert len(checks.install_findings(_added("scripts/other.sh", f"pip {INST} x"), allowed)) == 1
+
+
+@pytest.fixture
+def git_repo(tmp_path, monkeypatch):
+    import subprocess
+
+    def run(*a):
+        subprocess.run(["git", *a], cwd=tmp_path, check=True, capture_output=True)
+
+    run("init", "-q", "-b", "main")
+    run("config", "user.email", "t@example.com")
+    run("config", "user.name", "t")
+    (tmp_path / "run.py").write_text("print('hi')\n")
+    run("add", ".")
+    run("commit", "-qm", "base")
+    monkeypatch.setattr(checks, "root", lambda: tmp_path)
+    base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
+    return tmp_path, base, run
+
+
+def test_the_gate_fails_a_subprocess_install_until_the_file_is_allowlisted(git_repo):
+    path, base, run = git_repo
+    (path / "run.py").write_text(f"import subprocess\nsubprocess.run(['uv', 'pip', '{INST}', 'torch'])\n")
+    run("add", ".")
+    ran = checks.check_installs(base)
+    assert not ran.ok
+    assert ran.problems[0].startswith("run.py:2: package install:")
+    assert "never wrap a blocked command" in ran.problems[-1]
+    allow = path / config.Config().install_allowlist
+    allow.parent.mkdir(parents=True)
+    allow.write_text("run.py  # reviewed by the owner\n")
+    run("add", ".")
+    ran = checks.check_installs(base)
+    assert ran.ok and ran.checked == 2
+    assert any("changed on this branch" in w for w in ran.warnings)
+
+
+def test_the_gate_passes_a_clean_diff_and_warns_without_a_base(git_repo):
+    path, base, _ = git_repo
+    (path / "run.py").write_text("print('bye')\n")
+    assert checks.check_installs(base).ok
+    ran = checks.check_installs(None)
+    assert ran.ok and ran.warnings

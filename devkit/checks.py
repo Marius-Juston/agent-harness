@@ -6,6 +6,7 @@ Each check returns a `Ran` (devkit/ran.py): how much it examined and what it fou
 `[tool.devkit]` (devkit/config.py). Prose may *point* at those facts; these checks fail when a pointer dangles.
 """
 
+import fnmatch
 import json
 import re
 import subprocess
@@ -597,6 +598,65 @@ def check_generated(render: dict[str, str]) -> Ran:
         path = root() / rel
         if not path.exists() or path.read_text() != content:
             ran.problems.append(f"{rel} is stale: run `uv run dev docs` and commit it")
+    return ran
+
+
+# A package install a worker could wrap in a script or subprocess to get past a denied `Bash(pip install*)` or a
+# guard (#392): pip / uv pip / uv tool, conda and its kin, npm/pnpm/yarn, system package managers, and a piped
+# installer. Matched after quotes, commas and brackets become spaces, so `["pip", "install"]` reads as `pip install`.
+INSTALL = re.compile(
+    r"\b(?:pip3?|conda|mamba|micromamba|apt|apt-get|brew|gem|cargo)(?:\s+--?[\w=.-]+)*\s+install\b"
+    r"|\buv\s+tool\s+install\b|\b(?:npm|pnpm)\s+(?:install|i|add)\b|\byarn\s+(?:global\s+)?add\b"
+    r"|\b(?:curl|wget)\b[^|]*\|\s*(?:sudo\s+)?(?:bash|dash|zsh|sh)\b"
+)
+INSTALL_PUNCT = re.compile(r"[\"'`,()\[\]{}]")
+PROSE_SUFFIXES = (".md", ".rst", ".txt", ".md.jinja", ".rst.jinja")
+
+
+def install_allowlist(text: str) -> list[str]:
+    """Path globs of an install allowlist: one per line, `#` starts a comment (the reason)."""
+    return [g for line in text.splitlines() if (g := line.split("#", 1)[0].strip())]
+
+
+def install_findings(diff: str, allowed: list[str]) -> list[str]:
+    """file:line of each added line of code or script in a `git diff -U0` that runs a package install, outside the
+    allowlisted path globs. Prose files are skipped; a line-level heuristic, so a command split over lines escapes."""
+    from devkit.weaken import parse  # weaken imports this module
+
+    out = []
+    for f in parse(diff):
+        if not f.new or f.new.endswith(PROSE_SUFFIXES) or any(fnmatch.fnmatch(f.new, g) for g in allowed):
+            continue
+        for ln in f.added:
+            code = ln.text.split("#", 1)[0]
+            if INSTALL.search(INSTALL_PUNCT.sub(" ", code)):
+                out.append(f"{ln.path}:{ln.number}: package install: {ln.text.strip()}")
+    return out
+
+
+def check_installs(base: str | None) -> Ran:
+    """No added code or script runs a package install: installs go to the owner, and wrapping a denied command in a
+    script or subprocess is the shortcut this catches. A reviewed case is a path glob in the install allowlist."""
+    ran = Ran("package installs in code and scripts", allow_empty=True)
+    if not base:
+        ran.warnings.append("no merge base with main: added install commands not checked")
+        return ran
+    listed = config.get().install_allowlist
+    try:
+        allowed = install_allowlist((root() / listed).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        allowed = []
+    diff = git("diff", "-M", "-U0", "--no-color", "--no-ext-diff", base, cwd=root())
+    files = [line for line in diff.splitlines() if line.startswith("diff --git ")]
+    ran.checked = len(files)
+    if any(line.endswith(f" b/{listed}") for line in files):
+        ran.warnings.append(f"{listed} changed on this branch: the reviewer checks each new entry")
+    if found := install_findings(diff, allowed):
+        ran.problems += found
+        ran.problems.append(
+            "installs go to the owner: never wrap a blocked command in a script or subprocess. Ask the lead, or, once"
+            f" the owner reviewed it, list the file in {listed} as `<path glob>  # reason`"
+        )
     return ran
 
 
