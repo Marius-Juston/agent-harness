@@ -2,10 +2,12 @@
 the paths the checks read."""
 
 import json
+import re
+import sys
 
 import pytest
 
-from devkit import checks, config, quota
+from devkit import checks, cli, config, paths, quota
 
 
 def test_an_empty_table_gives_the_template_defaults():
@@ -38,6 +40,10 @@ def test_an_empty_table_gives_the_template_defaults():
         ({"regenerate": ["uv", "run", "rehash"]}, "list of arguments"),
         ({"regenerate": [[]]}, "list of arguments"),
         ({"regenerate": [["uv", ""]]}, "list of arguments"),
+        ({"commands": {"coverage": "python -m study.coverage"}}, "list of arguments"),
+        ({"commands": {"coverage": []}}, "list of arguments"),
+        ({"commands": {"Cover age": ["python"]}}, "command name"),
+        ({"commands": {"-x": ["python"]}}, "command name"),
     ],
 )
 def test_a_typo_or_a_wrong_type_is_an_error_not_a_default(data, match):
@@ -112,8 +118,6 @@ def test_a_note_without_a_search_coverage_line_fails_the_note_check(monkeypatch,
 
 
 def test_the_new_note_template_has_a_search_coverage_line():
-    from devkit import cli
-
     assert "\nSearch coverage: " in cli.NOTE_TEMPLATE
 
 
@@ -126,3 +130,42 @@ def test_research_skill_researcher_and_template_require_discovery_check_and_cove
         text = (plugin / rel).read_text()
         assert "uv run dev lit search" in text and "DEGRADED" in text and "Search coverage" in text, rel
     assert "Search coverage" in (root() / "template/docs/research/README.md").read_text()
+
+
+# #492: `[tool.devkit] commands` adds a project's own subcommands under `dev`.
+ECHO = [sys.executable, "-c", "import os, sys; print(os.getcwd()); print(sys.argv[1:]); sys.exit(int(sys.argv[-1]))"]
+
+
+def _commands(monkeypatch, commands):
+    monkeypatch.setattr(config, "get", lambda: config.parse({"commands": commands}))
+
+
+@pytest.mark.parametrize("code", [0, 3])
+def test_a_project_command_runs_in_the_root_with_its_args_and_exit_code(monkeypatch, capfd, code):
+    _commands(monkeypatch, {"coverage": ECHO})
+    rest = ["--json", "-h", "--", "x y", str(code)]
+    monkeypatch.setattr("sys.argv", ["dev", "coverage", *rest])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == code
+    cwd, args = capfd.readouterr().out.splitlines()
+    assert cwd == str(paths.root()) and args == repr(rest)  # every argument as given, `--` and `-h` included
+
+
+def test_a_project_command_named_like_a_built_in_is_a_config_error(monkeypatch, capsys):
+    _commands(monkeypatch, {"check": ECHO})
+    with pytest.raises(config.ConfigError, match="'check' shadows a built-in"):
+        cli.build()
+    monkeypatch.setattr("sys.argv", ["dev", "--help"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 1 and "shadows a built-in" in capsys.readouterr().err
+
+
+def test_dev_help_lists_project_commands_and_the_doc_checks_accept_them(monkeypatch):
+    _commands(monkeypatch, {"coverage": ["python", "-m", "study.coverage"]})
+    assert re.search(r"coverage +project: python -m study.coverage", cli.build().format_help())
+    assert ("coverage", "project: python -m study.coverage") in cli.command_help()
+    assert cli.command_map()["coverage"] == set()
+    parser = checks.loosen(cli.build())
+    assert checks.span_problem(parser, cli.command_map(), "coverage", " --json units") is None

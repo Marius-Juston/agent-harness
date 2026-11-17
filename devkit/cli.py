@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import subprocess
 import sys
 import time
 from datetime import date
@@ -368,6 +369,13 @@ def build() -> argparse.ArgumentParser:
         metavar="K",
         help="seeds for fresh-clone reruns: whole suite at tier S, history suspects above (default: 5 or 10)",
     )
+    for name, argv in config.get().commands.items():
+        if name in sub.choices:
+            raise config.ConfigError(f"[tool.devkit.commands] {name!r} shadows a built-in `dev {name}`: rename it")
+        # Every argument is the command's: no option prefix, no -h, so `--json`, `-h` and `--` reach it (parse()
+        # hands them over verbatim). The parser entry is for `dev --help` and for the doc checks reading `dev <name>`.
+        x = sub.add_parser(name, help=f"project: {' '.join(argv)}", add_help=False, prefix_chars="\0")
+        x.add_argument("args", nargs="*")
     return p
 
 
@@ -525,6 +533,8 @@ def run(a: argparse.Namespace) -> int:
             print(stats.run(a.mode, a.since, a.until, a.json) if a.mode else stats.report(a.json))
         case "consolidation":
             return run_consolidation(a)
+        case name if name in config.get().commands:
+            return subprocess.run([*config.get().commands[name], *a.args], cwd=root(), check=False).returncode
     return 0
 
 
@@ -683,6 +693,9 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     """build()'s arguments. `dev reuse check --json a b`: argparse ends the `need` list at the first option, so the
     names after it come back unrecognised; they are names too (#175). Any other leftover is still an error."""
     p = build()
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] in config.get().commands:  # argparse would drop a `--`: a project command gets argv verbatim
+        return argparse.Namespace(cmd=argv[0], args=argv[1:])
     args, extra = p.parse_known_args(argv)
     if extra and args.cmd == "reuse" and not any(e.startswith("-") for e in extra):
         args.need += extra
@@ -693,9 +706,8 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main() -> None:
     os.environ.update(pin_git_output(os.environ))  # every git devkit starts prints what it parses (paths.GIT_PINNED)
-    args = parse()
     try:
-        sys.exit(run(args))
+        sys.exit(run(parse()))  # parse() too: a bad `[tool.devkit.commands]` fails build() with a ConfigError
     except (board.BoardError, config.ConfigError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         sys.exit(1)
