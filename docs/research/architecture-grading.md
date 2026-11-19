@@ -123,7 +123,7 @@ BELIEVED, on generality: the hotspot and the LOC ceiling need only git and the l
 
 ## 7. Recommendation for this project
 All BELIEVED, built from §3-§6; numbers are this repository's and need recalibration elsewhere (#125).
-1. **`uv run dev arch`**, deterministic, at most 8 lines (plus `--json`), each with the number that triggered it:
+1. **`dev arch` (proposed)**, deterministic, at most 8 lines (plus `--json`), each with the number that triggered it:
    - `contracts: 2 kept` or `contracts: BROKEN acyclic: cut checks -> cli` (one line per edge to cut, at most 3), only when `[tool.importlinter]` exists, running a pinned `import-linter==2.15` through `uvx`;
    - `largest import cycle: N modules (ratchet M)` from the existing regex graph;
    - `hotspots (first-parent commits since the last review, last 30) x LOC:` the top 3 as `path churn x loc`, churn counted from the `Consolidation-Review:` base;
@@ -137,7 +137,7 @@ All BELIEVED, built from §3-§6; numbers are this repository's and need recalib
 Inline links above, fetched 2026-11-19 through `dev lit get`, the arXiv MCP (abstracts; §10.1 of 2007.12520 read as text), WebFetch (CodeScene, Thoughtworks) and WebSearch (SonarQube). Earlier sources reused from [architecture-consolidation.md](architecture-consolidation.md) are cited there. Scripts: [history.py](_scratch/architecture-grading/scripts/history.py), [analyse.py](_scratch/architecture-grading/scripts/analyse.py), [ci.py](_scratch/architecture-grading/scripts/ci.py), [trigger_replay.py](_scratch/architecture-grading/scripts/trigger_replay.py), [head_lines.py](_scratch/architecture-grading/scripts/head_lines.py), [importlinter.toml](_scratch/architecture-grading/scripts/importlinter.toml); `history.py` needs `.scratch/arch_issues.json` from `gh issue list --state all --limit 1000 --json number,labels,title,createdAt`.
 
 ## Follow-ups
-- [ ] #527 Build `dev arch`, the report of §7 item 1. DONE WHEN `uv run dev arch` prints at most 8 lines, a test on a fixture repository checks each line, and run at b8e2e49 it lists devkit/workflow.py first among hotspots and reports the `checks -> cli` cycle.
+- [ ] #527 Build `dev arch`, the report of §7 item 1. DONE WHEN `dev arch` (proposed) prints at most 8 lines, a test on a fixture repository checks each line, and run at b8e2e49 it lists devkit/workflow.py first among hotspots and reports the `checks -> cli` cycle.
 - [ ] #529 Build the `arch` gate stage and adopt the contracts (§7 items 2-3). DONE WHEN the gate fails on a seeded change that adds `from devkit import cli` inside a function in devkit/checks.py, fails when a module crosses the LOC ceiling without an owner-approved raise, passes on main, and the rendered template carries the commented contracts.
 - [ ] #125 Recalibrate the trigger on longer histories, including first-parent `churny` counts (§7 item 4). DONE WHEN #125's own DONE WHEN holds.
 - [ ] #510 Per-language import graphs for contracts and cycles beyond Python. DONE WHEN #510's own DONE WHEN holds.
