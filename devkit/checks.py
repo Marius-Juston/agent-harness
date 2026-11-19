@@ -12,7 +12,9 @@ import fnmatch
 import json
 import re
 import shlex
+import shutil
 import subprocess
+import tempfile
 import tomllib
 import warnings
 from collections.abc import Callable
@@ -857,10 +859,7 @@ def install_findings(diff: str, allowed: list[str], read: Callable[[str], str | 
 
 
 def _new_text(rel: str) -> str | None:
-    try:
-        return (root() / rel).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None
+    return _read(root(), rel)
 
 
 def check_installs(base: str | None) -> Ran:
@@ -886,6 +885,122 @@ def check_installs(base: str | None) -> Ran:
             "installs go to the owner: never wrap a blocked command in a script or subprocess. Ask the lead, or, once"
             f" the owner reviewed it, list the file in {listed} as `<path glob>  # reason`"
         )
+    return ran
+
+
+CLONE_TYPES = (1, 2)  # architecture-consolidation.md §6: type-4 pairs were mostly look-alike validators and rows
+CLONE_NEW_SHARE = 0.5  # a fragment at least this share added lines is new code; its twin must have none
+CLONE_TIMEOUT = 300
+
+
+def added_lines(diff: str) -> dict[str, set[int]]:
+    """New path -> line numbers a `git diff -U0` adds there."""
+    return {f.new: {ln.number for ln in f.added} for f in parse(diff) if f.new and f.added}
+
+
+def new_clone_pairs(pairs: list[dict], added: dict[str, set[int]], read: Callable[[str], str | None]) -> list[str]:
+    """Clone pairs (pyscn's `clone_pairs` JSON) where new code copies existing code: one fragment is mostly added lines,
+    its twin has none, the pair is type 1 or 2 (identical up to layout or names), and the new fragment is no `class`
+    body (declarative boilerplate such as row classes). A fragment inside a wider reported one is the same copy and
+    is not repeated. A reusable detector: no I/O beyond `read` (path -> text)."""
+    kept: list[tuple[dict, dict, dict]] = []
+
+    def share(loc: dict) -> float:
+        lines = range(loc["start_line"], loc["end_line"] + 1)
+        mine = added.get(loc["file_path"], set())
+        return sum(n in mine for n in lines) / len(lines)
+
+    for p in pairs:
+        if p.get("type") not in CLONE_TYPES:
+            continue
+        a, b = p["clone1"]["location"], p["clone2"]["location"]
+        sa, sb = share(a), share(b)
+        if sa >= CLONE_NEW_SHARE and sb == 0:
+            new, old = a, b
+        elif sb >= CLONE_NEW_SHARE and sa == 0:
+            new, old = b, a
+        else:
+            continue
+        text = (read(new["file_path"]) or "").splitlines()
+        first = text[new["start_line"] - 1].strip() if new["start_line"] <= len(text) else ""
+        if not first.startswith("class "):
+            kept.append((new, old, p))
+    out: list[str] = []
+    seen: list[dict] = []
+    for new, old, p in sorted(kept, key=lambda k: k[0]["start_line"] - k[0]["end_line"]):  # widest first
+        if any(
+            s["file_path"] == new["file_path"]
+            and s["start_line"] <= new["start_line"]
+            and new["end_line"] <= s["end_line"]
+            for s in seen
+        ):
+            continue
+        seen.append(new)
+        out.append(
+            f"{new['file_path']}:{new['start_line']}-{new['end_line']} copies {old['file_path']}:{old['start_line']}-"
+            f"{old['end_line']} (type-{p['type']}, similarity {p.get('similarity', 0):.2f})"
+        )
+    return sorted(out)
+
+
+def pyscn_pairs(cwd: Path, files: list[str]) -> list[dict]:
+    """pyscn's clone pairs over `files` (relative to `cwd`), with the pinned pyscn. RuntimeError when it cannot run."""
+    from devkit.consolidation import PYSCN  # one pin for the report and the gate
+
+    if not shutil.which("uvx"):
+        raise RuntimeError("uvx not found")
+    with tempfile.TemporaryDirectory(prefix="devkit_clones_") as tmp:
+        js = Path(tmp) / "clones.json"
+        cmd = ["uvx", PYSCN, "analyze", "--select", "clones", "--json", "--no-open", "--output", str(js), *files]
+        try:
+            res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=CLONE_TIMEOUT, check=False)
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError(f"pyscn took over {CLONE_TIMEOUT} s") from e
+        try:
+            return json.loads(js.read_text())["clone"]["clone_pairs"] or []
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            tail = (res.stderr or res.stdout).strip().splitlines()[-1:] or ["no output"]
+            raise RuntimeError(f"pyscn failed (exit {res.returncode}): {tail[0]}") from e
+
+
+def clone_findings(repo: Path, base: str) -> tuple[int, list[str]]:
+    """(Python files the change adds lines to, new-vs-existing clone pairs) for the working tree of `repo` against
+    `base`. Untracked files count as wholly added. pyscn runs only when the change adds Python lines."""
+    diff = git("diff", "-M", "-U0", "--no-color", base, "--", "*.py", cwd=repo)
+    added = added_lines(diff)
+    for rel in git("ls-files", "--others", "--exclude-standard", "--", "*.py", cwd=repo).splitlines():
+        text = _read(repo, rel)
+        if text:
+            added[rel] = set(range(1, text.count("\n") + 2))
+    if not added:
+        return 0, []
+    files = sorted(
+        set(git("ls-files", "--cached", "--others", "--exclude-standard", "--", "*.py", cwd=repo).splitlines())
+    )
+    files = [f for f in files if f and (repo / f).is_file()]
+    return len(added), new_clone_pairs(pyscn_pairs(repo, files), added, lambda rel: _read(repo, rel))
+
+
+def _read(repo: Path, rel: str) -> str | None:
+    try:
+        return (repo / rel).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def check_clones(base: str | None) -> Ran:
+    """Warn when the change adds a copy of existing code, naming both places so the fix is to import the old one. It
+    never fails the gate: the backtest found 6 of 7 such warnings actionable (architecture-consolidation.md §6)."""
+    ran = Ran("copies of existing code (pyscn clones, warning only)", allow_empty=True)
+    if not base:
+        ran.warnings.append("no merge base with main: new clones not checked")
+        return ran
+    try:
+        ran.checked, found = clone_findings(root(), base)
+    except RuntimeError as e:
+        ran.warnings.append(f"clone check skipped: {e}")
+        return ran
+    ran.warnings += [f"{f}: reuse the existing code instead of a copy" for f in found]
     return ran
 
 
