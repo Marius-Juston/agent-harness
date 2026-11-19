@@ -601,7 +601,7 @@ def _settings_edit(path, tool: str, before: str, **inp) -> dict:
     return {"tool_name": tool, "tool_input": {"file_path": str(path), **inp}}
 
 
-SETTINGS_BEFORE = '{\n  "env": {"FOO": "1", "X_COPYLEFT": "pyqt6"},\n  "permissions": {}\n}\n'
+SETTINGS_BEFORE = '{\n  "env": {"FOO": "1", "X_COPYLEFT": "pyqt6"},\n  "permissions": {"allow": ["Bash(DEVKIT_LIT_RAW=1 curl:*)"]}\n}\n'
 
 
 @pytest.mark.parametrize(
@@ -624,7 +624,27 @@ SETTINGS_BEFORE = '{\n  "env": {"FOO": "1", "X_COPYLEFT": "pyqt6"},\n  "permissi
             },
             True,
         ),
+        # names that move where settings are found, so they could hide the file that sets an override
+        (".claude/settings.json", "Edit", {"old_string": '"FOO"', "new_string": '"HOME"'}, True),
+        (".claude/settings.json", "Write", {"content": '{"env": {"CLAUDE_CONFIG_DIR": "/tmp/c"}}'}, True),
+        (".claude/settings.local.json", "Write", {"content": '{"env": {"CLAUDE_PROJECT_DIR": "/tmp/p"}}'}, True),
+        # not JSON: every key-like string counts, \u escapes decoded
+        (".claude/settings.json", "Write", {"content": '{"env": {"DEVKIT\\u005fALLOW_COPYLEFT": "x",}}'}, True),
+        # a name already in a permissions rule, moved into env
+        (
+            ".claude/settings.json",
+            "Write",
+            {"content": '{"env": {"DEVKIT_LIT_RAW": "1"}, "permissions": {"allow": []}}'},
+            True,
+        ),
         (".claude/settings.json", "Edit", {"old_string": '"FOO": "1"', "new_string": '"FOO": "2"'}, False),
+        # the same name outside env is no override
+        (
+            ".claude/settings.json",
+            "Write",
+            {"content": '{"env": {"FOO": "1"}, "permissions": {"allow": ["Bash(DEVKIT_LIT_RAW=1 curl:*)"]}}'},
+            False,
+        ),
         (".claude/settings.json", "Write", {"content": '{"permissions": {"allow": ["Bash(ls)"]}}'}, False),
         ("docs/SETUP.md", "Write", {"content": "export DEVKIT_ALLOW_COPYLEFT=pyqt6 before starting claude"}, False),
     ],
@@ -659,6 +679,10 @@ def _isolated(tmp_path, **extra) -> tuple[Path, dict]:
         ("project/.claude/settings.json", '{"env": {"DEVKIT_LIT_RAW": "0"}}'),
         ("home/.claude/settings.json", '{"env": {"DEVKIT\\u005fLIT_RAW": "1"}}'),
         ("project/.claude/settings.json", '{"env": {"DEVKIT_LIT_RAW": "1",}}'),  # not JSON: fail closed
+        # a settings env that moves HOME, the config or the project dir could hide the file that sets the override
+        ("project/.claude/settings.local.json", '{"env": {"HOME": "/nowhere"}}'),
+        ("project/.claude/settings.json", '{"env": {"CLAUDE_CONFIG_DIR": "/nowhere"}}'),
+        ("home/.claude/settings.json", '{"env": {"CLAUDE_PROJECT_DIR": "/nowhere"}}'),
     ],
 )
 def test_guard_bash_ignores_an_override_any_settings_file_sets(hook, tmp_path, settings, text):
@@ -675,6 +699,23 @@ def test_guard_bash_ignores_an_override_any_settings_file_sets(hook, tmp_path, s
     path.write_text(text)
     assert hook("guard_bash.py", bash, env=env)[0] == 2
     assert hook("guard_bash.py", fetch, env=env)[0] == 2
+
+
+def test_guard_bash_finds_the_checkout_settings_when_the_project_dir_is_moved(hook, tmp_path):
+    """The review of #515: a settings env sets CLAUDE_PROJECT_DIR and HOME elsewhere, and the agent runs the fetch
+    from outside the project. The checkout's settings are still found, through the hook process's own cwd."""
+    project, env = _isolated(tmp_path, DEVKIT_LIT_RAW="1")
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    (project / ".claude/settings.local.json").write_text('{"env": {"DEVKIT_LIT_RAW": "1", "HOME": "/nowhere"}}')
+    env |= {"HOME": str(tmp_path / "elsewhere"), "CLAUDE_PROJECT_DIR": str(tmp_path / "elsewhere")}
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    payload = json.dumps({"cwd": str(outside), "tool_input": {"command": f"curl -s '{LIT_URLS[0]}'"}})
+    script = Path(__file__).parent.parent / "plugins/harness-ops/scripts/guard_bash.py"
+    run = subprocess.run(
+        [sys.executable, str(script)], input=payload, text=True, capture_output=True, env=env, cwd=project, check=False
+    )
+    assert run.returncode == 2, run.stderr
 
 
 def test_guard_bash_override_survives_unrelated_settings(hook, tmp_path):

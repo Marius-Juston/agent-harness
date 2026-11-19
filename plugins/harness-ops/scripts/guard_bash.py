@@ -81,6 +81,9 @@ LIT_RAW = "DEVKIT_LIT_RAW"
 # Environment the guards read (#191). The first two switch a guard off, so they count only from the environment
 # Claude Code started in (owner_env); edit_guard refuses agent edits that put any of them in a settings file.
 OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE")
+# Names that move where settings files are found: a settings `env` setting one could hide the file that sets an
+# override, so owner_env ignores every override while one is set, and edit_guard refuses adding them as well.
+LOCATORS = ("HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_PROJECT_DIR")
 FETCHERS = {"curl", "wget"}
 CAP_FILE = "devkit/quota_cap"  # under the git common dir: `dev quota-cap`'s machine-local override
 CAP_READERS = {"cat", "head", "tail", "ls", "stat", "wc", "test", "[", "[[", "file"}
@@ -382,39 +385,82 @@ def lex(text: str) -> list[list[Simple]]:
 
 
 def settings_files(cwd: str) -> list[str]:
-    """Every Claude Code settings file that could feed this session's `env`: .claude/settings{,.local}.json in the
-    cwd, the project directory and each of their parents (the user's ~/.claude among them), and $CLAUDE_CONFIG_DIR."""
+    """Every Claude Code settings file that could feed this session's `env`: .claude/settings{,.local}.json in each
+    directory from the cwd, the git checkout (and its main checkout), the user's home and the project directory up
+    to /, and in $CLAUDE_CONFIG_DIR. Home and checkout are found without the environment as well, since a settings
+    `env` block could point HOME or CLAUDE_PROJECT_DIR elsewhere."""
+    starts = [cwd, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR", ""), os.path.expanduser("~")]
+    try:
+        import pwd  # POSIX only
+
+        starts.append(pwd.getpwuid(os.getuid()).pw_dir)
+    except (ImportError, KeyError, AttributeError):
+        pass
+    try:
+        out = subprocess.run(
+            ["git", "-C", cwd, "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        lines = out.stdout.splitlines() if out.returncode == 0 else []
+        starts += lines[:1] + [os.path.dirname(x) for x in lines[1:2]]
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
     dirs: list[str] = []
-    for start in (cwd, os.environ.get("CLAUDE_PROJECT_DIR", ""), os.path.expanduser("~")):
+    for start in starts:
         d = os.path.abspath(start) if start else ""
         while d and d not in dirs:
             dirs.append(d)
             d = os.path.dirname(d) if os.path.dirname(d) != d else ""
-    out = [os.path.join(d, ".claude", f) for d in dirs for f in ("settings.json", "settings.local.json")]
+    files = [os.path.join(d, ".claude", f) for d in dirs for f in ("settings.json", "settings.local.json")]
     if config := os.environ.get("CLAUDE_CONFIG_DIR"):
-        out += [os.path.join(config, f) for f in ("settings.json", "settings.local.json")]
-    return out
+        files += [os.path.join(config, f) for f in ("settings.json", "settings.local.json")]
+    return files
+
+
+JSON_KEY = re.compile(r'"((?:[^"\\]|\\.)*)"\s*:')
+
+
+def unescape(raw: str) -> str:
+    """A JSON string body decoded, so `DEVKIT_LIT_RAW` reads as the name it is; undecodable text as written."""
+    try:
+        return json.loads(f'"{raw}"')
+    except ValueError:
+        return raw
+
+
+def env_keys(text: str) -> set[str]:
+    """The names a settings file's `env` block sets. Text that is not a JSON object fails closed: every key-like
+    string in it counts, since Claude Code's reader may be more lenient than json."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return {unescape(m.group(1)) for m in JSON_KEY.finditer(text)}
+    env = data.get("env") if isinstance(data, dict) else None
+    return {k for k in env if isinstance(k, str)} if isinstance(env, dict) else set()
 
 
 def owner_env(name: str, cwd: str) -> str:
     """An override that switches a guard off, read only where an agent's tools cannot set it (#191).
 
     Claude Code hands a settings file's `env` block to hooks, ahead of the shell it started in (VERIFIED,
-    docs/research/agent-harness.md §12c), and an agent can write those files. So a name set in any settings `env`
-    reads as unset here: the owner sets it in the shell that starts Claude Code."""
+    docs/research/agent-harness.md §12c), and an agent can write those files. So the name reads as unset when any
+    settings `env` sets it, or sets one of LOCATORS (which could hide the file that does): the owner sets it in the
+    shell that starts Claude Code. Unset in the environment, nothing is read, so the usual call costs nothing."""
+    value = os.environ.get(name, "")
+    if not value:
+        return ""
     for path in settings_files(cwd):
         try:
             with open(path, encoding="utf-8", errors="replace") as f:
                 text = f.read()
         except OSError:
             continue
-        try:
-            env = json.loads(text).get("env")
-        except (ValueError, AttributeError):  # not a settings object: fail closed if it names the override
-            env = {name: ""} if name in text else None
-        if isinstance(env, dict) and name in env:  # keys parsed, so a \u-escaped name is caught too
+        if env_keys(text) & {name, *LOCATORS}:
             return ""
-    return os.environ.get(name, "")
+    return value
 
 
 def base(word: str) -> str:
