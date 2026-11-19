@@ -343,39 +343,46 @@ def test_feedback_records_dispositions_on_the_pr(monkeypatch):
     assert fixloop.dispose(7, []) == lines and len(posted) == 1  # no specs: list only, post nothing
 
 
+def _github(monkeypatch, posted, fail=False):
+    """The GitHub edge of the disposition commands: the PR's reviews, the gh user, its marked comments, a post."""
+
+    def marked(pr, marker):
+        if fail:
+            raise board.BoardError("offline")
+        return [_cm(b) for _, b in posted]
+
+    feedback = {"since": "2026-11-09T00:00:00Z", "head": "", "trusted": set(), "comments": [], "threads": [],
+                "threads_truncated": False, "reviews": _reviews()}  # fmt: skip
+    monkeypatch.setattr(board, "pr_feedback", lambda pr: feedback)
+    monkeypatch.setattr(board, "gh_user", lambda: ME)
+    monkeypatch.setattr(board, "marked_comments", marked)
+    monkeypatch.setattr(board, "comment", lambda n, body: posted.append((n, body)) or "https://x/c1")
+
+
 def test_board_feedback_dispose_on_the_command_line(monkeypatch, capsys):
     from devkit import cli
 
-    seen = []
-    monkeypatch.setattr(fixloop, "dispose", lambda pr, specs: seen.append((pr, specs)) or ["- F1 Blocking: false"])
-    for argv, code in ((["7", "--dispose", "F1=false"], 0), (["7", "--dispose"], 0)):
+    posted = []
+    _github(monkeypatch, posted)
+    for argv in (["7", "--dispose", "F1=false"], ["7", "--dispose"]):
         monkeypatch.setattr("sys.argv", ["dev", "board", "feedback", *argv])
         with pytest.raises(SystemExit) as exc:
             cli.main()
-        assert exc.value.code == code and "F1 Blocking: false" in capsys.readouterr().out
-    assert seen == [(7, ["F1=false"]), (7, [])]
-
-    def bad(pr, specs):
-        raise ValueError("'F9=x': give F<n>=<disposition>")
-
-    monkeypatch.setattr(fixloop, "dispose", bad)
-    monkeypatch.setattr("sys.argv", ["dev", "board", "feedback", "7", "--dispose", "F9=x"])
+        assert exc.value.code == 0 and "F1 Blocking: false" in capsys.readouterr().out
+    assert len(posted) == 1  # the bare --dispose only lists
+    monkeypatch.setattr("sys.argv", ["dev", "board", "feedback", "7", "--dispose", "F9=fixed"])
     with pytest.raises(SystemExit) as exc:
         cli.main()
-    assert exc.value.code == 2 and "F9=x" in capsys.readouterr().err
+    assert exc.value.code == 2 and "no finding F9" in capsys.readouterr().err and len(posted) == 1
 
 
 @pytest.mark.usefixtures("fake_integrate")
 def test_integrate_reminds_the_lead_of_unlabelled_findings_after_a_merge(monkeypatch, capsys):
-    monkeypatch.setattr(workflow, "undisposed_hint", lambda pr: f"reviewer findings without a disposition: F1 (#{pr})")
+    _github(monkeypatch, [])
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     out = capsys.readouterr().out
-    assert out.index("without a disposition: F1 (#7)") < out.index("RESULT: merged PR #7")
-
-    def fails(pr):
-        raise board.BoardError("offline")
-
-    monkeypatch.setattr(workflow, "undisposed_hint", fails)
+    assert out.index("without a disposition: F1, F2, F3, F4") < out.index("RESULT: merged PR #7")
+    _github(monkeypatch, [], fail=True)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0  # the merge stands; only the reminder goes
     assert "reviewer findings not read (offline)" in capsys.readouterr().out
 
