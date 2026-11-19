@@ -10,6 +10,8 @@
 - A pytest run that passed nothing fails (nothing collected, everything skipped or deselected): it is not a pass.
 - The [tests] floors of ratchets.toml hold the run to a passed-test count and a line coverage; diff coverage is
   printed, never gated (docs/research/test-floors-and-coverage.md).
+- The [types] max_diagnostics of ratchets.toml caps ty's diagnostics count and only goes down; without it the ty
+  stage only reports the count.
 - Each gate's test run appends per-test outcome and duration to a bounded history in the machine's state dir (CI
   uploads it as the test-history artifact), so an audit can find flaky and slow tests across runs.
 """
