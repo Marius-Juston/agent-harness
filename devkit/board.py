@@ -1442,6 +1442,9 @@ VERDICT = re.compile(r"Verdict: (merge|send back|reconsider), round (\d+), ([0-9
 # Only the gh user's markers count (agents and integrate act as that user): anyone can comment on a public PR.
 FIX_MARK = re.compile(r"<!-- devkit:fix-loop cycle=(\d+) head=(\S*) key=(\S*) outcome=(\S+) -->")
 FIX_CAP = 3
+# One line per reviewer finding in a disposition comment (#83, devkit/fixloop.py `dispose`): the finding's
+# `<review id>.<bullet>` key and its disposition. Only the gh user's count, as for FIX_MARK.
+DISPOSITION_MARK = re.compile(r"<!-- devkit:disposition id=(\S+) value=(\S+) -->")
 FIX_SHOWN = 80  # lines of the fix-loop comment `brief` shows: its 40 failing lines plus the feedback around them
 
 
@@ -1497,8 +1500,13 @@ def fix_loop_state(comments: list[dict], trusted: Iterable[str]) -> tuple[int, d
 def fix_comments(number: int) -> list[dict]:
     """Every comment on PR `number` that carries the fix-loop marker, oldest first, page by page: the cycle must not
     depend on the last 50 comments `pr_feedback` reads. Shaped like `pr_feedback`'s comments."""
+    return marked_comments(number, "devkit:fix-loop")
+
+
+def marked_comments(number: int, marker: str) -> list[dict]:
+    """Every comment on PR `number` whose body contains `marker`, oldest first, page by page."""
     jq = (
-        '.[] | select(.body | contains("devkit:fix-loop")) '
+        f".[] | select(.body | contains({json.dumps(marker)})) "
         "| {author: {login: .user.login}, body, url: .html_url, createdAt: .created_at}"
     )
     out = gh("api", "--paginate", f"repos/{repo()}/issues/{number}/comments", "--jq", jq)
@@ -1548,7 +1556,9 @@ def pr_feedback_lines(fb: dict) -> list[str]:
     comments = [
         f"- comment {login(c)} {c['createdAt'][:16]}: {text(c['body'])} ({c['url']})"
         for c in fb["comments"]
-        if c["createdAt"] > since and not fix_marked(c, fb.get("trusted", ()))  # fix_before_merge shows those whole
+        if c["createdAt"] > since
+        and not fix_marked(c, fb.get("trusted", ()))  # fix_before_merge shows those whole
+        and not (DISPOSITION_MARK.search(c.get("body") or "") and login(c) in fb.get("trusted", ()))  # bookkeeping
     ]
     out = verdicts + comments + reviews
     for t in fb["threads"]:

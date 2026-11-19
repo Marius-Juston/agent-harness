@@ -40,6 +40,7 @@ from devkit.fixloop import (  # re-exported: devkit/train.py reads these through
     result,
     send_back,
     send_back_conflicting,
+    undisposed_hint,
 )
 from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, holders, tree_key
 from devkit.merging import (  # re-exported: devkit/train.py reads these through devkit.workflow
@@ -926,6 +927,11 @@ def _integrate(
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):
         git("-C", str(main_checkout()), "pull", "--ff-only", check=False)
     print(handoff.after_integrate())  # the board-derived HANDOFF sections (#394); never fails the merge
+    try:  # #83: the lead labels each reviewer finding; a read that fails only skips the reminder
+        if hint := undisposed_hint(pr_number):
+            print(hint)
+    except (board.BoardError, OSError, ValueError, KeyError, TypeError) as exc:
+        print(f"reviewer findings not read ({exc}): `uv run dev board feedback {pr_number} --dispose` lists them")
     print(f"RESULT: merged PR #{pr_number}" + (f"; {', '.join(moved)}" if moved else ""))
     return done(0, "merged", moved=moved, sent_back=sent, **update)
 

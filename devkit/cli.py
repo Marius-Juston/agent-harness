@@ -169,6 +169,13 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("number", type=int)
     x = bs.add_parser("feedback", help="a PR's comments and reviews since its last commit, and its unresolved threads")
     x.add_argument("pr", type=int)
+    x.add_argument(
+        "--dispose",
+        nargs="*",
+        metavar="F<n>=VALUE",
+        help="lead, at integrate: list the reviewer findings, recording each F<n>=fixed|filed|declined|false given "
+        "(rest=VALUE: every finding without one); agent-stats --findings rates the false ones",
+    )
 
     x = sub.add_parser("pr", help="worker: push the gated branch, open the PR, move the item to review")
     x.add_argument("number", type=int)
@@ -351,6 +358,13 @@ def build() -> argparse.ArgumentParser:
     g.add_argument("--reviews", dest="mode", action="store_const", const="reviews", help="review rounds per role")
     g.add_argument(
         "--misses", dest="mode", action="store_const", const="misses", help="candidate post-merge defect pairs"
+    )
+    g.add_argument(
+        "--findings",
+        dest="mode",
+        action="store_const",
+        const="findings",
+        help="false-finding rate of reviewer findings, from the dispositions recorded on merged PRs (GitHub only)",
     )
     x.add_argument("--since", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or after")
     x.add_argument("--until", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or before")
@@ -658,6 +672,12 @@ def run_board(a: argparse.Namespace) -> int:
             print("\n".join(board.event(a.name, json.loads(Path(a.payload).read_text()))) or "nothing to move")
         case "brief":
             print(board.brief(a.number))
+        case "feedback" if a.dispose is not None:
+            try:
+                print("\n".join(fixloop.dispose(a.pr, a.dispose)))
+            except ValueError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 2
         case "feedback":
             print(
                 "\n".join(board.pr_feedback_lines(board.pr_feedback(a.pr))) or "no new comments, no unresolved threads"
