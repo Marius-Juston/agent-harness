@@ -1,0 +1,4 @@
+493 {'pre': 79, 'lock': 63, 'gate': 918, 'standin': 21, 'post': 40}
+500 {'pre': 15, 'lock': 16, 'gate': 73, 'standin': 22, 'post': 359}
+504 {'pre': 15, 'lock': 0, 'gate': 52, 'standin': 23, 'post': 251}
+loop wall 1946 s; {'pre': '109 s (6%)', 'lock': '79 s (4%)', 'gate': '1043 s (54%)', 'standin': '66 s (3%)', 'post': '650 s (33%)'}
