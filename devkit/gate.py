@@ -4,6 +4,7 @@
   integrate's gate goes ahead of the queued worker gates.
 - A pass is cached by tree_key: re-gating an unchanged clean tree is free; a dirty tree is never cached. The pass
   also records the test selection, so a conftest that narrows collection by branch cannot lend its pass to another.
+  recorded_pass is the one test of a recorded pass, for this cache and for `dev pr` alike.
 - The first line names the worktree, interpreter and devkit the gate runs; a devkit from elsewhere is a warning.
 - Each stage prints one line with its wall time; a failing stage prints at most FAIL_LINES of its output and saves the rest in a log of
   its own: worktrees share the state dir, so nothing a run writes there is named by stage and time alone.
@@ -423,9 +424,25 @@ def cached_pass(record: Path, full: bool, cwd: Path | None = None) -> dict | Non
         return None
     now = selection(full, cwd)
     if now != saved["tests"]:
-        print(f"gate: the cached pass for this tree selected other tests ({saved.get('root')}); re-running", flush=True)
+        print(
+            f"gate: the pass recorded for this tree selected other tests ({saved.get('root')}); not reusing it",
+            flush=True,
+        )
         return None
     return saved
+
+
+def pass_record(base: str | None, full: bool, cwd: Path | None = None) -> Path | None:
+    """Where a pass of this checkout (tree_key) is recorded, or None for a dirty tree, which is never recorded."""
+    key = tree_key(base, cwd)
+    return state_dir("gate") / f"{key}{'-full' if full else ''}.json" if key else None
+
+
+def recorded_pass(base: str | None, full: bool = False, cwd: Path | None = None) -> dict | None:
+    """The recorded pass that stands for a gate of this checkout now: at its pass_record and accepted by cached_pass.
+    The gate's cache and `dev pr` (workflow._gate_passed) both ask this, so they cannot disagree (#469)."""
+    record = pass_record(base, full, cwd)
+    return cached_pass(record, full, cwd) if record and record.exists() else None
 
 
 def save_pass(record: Path, took: float, tests: str | None) -> None:
@@ -660,6 +677,7 @@ def stages(
         lambda: checks.check_ratchets(base),
         lambda: weaken.check_weakening(base),
         lambda: checks.check_installs(base),
+        lambda: checks.check_clones(base),
         lambda: checks.check_generated(docs.render(help_rows)),
         lambda: _run("ruff lint", ["ruff", "check", "--quiet", "--output-format", "concise", "."]),
         lambda: _run("ruff format", ["ruff", "format", "--check", "--quiet", "--output-format", "concise", "."]),
@@ -738,10 +756,9 @@ def check(
     for line in identity():
         print(line, flush=True)
     base = checks.merge_base()
-    key = tree_key(base)
-    record = state_dir("gate") / f"{key}{'-full' if full else ''}.json" if key else None
-    if use_cache and record and record.exists() and (saved := cached_pass(record, full)):
-        print(f"RESULT: passed (cached for key {key[:10]}, {saved['when']})")
+    before = pass_record(base, full)
+    if use_cache and (saved := recorded_pass(base, full)):
+        print(f"RESULT: passed (cached for key {before.stem[:10] if before else '?'}, {saved['when']})")
         return 0
 
     def waiting() -> None:
@@ -751,7 +768,7 @@ def check(
         start = time.time()
         failed = 0
         seconds: dict[str, float] = {}
-        tests = None
+        results = None  # the test stage's per-test [outcome, seconds]
         for stage in stages(full, commands, base, help_rows, parser):
             began = STAGE_CLOCK()
             ran = stage()
@@ -765,18 +782,22 @@ def check(
             for n in ran.notes:
                 print(f"     {n}")
             if isinstance(ran, PytestRan) and ran.tests is not None:
-                tests = ran.tests
-                for line in slowest(tests):
+                results = ran.tests
+                for line in slowest(results):
                     print(line)
             failed += not ran.ok
         took = time.time() - start
-        if tests is not None:  # the stage timings beside the tests' in one record of the machine's history
-            append_run(state_dir() / HISTORY_FILE, {"at": int(HISTORY_CLOCK()), "tests": tests, "stages": seconds})
+        if results is not None:  # the stage timings beside the tests' in one record of the machine's history
+            append_run(state_dir() / HISTORY_FILE, {"at": int(HISTORY_CLOCK()), "tests": results, "stages": seconds})
     if failed:
         print(f"RESULT: failed ({failed} stage(s), {took:.0f} s)")
         return 1
-    if record:
-        save_pass(record, took, selection(full))
+    # The run may have written ignored importable files (a build dir's generated modules), which changes tree_key:
+    # the pass is recorded for the tree it started from and the one it left, so `dev pr` and the next gate, which
+    # compute the key afterwards, find it (#485). A run that dirtied the tree records only the key it started from.
+    tests = selection(full)
+    for record in dict.fromkeys(r for r in (before, pass_record(base, full)) if r):
+        save_pass(record, took, tests)
     print(f"RESULT: passed ({took:.0f} s)")
     return 0
 

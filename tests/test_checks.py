@@ -1,5 +1,7 @@
-"""Ratchet, doc-link and cite-check robustness. No test touches the network: `citecheck._get` is mocked."""
+"""Ratchet, doc-link and cite-check robustness. No default test touches the network: `citecheck._get` is mocked, and
+the seeded clone-recall test, which runs pyscn through uvx, is marked live."""
 
+import ast
 import json
 import threading
 from pathlib import Path
@@ -1268,3 +1270,178 @@ def test_diffparse_is_a_leaf_that_imports_nothing_from_devkit():
 
     src = Path(diffparse.__file__).read_text(encoding="utf-8")
     assert not [t for t in consolidation.regex_import_targets(src, "devkit.diffparse", False) if t.startswith("devkit")]
+
+
+# --- copies of existing code (#123) ----------------------------------------------------------------------------------
+
+
+def _pair(new: tuple[str, int, int], old: tuple[str, int, int], kind: int = 2, sim: float = 0.97) -> dict:
+    def frag(f, a, b):
+        return {"location": {"file_path": f, "start_line": a, "end_line": b}}
+
+    return {"clone1": frag(*new), "clone2": frag(*old), "type": kind, "similarity": sim}
+
+
+FUNC = "def helper(x):\n    return x + 1\n\n\n"
+
+
+def _head(cwd: Path) -> str:
+    import subprocess
+
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=cwd, capture_output=True, text=True).stdout.strip()
+
+
+def test_a_new_function_copying_an_untouched_one_is_reported_with_both_places():
+    added = {"new.py": set(range(1, 5))}
+    found = checks.new_clone_pairs([_pair(("old.py", 3, 4), ("new.py", 1, 2))], added, lambda _: FUNC)
+    assert found == ["new.py:1-2 copies old.py:3-4 (type-2, similarity 0.97)"]
+
+
+@pytest.mark.parametrize(
+    ("pair", "added", "why"),
+    [
+        (_pair(("new.py", 1, 2), ("old.py", 1, 2), kind=4), {"new.py": {1, 2}}, "type-4 similar shapes are noise"),
+        (_pair(("new.py", 1, 2), ("old.py", 1, 2)), {"new.py": {1, 2}, "old.py": {2}}, "the twin was edited too"),
+        (_pair(("new.py", 1, 4), ("old.py", 1, 4)), {"new.py": {1}}, "the fragment is mostly old code"),
+        (_pair(("new.py", 1, 2), ("old.py", 1, 2)), {}, "nothing added: an old clone is not this change's"),
+    ],
+)
+def test_pairs_that_are_not_a_new_copy_of_existing_code_are_dropped(pair, added, why):
+    assert checks.new_clone_pairs([pair], added, lambda _: FUNC) == [], why
+
+
+def test_a_copied_class_body_is_declarative_boilerplate_and_dropped():
+    pair = _pair(("new.py", 1, 2), ("old.py", 1, 2), kind=1)
+    assert checks.new_clone_pairs([pair], {"new.py": {1, 2}}, lambda _: "class Row(Base):\n    id = 1\n") == []
+
+
+def test_a_block_inside_a_reported_copy_is_the_same_copy_and_reported_once():
+    """Replayed on b282f0d6: a copied write_atomic came back as its whole body and as its try block."""
+    pairs = [_pair(("gate.py", 111, 118), ("netsafe.py", 63, 70)), _pair(("gate.py", 107, 118), ("netsafe.py", 60, 70))]
+    found = checks.new_clone_pairs(pairs, {"gate.py": set(range(100, 130))}, lambda _: FUNC * 40)
+    assert found == ["gate.py:107-118 copies netsafe.py:60-70 (type-2, similarity 0.97)"]
+
+
+_span = st.tuples(st.integers(1, 30), st.integers(0, 10)).map(lambda t: (t[0], t[0] + t[1]))
+
+
+@given(st.lists(st.tuples(_span, _span, st.sampled_from([1, 2, 4])), max_size=8), st.sets(st.integers(1, 45)))
+def test_every_reported_pair_is_a_mostly_added_type_1_or_2_fragment_with_an_untouched_twin(raw, lines):
+    pairs = [_pair(("a.py", *x), ("b.py", *y), kind=k) for x, y, k in raw]
+    found = checks.new_clone_pairs(pairs, {"a.py": lines}, lambda _: FUNC * 20)
+    for f in found:
+        new, _, old, kind, _ = f.split(" ", 4)
+        a, b = map(int, new.removeprefix("a.py:").split("-"))
+        assert sum(n in lines for n in range(a, b + 1)) / (b - a + 1) >= checks.CLONE_NEW_SHARE
+        assert old.startswith("b.py:") and kind in ("(type-1,", "(type-2,")
+    assert len(found) <= sum(k != 4 for *_, k in raw)
+
+
+def test_the_clone_check_warns_and_never_fails(git_repo, monkeypatch):
+    path, _, run = git_repo
+    (path / "run.py").write_text(FUNC)
+    run("add", ".")
+    run("commit", "-qm", "old helper")
+    base = _head(path)
+    calls = []
+    monkeypatch.setattr(checks, "pyscn_pairs", lambda cwd, files: calls.append(files) or [])
+    ran = checks.check_clones(base)
+    assert ran.ok and ran.checked == 0 and not calls  # no Python added: pyscn is not even run
+    (path / "copy.py").write_text(FUNC.replace("helper", "bump"))  # an untracked file counts as added
+    monkeypatch.setattr(checks, "pyscn_pairs", lambda cwd, files: [_pair(("copy.py", 1, 2), ("run.py", 1, 2))])
+    ran = checks.check_clones(base)
+    assert ran.ok and not ran.problems and ran.checked == 1
+    assert ran.warnings == [
+        "copy.py:1-2 copies run.py:1-2 (type-2, similarity 0.97): reuse the existing code instead of a copy"
+    ]
+
+
+def test_the_clone_check_is_skipped_with_a_warning_when_pyscn_cannot_run(git_repo, monkeypatch):
+    path, base, _ = git_repo
+    (path / "copy.py").write_text(FUNC)
+
+    def broken(cwd, files):
+        raise RuntimeError("uvx not found")
+
+    monkeypatch.setattr(checks, "pyscn_pairs", broken)
+    ran = checks.check_clones(base)
+    assert ran.ok and ran.warnings == ["clone check skipped: uvx not found"]
+    ran = checks.check_clones(None)
+    assert ran.ok and ran.warnings
+
+
+def test_the_gate_runs_the_clone_check():
+    from devkit import gate
+
+    assert any("check_clones" in s.__code__.co_names for s in gate.stages(False, {}, None))
+
+
+class _Rename(ast.NodeTransformer):
+    """Rename a function, its parameters and its locals: a type-2 copy under new names."""
+
+    def __init__(self, names: dict[str, str]):
+        self.names = names
+
+    def visit_Name(self, node):
+        node.id = self.names.get(node.id, node.id)
+        return node
+
+    def visit_arg(self, node):
+        node.arg = self.names.get(node.arg, node.arg)
+        return node
+
+
+def _reimplement(fn: ast.FunctionDef, new_name: str) -> str:
+    local = {a.arg for a in ast.walk(fn.args) if isinstance(a, ast.arg)}
+    local |= {n.id for n in ast.walk(fn) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store)}
+    names = {old: f"{new_name}_v{i}" for i, old in enumerate(sorted(local))}
+    copy = _Rename(names).visit(ast.parse(ast.unparse(fn)).body[0])
+    copy.name = new_name
+    return ast.unparse(copy)
+
+
+SEEDED_HELPERS = 20
+SEEDED_RECALL_FLOOR = 0.3  # measured 8-9 of 20 (#123 PR body); this floor catches a detector that stopped working
+
+
+@pytest.mark.live  # runs the pinned pyscn through uvx, which may download it
+def test_seeded_reimplementations_of_known_helpers_are_reported(tmp_path, capsys):
+    """Recall of the detector: copy devkit into a scratch repository, then re-implement 20 of its helpers (seeded
+    choice) under new function, parameter and local names in a new module, and count how many it reports."""
+    import random
+    import shutil
+    import subprocess
+
+    def run(*a):
+        subprocess.run(["git", *a], cwd=tmp_path, check=True, capture_output=True)
+
+    src = Path(checks.__file__).parent
+    shutil.copytree(src, tmp_path / "pkg", ignore=shutil.ignore_patterns("__pycache__"))
+    run("init", "-q", "-b", "main")
+    run("config", "user.email", "t@example.com")
+    run("config", "user.name", "t")
+    run("add", ".")
+    run("commit", "-qm", "base")
+    base = _head(tmp_path)
+    helpers = sorted(
+        (p.name, fn.name, fn)
+        for p in sorted((tmp_path / "pkg").glob("*.py"))
+        for fn in ast.parse(p.read_text(encoding="utf-8")).body
+        if isinstance(fn, ast.FunctionDef) and 6 <= fn.end_lineno - fn.lineno + 1 <= 40 and not fn.decorator_list
+    )
+    chosen = random.Random(123).sample(helpers, SEEDED_HELPERS)
+    blocks, spans, line = [], [], 1
+    for i, (_, _, fn) in enumerate(chosen):
+        code = _reimplement(fn, f"seeded_{i}") + "\n\n\n"
+        spans.append(range(line, line + code.count("\n")))
+        blocks.append(code)
+        line += code.count("\n")
+    (tmp_path / "pkg" / "seeded.py").write_text("".join(blocks), encoding="utf-8")
+    _, found = checks.clone_findings(tmp_path, base)
+    starts = {int(f.split(" ")[0].split(":")[1].split("-")[0]) for f in found if f.startswith("pkg/seeded.py:")}
+    hit = [any(s in span for s in starts) for span in spans]
+    recall = sum(hit) / SEEDED_HELPERS
+    with capsys.disabled():
+        missed = [f"{m}:{n}" for (m, n, _), h in zip(chosen, hit, strict=True) if not h]
+        print(f"\nseeded clone recall: {sum(hit)}/{SEEDED_HELPERS} = {recall:.2f}; missed: {', '.join(missed)}")
+    assert recall >= SEEDED_RECALL_FLOOR
