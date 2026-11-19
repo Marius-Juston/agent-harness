@@ -30,7 +30,7 @@ You implement ONE issue for this project. Other agents work in parallel, so stay
 - Scratch files go in `.scratch/`.
 
 ## Finish
-1. Run `uv run dev mutants` (advisory, a few minutes, never a gate; exit 2 means it could not run, say so in the PR): kill each surviving mutant with a test, or say in the PR why it is equivalent, and name the changed lines it says no test runs.
+1. Run `uv run dev mutants` (advisory): kill each survivor with a test or explain it in the PR, and name the untested lines it lists.
 2. Commit with message trailers as the lead gives them. `uv run dev check` gates the committed HEAD and must end `RESULT: passed`; run it again after any fix.
 3. Open the PR (add `--partial` if a DONE WHEN item is unmet) with the summary as a heredoc on stdin (do not write a report file): `uv run dev pr <n> --summary - <<'EOF'` ... `EOF`, with nothing piped after it: a trailing `| tail` makes worktree isolation refuse the call. The body: what changed (files), evidence (test names, numbers), a verdict per DONE WHEN item, what is unverified, `Fixed in passing`, and follow-ups filed as issues (`uv run dev board new ...`), each naming the fix-now condition it failed. A new dependency or non-test module needs a `Reuse:` line: candidates with their `reuse check` results, the note that weighed them, or `none: <reason>`; per new dependency add `fit: <package> does <need> via <API>` or `fit: unsure`. Never merge.
 4. Resumed after a hand-back? `git pull --ff-only` first: integrate may have pushed main into your branch.
