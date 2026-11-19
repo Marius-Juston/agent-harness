@@ -41,7 +41,7 @@ from devkit.fixloop import (  # re-exported: devkit/train.py reads these through
     send_back,
     send_back_conflicting,
 )
-from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, holders, tree_key
+from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, holders, recorded_pass
 from devkit.merging import (  # re-exported: devkit/train.py reads these through devkit.workflow
     GENERATED_MERGE,  # noqa: F401 - tests read it here
     _add_worktree,
@@ -221,8 +221,8 @@ def orient() -> str:
 
 
 def _gate_passed() -> bool:
-    key = tree_key(checks.merge_base())
-    return key is not None and (state_dir("gate") / f"{key}.json").exists()
+    """A pass the gate itself would reuse for this checkout (gate.recorded_pass: tree key and test selection)."""
+    return recorded_pass(checks.merge_base()) is not None
 
 
 def _summary_body(number: int, summary: str | None) -> str:

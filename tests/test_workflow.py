@@ -2316,3 +2316,26 @@ def test_ci_checks_the_title_through_env_never_by_interpolation():
     assert runs and all("${{" not in s["run"] for s in runs)
     check = next(s for s in runs if "dev pr-title" in s["run"])
     assert check["env"]["PR_TITLE"] == "${{ github.event.pull_request.title }}"
+
+
+def test_gate_passed_needs_a_record_whose_test_selection_matches(tmp_path, monkeypatch):
+    """#469: `dev pr` reuses a pass record only when gate.cached_pass accepts it, as the gate's own cache does."""
+    from devkit import checks, gate, paths
+    from tests.test_gate import _sh, _shared_state
+
+    repo = tmp_path / "repo"
+    (repo / "tests").mkdir(parents=True)
+    (repo / "tests/test_one.py").write_text("def test_one():\n    pass\n")
+    (repo / ".gitignore").write_text("__pycache__/\n")
+    _sh(repo, "git", "init", "-q", "-b", "main")
+    _sh(repo, "git", "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+    _sh(repo, "git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init")
+    _shared_state(monkeypatch, tmp_path / "common")
+    monkeypatch.chdir(repo)
+    paths.root.cache_clear()
+    record = gate.pass_record(checks.merge_base(), False)
+    assert record and not workflow._gate_passed()
+    gate.save_pass(record, 1.0, "another-selection")  # recorded where another conftest selected other tests
+    assert not workflow._gate_passed()
+    gate.save_pass(record, 1.0, gate.selection(False))
+    assert workflow._gate_passed()
