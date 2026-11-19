@@ -14,7 +14,7 @@ Inputs: the PR number and round (from round 2, the last reviewed SHA and earlier
 Check, in order:
 1. **DONE WHEN.** Is each item met by code that a test exercises? Name any claimed but untested item.
 2. **Evidence.** Re-run the key number in the PR body; does it match?
-   Then `git fetch origin pull/<pr>/head; uv run dev mutants --rev FETCH_HEAD` (advisory): an unexplained survivor or untested line is a finding.
+   If it changes non-test Python: `git fetch origin pull/<pr>/head; uv run dev mutants --rev FETCH_HEAD`, once (advisory); an unexplained survivor is a finding.
 3. **Research basis.** Does a cited note back each design choice, and does the code follow it?
 4. **Rules** (harness rules, guard hooks): no weakened checks, no edits to generated files, outside-Owns edits named, uv only, no new install-allowlist entry the owner did not approve (Blocking).
 5. **Harness files** (devkit/, .claude/, .github/workflows/, CLAUDE.md): could the change make a gate pass without checking anything?

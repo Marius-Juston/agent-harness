@@ -76,10 +76,10 @@ def test_candidates_make_one_mutant_per_line_from_the_first_family_with_an_opera
 
 
 def test_candidates_leave_f_string_fields_and_comments_alone():
-    src = 'def f(x):\n    msg = f"main {x[:10]}"\n    return x[:10]  # ten\n'
+    src = 'def f(x):\n    msg = f"main {x[:10] + 1}"\n    return x[:10] + 1  # ten\n'
     out = mutants.candidates("m.py", src, [2, 3])
     assert [m.line for m in out] == [3]
-    assert out[0].before == "return x[:10]"
+    assert out[0].before == "return x[:10] + 1"
     assert "#" not in out[0].after
 
 
@@ -173,6 +173,26 @@ def test_report_lists_survivors_as_file_line_before_after_and_untested_lines():
     assert "mutants: 2 run, 1 killed, 0 timed out, 1 survived, 1 not run (time budget)" in text
     assert "  pkg/m.py:7 [ROR] if a < b: -> if a > b:" in text
     assert "  pkg/m.py:3-5,9" in text
+
+
+def test_report_shows_the_weakest_tested_survivors_first_and_caps_them_unless_all():
+    outs = [Outcome(_mutant("a.py", n), "survived") for n in range(1, 15)]
+    weakness = {("a.py", n): (True, 20 - n) for n in range(1, 15)}
+    weakness[("a.py", 9)] = (False, 30)  # none of the change's own tests runs it: first, whatever its count
+    text = mutants.report(outs, {}, 1.0, weakness)
+    shown = [ln.split()[0] for ln in text.splitlines() if ln.startswith("  a.py:")]
+    assert shown == ["a.py:9", *(f"a.py:{n}" for n in range(14, 4, -1) if n != 9)]
+    assert "  ... 4 more (--all)" in text
+    everything = mutants.report(outs, {}, 1.0, weakness, shown=None)
+    assert sum(ln.startswith("  a.py:") for ln in everything.splitlines()) == 14 and "--all" not in everything
+
+
+def test_equivalent_numbers_get_no_mutant():
+    src = "CAP = 40\nlimit = 40\n\n\ndef f(x):\n    N = 3\n    return x[:10] + x[2] + N\n"
+    lines = [m.line for m in mutants.candidates("m.py", src, [1, 2, 6, 7])]
+    assert lines == [2, 6, 7]  # the module constant goes; a local and a lower-case name stay
+    on7 = next(m for m in mutants.candidates("m.py", src, [7]))
+    assert "x[:10]" in on7.after  # the slice bound is never the mutated number
 
 
 BASE = "def add(a, b):\n    return a + b\n"
@@ -269,11 +289,11 @@ def test_without_cosmic_ray_it_says_how_to_install_and_exits_2(monkeypatch, caps
     assert "agent-harness[mutants]" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize(("agent", "command"), [("builder", "uv run dev mutants"), ("reviewer", "dev mutants --rev")])
-def test_the_builder_and_reviewer_run_mutants_on_hand_back_as_advice(agent, command):
-    text = (Path(__file__).resolve().parents[1] / f"plugins/harness-ops/agents/{agent}.md").read_text()
-    line = next(ln for ln in text.splitlines() if command in ln)
-    assert "advisory" in line
+def test_only_the_reviewer_runs_mutants_once_per_review_as_advice():
+    agents = Path(__file__).resolve().parents[1] / "plugins/harness-ops/agents"
+    assert "dev mutants" not in (agents / "builder.md").read_text()  # minutes and noise per PR: review only
+    line = next(ln for ln in (agents / "reviewer.md").read_text().splitlines() if "dev mutants --rev" in ln)
+    assert "advisory" in line and "once" in line and "non-test Python" in line
 
 
 def test_is_test_knows_the_pytest_file_names():

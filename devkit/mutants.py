@@ -36,6 +36,7 @@ CAP = 40  # mutants per run: L's 40 took about 110 s on a 264-line branch (r2-mu
 BUDGET_S = 300.0  # the whole run, coverage pass included
 WORKERS = 2  # clones that run mutants side by side
 TEST_FILES = 12  # the coverage run's test files: the change's own tests first, then the files importing it most
+SHOWN = 10  # survivors printed without --all, weakest first
 IDS_PER_MUTANT = 50  # covering tests a mutant runs against: the change's own tests, then the fastest
 FAMILIES = ("LCR", "ROR", "AOR", "UOI", "CRP", "LOOP")  # Google's survivability order, then constants and loops
 LOG_METHODS = {"debug", "info", "warning", "warn", "error", "exception", "critical", "log"}
@@ -153,6 +154,19 @@ def _code(line: str) -> str:
     return line.strip()[: comment.start[1]].rstrip() if comment else line.strip()
 
 
+def equivalent(node) -> bool:
+    """A number whose +-1 is a tuning choice no test should pin, so its mutant is noise: a slice bound (`x[:10]`, a
+    truncation) or a module-level UPPER_CASE constant (`CAP = 40`). 6 of the 11 survivors on #110's diff were these."""
+    if node.type != "number":
+        return False
+    if node.parent.type == "subscript":
+        return True
+    stmt = node.parent
+    target = stmt.children[0] if stmt.type == "expr_stmt" else None
+    top = stmt.parent is not None and stmt.parent.parent is not None and stmt.parent.parent.type == "file_input"
+    return bool(top and target is not None and target.type == "name" and target.value.isupper())
+
+
 def candidates(path: str, source: str, lines: Iterable[int]) -> list[Mutant]:
     """One mutant per line of `lines` that cosmic-ray can mutate there: the first family in FAMILIES with an operator
     on that line, and among its operators the one a stable hash of `path:line` picks."""
@@ -165,10 +179,10 @@ def candidates(path: str, source: str, lines: Iterable[int]) -> list[Mutant]:
     found: dict[int, list[tuple[str, int]]] = {}  # line -> (operator, occurrence)
     count = dict.fromkeys(ops, 0)
     for node in ast_nodes(get_ast(source)):  # the order cosmic-ray's MutationVisitor counts occurrences in
-        in_fstring = node.type == "fstring" or node.search_ancestor("fstring") is not None
+        skip = node.type == "fstring" or node.search_ancestor("fstring") is not None or equivalent(node)
         for name, op in ops.items():
             for (line, _), _end in op.mutation_positions(node):
-                if line in wanted and not in_fstring:  # an f-string's fields are message text: arid
+                if line in wanted and not skip:  # an f-string's fields are message text: arid
                     found.setdefault(line, []).append((name, count[name]))
                 count[name] += 1
     original = source.splitlines()
@@ -360,6 +374,7 @@ def _ranges(lines: Iterable[int]) -> str:
 def run(
     base: str | None = None,
     rev: str | None = None,
+    shown: int | None = SHOWN,
     cap: int = CAP,
     budget: float = BUDGET_S,
     workers: int = WORKERS,
@@ -428,6 +443,7 @@ def run(
         uncovered: dict[str, list[int]] = {}
         pool: list[Mutant] = []
         ids_of: dict[tuple[str, int], list[str]] = {}
+        weakness: dict[tuple[str, int], tuple[bool, int]] = {}
         for p in sorted(live):
             covered = []
             for n in sorted(live[p]):
@@ -437,6 +453,8 @@ def run(
                 else:
                     covered.append(n)
                     ids_of[(p, n)] = order_ids(ids, took, set(changed_tests))
+                    own = any(i.split("::", 1)[0] in changed_tests for i in ids)
+                    weakness[(p, n)] = (own, len(ids))
             pool += candidates(p, sources[p], covered)
         chosen, over = pick(pool, cap)
         lines.append(
@@ -444,7 +462,7 @@ def run(
         )
         outcomes = _run_all(chosen, ids_of, took, sandboxes, started + budget, clock)
         print("\n".join(lines))
-        print(report(outcomes, uncovered, clock() - started))
+        print(report(outcomes, uncovered, clock() - started, weakness, shown))
     return 0
 
 
@@ -475,7 +493,15 @@ def _run_all(
         return list(pool.map(one, chosen))
 
 
-def report(outcomes: list[Outcome], uncovered: dict[str, list[int]], seconds: float) -> str:
+def report(
+    outcomes: list[Outcome],
+    uncovered: dict[str, list[int]],
+    seconds: float,
+    weakness: dict[tuple[str, int], tuple[bool, int]] | None = None,
+    shown: int | None = SHOWN,
+) -> str:
+    """The summary, then at most `shown` survivors (None: all), weakest first: on a line none of the change's own
+    tests runs, then by fewest covering tests; then the changed lines no test runs."""
     by = {s: [o for o in outcomes if o.status == s] for s in ("killed", "timeout", "survived", "not run")}
     ran = len(outcomes) - len(by["not run"])
     out = [
@@ -483,8 +509,15 @@ def report(outcomes: list[Outcome], uncovered: dict[str, list[int]], seconds: fl
         f"{len(by['survived'])} survived" + (f", {len(by['not run'])} not run (time budget)" if by["not run"] else "")
     ]
     if by["survived"]:
-        out.append("survived (kill each with a test, or say in the PR why it is equivalent):")
-        out += [f"  {o.mutant.show()}" for o in by["survived"]]
+        weak = weakness or {}
+        ranked = sorted(
+            by["survived"],
+            key=lambda o: (*weak.get((o.mutant.path, o.mutant.line), (False, 0)), o.mutant.path, o.mutant.line),
+        )
+        out.append("survived, weakest tested first (kill each with a test, or say in the PR why it is equivalent):")
+        out += [f"  {o.mutant.show()}" for o in ranked[:shown]]
+        if shown is not None and len(ranked) > shown:
+            out.append(f"  ... {len(ranked) - shown} more (--all)")
     if uncovered:
         out.append(f"changed lines no test runs ({sum(map(len, uncovered.values()))}):")
         out += [f"  {p}:{_ranges(ns)}" for p, ns in sorted(uncovered.items())]

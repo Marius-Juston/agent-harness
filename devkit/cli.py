@@ -360,6 +360,7 @@ def build() -> argparse.ArgumentParser:
     x = sub.add_parser("mutants", help="advisory mutation of the change's lines: surviving mutants, untested lines")
     x.add_argument("--base", help="compare against this ref (default: origin/main, else main)")
     x.add_argument("--rev", help="a commit or branch to mutate instead of the working tree")
+    x.add_argument("--all", action="store_true", help="print every survivor, not the 10 weakest")
     x = sub.add_parser("suite-audit", help="size-tiered audit of the whole test suite: is one due, and the nine checks")
     xs = x.add_subparsers(dest="sub", required=True)
     y = xs.add_parser("status", help="is an audit due since the last one (what orient shows), and why")
@@ -547,7 +548,7 @@ def run(a: argparse.Namespace) -> int:
         case "suite-audit":
             return run_suite_audit(a)
         case "mutants":
-            return mutants.run(a.base, a.rev)
+            return mutants.run(a.base, a.rev, None if a.all else mutants.SHOWN)
         case "eval":
             if a.compare:
                 return evals.run_compare(*a.compare, a.margin)
