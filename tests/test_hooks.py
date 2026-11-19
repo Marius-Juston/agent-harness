@@ -1098,6 +1098,39 @@ def test_edit_guard_blocks_the_quota_cap_override(hook, path, tool):
     assert code == 2 and "quota cap" in err
 
 
+# #523: the gate slot override is the owner's too, guarded the same way as the quota cap's.
+GATE_SLOTS_WRITES = [
+    c.replace("quota-cap", "gate-slots").replace("quota_cap", "gate_slots").replace("100", "8")
+    for c in QUOTA_CAP_WRITES
+]
+GATE_SLOTS_READS = [
+    "uv run dev gate-slots",
+    "uv run dev gate-slots --help",
+    "cat .git/devkit/gate_slots",
+    "grep -rn gate_slots devkit",
+    "git commit -m 'dev gate-slots 8 is owner only'",
+]
+
+
+@pytest.mark.parametrize("cmd", GATE_SLOTS_WRITES)
+def test_guard_bash_blocks_an_agent_setting_the_gate_slots(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "cwd": "/repo"})
+    assert code == 2, cmd
+    assert "gate slot count" in err
+
+
+@pytest.mark.parametrize("cmd", GATE_SLOTS_READS)
+def test_guard_bash_allows_reading_the_gate_slots(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "cwd": "/repo"})
+    assert code == 0, (cmd, err)
+
+
+@pytest.mark.parametrize("tool", ["Write", "Edit"])
+def test_edit_guard_blocks_the_gate_slots_override(hook, tool):
+    code, _, err = hook("edit_guard.py", {"tool_name": tool, "tool_input": {"file_path": ".git/devkit/gate_slots"}})
+    assert code == 2 and "gate slot count" in err
+
+
 # #227: the literature APIs that `uv run dev lit` wraps (devkit/lit.py), denied to curl, wget and WebFetch.
 LIT_URLS = [
     "https://api.openalex.org/works?search=spaced+retrieval",

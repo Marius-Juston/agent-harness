@@ -41,6 +41,7 @@ REDACTED = "[redacted]"
 # none, a subdomain, URL-encoded slashes, and a trailer behind `gh run view --log-failed`'s job/step/time prefix.
 SESSION_SCRUB = re.compile(r"claude\.ai(?:/|%2F)code(?:/|%2F)" + "session" + r"|Claude-Session[ \t]*:", re.I)
 DURATION = re.compile(r", \d+(?:\.\d+)? s\)$")  # the gate's `RESULT: failed (N stage(s), 30 s)` timing
+STAGE_SECONDS = re.compile(r"^(FAIL )\s*\d+(?:\.\d+)?s ")  # a stage line's seconds column (gate.stage_line)
 
 
 def scrubbed(text: str) -> str:
@@ -122,7 +123,9 @@ def fix_loop(
     failing = failing[-FIX_LINES:]
     _, last = board.fix_loop_state(marked, trusted)
     mark = board.FIX_MARK.search(last["body"]) if last else None
-    timeless = [DURATION.sub(")", ln) if ln.startswith("RESULT:") else ln for ln in failing]  # a rerun's new timing
+    timeless = [  # a rerun's new timing
+        DURATION.sub(")", ln) if ln.startswith("RESULT:") else STAGE_SECONDS.sub(r"\1", ln) for ln in failing
+    ]
     key = hashlib.sha256(json.dumps([outcome, reasons, timeless, feedback]).encode()).hexdigest()[:12]
     cycle = fix_cycle(mark, head, counted)
     if mark and (mark[2], mark[3]) == (head, key):

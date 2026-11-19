@@ -198,6 +198,14 @@ def parse_cap(text: str) -> int:
     return int(t)
 
 
+def parse_slots(text: str) -> int:
+    """A gate slot count: a decimal integer 1-256 (surrounding whitespace allowed), else ValueError."""
+    t = text.strip()
+    if not re.fullmatch(r"[0-9]{1,3}", t) or not 1 <= int(t) <= 256:
+        raise ValueError(f"gate slots {text!r}: expected a whole number 1-256")
+    return int(t)
+
+
 @functools.cache
 def get() -> Config:
     path = root() / "pyproject.toml"

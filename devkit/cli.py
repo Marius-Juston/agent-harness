@@ -322,6 +322,13 @@ def build() -> argparse.ArgumentParser:
     )
     x.add_argument("pct", nargs="?", help="new cap percent, 0-100")
     x.add_argument("--clear", action="store_true", help="drop the override: back to [tool.devkit] quota_cap")
+    x = sub.add_parser(
+        "gate-slots",
+        help="how many gates run at once here, and the source; owner only: `! uv run dev gate-slots <n>` sets a "
+        "machine-local override (never committed), --clear drops it",
+    )
+    x.add_argument("n", nargs="?", help="gates at once on this machine, 1-256")
+    x.add_argument("--clear", action="store_true", help="drop the override: back to [tool.devkit] gate_slots")
     x = sub.add_parser("eval", help="micro-scenario evals of the agent surface via claude -p in a remote-less clone")
     x.add_argument("names", nargs="*", help="scenario names (default: all in the evals dir)")
     x.add_argument("--trials", type=int, default=3)
@@ -540,6 +547,8 @@ def run(a: argparse.Namespace) -> int:
             return quota.usage_poll(once=a.once)
         case "quota-cap":
             return run_quota_cap(a)
+        case "gate-slots":
+            return run_gate_slots(a)
         case "suite-audit":
             return run_suite_audit(a)
         case "eval":
@@ -569,6 +578,23 @@ def run_quota_cap(a: argparse.Namespace) -> int:
         quota.set_quota_cap(None)
     cap, source = quota.quota_cap()
     print(f"quota cap {cap}% ({quota.CAP_SOURCES[source]})")
+    return 0
+
+
+def run_gate_slots(a: argparse.Namespace) -> int:
+    if a.n is not None and a.clear:
+        print("error: give a slot count or --clear, not both", file=sys.stderr)
+        return 1
+    if a.n is not None:
+        try:
+            gate.set_gate_slots(config.parse_slots(a.n))
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    elif a.clear:
+        gate.set_gate_slots(None)
+    n, source = gate.slots_setting()
+    print(f"gate slots {n} ({gate.SLOTS_SOURCES[source]})")
     return 0
 
 

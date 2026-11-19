@@ -1696,7 +1696,8 @@ def test_gate_reruns_on_one_head_that_differ_only_in_duration_post_once(fake_int
     posted = _github_keeps_comments(fake_integrate, monkeypatch)
     cycles = []
     for took in (30, 31, 32):
-        _gate_says(monkeypatch, GATE_OUT.replace("30 s", f"{took} s"), 1)
+        out = GATE_OUT.replace("30 s", f"{took} s").replace("FAIL ", f"FAIL {took / 7:6.1f}s ")  # #521 stage seconds
+        _gate_says(monkeypatch, out, 1)
         assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
         res = _last_json(capsys.readouterr().out)
         cycles.append((res["cycle"], res["fix"]))
