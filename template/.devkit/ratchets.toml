@@ -24,3 +24,8 @@ context = 600    # CLAUDE.md/AGENTS.md plus the files they @-import: loaded into
 min_tests = 1          # passed tests in the default gate run; keep it near 95% of the count (the gate suggests it)
 # min_coverage = 60    # line %; setting it turns on coverage (pytest-cov) and the report-only diff coverage.
                        # Name what to measure in [tool.coverage.run] source, so the tests themselves do not count.
+
+# The ty diagnostics count only falls; raising it needs a [[raise]] (key "types.max_diagnostics") whose `to` covers it.
+# Without [types] the gate only reports the count. ty reads [tool.ty] for what to check.
+[types]
+max_diagnostics = 0    # a new project starts clean; an adopted codebase sets this to the count the gate reports

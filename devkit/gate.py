@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 from collections.abc import Callable, Iterator, Mapping, MutableMapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import IO
@@ -296,6 +297,112 @@ def zizmor(cwd: Path | None = None) -> Ran:
     files = _workflow_files(cwd)
     args = ["--offline", "--no-progress", "--format", "plain", *files]
     return _tool_stage("zizmor", "zizmor", args, cwd, checked=len(files))
+
+
+TYPE_KEY = "types.max_diagnostics"  # the [[raise]] key that loosens the ty budget
+TYPE_SHOWN = 10  # diagnostics listed when the count is over the budget
+
+
+def type_budget(text: str) -> int | None:
+    """[types] max_diagnostics of a ratchets.toml: the most ty diagnostics the gate allows, or None (no ratchet).
+    ValueError if bad."""
+    types = tomllib.loads(text).get("types", {})
+    for key in types:
+        if key != "max_diagnostics":
+            raise ValueError(f"[types] {key}: unknown key; known: ['max_diagnostics']")
+    budget = types.get("max_diagnostics")
+    if budget is not None and (isinstance(budget, bool) or not isinstance(budget, int) or budget < 0):
+        raise ValueError(f"[types] max_diagnostics = {budget!r}: expected an integer from 0")
+    return budget
+
+
+def type_problems(count: int, budget: int) -> tuple[list[str], list[str]]:
+    """(problems, notes) of the ty budget: above it fails; below it, a notice to lower it (the ratchet only tightens)."""
+    where = config.get().ratchets
+    if count > budget:
+        return [f"{count} ty diagnostics, above the budget max_diagnostics = {budget} ({where}): fix the new ones"], []
+    if count < budget:
+        return [], [f"lower max_diagnostics to {count} ({count} ty diagnostics, budget {budget})"]
+    return [], []
+
+
+def type_raises(cur: str, old: str) -> list[str]:
+    """The ty budget only tightens: one above main's, or removed, needs a [[raise]] new since main on TYPE_KEY whose
+    `to` covers it. The ratchets stage checks that every new [[raise]] is approved by the repository owner."""
+    before = type_budget(old) if old else None
+    if before is None:
+        return []
+    value = type_budget(cur)
+    if value is not None and value <= before:
+        return []
+    known = {(r.get("key"), r.get("to")) for r in tomllib.loads(old).get("raise", [])}
+    tos = [
+        r.get("to")
+        for r in tomllib.loads(cur).get("raise", [])
+        if r.get("key") == TYPE_KEY and (r.get("key"), r.get("to")) not in known and isinstance(r.get("to"), int)
+    ]
+    if value is None:
+        return [] if tos else [f"ratchets.toml: {TYPE_KEY} removed (was {before}) without an owner-approved [[raise]]"]
+    if not tos:
+        return [f"ratchets.toml: {TYPE_KEY} raised {before} -> {value} without an owner-approved [[raise]]"]
+    if value > max(tos):
+        return [f"ratchets.toml: {TYPE_KEY} raised to {value}, above its [[raise]] to = {max(tos)}"]
+    return []
+
+
+def type_check(base: str | None, cwd: Path | None = None) -> Ran:
+    """ty's diagnostics held to [types] max_diagnostics of ratchets.toml, a ceiling that only goes down (type_raises
+    against main). Without one the stage only reports the count (and is off when ty is not installed), so a project
+    turns the ratchet on by setting the budget to that count. ty reads its own [tool.ty] config for what to check."""
+    ran = Ran("ty (type diagnostics)", allow_empty=True)
+    where = config.get().ratchets
+    try:
+        text = ((cwd or root()) / where).read_text()
+    except OSError:
+        text = ""
+    try:
+        budget = type_budget(text)
+    except ValueError as e:  # TOMLDecodeError is a ValueError
+        ran.problems.append(f"{where}: {e}")
+        return ran
+    if base:  # a main without a readable ratchets.toml has no budget to compare with
+        with contextlib.suppress(RuntimeError, ValueError):
+            ran.problems += type_raises(text, git("show", f"{base}:{where}"))
+    binary = tool("ty")
+    if binary is None:
+        if budget is None:
+            ran.notes.append("off: ty not installed and no [types] max_diagnostics")
+        else:
+            notice = "ty not found (run `uv sync`); ty skipped"
+            (ran.problems if os.environ.get("CI") else ran.warnings).append(notice)
+        return ran
+    # --exit-zero: diagnostics are counted, not judged by ty's exit code; a bad config or a crash still exits 2/101
+    cmd = [binary, "check", "--output-format", "gitlab", "--exit-zero", "--no-progress", "--python", sys.prefix]
+    out = subprocess.run(cmd, cwd=cwd or root(), capture_output=True, text=True, check=False)
+    try:
+        found = json.loads(out.stdout)
+    except ValueError:
+        found = None
+    if out.returncode != 0 or not isinstance(found, list):
+        ran.problems += (out.stdout + out.stderr).strip().splitlines()[-FAIL_LINES:] or [f"ty exited {out.returncode}"]
+        return ran
+    ran.checked = len(checks.tracked("*.py")) if cwd is None else len(list(cwd.rglob("*.py")))
+    if budget is None:
+        ran.notes.append(
+            f"{len(found)} ty diagnostics (report-only: set [types] max_diagnostics = {len(found)} in {where} "
+            "to ratchet them)"
+        )
+        return ran
+    problems, ran.notes = type_problems(len(found), budget)
+    if problems:
+        shown = [
+            f"{d['location']['path']}:{d['location']['positions']['begin']['line']}: {d['description']}" for d in found
+        ]
+        problems += shown[:TYPE_SHOWN] + (
+            [f"(+{len(shown) - TYPE_SHOWN} more: `ty check`)"] if len(shown) > TYPE_SHOWN else []
+        )
+    ran.problems += problems
+    return ran
 
 
 def pytest_cmd(paths: list[str], slow: bool = False, n: int | None = None) -> list[str]:
@@ -589,6 +696,7 @@ def stages(
         lambda: checks.check_generated(docs.render(help_rows)),
         lambda: _run("ruff lint", ["ruff", "check", "--quiet", "--output-format", "concise", "."]),
         lambda: _run("ruff format", ["ruff", "format", "--check", "--quiet", "--output-format", "concise", "."]),
+        lambda: type_check(base),
         lock_check,
         actionlint,
         zizmor,

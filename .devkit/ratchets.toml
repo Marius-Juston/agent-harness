@@ -39,3 +39,8 @@ approved_by = "Marius-Juston"
 [tests]
 min_tests = 2246       # passed tests in the default gate run: 95% of 2365 (2026-11-01)
 min_coverage = 91      # line % of devkit/ ([tool.coverage.run] source): 91.7% measured (2026-11-01)
+
+# The ty diagnostics count only falls; raising it needs a [[raise]] (key "types.max_diagnostics") whose `to` covers it.
+# Without [types] the gate only reports the count. ty reads [tool.ty] for what to check.
+[types]
+max_diagnostics = 750  # `ty check` on this repository (ty 0.0.107, 2026-11-19); the gate prompts to lower it
