@@ -493,6 +493,9 @@ def run(a: argparse.Namespace) -> int:
                     "and no --consolidation-review"
                 )
                 return 2
+            if a.override is not None and not a.override.strip():
+                print("integrate --train: --override needs a reason")
+                return 2
             if len(set(members)) != len(members):
                 print(f"integrate --train: a PR is named twice: {' '.join(map(str, members))}")
                 return 2

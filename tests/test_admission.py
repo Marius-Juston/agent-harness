@@ -9,27 +9,34 @@ from hypothesis import strategies as st
 
 from devkit import integrate, train, workflow
 
-# Every per-PR check: the call that decides it. Each must sit in `integrate.admit` and in neither caller.
+# The checks the review of #476 found listed twice: each must sit in `integrate.admit` and in neither caller.
 CHECKS = {"refusal", "session_leaks", "title_problem", "closes_problem", "unfinished", "only_pending",
           "review_problem", "is_harness"}  # fmt: skip
+# What `admit` calls through `workflow` only to word or prove a refusal, not to decide one.
+WORDING = {"expected_title", "failed_check_lines", "_is_ancestor"}
 
 
-def called(fn: object) -> set[str]:
+def called(fn: object, module: str | None = None) -> set[str]:
+    """The names `fn` calls (nested helpers included); with `module`, only `<module>.<name>(...)` calls."""
     tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
     out = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             f = node.func
-            out.add(f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", ""))
+            if module is None:
+                out.add(f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", ""))
+            elif isinstance(f, ast.Attribute) and getattr(f.value, "id", "") == module:
+                out.add(f.attr)
     return out
 
 
 def test_integrate_and_the_train_admit_through_one_function_that_lists_every_check_once():
-    assert called(integrate.admit) >= CHECKS
+    checks = called(integrate.admit, "workflow") - WORDING  # derived from admit: a check added there is covered
+    assert checks >= CHECKS
     for caller in (workflow._integrate, train._admit):
         calls = called(caller)
         assert "admit" in calls, caller.__name__
-        assert not CHECKS & calls, (caller.__name__, CHECKS & calls)
+        assert not checks & calls, (caller.__name__, checks & calls)
 
 
 def info(**kw: object) -> dict:

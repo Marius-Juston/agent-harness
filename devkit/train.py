@@ -134,6 +134,8 @@ def _admit(
         m.stood = sorted(c for c, s in now.items() if s == "never-ran")
         ignore = frozenset(m.stood)
         info = m.info = json.loads(board.gh("pr", "view", str(n), "-R", board.repo(), "--json", workflow.PR_FIELDS))
+        if info["headRefOid"] != m.head:
+            return stop("stopped", reason="the PR head moved while waiting for Actions")
     at = integrate.At(m.head, main, board.pr_feedback(n), workflow.changed_paths(main, m.head))
     adm = integrate.admit(n, info, override=override, harness_ok=harness_ok, at=at, ignore=ignore, hold_pending=True)
     if not adm.admitted:
@@ -623,6 +625,9 @@ PUSH_RULES = {
     "update": "no updates",
     "merge_queue": "a merge queue",
 }
+# Ruleset rules a fast-forward push of squash commits meets: no warning for these. Any other type (content rules such
+# as `file_path_restriction` or `commit_message_pattern`, or one GitHub adds later) is named before the gate.
+PUSH_NEUTRAL = {"creation", "deletion", "non_fast_forward", "required_linear_history"}
 
 
 def push_blockers(
@@ -661,20 +666,34 @@ def main_push_refusal() -> str | None:
     def read(path: str) -> object:
         return json.loads(board.gh("api", path))
 
+    def unread(what: str, why: object) -> None:
+        print(f"train: cannot read main's {what} ({why}): the push of main decides")
+
     protection: dict | None = None
     try:
-        protection = read(f"repos/{repo}/branches/main/protection")  # type: ignore[assignment]
+        got = read(f"repos/{repo}/branches/main/protection")
+        if isinstance(got, dict):
+            protection = got
+        else:
+            unread("branch protection", f"unexpected response {type(got).__name__}")
     except board.BoardError as exc:
         if "not protected" not in str(exc).lower():
-            print(f"train: cannot read main's branch protection ({exc}): the push of main decides")
+            unread("branch protection", exc)
     except ValueError as exc:
-        print(f"train: cannot read main's branch protection ({exc}): the push of main decides")
+        unread("branch protection", exc)
+    rules: list[dict] = []
     try:
-        rules = read(f"repos/{repo}/rules/branches/main")
-        rules = rules if isinstance(rules, list) else []
+        got = read(f"repos/{repo}/rules/branches/main")
+        if isinstance(got, list) and all(isinstance(r, dict) for r in got):
+            rules = got
+        else:
+            unread("rulesets", f"unexpected response {type(got).__name__}")
     except (board.BoardError, ValueError) as exc:
-        print(f"train: cannot read main's rulesets ({exc}): the push of main decides")
-        rules = []
+        unread("rulesets", exc)
+    for r in rules:
+        if (kind := r.get("type")) not in PUSH_RULES and kind not in PUSH_NEUTRAL:
+            print(f"train: ruleset {r.get('ruleset_id')} has a {kind!r} rule the train does not judge: the push of "
+                  "main decides")  # fmt: skip
     if not protection and not [r for r in rules if r.get("type") in PUSH_RULES]:
         return None
     bypass: dict[int, str] = {}
@@ -687,8 +706,7 @@ def main_push_refusal() -> str | None:
         admin = bool((read(f"repos/{repo}").get("permissions") or {}).get("admin"))  # type: ignore[union-attr]
     except (board.BoardError, ValueError, AttributeError):
         admin = False
-    if not (blockers := push_blockers(protection if isinstance(protection, dict) else None, rules, bypass, admin,
-                                      board.gh_user())):  # fmt: skip
+    if not (blockers := push_blockers(protection, rules, bypass, admin, board.gh_user())):
         return None
     return (
         f"main refuses the train's direct push: {'; '.join(blockers)}. A train lands its members as commits pushed "

@@ -531,6 +531,26 @@ def test_integrate_waits_for_checks_on_the_pr_head_then_merges(fake_integrate, c
     assert _last_json(capsys.readouterr().out)["outcome"] == "merged"
 
 
+def test_a_main_that_moves_during_the_check_wait_is_fetched_again_and_gated(fake_integrate, clock, monkeypatch, capsys):  # noqa: F811
+    """Review of #549: the wait on running checks can last `checks_wait_s`; main is read after it, not before."""
+    moved = "n" * 40
+    git = workflow.git
+
+    def fake(*args, **kw):
+        if clock["sleeps"] and args[0] == "rev-parse" and "main-" in args[1]:
+            return moved
+        return git(*args, **kw)
+
+    monkeypatch.setattr(workflow, "git", fake)
+    monkeypatch.setattr(workflow, "_remote_shas", lambda n: (HEAD, moved))  # origin's main, as read after the gate
+    running = [_run("check", status="IN_PROGRESS")]
+    _rollups(fake_integrate, monkeypatch, running, running, [_run("check")])
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    printed = capsys.readouterr().out
+    assert clock["sleeps"] and f"merged with main {moved[:10]}" in printed
+    assert _last_json(printed)["outcome"] == "merged"
+
+
 @pytest.mark.parametrize(
     ("knob", "value", "expect"),
     [

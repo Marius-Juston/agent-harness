@@ -718,3 +718,21 @@ def test_a_ruleset_requiring_a_pull_request_refuses_unless_this_user_always_bypa
     assert "ruleset 9 requires a pull request" in last_json(capsys.readouterr().out)["reason"]
     protected(world, monkeypatch, None, rules, bypass="always")
     assert train.train([1], harness_ok=True, dry_run=True) == 0
+
+
+def test_an_unknown_ruleset_rule_or_an_odd_protection_reply_is_named_and_left_to_the_push(world, capsys, monkeypatch):
+    """Review of #549: the preflight fails open, but never silently."""
+    three(world)
+    protected(world, monkeypatch, ["odd"], [{"type": "file_path_restriction", "ruleset_id": 3}])  # type: ignore[arg-type]
+    assert train.train([1], harness_ok=True, dry_run=True) == 0
+    printed = capsys.readouterr().out
+    assert "cannot read main's branch protection (unexpected response list)" in printed
+    assert "ruleset 3 has a 'file_path_restriction' rule the train does not judge" in printed
+    protected(world, monkeypatch, None, [{"type": "deletion", "ruleset_id": 4}])
+    assert train.train([1], harness_ok=True, dry_run=True) == 0
+    assert "train does not judge" not in capsys.readouterr().out
+
+
+def test_the_cli_refuses_an_empty_override_reason_for_a_train_before_reading_github(world, capsys):
+    assert cli.run(cli.parse(["integrate", "--train", "2", "1", "2", "--override", " "])) == 2
+    assert "--override needs a reason" in capsys.readouterr().out and world["events"] == []

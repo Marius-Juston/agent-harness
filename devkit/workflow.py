@@ -756,15 +756,25 @@ def _integrate(
         git("update-ref", "-d", head_ref, check=False)
         git("update-ref", "-d", main_ref, check=False)
 
-    try:
-        git("fetch", "--no-tags", "origin", f"+refs/pull/{pr_number}/head:{head_ref}", f"+refs/heads/main:{main_ref}")
-        head, main = git("rev-parse", head_ref), git("rev-parse", main_ref)
-        touched = changed_paths(main, head)
-    except RuntimeError as exc:
-        drop_refs()
-        print(f"RESULT: stopped (cannot fetch or diff PR #{pr_number} against main): {exc}")
-        return done(1, "stopped", reason=f"cannot fetch or diff: {exc}")
-    at = admission.At(head, main, board.pr_feedback(pr_number), touched)
+    def fetched() -> admission.At | str:
+        """The PR head and main as origin has them now, with the PR's feedback; or why they cannot be read."""
+        try:
+            git(
+                "fetch",
+                "--no-tags",
+                "origin",
+                f"+refs/pull/{pr_number}/head:{head_ref}",
+                f"+refs/heads/main:{main_ref}",
+            )
+            head, main = git("rev-parse", head_ref), git("rev-parse", main_ref)
+            return admission.At(head, main, board.pr_feedback(pr_number), changed_paths(main, head))
+        except RuntimeError as exc:
+            drop_refs()
+            return str(exc)
+
+    if isinstance(at := fetched(), str):
+        print(f"RESULT: stopped (cannot fetch or diff PR #{pr_number} against main): {at}")
+        return done(1, "stopped", reason=f"cannot fetch or diff: {at}")
     # checks still running on the PR's own head: wait for them as for a pushed head, then judge them (#322). Under
     # --local-ci the required contexts it stands in for are neither waited for nor judged here.
     hold = override is None and not dry_run
@@ -775,12 +785,14 @@ def _integrate(
             drop_refs()
             return code
         info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
-        at.feedback = board.pr_feedback(pr_number)
+        if isinstance(at := fetched(), str):  # main may have moved during the wait: gate what is there now
+            print(f"RESULT: stopped (cannot fetch or diff PR #{pr_number} against main): {at}")
+            return done(1, "stopped", reason=f"cannot fetch or diff: {at}")
         adm = admission.admit(pr_number, info, override=override, harness_ok=harness_ok, at=at, ignore=ignore)
     if not adm.admitted:
         drop_refs()
         return turned_away(adm)
-    todo = adm.overridden
+    todo, head, main = adm.overridden, at.head, at.main
     tmp = state_dir("integrate") / f"pr-{pr_number}"
     _add_worktree(tmp, head)
     try:
