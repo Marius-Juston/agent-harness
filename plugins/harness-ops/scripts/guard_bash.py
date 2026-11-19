@@ -78,6 +78,9 @@ LIT_API = re.compile(
 )
 LIT_VAR = re.compile(r"\$\{?(\w+)")  # a fetched argument that starts with a variable: $u, ${u}...
 LIT_RAW = "DEVKIT_LIT_RAW"
+# Environment the guards read (#191). The first two switch a guard off, so they count only from the environment
+# Claude Code started in (owner_env); edit_guard refuses agent edits that put any of them in a settings file.
+OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE")
 FETCHERS = {"curl", "wget"}
 CAP_FILE = "devkit/quota_cap"  # under the git common dir: `dev quota-cap`'s machine-local override
 CAP_READERS = {"cat", "head", "tail", "ls", "stat", "wc", "test", "[", "[[", "file"}
@@ -378,6 +381,42 @@ def lex(text: str) -> list[list[Simple]]:
     return out
 
 
+def settings_files(cwd: str) -> list[str]:
+    """Every Claude Code settings file that could feed this session's `env`: .claude/settings{,.local}.json in the
+    cwd, the project directory and each of their parents (the user's ~/.claude among them), and $CLAUDE_CONFIG_DIR."""
+    dirs: list[str] = []
+    for start in (cwd, os.environ.get("CLAUDE_PROJECT_DIR", ""), os.path.expanduser("~")):
+        d = os.path.abspath(start) if start else ""
+        while d and d not in dirs:
+            dirs.append(d)
+            d = os.path.dirname(d) if os.path.dirname(d) != d else ""
+    out = [os.path.join(d, ".claude", f) for d in dirs for f in ("settings.json", "settings.local.json")]
+    if config := os.environ.get("CLAUDE_CONFIG_DIR"):
+        out += [os.path.join(config, f) for f in ("settings.json", "settings.local.json")]
+    return out
+
+
+def owner_env(name: str, cwd: str) -> str:
+    """An override that switches a guard off, read only where an agent's tools cannot set it (#191).
+
+    Claude Code hands a settings file's `env` block to hooks, ahead of the shell it started in (VERIFIED,
+    docs/research/agent-harness.md §12c), and an agent can write those files. So a name set in any settings `env`
+    reads as unset here: the owner sets it in the shell that starts Claude Code."""
+    for path in settings_files(cwd):
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            continue
+        try:
+            env = json.loads(text).get("env")
+        except (ValueError, AttributeError):  # not a settings object: fail closed if it names the override
+            env = {name: ""} if name in text else None
+        if isinstance(env, dict) and name in env:  # keys parsed, so a \u-escaped name is caught too
+            return ""
+    return os.environ.get(name, "")
+
+
 def base(word: str) -> str:
     return word.rsplit("/", 1)[-1]
 
@@ -514,6 +553,7 @@ class Checker:
         self.start = cwd  # the session's worktree; a `cd ..` inside the command does not move it
         self.in_python = 0  # > 0 while checking a Python string literal as a shell command
         self.lit_vars: set[str] = set()  # variables the command sets to a literature-API URL
+        self.lit_raw = owner_env(LIT_RAW, cwd) == "1"
 
     def text(self, text: str, depth: int = 0) -> str | None:
         """Check a shell command string; return the reason it is blocked, or None."""
@@ -649,7 +689,7 @@ class Checker:
             rest = [a for a in args if not a.startswith("-")]
             if rest[:1] == ["pip"] and {"install", "uninstall", "sync"} & set(rest):
                 return PIP
-        if name in FETCHERS and f"{LIT_RAW}=1" not in assigns and os.environ.get(LIT_RAW) != "1":
+        if name in FETCHERS and f"{LIT_RAW}=1" not in assigns and not self.lit_raw:
             for a in args:
                 a = a.split("=", 1)[1] if a.startswith("--") and "=" in a else a  # --url=<url>
                 if LIT_API.match(a) or ((m := LIT_VAR.match(a)) and m.group(1) in self.lit_vars):
@@ -1037,12 +1077,12 @@ def main() -> int:
         url = (data.get("tool_input") or {}).get("url", "") if data.get("tool_name") == "WebFetch" else ""
     except (json.JSONDecodeError, AttributeError):
         return 0
-    if isinstance(url, str) and LIT_API.match(url.strip()) and os.environ.get(LIT_RAW) != "1":
+    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
+    if isinstance(url, str) and LIT_API.match(url.strip()) and owner_env(LIT_RAW, cwd) != "1":
         print(f"Blocked by project rule: {LIT}", file=sys.stderr)
         return 2
     if not isinstance(cmd, str):
         return 0
-    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
     agent = data.get("agent_type") if isinstance(data.get("agent_type"), str) else ""  # set inside a subagent
     try:
         why = Checker(cwd, read_only=READ_ONLY_AGENTS.get(agent.rsplit(":", 1)[-1], "")).text(cmd)

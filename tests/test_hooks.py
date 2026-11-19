@@ -594,6 +594,99 @@ def test_edit_guard_blocks_any_file_with_the_generated_marker(hook, tmp_path):
     assert hook("edit_guard.py", {"tool_input": {"file_path": str(plain)}})[0] == 0
 
 
+def _settings_edit(path, tool: str, before: str, **inp) -> dict:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if before:
+        path.write_text(before)
+    return {"tool_name": tool, "tool_input": {"file_path": str(path), **inp}}
+
+
+SETTINGS_BEFORE = '{\n  "env": {"FOO": "1", "X_COPYLEFT": "pyqt6"},\n  "permissions": {}\n}\n'
+
+
+@pytest.mark.parametrize(
+    ("where", "tool", "inp", "blocked"),
+    [
+        (".claude/settings.local.json", "Write", {"content": '{"env": {"DEVKIT_ALLOW_COPYLEFT": "pyqt6"}}'}, True),
+        (".claude/settings.json", "Edit", {"old_string": '"FOO": "1"', "new_string": '"DEVKIT_LIT_RAW": "1"'}, True),
+        ("home/.claude/settings.json", "Write", {"content": '{"env": {"DEVKIT_SECRETS_FILE": "/x"}}'}, True),
+        (".claude/settings.json", "Write", {"content": '{"env": {"DEVKIT\\u005fLIT_RAW": "1"}}'}, True),
+        # completing a name from text already in the file
+        (".claude/settings.json", "Edit", {"old_string": '"X_', "new_string": '"DEVKIT_ALLOW_'}, True),
+        (
+            ".claude/settings.local.json",
+            "MultiEdit",
+            {
+                "edits": [
+                    {"old_string": "FOO", "new_string": "BAR"},
+                    {"old_string": "BAR", "new_string": "DEVKIT_LIT_RAW"},
+                ]
+            },
+            True,
+        ),
+        (".claude/settings.json", "Edit", {"old_string": '"FOO": "1"', "new_string": '"FOO": "2"'}, False),
+        (".claude/settings.json", "Write", {"content": '{"permissions": {"allow": ["Bash(ls)"]}}'}, False),
+        ("docs/SETUP.md", "Write", {"content": "export DEVKIT_ALLOW_COPYLEFT=pyqt6 before starting claude"}, False),
+    ],
+)
+def test_edit_guard_refuses_guard_overrides_in_settings_env(hook, tmp_path, where, tool, inp, blocked):
+    payload = _settings_edit(tmp_path / where, tool, SETTINGS_BEFORE, **inp)
+    code, _, err = hook("edit_guard.py", payload)
+    assert (code == 2) == blocked, err
+    assert not blocked or "owner" in err
+
+
+def test_edit_guard_lets_an_agent_remove_a_guard_override_from_settings(hook, tmp_path):
+    before = '{"env": {"DEVKIT_LIT_RAW": "1", "FOO": "1"}}'
+    payload = _settings_edit(
+        tmp_path / ".claude/settings.json", "Edit", before, old_string='"DEVKIT_LIT_RAW": "1", ', new_string=""
+    )
+    assert hook("edit_guard.py", payload)[0] == 0
+
+
+def _isolated(tmp_path, **extra) -> tuple[Path, dict]:
+    project = tmp_path / "project"
+    (project / ".claude").mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "HOME": str(tmp_path / "home"), "CLAUDE_PROJECT_DIR": str(project), **extra}
+    env.pop("CLAUDE_CONFIG_DIR", None)
+    return project, env
+
+
+@pytest.mark.parametrize(
+    ("settings", "text"),
+    [
+        ("project/.claude/settings.local.json", '{"env": {"DEVKIT_LIT_RAW": "1"}}'),
+        ("project/.claude/settings.json", '{"env": {"DEVKIT_LIT_RAW": "0"}}'),
+        ("home/.claude/settings.json", '{"env": {"DEVKIT\\u005fLIT_RAW": "1"}}'),
+        ("project/.claude/settings.json", '{"env": {"DEVKIT_LIT_RAW": "1",}}'),  # not JSON: fail closed
+    ],
+)
+def test_guard_bash_ignores_an_override_any_settings_file_sets(hook, tmp_path, settings, text):
+    """Claude Code passes a settings file's env to hooks ahead of the shell's (#191, live check in
+    docs/research/agent-harness.md §12c), and an agent can write that file: the override then counts as unset."""
+    project, env = _isolated(tmp_path, DEVKIT_LIT_RAW="1")
+    url = LIT_URLS[0]
+    bash = {"cwd": str(project), "tool_input": {"command": f"curl -s '{url}'"}}
+    fetch = {"cwd": str(project), "tool_name": "WebFetch", "tool_input": {"url": url, "prompt": "x"}}
+    assert hook("guard_bash.py", bash, env=env)[0] == 0  # the shell's value is the owner's
+    assert hook("guard_bash.py", fetch, env=env)[0] == 0
+    path = tmp_path / settings
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    assert hook("guard_bash.py", bash, env=env)[0] == 2
+    assert hook("guard_bash.py", fetch, env=env)[0] == 2
+
+
+def test_guard_bash_override_survives_unrelated_settings(hook, tmp_path):
+    project, env = _isolated(tmp_path, DEVKIT_LIT_RAW="1")
+    (project / ".claude/settings.json").write_text(
+        '{"env": {"FOO": "1"}, "permissions": {"allow": ["DEVKIT_LIT_RAW"]}}'
+    )
+    (project / ".claude/settings.local.json").write_text("not json at all")
+    bash = {"cwd": str(project), "tool_input": {"command": f"curl -s '{LIT_URLS[0]}'"}}
+    assert hook("guard_bash.py", bash, env=env)[0] == 0
+
+
 def _long_file(tmp_path, name, lines):
     p = tmp_path / name
     p.write_text("".join(f"x{i} = {i}\n" for i in range(lines)))
