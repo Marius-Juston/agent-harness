@@ -13,9 +13,8 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from devkit import board, workflow
-from tests.test_gate import _last_json, fake_integrate  # noqa: F401 - fake_integrate is a fixture
+from tests.test_gate import _last_json, fake_integrate
 
-REAL_GH = board.gh  # fake_integrate replaces board.gh; the end-to-end test puts the real one back
 TLS = "Post https://api.github.com/graphql: net/http: TLS handshake timeout"
 T0 = 1_800_000_000.0  # the injected clock: 2027-01-15T08:00:00Z
 STAMP = "2027-01-15T08:00:05Z"
@@ -170,6 +169,7 @@ def test_an_idempotent_write_is_retried_as_is(cli):
         ("api", "graphql", "-f", "query=mutation($a: ID!) { addBlockedBy(input: {}) { clientMutationId } }"),
         ("api", "-X", "POST", "repos/o/r/issues/1/labels", "-f", "labels[]=x"),
         ("issue", "comment", "4", "--body", "hi"),  # no -R: no recheck can find it
+        ("issue", "transfer", "4", "o/other", "-R", "o/r"),  # a write no recheck knows
     ],
 )
 def test_a_write_without_a_recheck_is_not_retried_and_says_its_outcome_is_unknown(cli, args):
@@ -337,8 +337,24 @@ def test_board_claim_survives_a_tls_timeout_on_a_read_and_on_its_claim_comment(c
     assert "status:in-progress" in cli.labels[12]
 
 
-def test_integrate_survives_a_tls_timeout_on_a_read_and_on_its_merge(fake_integrate, monkeypatch, capsys):  # noqa: F811
-    world_gh, other_run = board.gh, workflow.subprocess.run
+class KeepGh:
+    """A monkeypatch that applies every patch but the one replacing `board.gh`, which it keeps as `world_gh`: the
+    fake_integrate world then answers gh at subprocess level, under the real gh() and its retries."""
+
+    def __init__(self, mp: pytest.MonkeyPatch) -> None:
+        self.mp, self.world_gh = mp, None
+
+    def setattr(self, target, name, value, *a, **k):
+        if (target, name) == (board, "gh"):
+            self.world_gh = value
+            return
+        self.mp.setattr(target, name, value, *a, **k)
+
+
+def test_integrate_survives_a_tls_timeout_on_a_read_and_on_its_merge(monkeypatch, tmp_path, capsys):
+    keep = KeepGh(monkeypatch)
+    fake_integrate.__wrapped__(keep, tmp_path)  # the fixture's world, with the real board.gh left in place
+    world_gh, other_run = keep.world_gh, workflow.subprocess.run
     merged = {"done": False, "merges": 0, "views": 0}
 
     def run(cmd, input=None, **kw):
@@ -360,10 +376,9 @@ def test_integrate_survives_a_tls_timeout_on_a_read_and_on_its_merge(fake_integr
             return subprocess.CompletedProcess(cmd, 1, "", TLS)  # merged, but the answer was lost
         return subprocess.CompletedProcess(cmd, 0, out, "")
 
-    monkeypatch.setattr(board, "gh", REAL_GH)
     monkeypatch.setattr(board, "root", lambda: Path("."))
     monkeypatch.setattr(board, "GH_SLEEP", lambda s: None)
     monkeypatch.setattr(workflow.subprocess, "run", run)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
-    assert merged["merges"] == 1
+    assert merged["merges"] == 1 and merged["views"] > 1
     assert _last_json(capsys.readouterr().out)["outcome"] == "merged"
