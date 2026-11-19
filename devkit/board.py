@@ -1599,10 +1599,13 @@ def data_nonce() -> str:
 
 
 def brief(number: int, token: Callable[[], str] = data_nonce) -> str:
-    """Everything an agent needs to start one item, so its spawn prompt can be one line. Text others can write
-    (the issue's sections, comments, PR feedback) comes inside envelopes marked with a nonce `token` draws, drawn
-    again while that text contains it."""
-    i = get(number)
+    """Everything an agent needs to start one item, so its spawn prompt can be one line."""
+    return brief_of(get(number), token)
+
+
+def brief_of(i: Issue, token: Callable[[], str] = data_nonce) -> str:
+    """The brief of issue `i`. Text others can write (the issue's sections, comments, PR feedback) comes inside
+    envelopes marked with a nonce `token` draws, drawn again while that text contains it."""
     p = i.parts
     out: list[str | Fenced] = [f"# #{i.number} {i.title}", f"{i.priority} type:{i.kind} status:{i.status}"]
     if c := i.claim():
