@@ -100,7 +100,7 @@ Out of scope: the per-model breakdown #287 asked for is part of item 1, so #287 
   - median tokens per covered issue below 2.0M with n ≥ 30;
   - counted send-back rate at or below 5 % (4 of 77);
   - one-round reviewer convergence at or above 77 % with n ≥ 20 series. Today's n of 13 cannot detect less than about a 30-point change (BELIEVED, from the interval width).
-- **Set `cleanupPeriodDays` well above 30 on the machines that run the harness** (any value up to the documented example 3650), until #535 stores history. A 30-day default loses every baseline a month after it is taken (SOURCED and VERIFIED, §4).
+- **Set `cleanupPeriodDays` well above 30 on the machines that run the harness** (any value up to the documented example 3650), until #535 stores history. A 30-day default loses every baseline a month after it is taken (SOURCED, [Settings reference](https://code.claude.com/docs/en/settings-reference), `cleanupPeriodDays`; VERIFIED, §4).
 - **Do not make OpenTelemetry a dependency.** Use it only as an opt-in documented route (#536). If it is on, use exactly the env block of §3 with `OTEL_LOG_TOOL_DETAILS=1` and the dropping sink, never a remote endpoint. It is identical to the transcripts on the measured fields (12 of 12 requests). It cannot tag subagents by issue. The flag needed for agent names exports full commands (VERIFIED, §2-§3).
 - **Keep `#<n>` first in every agent description.** It is the only reliable issue key: `gitBranch` disagrees on 46 % of builder runs (VERIFIED, §4).
 - **Raise coverage of review data.** Only 13 of 77 merged PRs have a reviewer transcript in the window, so a review-rounds metric means little until review runs are retained (#535) and attributed (BELIEVED).
