@@ -15,12 +15,17 @@ Results are cached per URL in the shared git dir for CACHE_DAYS, so re-checks an
 definite answers are cached: a timeout, 5xx or 429 is retried once in the run (full jitter, or the server's
 Retry-After, through devkit.backoff) and again next run. A 401/403 (paywall, bot wall) proves nothing
 about the page, so it is reported as unverified, never as ok.
+
+Then each SOURCED claim resting on a paper must quote it verbatim with a locator, and the quote must be in that
+section of the paper's full text (check_quotes, #512); a note line per file counts its abstract-only claims.
 """
 
 import concurrent.futures
 import contextlib
+import dataclasses
 import difflib
 import fcntl
+import itertools
 import json
 import os
 import random
@@ -33,7 +38,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
 
-from devkit import backoff, netsafe
+from devkit import backoff, fulltext, lit, netsafe
 from devkit.paths import state_dir
 
 CACHE_DAYS = 14
@@ -222,9 +227,12 @@ def save_cache(path: Path, new: dict) -> None:
         netsafe.atomic_write(path, json.dumps(_read_cache(path) | new))
 
 
-def check_notes(paths: list[Path], offline_ok: bool = False) -> tuple[int, list[str], list[str]]:
-    """(links checked, problems, notes) for the given markdown files. Under CI or offline_ok, a link that stayed
-    unreachable after its retry is a note, so one rate-limited site cannot fail the run."""
+def check_notes(
+    paths: list[Path], offline_ok: bool = False, texts: "TextSource | None" = None
+) -> tuple[int, list[str], list[str]]:
+    """(links checked, problems, notes) for the given markdown files, then each SOURCED paper claim's quote against
+    the full text from `texts` (default: dev lit's cached reader). Under CI or offline_ok, a link or full text that
+    stayed unreachable after its retry is a note, so one rate-limited site cannot fail the run."""
     lenient = offline_ok or bool(os.environ.get("CI"))
     cache_file = state_dir() / "cite-cache.json"
     cache = _read_cache(cache_file)
@@ -292,4 +300,199 @@ def check_notes(paths: list[Path], offline_ok: bool = False) -> tuple[int, list[
             problems.append(f"{where}: link text does not match the DOI's title {rec['title']!r}")
         elif rec.get("note"):
             notes.append(f"{where}: {rec['note']}")
+    found = [c for p in paths for c in claims(p, p.read_text(encoding="utf-8"))]
+    if found:
+        more, said, counts = check_quotes(found, texts or lit.client().full_text, lenient)
+        problems += more
+        notes += said
+        for p, n in counts.items():
+            notes.append(f"{Path(p).name}: {', '.join(f'{v} {k}' for k, v in n.items())} (SOURCED paper claims)")
     return len(cites), problems, notes
+
+
+# ---- quotes against the full text (#512) ----
+# A SOURCED claim resting on a paper (an arXiv or DOI link) drives a recommendation, so it carries a verbatim quote and
+# a locator: `"<quote>" (SOURCED, [Title](url), Author Year, §3.2)`. The quote is checked in the cited section of the
+# paper's full text (lit.Client.full_text). The abstract cannot back a numeric, method or limitation claim when the
+# full text is reachable; with none reachable, the claim says so with the `abstract-only` tag.
+
+LABEL = re.compile(r"\b(VERIFIED|SOURCED|BELIEVED|ASSUMED)\b")
+QUOTE = re.compile(r"[\"“]([^\"“”\n]{12,}?)[\"”]")
+QUOTED = re.compile(r"[\"“][^\"“”\n]*[\"”]")
+QUOTE_MIN_WORDS = 3
+NUMERIC = re.compile(r"\d")
+METHOD = re.compile(
+    r"\b(method|methods|methodology|we (?:study|studied|use|used|ran|run|train|trained|measure|measured|sample|sampled|collect|"
+    r"collected|evaluate|evaluated|compare|compared)|dataset|participants|sample|randomi[sz]ed|controlled|protocol|"
+    r"procedure|survey|interviews?|benchmark|ablation)\b",
+    re.I,
+)
+LIMITATION = re.compile(
+    r"\b(limitations?|threats? to validity|caveats?|cannot|could not|does not|did not|fails?|failed|only|however|"
+    r"bias(?:ed)?|not significant)\b",
+    re.I,
+)
+
+
+@dataclasses.dataclass(frozen=True)
+class Claim:
+    path: Path
+    line: int
+    url: str
+    ident: str  # the arXiv id or DOI
+    locator: str
+    quote: str
+    context: str  # what decides the claim's kind: its quote, else its own words
+    tags: frozenset[str]
+
+    def where(self) -> str:
+        return f"{self.path.name}:{self.line}: {self.url}"
+
+    def kind(self) -> str:
+        """'numeric', 'method' or 'limitation' when the claim is one (the abstract cannot back it), else ''."""
+        text = re.sub(r"\b(?:19|20)\d\d\b", "", self.context)
+        for name, rx in (("numeric", NUMERIC), ("method", METHOD), ("limitation", LIMITATION)):
+            if rx.search(text):
+                return name
+        return ""
+
+    def abstract(self) -> bool:
+        return self.locator.lower() == "abstract" or "abstract-only" in self.tags
+
+
+def _blocks(text: str) -> list[tuple[int, str]]:
+    """(first line number, text) of each paragraph or list item."""
+    out: list[tuple[int, list[str]]] = []
+    for i, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            out.append((i + 1, []))
+        elif re.match(r"\s*(?:[-*+]|\d+[.)])\s", line) or not out:
+            out.append((i, [line]))
+        else:
+            out[-1][1].append(line)
+    return [(n, " ".join(lines)) for n, lines in out if lines]
+
+
+def _mask(block: str) -> str:
+    """`block` with each link's text replaced by as many L's, so a DOI's own parentheses or ';' do not count."""
+    return LINK.sub(lambda m: "L" * len(m.group(0)), block)
+
+
+def _groups(masked: str) -> list[tuple[int, int]]:
+    """Outermost parenthesised spans."""
+    spans, depth, start = [], 0, 0
+    for i, ch in enumerate(masked):
+        if ch == "(":
+            start = i if depth == 0 else start
+            depth += 1
+        elif ch == ")" and depth:
+            depth -= 1
+            if depth == 0:
+                spans.append((start, i + 1))
+    return spans
+
+
+def _segment(masked: str, group: tuple[int, int], at: int) -> tuple[int, int]:
+    """The ';'-separated part of a parenthesised group that holds position `at`: one source's label and locator."""
+    depth, cuts = 0, [group[0]]
+    for i in range(group[0] + 1, group[1] - 1):
+        depth += {"(": 1, ")": -1}.get(masked[i], 0)
+        if masked[i] == ";" and depth == 0:
+            cuts.append(i)
+    cuts.append(group[1] - 1)
+    return next(((a + 1, b) for a, b in itertools.pairwise(cuts) if a < at < b), (group[0] + 1, group[1] - 1))
+
+
+def claims(path: Path, text: str) -> list[Claim]:
+    """The SOURCED claims of a note that rest on a paper, with their quote, locator and tags."""
+    found: list[Claim] = []
+    text = re.sub(r"`(abstract-only|single-source)`", r"\1", text)  # tags are written as code; keep them
+    for line, block in _blocks(CODE.sub("", text)):
+        links = [m for m in LINK.finditer(block) if ARXIV.search(m.group(2)) or DOI.search(m.group(2))]
+        masked = _mask(block)
+        groups = _groups(masked)
+        labels = set(LABEL.findall(LINK.sub(" ", block)))
+        prev_end = 0
+        for i, m in enumerate(links):
+            group = next((g for g in groups if g[0] < m.start() < g[1]), None)
+            if group:
+                s, e = _segment(masked, group, m.start())
+                before, prev_end = block[prev_end : group[0]], max(prev_end, group[1])
+            else:
+                s, e = prev_end, links[i + 1].start() if i + 1 < len(links) else len(block)
+                before, prev_end = "", e
+            seg = LINK.sub(" ", block[s:e])
+            label = (LABEL.findall(seg) or (list(labels) if len(labels) == 1 else [""]))[0]
+            if label != "SOURCED":
+                continue
+            url = m.group(2).rstrip(".,;")
+            ax, doi = ARXIV.search(url), DOI.search(url)
+            ident = ax.group(1) if ax else urllib.parse.unquote(doi.group(1)) if doi else url
+            inside = [q for q in QUOTE.findall(seg) if len(q.split()) >= QUOTE_MIN_WORDS]
+            outside = [q for q in QUOTE.findall(before) if len(q.split()) >= QUOTE_MIN_WORDS]
+            quote = inside[0] if inside else outside[-1] if outside else ""
+            loc = fulltext.LOCATOR.findall(QUOTED.sub(" ", seg))
+            tags = frozenset(t for t in ("abstract-only", "single-source") if t in seg)
+            found.append(Claim(path, line, url, ident, loc[0] if loc else "", quote, quote or before, tags))
+    return found
+
+
+TextSource = Callable[[str], "tuple[fulltext.FullText | None, str]"]  # ident -> (text or None, why); may raise
+
+
+def check_quotes(
+    found: list[Claim], texts: TextSource, lenient: bool = False
+) -> tuple[list[str], list[str], dict[str, dict[str, int]]]:
+    """(problems, notes, counts per note) for the claims' quotes against their sources' full texts. A source that
+    could not be reached now is a problem, or a note when `lenient` (CI, --offline-ok)."""
+    problems, notes = [], []
+    counts: dict[str, dict[str, int]] = {}
+    seen: dict[str, tuple[fulltext.FullText | None, str, str]] = {}
+    for c in found:
+        n = counts.setdefault(str(c.path), {"claims": 0, "quoted": 0, "abstract-only": 0, "in full text": 0})
+        n["claims"] += 1
+        if c.ident not in seen:
+            try:
+                seen[c.ident] = (*texts(c.ident), "")
+            except (lit.SourceError, OSError) as exc:  # a timeout, 5xx or 429 that outlived its retry
+                seen[c.ident] = (None, "", f"full text not reachable now ({exc})")
+        ft, why, transient = seen[c.ident]
+        if (ft is None and not transient) or c.abstract():
+            n["abstract-only"] += 1
+        if not c.quote:
+            problems.append(f"{c.where()}: SOURCED claim on a paper has no verbatim quote")
+            continue
+        n["quoted"] += 1
+        if not c.locator and "abstract-only" not in c.tags:
+            problems.append(f"{c.where()}: the quote has no locator (§3.2, Table 2, p. 7 or abstract)")
+        elif transient:
+            (notes if lenient else problems).append(f"{c.where()}: {transient}")
+        elif ft is None:
+            if "abstract-only" not in c.tags:
+                problems.append(f"{c.where()}: no full text reachable ({why}): tag the claim `abstract-only`")
+        elif c.abstract() and (kind := c.kind()):
+            problems.append(
+                f"{c.where()}: a {kind} claim rests on the abstract, but the full text is reachable "
+                f"({ft.url}): read it and cite the section that reports it"
+            )
+        else:
+            problems += [p for p in _placed(c, ft, notes) if p]
+            n["in full text"] += 1
+    return problems, notes, counts
+
+
+def _placed(c: Claim, ft: fulltext.FullText, notes: list[str]) -> list[str]:
+    """Problems with where the quote sits in the full text; notes where only an approximate check was possible."""
+    located = ft.locate("abstract" if c.abstract() else c.locator)
+    if located and fulltext.contains(located[1], c.quote):
+        return []
+    if not fulltext.contains(ft.whole(), c.quote):
+        return [f"{c.where()}: quote not found in the full text ({ft.url}): {c.quote[:80]!r}"]
+    if located:
+        msg = f"{c.where()}: the quote is not in {located[0]!r} ({c.locator}) but elsewhere in {ft.url}"
+        if ft.kind != "pdf":
+            return [msg]
+        notes.append(msg + " (PDF section bounds are approximate)")
+    elif not fulltext.SECTIONLESS.match(c.locator.lstrip("§ ")):
+        notes.append(f"{c.where()}: {c.locator!r} is not in the outline of {ft.url}; the quote is in the text")
+    return []

@@ -1,4 +1,4 @@
-"""Literature search shared by every agent on this machine (`uv run dev lit search|get|refs|cited-by`).
+"""Literature search shared by every agent on this machine (`uv run dev lit search|get|read|refs|cited-by`).
 
 Parallel researchers on one IP got 429s from OpenAlex and Semantic Scholar and spent OpenAlex's daily budget, then
 fell back to weaker sources. Every call here goes through one client:
@@ -22,6 +22,8 @@ fell back to weaker sources. Every call here goes through one client:
   adds authors, an open-access link and the full abstract, asks the next source only while the abstract or
   authors are missing, and batches several DOIs or W-ids into one OpenAlex call (#30, #174);
 - `refs` and `cited-by`: backward and forward citation chasing (snowballing) through OpenAlex filters (#193);
+- `read`: a paper's full text, cached as sections (devkit.fulltext): the outline, or one section, so an agent reads
+  what a claim rests on, not the abstract or the whole paper (#512);
 - `dev lit status`: each source's health from a live probe; OK while at least one default source answers (partial
   names the ones down), DEGRADED and exit 1 only when all are down, so a research round never starts on the weaker
   fallbacks alone without knowing it (#8, #23). `dev lit search` prints the same verdict for the sources it asked
@@ -32,6 +34,7 @@ or a cache across processes, the part that failed.
 """
 
 import contextlib
+import dataclasses
 import fcntl
 import hashlib
 import html
@@ -50,7 +53,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from devkit import backoff, netsafe
+from devkit import backoff, fulltext, netsafe
 from devkit.paths import state_dir, user_state_dir
 
 UA = "agent-harness-devkit-lit/0.1 (research tooling; mailto:noreply@example.invalid)"
@@ -79,6 +82,9 @@ RATES: dict[str, tuple[float, float]] = {
     "arxiv": (1 / 3, 1.0),
 }
 SOURCES = tuple(RATES)
+# Full texts (`full_text`) from an open-access host other than arXiv's and Europe PMC's buckets: one per second, shared.
+TEXT_RATES = {"fulltext": (1.0, 2.0)}
+TEXT_CAP = 40_000_000  # bytes of one PDF
 DEFAULT_SOURCES = ("openalex", "s2")
 # Asked in order, after DEFAULT_SOURCES, only while fewer than n papers are in hand (`--source auto`, the CLI default).
 FALLBACK_SOURCES = ("crossref", "europepmc", "arxiv")
@@ -87,6 +93,7 @@ KEYS = {"openalex": "OPENALEX_API_KEY", "s2": "S2_API_KEY"}  # free keys raise a
 SECRETS_FILE = "~/.config/api-keys.env"  # DEVKIT_SECRETS_FILE overrides
 
 Get = Callable[[str, dict[str, str]], tuple[int, dict[str, str], str]]  # (url, headers) -> (status, headers, body)
+GetBytes = Callable[[str, dict[str, str]], tuple[int, dict[str, str], bytes]]
 
 
 class SourceError(Exception):
@@ -117,6 +124,10 @@ def http_get(url: str, headers: dict[str, str], timeout: int = 30) -> tuple[int,
         return netsafe.http_get(url, ua=UA, headers=headers, timeout=timeout, cap=2_000_000, opener=OPENER)
     except (ValueError, UnicodeEncodeError):  # a header or url urllib cannot send; its message may quote the key
         raise SourceError("key contains non-ASCII characters (or a control character); fix the secrets file") from None
+
+
+def http_get_bytes(url: str, headers: dict[str, str], timeout: int = 60) -> tuple[int, dict[str, str], bytes]:
+    return netsafe.http_get_bytes(url, ua=UA, headers=headers, timeout=timeout, cap=TEXT_CAP, opener=OPENER)
 
 
 # ---- rate limit: token bucket shared through a locked file ----
@@ -630,6 +641,7 @@ def chase_target(ident: str) -> str:
 class Client:
     dir: Path
     get: Get = http_get
+    get_bytes: GetBytes = http_get_bytes
     clock: Callable[[], float] = time.time
     sleep: Callable[[float], None] = time.sleep
     env: dict[str, str] = field(default_factory=lambda: dict(os.environ))
@@ -642,7 +654,8 @@ class Client:
 
     def __post_init__(self) -> None:
         (self.dir / "cache").mkdir(parents=True, exist_ok=True)
-        self.bucket = Bucket(self.rate_dir or self.dir, self.clock, self.sleep, self.rng, self.rates)
+        rates = TEXT_RATES | self.rates
+        self.bucket = Bucket(self.rate_dir or self.dir, self.clock, self.sleep, self.rng, rates)
 
     def _cache_path(self, url: str) -> Path:
         return self.dir / "cache" / (hashlib.sha256(url.encode()).hexdigest()[:32] + ".json")
@@ -881,6 +894,67 @@ class Client:
         if not papers:
             return [], []
         return papers, [f"{len(papers)} of {count} {CHASE[direction][1]} of {target}, most cited first"]
+
+    def full_text(self, ident: str) -> tuple[fulltext.FullText | None, str]:
+        """(the paper's full text as sections, or None and why there is none) for an arXiv id or a DOI: arXiv's HTML,
+        else its PDF; for another DOI the arXiv copy its record names, else Europe PMC's XML of a PMC article, else
+        the open-access link `get` prints. The parsed text, and a definite 'none' (no open-access copy, 404, 403),
+        is cached CACHE_DAYS beside the responses. Raises SourceError when the answer was transient (retry later)."""
+        key = (m.group(1) if (m := ARXIV_ID.match(ident)) else _arxiv_from_doi(ident)) or ident.lower()
+        path = self.dir / "fulltext" / (hashlib.sha256(key.encode()).hexdigest()[:32] + ".json")
+        with contextlib.suppress(FileNotFoundError, json.JSONDecodeError, KeyError):
+            rec = json.loads(path.read_text())
+            if self.clock() - rec["t"] < CACHE_DAYS * 86400:
+                if "none" in rec:
+                    return None, rec["none"]
+                return fulltext.FullText(rec["url"], rec["kind"], [tuple(s) for s in rec["sections"]]), ""
+        ft, why = self._read_full_text(ident)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        rec = {"t": self.clock(), "none": why} if ft is None else {"t": self.clock(), **dataclasses.asdict(ft)}
+        netsafe.atomic_write(path, json.dumps(rec))
+        return ft, why
+
+    def _read_full_text(self, ident: str) -> tuple[fulltext.FullText | None, str]:
+        m = ARXIV_ID.match(ident)
+        ax, oa, tried = m.group(1) if m else _arxiv_from_doi(ident), "", []
+        if not ax:
+            paper, notes = self.lookup(ident)
+            if paper is None:
+                raise SourceError(f"no record for {ident}" + (f" ({'; '.join(notes)})" if notes else ""))
+            ax, oa = paper.ids.get("arxiv", ""), paper.oa_url
+        urls = [("arxiv", f"https://arxiv.org/html/{ax}"), ("arxiv", f"https://arxiv.org/pdf/{ax}")] if ax else []
+        if not ax and oa:
+            pmc = re.search(r"europepmc\.org/article/PMC/(PMC\d+)", oa)
+            urls.append(
+                ("europepmc", f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmc.group(1)}/fullTextXML")
+                if pmc
+                else ("fulltext", oa)
+            )
+        for src, url in urls:
+            status, body = self._fetch_bytes(src, url)
+            if status != 200:
+                tried.append(f"{url}: HTTP {status}")
+                continue
+            if body.startswith(b"%PDF"):
+                ft = fulltext.from_pdf(body, url)
+            else:
+                ft = fulltext.from_markup(body.decode("utf-8", "replace"), url, "xml" if src == "europepmc" else "html")
+            if ft and ft.words() >= fulltext.MIN_WORDS:
+                return ft, ""
+            tried.append(f"{url}: {ft.words() if ft else 0} words of text, not a full paper")
+        return None, "; ".join(tried) or "no open-access copy"
+
+    def _fetch_bytes(self, src: str, url: str) -> tuple[int, bytes]:
+        """(status, body) of a definite answer, through the shared bucket; a transient one twice raises SourceError."""
+        status = 0
+        for attempt in range(2):
+            self.bucket.acquire(src)
+            status, headers, body = self.get_bytes(url, {})
+            if not (status == 0 or status == 429 or status >= 500):
+                return status, body
+            if attempt == 0:
+                self.sleep(backoff.wait(0, backoff.hinted(headers, self.clock()), self.rng, cap=MAX_WAIT))
+        raise SourceError(f"{url}: {'HTTP ' + str(status) if status else 'unreachable'} after 2 tries")
 
 
 def _merge(merged: dict[str, Paper], p: Paper) -> None:

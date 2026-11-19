@@ -253,6 +253,13 @@ def build() -> argparse.ArgumentParser:
     )
     x.add_argument("id", nargs="+")
     x.add_argument("--snippet", type=int, default=None, help="abstract characters (default: all; 0 = none)")
+    x = ls.add_parser(
+        "read",
+        help="a paper's full text (arXiv HTML/PDF, Europe PMC, the open-access copy), cached: its outline, or one "
+        "section with --section",
+    )
+    x.add_argument("id", help="a DOI or arXiv id")
+    x.add_argument("--section", default="", help="a locator: abstract, 3.2, Results, 'Appendix B'")
     for name, what in (("refs", "the works it cites (backward)"), ("cited-by", "the works citing it (forward)")):
         x = ls.add_parser(
             name, help=f"citation chasing through OpenAlex: {what}, most cited first, compact lines like search"
@@ -578,6 +585,17 @@ def run_lit(a: argparse.Namespace) -> int:
             if lit.degraded(health) or not any(h.ok for h in health):
                 return 1
             return 0 if papers or not notes else 1
+        elif a.sub == "read":
+            ft, why = lit.client().full_text(a.id)
+            if ft is None:
+                print(f"no full text for {a.id}: {why}")
+                return 1
+            if not a.section:
+                print(ft.outline())
+                return 0
+            found = ft.locate(a.section)
+            print(found[1] if found else f"{a.section!r} is not in the outline:\n{ft.outline()}")
+            return 0 if found else 1
         elif a.sub in lit.CHASE:
             papers, notes = lit.client().chase(a.id, a.sub, a.n, a.years)
         else:
@@ -587,6 +605,9 @@ def run_lit(a: argparse.Namespace) -> int:
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except lit.SourceError as exc:  # `read`: the full text was not reachable now
+        print(f"not reachable now: {exc}")
+        return 1
     print(lit.render(papers, notes, a.snippet))
     return 0 if papers or not notes else 1
 
