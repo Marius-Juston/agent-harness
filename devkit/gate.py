@@ -397,7 +397,7 @@ def type_check(base: str | None, cwd: Path | None = None) -> Ran:
         return ran
     problems, ran.notes = type_problems(len(found), budget)
     if problems:  # the change's own files first: that is where the new diagnostics most likely are
-        changed = set(git("diff", "--name-only", base).splitlines()) if base and cwd is None else set()
+        changed = set(git("diff", "--name-only", base).splitlines()) if base else set()
         found.sort(key=lambda d: d["location"]["path"] not in changed)
         shown = [
             f"{d['location']['path']}:{d['location']['positions']['begin']['line']}: {d['description']}" for d in found

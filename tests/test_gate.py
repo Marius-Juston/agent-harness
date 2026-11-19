@@ -2037,7 +2037,6 @@ def test_over_budget_the_ty_stage_lists_the_changed_files_diagnostics_first(tmp_
     monkeypatch.setattr(config, "get", lambda: SimpleNamespace(ratchets=".devkit/ratchets.toml"))
     root = _typed(tmp_path, "[types]\nmax_diagnostics = 0\n")
     (root / "z.py").write_text(TY_ERROR)
-    monkeypatch.setattr(gate, "root", lambda: root)
 
     def git(*args):
         if args[0] == "show":
@@ -2045,5 +2044,5 @@ def test_over_budget_the_ty_stage_lists_the_changed_files_diagnostics_first(tmp_
         return "z.py\n"
 
     monkeypatch.setattr(gate, "git", git)
-    ran = gate.type_check("BASE")
+    ran = gate.type_check("BASE", root)
     assert ran.problems[1].startswith("z.py:1:") and ran.problems[2].startswith("m.py:1:")
