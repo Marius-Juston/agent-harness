@@ -154,12 +154,39 @@ def test_a_project_command_runs_in_the_root_with_its_args_and_exit_code(monkeypa
 
 def test_a_project_command_named_like_a_built_in_is_a_config_error(monkeypatch, capsys):
     _commands(monkeypatch, {"check": ECHO})
-    with pytest.raises(config.ConfigError, match="'check' shadows a built-in"):
+    # The message says how to recover: which devkit owns the name, and where to rename it.
+    recover = r"devkit \d+\.\d+\.\d+\S* has a built-in `dev check`; rename yours in \[tool\.devkit\.commands\]"
+    with pytest.raises(config.ConfigError, match=recover):
         cli.build()
     monkeypatch.setattr("sys.argv", ["dev", "--help"])
     with pytest.raises(SystemExit) as exc:
         cli.main()
-    assert exc.value.code == 1 and "shadows a built-in" in capsys.readouterr().err
+    assert exc.value.code == 1 and re.search(recover, capsys.readouterr().err)
+
+
+def test_a_percent_in_a_project_command_does_not_break_dev_help(monkeypatch):
+    # argparse %-formats help strings: an unescaped `+%Y` raised ValueError in `dev --help` and `dev docs`.
+    _commands(monkeypatch, {"stamp": ["date", "+%Y", "%(prog)s"]})
+    assert "project: date +%Y %(prog)s" in cli.build().format_help()
+    assert ("stamp", "project: date +%Y %(prog)s") in cli.command_help()
+
+
+def test_a_missing_program_is_an_error_line_and_127(monkeypatch, capsys):
+    _commands(monkeypatch, {"gone": ["devkit-no-such-program-492"]})
+    monkeypatch.setattr("sys.argv", ["dev", "gone"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 127
+    assert capsys.readouterr().err.startswith("error: dev gone: ")
+
+
+def test_a_project_command_killed_by_a_signal_exits_128_plus_the_signal(monkeypatch):
+    kill = [sys.executable, "-c", "import os, signal; os.kill(os.getpid(), signal.SIGTERM)"]
+    _commands(monkeypatch, {"die": kill})
+    monkeypatch.setattr("sys.argv", ["dev", "die"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 128 + 15
 
 
 def test_dev_help_lists_project_commands_and_the_doc_checks_accept_them(monkeypatch):

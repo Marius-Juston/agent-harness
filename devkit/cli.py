@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 from datetime import date
+from importlib import metadata
 from pathlib import Path
 
 from devkit import (
@@ -371,10 +372,15 @@ def build() -> argparse.ArgumentParser:
     )
     for name, argv in config.get().commands.items():
         if name in sub.choices:
-            raise config.ConfigError(f"[tool.devkit.commands] {name!r} shadows a built-in `dev {name}`: rename it")
+            version = metadata.version("agent-harness")
+            raise config.ConfigError(
+                f"devkit {version} has a built-in `dev {name}`; rename yours in [tool.devkit.commands]"
+            )
         # Every argument is the command's: no option prefix, no -h, so `--json`, `-h` and `--` reach it (parse()
         # hands them over verbatim). The parser entry is for `dev --help` and for the doc checks reading `dev <name>`.
-        x = sub.add_parser(name, help=f"project: {' '.join(argv)}", add_help=False, prefix_chars="\0")
+        # argparse %-formats help: a `%` in the argv (`date +%Y`) would raise in `dev --help` and `dev docs`.
+        text = f"project: {' '.join(argv)}".replace("%", "%%")
+        x = sub.add_parser(name, help=text, add_help=False, prefix_chars="\0")
         x.add_argument("args", nargs="*")
     return p
 
@@ -389,15 +395,26 @@ def command_map() -> dict[str, set[str]]:
     return out
 
 
+def run_project_command(name: str, args: list[str]) -> int:
+    """`dev <name> <args>` for a `[tool.devkit.commands]` entry, with a shell's exit codes: 127 when the program
+    cannot be started, 128 + N when signal N killed it."""
+    try:
+        code = subprocess.run([*config.get().commands[name], *args], cwd=root(), check=False).returncode
+    except OSError as exc:
+        print(f"error: dev {name}: {exc}", file=sys.stderr)
+        return 127
+    return 128 - code if code < 0 else code
+
+
 def command_help() -> list[tuple[str, str]]:
     parser = build()
     action = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
     rows = []
     for choice in action._choices_actions:
-        rows.append((choice.dest, choice.help or ""))
+        rows.append((choice.dest, (choice.help or "").replace("%%", "%")))  # as `dev --help` prints it
         sp = action.choices[choice.dest]
         for sub in [a for a in sp._actions if isinstance(a, argparse._SubParsersAction)]:
-            rows += [(f"{choice.dest} {c.dest}", c.help or "") for c in sub._choices_actions]
+            rows += [(f"{choice.dest} {c.dest}", (c.help or "").replace("%%", "%")) for c in sub._choices_actions]
     return rows
 
 
@@ -534,7 +551,7 @@ def run(a: argparse.Namespace) -> int:
         case "consolidation":
             return run_consolidation(a)
         case name if name in config.get().commands:
-            return subprocess.run([*config.get().commands[name], *a.args], cwd=root(), check=False).returncode
+            return run_project_command(name, a.args)
     return 0
 
 
