@@ -374,6 +374,32 @@ def test_dev_check_on_main_reruns_after_a_scoped_pass_in_a_feature_worktree_at_t
     assert "RESULT: passed (cached" in check_in(repo)  # main's own pass is recorded in turn
 
 
+def test_a_gate_that_writes_an_ignored_module_leaves_a_pass_dev_pr_accepts(repo, tmp_path, monkeypatch, capsys):
+    """#485: a first gate in a fresh worktree generates ignored .py files (a build dir), which enter tree_key; the pass
+    must still be found by `dev pr` and by the next gate, which compute the key after the run."""
+    _worktrees(repo, tmp_path, {"tests/test_one.py": "def test_one():\n    pass\n"})
+    _shared_state(monkeypatch, tmp_path / "common")
+    monkeypatch.chdir(repo)
+    paths.root.cache_clear()
+    monkeypatch.setattr(gate, "clean_bytecode", lambda: True)
+    monkeypatch.setattr(gate, "gate_lock", lambda *a, **k: contextlib.nullcontext())
+
+    def build():
+        (repo / ".scratch/gate-build").mkdir(parents=True, exist_ok=True)
+        (repo / ".scratch/gate-build/generated.py").write_text("G = 1\n")  # ignored, importable
+        return Ran("build", checked=1)
+
+    monkeypatch.setattr(gate, "stages", lambda *a: [build])
+    before = gate.tree_key(gate.checks.merge_base())
+    assert not workflow._gate_passed()
+    assert gate.check({}) == 0
+    assert gate.tree_key(gate.checks.merge_base()) != before  # the run changed the key
+    assert workflow._gate_passed()  # dev pr accepts the first gate's pass
+    capsys.readouterr()
+    assert gate.check({}) == 0
+    assert "RESULT: passed (cached" in capsys.readouterr().out
+
+
 def test_diff_coverage_never_fails_the_stage_when_it_cannot_measure(repo, monkeypatch):
     assert gate.diff_coverage(repo / "missing.xml", "HEAD", cwd=repo)[0].startswith("diff coverage: not measured")
     monkeypatch.setattr(gate, "tool", lambda name: None)
