@@ -664,7 +664,7 @@ def _wait_on_tip(
 
 def integrate(
     pr_number: int,
-    harness_ok: bool,
+    harness_ok: bool | str,
     dry_run: bool,
     override: str | None = None,
     local_ci: bool = False,
@@ -686,7 +686,7 @@ def integrate(
 
 def _integrate(
     pr_number: int,
-    harness_ok: bool,
+    harness_ok: bool | str,
     dry_run: bool,
     override: str | None = None,
     local_ci: bool = False,
@@ -799,7 +799,7 @@ def _integrate(
         print(f"RESULT: refused: {reason}")
         return back("refused", [reason], [], reason=reason)
     harness = [f for f in touched if is_harness(f)]
-    if harness and not harness_ok:
+    if harness and not (harness_ok is True or harness_ok == head):  # a SHA clears that head only (#499)
         print("PR changes the harness (rules agents are judged by):\n  " + "\n  ".join(harness))
         print(f"Read that diff yourself (`git diff {main[:10]}...{head[:10]}`), then rerun with --harness-ok.")
         return done(2, "harness-review", harness=harness)
@@ -920,7 +920,7 @@ def _integrate(
             print(branches.drop_branch(name, [tip]))
     try:  # the merge stands whatever this finds: a failure only skips the check
         sent = send_back_conflicting(pr_number)
-    except (board.BoardError, RuntimeError, OSError, ValueError) as exc:
+    except (board.BoardError, RuntimeError, OSError, ValueError, subprocess.SubprocessError) as exc:
         sent = []
         print(f"conflict check of the new main skipped ({exc}): each open PR meets it at its own integrate")
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):

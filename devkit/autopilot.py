@@ -1,8 +1,9 @@
 """`uv run dev autopilot`: one deterministic lead iteration (#499), so a lead on /loop reads a few lines per tick.
 
 It stops at the quota cap; syncs the board; reads every open PR into main; integrates those integrate would take on
-its own (checks complete and green, no open feedback, required reviews in place, no harness file) through
-`workflow.integrate`, or `train.train` for two or more, never with `--harness-ok` or `--override`; then prints only
+its own (checks complete and green, no open feedback, required reviews in place, no harness file unless
+`autopilot_trust_review` and a merge verdict on the current head clear it) through `workflow.integrate`, or
+`train.train` for two or more, never with `--override`; then prints only
 what needs a model or the owner: an integrate that did not merge (and stops there), harness PRs waiting for a
 reviewer or the lead's read, PRs to resume, and the next disjoint wave to dispatch. Integrate stays the judge: the
 filter here only decides which PRs are worth calling it on, so nothing it would refuse is merged. Its output goes to
@@ -72,6 +73,12 @@ def verdict(p: Pr, trusted: set[str]) -> tuple[str, str] | None:
     return max(found, key=lambda f: f[0])[1:] if found else None
 
 
+def trusted_merge(p: Pr, trusted: set[str]) -> bool:
+    """The latest trusted verdict says merge on the PR's current head (an earlier head's verdict does not count)."""
+    v = verdict(p, trusted)
+    return v is not None and v[0] == "merge" and p.head.lower().startswith(v[1].lower())
+
+
 def review_line(p: Pr, trusted: set[str]) -> str:
     """What a harness PR waits for: a reviewer, a re-review of a newer head, the worker, or the lead's read."""
     v = verdict(p, trusted)
@@ -97,15 +104,16 @@ def outcomes(text: str, numbers: list[int]) -> tuple[dict[int, dict], list[int]]
     return {n: found.get(n) or missing for n in numbers}, list(data.get("sent_back") or [])
 
 
-def land(numbers: list[int], dry_run: bool) -> tuple[int, dict[int, dict], list[int]]:
-    """Integrate one PR, or train several, exactly as `dev integrate` does without --harness-ok or --override.
-    Their output goes to a log; returns the exit code and `outcomes`."""
+def land(numbers: list[int], cleared: dict[int, str], dry_run: bool) -> tuple[int, dict[int, dict], list[int]]:
+    """Integrate one PR, or train several, as `dev integrate` does, never with --override; `cleared` (PR -> head) is
+    --harness-ok for that head only, so a push after the verdict is not cleared. Their output goes to a log;
+    returns the exit code and `outcomes`."""
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
         if len(numbers) == 1:
-            code = workflow.integrate(numbers[0], False, dry_run)
+            code = workflow.integrate(numbers[0], cleared.get(numbers[0], False), dry_run)
         else:
-            code = train.train(numbers, set(), dry_run)
+            code = train.train(numbers, cleared, dry_run)
     log = workflow.state_dir("autopilot") / "last.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     log.write_text(buf.getvalue())
@@ -151,19 +159,25 @@ def _run(dry_run: bool) -> int:
     fetch_paths(settled)
     rules = config.get().required_reviews
     trusted = {board.gh_user()} - {""}
-    ready, body, stop = [], [], ""
+    trust = config.get().autopilot_trust_review
+    ready: list[int] = []
+    cleared: dict[int, str] = {}
+    body: list[str] = []
+    stop = ""
     for p in settled:
         harness = [f for f in p.touched if workflow.is_harness(f)]
-        if harness:
+        if harness and not (trust and trusted_merge(p, trusted)):
             body.append(review_line(p, trusted))
         elif rules and (why := workflow.review_problem(p.touched, p.feedback["reviews"], p.head, trusted, rules,
                                                        lambda sha, h=p.head: workflow._is_ancestor(sha, h))):  # fmt: skip
             body.append(f"review #{p.number}: {why[:100]}")
         else:
             ready.append(p.number)
+            if harness:
+                cleared[p.number] = p.head
     sent: list[int] = []
     if ready:
-        code, got, sent = land(ready, dry_run)
+        code, got, sent = land(ready, cleared, dry_run)
         landed = [landed_line(n, f) for n, f in got.items() if f["outcome"] in MERGED]
         failed = [failed_line(n, f) for n, f in got.items() if f["outcome"] not in MERGED]
         body = [*failed, *landed, *body]

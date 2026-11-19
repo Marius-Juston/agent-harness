@@ -73,8 +73,11 @@ def first_breaking(n: int, passes: Callable[[int], bool]) -> tuple[int, int]:
     return hi, gates
 
 
-def harness_cleared(number: int, harness_ok: set[int] | bool) -> bool:
-    """Whether the lead read the harness diff of PR `number`: `--harness-ok` names the PRs in a train."""
+def harness_cleared(number: int, harness_ok: set[int] | dict[int, str] | bool, head: str = "") -> bool:
+    """Whether the lead read the harness diff of PR `number`: `--harness-ok` names the PRs in a train. A dict (PR ->
+    SHA, `dev autopilot`'s trusted review, #499) clears a PR only at that head."""
+    if isinstance(harness_ok, dict):
+        return bool(head) and harness_ok.get(number) == head
     return harness_ok if isinstance(harness_ok, bool) else number in harness_ok
 
 
@@ -365,7 +368,7 @@ def _close_merged(m: Member, names: str, tip: str) -> None:
         print(f"train: kept branch {branch}: {exc}")
 
 
-def train(prs: list[int], harness_ok: set[int] | bool, dry_run: bool, local_ci: bool = False) -> int:
+def train(prs: list[int], harness_ok: set[int] | dict[int, str] | bool, dry_run: bool, local_ci: bool = False) -> int:
     """`_train`, but every exit ends with the train's RESULT-JSON line, a crash included. `harness_ok`: the PRs whose
     harness diff the lead read (`--harness-ok 12 15`), or a bool for all of them."""
     gates: list[dict] = []
@@ -407,7 +410,13 @@ def _stop_rest(members: list[Member], why: str) -> None:
             m.outcome, m.fields = "stopped", {"reason": why}
 
 
-def _train(members: list[Member], gates: list[dict], harness_ok: set[int] | bool, dry_run: bool, local_ci: bool) -> int:
+def _train(
+    members: list[Member],
+    gates: list[dict],
+    harness_ok: set[int] | dict[int, str] | bool,
+    dry_run: bool,
+    local_ci: bool,
+) -> int:
     contexts: list[str] = []
     enabled = True
     if local_ci:
@@ -431,7 +440,9 @@ def _train(members: list[Member], gates: list[dict], harness_ok: set[int] | bool
         for m in members:
             m.head = workflow.git("rev-parse", refs[m.number])
         admitted = [
-            m for m in members if _admit(m, main, harness_cleared(m.number, harness_ok), dry_run, contexts, enabled)
+            m
+            for m in members
+            if _admit(m, main, harness_cleared(m.number, harness_ok, m.head), dry_run, contexts, enabled)
         ]
         if not admitted:
             print("RESULT: nothing to gate: no member was admitted")
@@ -509,7 +520,7 @@ def _train(members: list[Member], gates: list[dict], harness_ok: set[int] | bool
             _close_merged(m, names, tip)
         try:  # the merge stands whatever this finds
             sent = workflow.send_back_conflicting(landing[-1].number)
-        except (board.BoardError, RuntimeError, OSError, ValueError) as exc:
+        except (board.BoardError, RuntimeError, OSError, ValueError, subprocess.SubprocessError) as exc:
             print(f"conflict check of the new main skipped ({exc}): each open PR meets it at its own integrate")
         checkout = workflow.main_checkout()
         if not workflow.git("-C", str(checkout), "status", "--porcelain", "--untracked-files=no"):

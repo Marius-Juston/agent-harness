@@ -2,10 +2,11 @@
 GitHub faked over the origin's refs) plus `gh pr list`; integrate and the train run for real on it."""
 
 import json
+import subprocess
 
 import pytest
 
-from devkit import autopilot, board, cli, frontmatter, quota, workflow
+from devkit import autopilot, board, cli, config, frontmatter, quota, train, workflow
 from tests.test_merge_hygiene import ROOT, commit, note, out, sh
 from tests.test_train import closed, main_log, open_pr, sent_back, world  # noqa: F401 - `world` is a fixture
 
@@ -96,8 +97,8 @@ def test_a_dry_run_merges_nothing_and_syncs_nothing(pilot, capsys, monkeypatch):
     assert main_log(pilot) == before and merges(pilot) == [] and closed(pilot) == []
 
 
-def test_a_harness_pr_is_never_integrated_without_the_leads_read(pilot, capsys):
-    """Never --harness-ok on its own: no verdict asks for a reviewer, a merge verdict on the head for the lead."""
+def test_with_the_trust_key_off_a_harness_pr_waits_for_the_leads_read(pilot, capsys):
+    """The default: no verdict asks for a reviewer; even a merge verdict on the head waits for the lead."""
     tip = open_pr(pilot, 1, {"devkit/x.py": "x = 1\n"})
     code, lines = tick(capsys)
     assert code == 0 and lines[1] == "review #1 (harness): no verdict; spawn harness-ops:reviewer"
@@ -192,3 +193,100 @@ def test_the_lead_skill_runs_autopilot_in_its_loop():
     _, body = frontmatter.read(ROOT / "plugins/harness-ops/skills/lead/SKILL.md")
     loop = body.split("## 2. Close the loop first", 1)[1].split("\n## ", 1)[0]
     assert "`uv run dev autopilot`" in loop.splitlines()[1]
+
+
+def verdict(word: str, sha: str, login: str = "lead") -> dict:
+    return {"author": {"login": login}, "body": f"Verdict: {word}, round 1, {sha[:7]}", "submittedAt": "2026-11-19"}
+
+
+@pytest.fixture
+def trusting(pilot, monkeypatch):
+    """This repository's setting (#499, owner decision): a merge verdict on the current head clears a harness PR."""
+    monkeypatch.setattr(config, "get", lambda: config.Config(autopilot_trust_review=True))
+    return pilot
+
+
+def push_more(w: dict, n: int) -> str:
+    """A new commit on PR n's branch after its review: GitHub's head and refs/pull/n/head move to it."""
+    clone, branch = w["clone"], w["prs"][n]["branch"]
+    sh(clone, "git", "checkout", "-q", branch)
+    tip = commit(clone, {"devkit/later.py": "y = 2\n"}, "later")
+    sh(clone, "git", "push", "-q", "origin", branch)
+    sh(w["origin"], "git", "update-ref", f"refs/pull/{n}/head", tip)
+    sh(clone, "git", "checkout", "-q", "-f", "main")
+    return tip
+
+
+def test_a_trusted_merge_verdict_on_the_current_head_integrates_a_harness_pr(trusting, capsys, monkeypatch):
+    seen = []
+    real = workflow.integrate
+    monkeypatch.setattr(workflow, "integrate", lambda n, ok, *a: seen.append(ok) or real(n, ok, *a))
+    tip = open_pr(trusting, 1, {"devkit/x.py": "x = 1\n"})
+    trusting["prs"][1]["reviews"] = [verdict("merge", tip)]
+    code, lines = tick(capsys)
+    assert code == 0 and lines[1] == "merged #1: #101 -> done" and len(merges(trusting)) == 1
+    assert seen == [tip]  # --harness-ok for that head only, never a bare True
+
+
+@pytest.mark.parametrize("word", ["send back", "reconsider"])
+def test_a_trusted_verdict_that_is_not_merge_integrates_nothing(trusting, capsys, word):
+    tip = open_pr(trusting, 1, {"devkit/x.py": "x = 1\n"})
+    trusting["prs"][1]["reviews"] = [verdict(word, tip)]
+    code, lines = tick(capsys)
+    assert code == 0 and lines[1].startswith(f"resume #1 (harness): verdict {word}")
+    assert merges(trusting) == [] and closed(trusting) == [] and sent_back(trusting) == []
+
+
+def test_a_merge_verdict_on_an_earlier_head_integrates_nothing(trusting, capsys):
+    tip = open_pr(trusting, 1, {"devkit/x.py": "x = 1\n"})
+    trusting["prs"][1]["reviews"] = [verdict("merge", tip)]
+    push_more(trusting, 1)
+    _, lines = tick(capsys)
+    assert lines[1].startswith(f"review #1 (harness): verdict merge on {tip[:7]}") and lines[1].endswith("re-review")
+    assert merges(trusting) == [] and closed(trusting) == []
+
+
+def test_a_merge_verdict_by_another_login_integrates_nothing(trusting, capsys):
+    tip = open_pr(trusting, 1, {"devkit/x.py": "x = 1\n"})
+    trusting["prs"][1]["reviews"] = [verdict("merge", tip, login="stranger")]
+    _, lines = tick(capsys)
+    assert "no verdict" in lines[1] and merges(trusting) == []
+
+
+def test_a_trusted_harness_pr_still_needs_its_required_review(trusting, capsys, monkeypatch):
+    cfg = config.Config(autopilot_trust_review=True, required_reviews={"devkit/": "security-reviewer"})
+    monkeypatch.setattr(config, "get", lambda: cfg)
+    tip = open_pr(trusting, 1, {"devkit/x.py": "x = 1\n"})
+    trusting["prs"][1]["reviews"] = [verdict("merge", tip)]
+    _, lines = tick(capsys)
+    assert lines[1].startswith("review #1: devkit/x.py needs a review by security-reviewer") and merges(trusting) == []
+
+
+def test_trusted_harness_prs_train_with_each_cleared_at_its_own_head(trusting, capsys):
+    for n in (1, 2):
+        tip = open_pr(trusting, n, {f"devkit/x{n}.py": "x = 1\n"})
+        trusting["prs"][n]["reviews"] = [verdict("merge", tip)]
+    code, lines = tick(capsys)
+    assert code == 0 and lines[1:3] == ["merged #1: #101 -> done", "merged #2: #102 -> done"]
+    assert trusting["gates"] == [[]] and closed(trusting) == [1, 2]
+
+
+def test_a_head_cleared_by_sha_is_the_only_one_cleared(world, capsys):  # noqa: F811 - the imported fixture
+    """A push between autopilot's read and integrate's own: the SHA no longer matches, so it is harness-review."""
+    old = open_pr(world, 1, {"devkit/x.py": "x = 1\n"})
+    push_more(world, 1)
+    assert workflow.integrate(1, old, dry_run=False) == 2
+    assert '"outcome": "harness-review"' in capsys.readouterr().out and merges(world) == []
+    assert not train.harness_cleared(1, {1: old}, "f" * 40) and train.harness_cleared(1, {1: old}, old)
+    assert not train.harness_cleared(1, {1: old}, "")
+
+
+def test_a_failed_subprocess_in_the_post_merge_conflict_check_does_not_crash_a_train(world, capsys, monkeypatch):  # noqa: F811
+    def boom(n):
+        raise subprocess.CalledProcessError(128, ["git", "rev-parse"])
+
+    monkeypatch.setattr(workflow, "send_back_conflicting", boom)
+    for n in (1, 2):
+        open_pr(world, n, note(world["clone"], f"n{n}"))
+    assert train.train([1, 2], harness_ok=True, dry_run=False) == 0
+    assert "conflict check of the new main skipped" in capsys.readouterr().out and closed(world) == [1, 2]

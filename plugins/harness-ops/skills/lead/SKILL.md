@@ -21,13 +21,13 @@ Then `uv run dev orient` if SessionStart context is old; `uv run dev board list 
 `Suite audit due` in orient: run what it names; `harness-ops:suite-auditor` takes its judgement items.
 
 ## 2. Close the loop first
-Each tick: `uv run dev autopilot` merges what integrate takes alone; act on its lines. Per review item, by priority:
-1. `gh pr view <pr>`, `gh pr diff <pr> --name-only` and `uv run dev board feedback <pr>`.
+Each tick: `uv run dev autopilot` merges what integrate takes alone (harness PRs: with `autopilot_trust_review`, a current merge verdict); act on its lines. Per review item, by priority:
+1. `gh pr diff <pr> --name-only`, `uv run dev board feedback <pr>`.
 2. Spawn a `harness-ops:reviewer` for PRs touching harness files, several Owns, or anything a user sees; a `harness-ops:research-auditor` for decision-driving research.
-3. Answer or fix every comment (people and bots; resume the worker for fixes), resolve its thread (outdated ones block too).
+3. Answer or fix every comment (people, bots; resume the worker for fixes), resolve its thread (outdated ones block too).
 4. Only Blocking or untagged findings return the PR, with at most 3 Nits: send the worker a pointer of at most 200 characters, `PR #<pr> round <N>: <review URL>; uv run dev board feedback <pr>`, and post no review text yourself; the worker posts a fix-to-finding map. Re-review after a Blocking fix only, passing round number, last reviewed SHA and earlier review URLs (no confirmation round; a project's security reviewer, if any, re-reviews any code change). After round 3, take "reconsider the approach" to the owner: never merge with an open Blocking finding.
-5. Follow-ups, Pre-existing and Follow-up findings: a fix-now (multi-agent.md §3) or a new-code defect returns to the worker; file the rest as issues.
-6. `uv run dev integrate <pr>`; `--harness-ok` only after reading the harness diff; `--override '<reason>'` only on the owner's word. `RESULT-JSON` `fix`: in-progress: resume or respawn; `needs owner`: owner; `fix_error`: comment, move by hand. `stopped`, other `refused`: `--why`, never rerun; comment, resume or respawn. `waiting`: rerun once; `again`: `--local-ci` if Actions cannot run, else the owner. Retargeted stacked PR: the printed cherry-pick route, never rebase or force-push.
+5. Pre-existing and Follow-up findings: a fix-now (multi-agent.md §3) or a new-code defect returns to the worker; file the rest as issues.
+6. `uv run dev integrate <pr>`; `--harness-ok` only after reading the harness diff; `--override '<reason>'` only on the owner's word. `fix` in-progress: resume or respawn; `needs owner`: owner; `fix_error`: comment, move by hand. `stopped`, other `refused`: `--why`, never rerun; comment, resume or respawn. `waiting`: rerun once; again: `--local-ci` if Actions cannot run, else owner. Stacked PR: the printed cherry-pick route, never rebase or force-push.
 
 ## 3. Pick the next wave
 - `uv run dev board next -n 10`: P0 first, then what unblocks most.
