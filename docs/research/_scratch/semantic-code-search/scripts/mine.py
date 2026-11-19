@@ -6,7 +6,7 @@ tree and that the commit modified. Kept: 1-3 such functions (a narrower or broad
 question). The issue number comes from `(#N)` in the subject (the first one when there are two: issue, then PR) or
 from the branch name of a `Merge pull request #M from owner/N-slug` subject.
 
-usage: uv run python docs/research/_scratch/semantic-code-search/scripts/mine.py ISSUES.json OUT.json
+usage: uv run python docs/research/_scratch/semantic-code-search/scripts/mine.py ISSUES.json OUT.jsonl
 ISSUES.json: `gh issue list --state all --limit 1000 --json number,title,body`.
 """
 
@@ -108,11 +108,12 @@ def main() -> None:
                     "commit": sha,
                     "issue": n,
                     "query": issues[n]["title"],
-                    "subject": subject,
                     "gold": sorted(gold),
                 }
             )
-    Path(sys.argv[2]).write_text(json.dumps(questions, indent=1))
+    # JSON Lines, one question per line (a .json file would have its issue titles read as docs by the gate's
+    # `uv run dev` span check); no commit subjects, which name the owner's branches.
+    Path(sys.argv[2]).write_text("".join(json.dumps(q) + "\n" for q in questions))
     print(len(questions), "questions")
 
 

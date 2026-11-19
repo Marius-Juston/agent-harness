@@ -15,7 +15,7 @@ Arms (each returns a ranked list of units, `path::Qualname`):
             sqrt(refs) and aider's multipliers, personalised PageRank on files whose path matches a title word,
             rank spread over (file, identifier) definitions
 
-usage: uv run --no-project --with model2vec --with fastembed --with numpy python eval_nl.py QUESTIONS.json OUT.json
+usage: uv run --no-project --with model2vec --with fastembed --with numpy python eval_nl.py QUESTIONS.jsonl OUT.json
        [--arms a,b,...]
 """
 
@@ -289,7 +289,7 @@ def main() -> None:
     ap.add_argument("--arms", default="grep,bm25-head,bm25-full,m2v-8M,m2v-32M,bge-small,jina-code,repomap")
     a = ap.parse_args()
     arms = a.arms.split(",")
-    qs = json.loads(Path(a.questions).read_text())
+    qs = [json.loads(line) for line in Path(a.questions).read_text().splitlines() if line.strip()]
     embs = {m: Embedder(MODELS[m]) for m in arms if m in MODELS}
     rows = []
     for q in qs:
