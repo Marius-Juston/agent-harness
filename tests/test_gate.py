@@ -2027,6 +2027,23 @@ def test_a_bad_type_budget_or_a_ty_crash_fails_the_stage(tmp_path, monkeypatch):
 
 
 def test_the_gate_runs_the_ty_stage_and_both_ratchets_files_set_a_type_budget():
-    assert any("type_check" in s.__code__.co_names for s in gate.stages(False, {}, None))
+    codes = [getattr(s, "__code__", None) for s in gate.stages(False, {}, None)]
+    assert any(c is not None and "type_check" in c.co_names for c in codes)
     assert gate.type_budget((gate.root() / ".devkit/ratchets.toml").read_text()) is not None
     assert gate.type_budget((gate.root() / "template/.devkit/ratchets.toml").read_text()) is not None
+
+
+def test_over_budget_the_ty_stage_lists_the_changed_files_diagnostics_first(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "get", lambda: SimpleNamespace(ratchets=".devkit/ratchets.toml"))
+    root = _typed(tmp_path, "[types]\nmax_diagnostics = 0\n")
+    (root / "z.py").write_text(TY_ERROR)
+    monkeypatch.setattr(gate, "root", lambda: root)
+
+    def git(*args):
+        if args[0] == "show":
+            raise RuntimeError("no such file on main")
+        return "z.py\n"
+
+    monkeypatch.setattr(gate, "git", git)
+    ran = gate.type_check("BASE")
+    assert ran.problems[1].startswith("z.py:1:") and ran.problems[2].startswith("m.py:1:")
