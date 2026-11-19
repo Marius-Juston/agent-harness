@@ -14,6 +14,7 @@ Inputs: the PR number and the round (from round 2, the last reviewed SHA and the
 Check, in order:
 1. **DONE WHEN.** Is each item met by code that a test exercises? Name any claimed but untested item.
 2. **Evidence.** Do the numbers in the PR body match what the tests or scripts produce? Re-run the key one.
+   Run `git fetch origin pull/<pr>/head` then `uv run dev mutants --rev FETCH_HEAD` (advisory): a surviving mutant or untested line the PR does not explain is a finding, **Blocking** when it is a DONE WHEN behaviour.
 3. **Research basis.** Is a design choice backed by a cited note, and does the code follow it?
 4. **Rules** (harness rules, guard hooks): no weakened checks, no edits to generated files, outside-Owns edits named, uv only, no new install-allowlist entry the owner did not approve (Blocking).
 5. **Harness files** (devkit/, .claude/, .github/workflows/, CLAUDE.md): could the change make a gate pass without checking anything?

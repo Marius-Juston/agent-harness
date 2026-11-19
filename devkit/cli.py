@@ -22,6 +22,7 @@ from devkit import (
     gate,
     handoff,
     lit,
+    mutants,
     prtext,
     quota,
     reuse,
@@ -354,6 +355,9 @@ def build() -> argparse.ArgumentParser:
     )
     x.add_argument("--since", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or after")
     x.add_argument("--until", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or before")
+    x = sub.add_parser("mutants", help="advisory mutation of the change's lines: surviving mutants, untested lines")
+    x.add_argument("--base", help="compare against this ref (default: origin/main, else main)")
+    x.add_argument("--rev", help="a commit or branch to mutate instead of the working tree")
     x = sub.add_parser("suite-audit", help="size-tiered audit of the whole test suite: is one due, and the nine checks")
     xs = x.add_subparsers(dest="sub", required=True)
     y = xs.add_parser("status", help="is an audit due since the last one (what orient shows), and why")
@@ -517,6 +521,8 @@ def run(a: argparse.Namespace) -> int:
             return run_quota_cap(a)
         case "suite-audit":
             return run_suite_audit(a)
+        case "mutants":
+            return mutants.run(a.base, a.rev)
         case "eval":
             if a.compare:
                 return evals.run_compare(*a.compare, a.margin)
