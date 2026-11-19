@@ -93,8 +93,10 @@ GAP = re.compile(r"\s*(?:\.\.\.|…|\[[^\]]*\])\s*")  # an ellipsis or an editor
 
 def normalise(s: str) -> str:
     """Compatibility forms (ligatures), one quote and dash style, line-break hyphenation joined, case folded and all
-    whitespace dropped: PDF and HTML text of the same sentence then compare equal."""
+    whitespace and format characters (LaTeXML's zero-width spaces) dropped: PDF and HTML text of the same sentence
+    then compare equal."""
     s = unicodedata.normalize("NFKC", s).translate(TRANSLATE)
+    s = "".join(c for c in s if unicodedata.category(c) != "Cf")
     s = re.sub(r"(?<=\w)-\s*(?=\w)", "", s)
     return re.sub(r"\s+", "", s.casefold())
 

@@ -377,3 +377,33 @@ def test_lit_read_prints_the_outline_or_one_section(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "0.27 to 0.30" in out and "six verifiers" not in out
     assert cli.run(cli.build().parse_args(["lit", "read", "2607.00001", "--section", "9"])) == 1
+
+
+# ---- regressions found running cite-check over docs/research (#512) ----
+
+
+def test_latexml_zero_width_spaces_do_not_break_a_quote():
+    """harness-efficiency.md:155: arXiv HTML renders `KN` as `K​N`."""
+    assert fulltext.contains("a pooled standard error across all K​N answers", "across all KN answers")
+
+
+def test_a_quote_before_an_earlier_citation_belongs_to_that_citation(tmp_path):
+    """software-discovery.md:277: the uv docs' quote was checked against the Guo paper cited after it."""
+    text = (
+        '- `--no-build`: "operations that require building a source distribution will exit with an error" '
+        "([uv settings](https://docs.astral.sh/uv/reference/settings/), SOURCED). That matters because 74.81% of "
+        "files reached users through source installation ([Guo 2023](https://doi.org/10.1109/ase.2023.1), abstract, "
+        "SOURCED).\n"
+    )
+    [guo] = citecheck.claims(tmp_path / "n.md", text)
+    assert guo.quote == "" and guo.locator == "abstract"
+
+
+def test_each_table_row_is_its_own_claim(tmp_path):
+    """harness-efficiency.md:134: words quoted in one table row were charged to a paper cited in another."""
+    text = (
+        '| 1 | "reconsider the approach" after round 3 | BELIEVED |\n'
+        "| 2 | a row with a paper | SOURCED, [P](https://arxiv.org/abs/2609.00001), §2 |\n"
+    )
+    [row] = citecheck.claims(tmp_path / "n.md", text)
+    assert row.quote == "" and row.line == 2

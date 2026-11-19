@@ -361,12 +361,12 @@ class Claim:
 
 
 def _blocks(text: str) -> list[tuple[int, str]]:
-    """(first line number, text) of each paragraph or list item."""
+    """(first line number, text) of each paragraph, list item or table row."""
     out: list[tuple[int, list[str]]] = []
     for i, line in enumerate(text.splitlines(), 1):
         if not line.strip():
             out.append((i + 1, []))
-        elif re.match(r"\s*(?:[-*+]|\d+[.)])\s", line) or not out:
+        elif re.match(r"\s*(?:[-*+]|\d+[.)])\s|\s*\|", line) or not out:
             out.append((i, [line]))
         else:
             out[-1][1].append(line)
@@ -417,7 +417,9 @@ def claims(path: Path, text: str) -> list[Claim]:
             group = next((g for g in groups if g[0] < m.start() < g[1]), None)
             if group:
                 s, e = _segment(masked, group, m.start())
-                before, prev_end = block[prev_end : group[0]], max(prev_end, group[1])
+                # a quote before an earlier citation group (a docs page, another paper) belongs to that one
+                start = max([prev_end, *(g[1] for g in groups if g[1] <= group[0])])
+                before, prev_end = block[start : group[0]], max(prev_end, group[1])
             else:
                 s, e = prev_end, links[i + 1].start() if i + 1 < len(links) else len(block)
                 before, prev_end = "", e
