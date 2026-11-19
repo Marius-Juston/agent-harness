@@ -18,7 +18,8 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, branches, ci_status, config, fixloop, gate, merging, paths, workflow
+from devkit import board, branches, ci_status, config, fixloop, gate, merging, paths, weaken, workflow
+from devkit.ran import Ran
 
 REAL_POPEN = subprocess.Popen
 
@@ -631,6 +632,28 @@ def test_the_gate_takes_integrates_role_out_of_the_environment_its_stages_see(tm
     assert env == {"OTHER": "x"}
     rerun, _ = gate.rerun_env({gate.PRIORITY_ENV: "1", gate.HELD_ENV: "h"}, "/p")  # the re-run gate keeps them
     assert rerun[gate.PRIORITY_ENV] == "1" and rerun[gate.HELD_ENV] == "h"
+
+
+def test_the_gate_hands_integrates_issue_to_the_weakening_stage_and_hides_it_from_the_rest(monkeypatch, capsys):
+    """#487: integrate names the PR's issue in ISSUE_ENV; the weakening stage gets it, and pytest (whose weakening
+    tests read the branch) and a nested `dev check` do not inherit it."""
+    seen, real = {}, gate.stages
+
+    def stages(full, commands, base, help_rows, parser, issue):
+        seen["issue"], seen["env"] = issue, os.environ.get(weaken.ISSUE_ENV)
+        return [lambda: Ran("stop here", problems=["recorded"])]  # failing: nothing is recorded as a pass
+
+    monkeypatch.setattr(gate, "clean_bytecode", lambda: True)
+    monkeypatch.setattr(gate, "stages", stages)
+    monkeypatch.setattr(gate, "gate_lock", lambda *a, **k: contextlib.nullcontext())
+    monkeypatch.setenv(weaken.ISSUE_ENV, "12:abc1234")
+    assert gate.check({}, use_cache=False) == 1
+    assert seen == {"issue": "12:abc1234", "env": None}
+    captured = []
+    monkeypatch.setattr(weaken, "check_weakening", lambda base, issue=None: captured.append((base, issue)))
+    (stage,) = [s for s in real(False, {}, "BASE", issue="7:abc1234") if "check_weakening" in s.__code__.co_names]
+    stage()
+    assert captured == [("BASE", "7:abc1234")]
 
 
 def test_the_gate_marks_when_it_holds_the_lock_and_takes_its_role_from_the_environment(tmp_path):
