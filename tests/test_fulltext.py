@@ -69,7 +69,7 @@ def test_latexml_html_becomes_an_outline_without_navigation_or_scripts():
     ("locator", "head", "has", "lacks"),
     [
         ("abstract", "Abstract", "strictness of an automated verifier", "Agentic systems read"),
-        ("§3.2", "3.2 Results", "0.27 to 0.30", "six verifiers"),  # an unnumbered paragraph is a child
+        ("§3.2", "3.2 Results", "0.27 to 0.30", "six verifiers"),  # an unnumbered paragraph heading stays inside
         ("Section 3", "3 Method", "six verifiers", "English computer-science"),  # 3 holds 3.1 and 3.2, not 4
         ("§Limitations", "4 Limitations", "English", "References"),
         ("Appendix A", "Appendix A Prompts", "yes or no", "Limitations"),
