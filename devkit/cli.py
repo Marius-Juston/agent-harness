@@ -198,7 +198,9 @@ def build() -> argparse.ArgumentParser:
     )
     x.add_argument("--dry-run", action="store_true")
     x.add_argument(
-        "--override", metavar="REASON", help="merge despite unfinished PR feedback; the reason is logged on the PR"
+        "--override",
+        metavar="REASON",
+        help="merge despite unfinished PR feedback (with --train: every member); the reason is logged on each PR",
     )
     x.add_argument(
         "--local-ci",
@@ -460,10 +462,10 @@ def run(a: argparse.Namespace) -> int:
             return fixloop.why(a.pr)
         case "integrate" if a.train is not None or a.more:
             members = [a.pr, *a.more]
-            if a.train != len(members) or a.override or a.consolidation_review:
+            if a.train != len(members) or a.consolidation_review:
                 print(
                     f"integrate --train N takes exactly N PRs (got --train {a.train} and {len(members)}), "
-                    "and neither --override nor --consolidation-review"
+                    "and no --consolidation-review"
                 )
                 return 2
             if len(set(members)) != len(members):
@@ -475,7 +477,7 @@ def run(a: argparse.Namespace) -> int:
             if stray := sorted(set(a.harness_ok or []) - set(members)):
                 print(f"integrate --train: --harness-ok names {', '.join(map(str, stray))}, not in the train")
                 return 2
-            return train.train(members, set(a.harness_ok or []), a.dry_run, a.local_ci)
+            return train.train(members, set(a.harness_ok or []), a.dry_run, a.local_ci, a.override)
         case "integrate":
             if stray := sorted(set(a.harness_ok or []) - {a.pr}):
                 print(f"integrate: --harness-ok names {', '.join(map(str, stray))}, not PR {a.pr}")

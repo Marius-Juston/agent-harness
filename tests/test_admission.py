@@ -1,0 +1,94 @@
+"""The per-PR admission single integrate and the merge train share (#473), and the train's push preflight (#472)."""
+
+import ast
+import inspect
+import textwrap
+
+from hypothesis import given
+from hypothesis import strategies as st
+
+from devkit import integrate, train, workflow
+
+# Every per-PR check: the call that decides it. Each must sit in `integrate.admit` and in neither caller.
+CHECKS = {"refusal", "session_leaks", "title_problem", "closes_problem", "unfinished", "only_pending",
+          "review_problem", "is_harness"}  # fmt: skip
+
+
+def called(fn: object) -> set[str]:
+    tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+    out = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            f = node.func
+            out.add(f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", ""))
+    return out
+
+
+def test_integrate_and_the_train_admit_through_one_function_that_lists_every_check_once():
+    assert called(integrate.admit) >= CHECKS
+    for caller in (workflow._integrate, train._admit):
+        calls = called(caller)
+        assert "admit" in calls, caller.__name__
+        assert not CHECKS & calls, (caller.__name__, CHECKS & calls)
+
+
+def info(**kw: object) -> dict:
+    return {"state": "OPEN", "isDraft": False, "baseRefName": "main", "isCrossRepository": False,
+            "headRefOid": "a" * 40, "headRefName": "5-x", "title": "feat: t (#5)", "body": "Closes #5",
+            "statusCheckRollup": [], "latestReviews": [], "reviewDecision": ""} | kw  # fmt: skip
+
+
+def test_without_at_only_the_checks_on_the_pr_itself_run():
+    assert integrate.admit(5, info()).admitted
+    assert integrate.admit(5, info(state="MERGED")).outcome == "not-open"
+    adm = integrate.admit(5, info(isCrossRepository=True))
+    assert adm.outcome == "refused" and adm.send is None and "fork" in adm.reason
+    adm = integrate.admit(5, info(), override="  ")
+    assert adm.reason == "--override needs a reason" and adm.send is None
+
+
+def test_a_head_that_moved_stops_and_pending_checks_wait_only_when_held(monkeypatch):
+    feedback = {"since": "", "comments": [], "reviews": [], "threads": []}
+    at = integrate.At("b" * 40, "c" * 40, feedback, ["devkit/x.py"])
+    assert integrate.admit(5, info(), at=at, harness_ok=True).outcome == "stopped"
+    running = [{"__typename": "CheckRun", "name": "check", "workflowName": "ci", "status": "IN_PROGRESS"}]
+    at.head = "a" * 40
+    assert integrate.admit(5, info(statusCheckRollup=running), at=at, hold_pending=True).outcome == "waiting"
+    adm = integrate.admit(5, info(statusCheckRollup=running), at=at)
+    assert adm.outcome == "refused" and adm.send and adm.fields["feedback"]
+    adm = integrate.admit(
+        5, info(statusCheckRollup=running), at=at, override="CI is down", hold_pending=True, harness_ok=True
+    )
+    assert adm.admitted and adm.overridden == ["check check: pending (IN_PROGRESS)"]
+
+
+PROTECTION = st.fixed_dictionaries(
+    {},
+    optional={
+        "required_pull_request_reviews": st.just({"required_approving_review_count": 0}),
+        "required_status_checks": st.just({"contexts": ["check"]}),
+        "required_signatures": st.just({"enabled": True}),
+        "restrictions": st.just({"users": []}),
+    },
+)
+
+
+@given(PROTECTION, st.booleans(), st.booleans())
+def test_classic_protection_blocks_unless_an_admin_is_not_enforced(protection, admin, enforced):
+    protection = protection | {"enforce_admins": {"enabled": enforced}}
+    blockers = train.push_blockers(protection, [], {}, admin, "lead")
+    rules = set(protection) - {"enforce_admins"}
+    assert bool(blockers) == bool(rules and not (admin and not enforced))
+
+
+def test_an_unprotected_main_and_push_neutral_rulesets_block_nothing():
+    assert train.push_blockers(None, [{"type": "deletion", "ruleset_id": 1}], {}, False, "lead") == []
+    assert train.push_blockers(None, [{"type": "update", "ruleset_id": 1}], {1: "always"}, False, "lead") == []
+    assert train.push_blockers(None, [{"type": "update", "ruleset_id": 1}], {}, True, "lead") == [
+        "ruleset 1 requires no updates"
+    ]
+    assert train.push_blockers({"lock_branch": {"enabled": True}}, [], {}, True, "lead") == [
+        "main is locked (branch protection)"
+    ]
+    listed = {"restrictions": {"users": [{"login": "lead"}]}}
+    assert train.push_blockers(listed, [], {}, False, "lead") == []
