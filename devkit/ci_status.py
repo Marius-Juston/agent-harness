@@ -8,6 +8,7 @@ import json
 import random
 import re
 import time
+from dataclasses import dataclass, field
 
 from devkit import backoff, board, config
 
@@ -142,38 +143,114 @@ def required_contexts() -> tuple[list[str], list[str]]:
     return [r["context"] for r in rules], [r["context"] for r in rules if r.get("app_id") not in (None, -1)]
 
 
+def local() -> bool:
+    """`ci = "local"` under [tool.devkit] (#531): Actions is not used at all; the local run stands in for every
+    required context, with no wait and no query of Actions."""
+    return config.get().ci == "local"
+
+
 def actions_enabled() -> bool:
+    """Whether Actions may run on this repository (`ci = "local"`: no, without asking)."""
+    if local():
+        return False
     try:
         return bool(json.loads(board.gh("api", f"repos/{board.repo()}/actions/permissions")).get("enabled", True))
     except board.BoardError:
         return True  # unreadable: the wait for a check that never queues decides
 
 
-def never_ran(c: dict, jobs: dict[str, bool]) -> bool:
+# #531: how a head shows that Actions cannot run, recorded in tests/fixtures/actions_blocked (research note
+# agent-harness.md, "Actions that cannot run"). A billing block or spending limit fails each job within seconds with
+# no step, no runner and one annotation naming billing; a job for a self-hosted runner stays queued while no runner
+# with its labels is online; a head with no workflow run at all never gets its checks.
+BILLING = re.compile(r"spending limit|payments have failed|billing", re.I)
+
+
+@dataclass
+class Probe:
+    """What one look at a head read from the Actions API, each item at most once: job id -> job (None unreadable),
+    check run id -> its annotations' messages, and the repository's self-hosted runners (None unreadable)."""
+
+    jobs: dict[str, dict | None] = field(default_factory=dict)
+    notes: dict[str, list[str]] = field(default_factory=dict)
+    runners: list[dict] | None = None
+    runners_read: bool = False
+
+
+def _job(c: dict, probe: Probe) -> tuple[str, dict | None]:
+    if not (m := JOB_URL.search(c.get("detailsUrl") or "")):
+        return "", None
+    if m[1] not in probe.jobs:
+        try:
+            probe.jobs[m[1]] = json.loads(board.gh("api", f"repos/{board.repo()}/actions/jobs/{m[1]}"))
+        except board.BoardError:
+            probe.jobs[m[1]] = None
+    return m[1], probe.jobs[m[1]]
+
+
+def never_ran(c: dict, probe: Probe) -> bool:
     """A CheckRun that ended unsuccessfully without running one step: Actions did not start its job (a billing block
-    or spending limit; the message wording varies, the empty step list does not). `jobs` caches the answer per job."""
+    or spending limit; the message wording varies, the empty step list does not). An unreadable job is a real
+    failure."""
     if c.get("__typename") == "StatusContext" or c.get("status") != "COMPLETED" or c.get("conclusion") in CHECK_PASSED:
         return False
-    if not (m := JOB_URL.search(c.get("detailsUrl") or "")):
+    job = _job(c, probe)[1]
+    return job is not None and not job.get("steps")
+
+
+def billing_blocked(c: dict, probe: Probe) -> bool:
+    """A CheckRun Actions never ran whose annotation names billing: the account cannot run any job (the job id is
+    its check run's id)."""
+    if not never_ran(c, probe):
         return False
-    if m[1] not in jobs:
+    job_id = _job(c, probe)[0]
+    if job_id not in probe.notes:
         try:
-            jobs[m[1]] = not json.loads(board.gh("api", f"repos/{board.repo()}/actions/jobs/{m[1]}")).get("steps")
+            got = json.loads(board.gh("api", f"repos/{board.repo()}/check-runs/{job_id}/annotations"))
+            probe.notes[job_id] = [a.get("message") or "" for a in got]
         except board.BoardError:
-            jobs[m[1]] = False  # unknown: a real failure
-    return jobs[m[1]]
+            probe.notes[job_id] = []
+    return any(BILLING.search(n) for n in probe.notes[job_id])
+
+
+def stranded(c: dict, probe: Probe) -> bool:
+    """A queued CheckRun whose job waits for a self-hosted runner while no runner with all its labels is online: it
+    never starts. A GitHub-hosted job that is queued, or an unreadable job or runner list, is not stranded."""
+    if c.get("__typename") == "StatusContext" or c.get("status") in ("COMPLETED", "IN_PROGRESS"):
+        return False
+    job = _job(c, probe)[1]
+    if not job or job.get("status") != "queued" or "self-hosted" not in (labels := set(job.get("labels") or [])):
+        return False
+    if not probe.runners_read:
+        probe.runners_read = True
+        try:
+            probe.runners = json.loads(board.gh("api", f"repos/{board.repo()}/actions/runners")).get("runners")
+        except board.BoardError:
+            probe.runners = None  # needs admin access: unknown, so the wait decides
+    if probe.runners is None:
+        return False
+    return not any(
+        r.get("status") == "online" and labels <= {lab.get("name") for lab in r.get("labels") or []}
+        for r in probe.runners
+    )
 
 
 STANDING = ("failed", "running", "queued", "never-ran", "passed")  # the first one a context's checks show wins
 
 
-def standing(rollup: list[dict], contexts: list[str], enabled: bool, jobs: dict[str, bool]) -> dict[str, str]:
+def standing(rollup: list[dict], contexts: list[str], enabled: bool, probe: Probe) -> dict[str, str]:
     """Each required context on a head: failed (it ran and failed), running, queued (not registered yet, or waiting
-    for a runner), never-ran (Actions did not start it, or Actions are disabled) or passed."""
+    for a runner), never-ran (Actions did not start it, Actions are disabled or billing-blocked, its self-hosted
+    runner is offline, or `ci = "local"`) or passed. A billing block on any check of the head counts for every
+    context still queued: the account runs no job."""
+    if local():
+        return dict.fromkeys(contexts, "never-ran")
+    checks = latest_checks(rollup)
+    blocked = not enabled or any(billing_blocked(c, probe) for c in checks)
     out = {}
     for ctx in contexts:
         seen = []
-        for c in latest_checks(rollup):
+        for c in checks:
             if (c.get("name") or c.get("context")) != ctx:
                 continue
             if c.get("__typename") == "StatusContext":
@@ -181,37 +258,63 @@ def standing(rollup: list[dict], contexts: list[str], enabled: bool, jobs: dict[
                 seen.append(
                     "passed" if state == "SUCCESS" else "queued" if state in {"PENDING", "EXPECTED"} else "failed"
                 )
+            elif c.get("status") == "IN_PROGRESS":
+                seen.append("running")
             elif c.get("status") != "COMPLETED":
-                seen.append("running" if c.get("status") == "IN_PROGRESS" else "queued")
+                seen.append("never-ran" if stranded(c, probe) else "queued")
             else:
                 seen.append(
-                    "passed" if c.get("conclusion") in CHECK_PASSED else "never-ran" if never_ran(c, jobs) else "failed"
+                    "passed"
+                    if c.get("conclusion") in CHECK_PASSED
+                    else "never-ran"
+                    if never_ran(c, probe)
+                    else "failed"
                 )
-        seen = ["never-ran" if s == "queued" and not enabled else s for s in seen or ["queued"]]
+        seen = ["never-ran" if s == "queued" and blocked else s for s in seen or ["queued"]]
         out[ctx] = min(seen, key=STANDING.index)
     return out
 
 
+def no_runs(tip: str) -> bool:
+    """True when Actions created no workflow run for `tip` (an unreadable answer is not)."""
+    try:
+        got = json.loads(board.gh("api", f"repos/{board.repo()}/actions/runs?head_sha={tip}&per_page=1"))
+    except board.BoardError:
+        return False
+    return got.get("total_count") == 0
+
+
 def await_actions(pr_number: int, tip: str, contexts: list[str]) -> tuple[str, dict[str, str]]:
-    """Poll the required contexts on `tip` until none runs, and none is queued unless Actions are disabled or
-    `local_ci_wait_s` passed (a check that never queues: Actions cannot run). ("ready", standing) with what is still
-    queued read as never-ran, ("moved", {}) when the head is no longer `tip`, ("timeout", standing) when a check still
-    runs after `checks_wait_s`."""
+    """Poll the required contexts on `tip` until none runs, and none is queued unless Actions cannot run it
+    (`standing`), Actions created no workflow run for `tip` after `actions_start_s`, or `local_ci_wait_s` passed.
+    ("ready", standing) with what is still queued read as never-ran, ("moved", {}) when the head is no longer `tip`,
+    ("timeout", standing) when a check still runs after `checks_wait_s`. With `ci = "local"` it is ready at once,
+    every context never-ran, without reading GitHub."""
+    if local():
+        return "ready", dict.fromkeys(contexts, "never-ran")
     cfg = config.get()
-    enabled, jobs, start = actions_enabled(), {}, CHECKS_CLOCK()
+    enabled, probe, start, ran = actions_enabled(), Probe(), CHECKS_CLOCK(), False
     for attempt in itertools.count():
         info = json.loads(
             board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", "headRefOid,statusCheckRollup")
         )
         if info["headRefOid"] != tip:
             return "moved", {}
-        now = standing(info.get("statusCheckRollup") or [], contexts, enabled, jobs)
+        probe.jobs = {k: v for k, v in probe.jobs.items() if v and v.get("status") == "completed"}  # re-read the rest
+        now = standing(info.get("statusCheckRollup") or [], contexts, enabled, probe)
         waited = CHECKS_CLOCK() - start
-        if "running" not in now.values() and ("queued" not in now.values() or waited >= cfg.local_ci_wait_s):
+        queued, gone = "queued" in now.values(), False
+        if queued and not ran and waited >= cfg.actions_start_s:
+            gone = no_runs(tip)
+            ran = not gone  # once Actions has a run on the head (or it is unreadable), the usual bound decides
+        if "running" not in now.values() and (not queued or gone or waited >= cfg.local_ci_wait_s):
             return "ready", {k: "never-ran" if v == "queued" else v for k, v in now.items()}
         if waited >= cfg.checks_wait_s:
             return "timeout", now
-        time.sleep(backoff.wait(attempt, 0, CHECKS_RNG, CHECKS_BASE_S, CHECKS_CAP_S, CHECKS_FLOOR_S))
+        pause = backoff.wait(attempt, 0, CHECKS_RNG, CHECKS_BASE_S, CHECKS_CAP_S, CHECKS_FLOOR_S)
+        if queued and not ran and waited < cfg.actions_start_s:
+            pause = min(pause, cfg.actions_start_s - waited)  # look for the head's runs as soon as that is due
+        time.sleep(pause)
     raise AssertionError("unreachable")
 
 

@@ -1535,12 +1535,20 @@ def _job(name, job, conclusion="FAILURE"):
 @pytest.fixture
 def actions(fake_integrate, monkeypatch, clock):
     """GitHub's REST side for --local-ci on top of fake_integrate. Knobs: protection (required_status_checks, None
-    when unreadable), enabled (Actions permissions), steps (job id -> steps it ran), commands (config local_ci);
+    when unreadable), enabled (Actions permissions), steps (job id -> steps it ran), jobs (job id -> the whole job
+    payload, over steps), notes (check run id -> annotations), runners (self-hosted runners; None when unreadable),
+    runs (workflow runs on a head), ci and start_s (config ci, actions_start_s; #531), commands (config local_ci);
     statuses records each status posted."""
     knobs = {
         "protection": {"contexts": ["check"], "checks": [{"context": "check", "app_id": None}]},
         "enabled": True,
         "steps": {},
+        "jobs": {},
+        "notes": {},
+        "runners": {"runners": []},
+        "runs": 1,
+        "ci": "actions",
+        "start_s": 20,
         "commands": {"check": []},
         "statuses": [],
     }
@@ -1558,7 +1566,16 @@ def actions(fake_integrate, monkeypatch, clock):
         if path.endswith("/actions/permissions"):
             return json.dumps({"enabled": knobs["enabled"]})
         if "/actions/jobs/" in path:
-            return json.dumps({"steps": [{}] * knobs["steps"].get(path.rsplit("/", 1)[1], 0)})
+            job = path.rsplit("/", 1)[1]
+            return json.dumps(knobs["jobs"].get(job) or {"steps": [{}] * knobs["steps"].get(job, 0)})
+        if path.endswith("/annotations"):
+            return json.dumps(knobs["notes"].get(path.split("/")[-2], []))
+        if path.endswith("/actions/runners"):
+            if knobs["runners"] is None:
+                raise board.BoardError("gh api: 403 Must have admin rights to Repository")
+            return json.dumps(knobs["runners"])
+        if "/actions/runs?head_sha=" in path:
+            return json.dumps({"total_count": knobs["runs"], "workflow_runs": []})
         if "/statuses/" in path:
             fields = dict(a.split("=", 1) for a in args if "=" in a and not a.startswith("repos/"))
             knobs["statuses"].append({"sha": path.rsplit("/", 1)[1], **fields})
@@ -1566,8 +1583,17 @@ def actions(fake_integrate, monkeypatch, clock):
         raise AssertionError(args)
 
     monkeypatch.setattr(board, "gh", gh)
-    cfg = workflow.config.Config(checks_wait_s=900, local_ci_wait_s=600, local_ci=knobs["commands"])
-    monkeypatch.setattr(workflow.config, "get", lambda: cfg)
+    monkeypatch.setattr(
+        workflow.config,
+        "get",
+        lambda: workflow.config.Config(
+            checks_wait_s=900,
+            local_ci_wait_s=600,
+            local_ci=knobs["commands"],
+            ci=knobs["ci"],
+            actions_start_s=knobs["start_s"],
+        ),
+    )
     return knobs
 
 

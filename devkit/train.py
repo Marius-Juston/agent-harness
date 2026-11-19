@@ -117,7 +117,7 @@ def _admit(m: Member, main: str, harness_ok: bool, dry_run: bool, contexts: list
     ignore: frozenset[str] = frozenset()
     if contexts and dry_run:
         print(f"would wait for Actions on {m.head[:10]} and stand in for what it never runs: {', '.join(contexts)}")
-        now = ci_status.standing(info.get("statusCheckRollup") or [], contexts, enabled, {})
+        now = ci_status.standing(info.get("statusCheckRollup") or [], contexts, enabled, ci_status.Probe())
         ignore = frozenset(c for c, s in now.items() if s != "failed")
         m.stood = sorted(c for c, s in now.items() if s == "never-ran")
     elif contexts:
@@ -410,6 +410,7 @@ def _stop_rest(members: list[Member], why: str) -> None:
 def _train(members: list[Member], gates: list[dict], harness_ok: set[int] | bool, dry_run: bool, local_ci: bool) -> int:
     contexts: list[str] = []
     enabled = True
+    local_ci = local_ci or config.get().ci == "local"  # #531: as integrate does
     if local_ci:
         contexts, bound = ci_status.required_contexts()
         if why := ci_status.local_ci_refusal(contexts, bound):
