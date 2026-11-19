@@ -1,6 +1,7 @@
 """`uv run dev <command>`: the single entry point for agents and humans. `uv run dev --help` is the command list."""
 
 import argparse
+import difflib
 import json
 import os
 import subprocess
@@ -68,6 +69,56 @@ class Parser(argparse.ArgumentParser):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("allow_abbrev", False)
         super().__init__(*args, **kwargs)
+        self.argv: list[str] = []
+
+    # A usage error names the invoked subcommand's usage on one line and the nearest option, in at most 3 lines: agents
+    # guessed flags and then called --help for the usage the top-level error did not show (#524).
+    def parse_known_args(self, args=None, namespace=None):
+        self.argv = list(sys.argv[1:] if args is None else args)  # a subparser's own share of the command line
+        return super().parse_known_args(args, namespace)
+
+    def invoked(self, ns: argparse.Namespace) -> "Parser":
+        """The deepest subparser the parsed namespace went through."""
+        for action in self._actions:
+            if isinstance(action, argparse._SubParsersAction) and getattr(ns, action.dest, None) in action.choices:
+                return action.choices[getattr(ns, action.dest)].invoked(ns)
+        return self
+
+    def _check_value(self, action, value):
+        try:
+            super()._check_value(action, value)
+        except argparse.ArgumentError as exc:
+            near = difflib.get_close_matches(str(value), [str(c) for c in action.choices or ()], 1, 0.6)
+            if not near:
+                raise
+            raise argparse.ArgumentError(action, f"{exc.message}\ndid you mean {near[0]}?") from None
+
+    def hint(self) -> str:
+        """'did you mean' for the first unknown flag: an option of this parser, a positional, or a subcommand's
+        option; empty below difflib ratio 0.6."""
+        argv = self.argv[: self.argv.index("--")] if "--" in self.argv else self.argv
+        flags = [a.split("=", 1)[0] for a in argv if a.startswith("-") and not self._negative_number_matcher.match(a)]
+        unknown = [f for f in flags if f not in self._option_string_actions]
+        if not unknown:
+            return ""
+        flag = unknown[0]
+        if near := difflib.get_close_matches(flag, list(self._option_string_actions), 1, 0.6):
+            return f"{flag}: did you mean {near[0]}?"
+        positionals = [a.metavar or a.dest for a in self._get_positional_actions() if a.nargs != argparse.PARSER]
+        if near := difflib.get_close_matches(flag.lstrip("-"), [str(p) for p in positionals], 1, 0.6):
+            return f"{flag}: did you mean the positional {near[0]}?"
+        for action in self._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for sp in action.choices.values():
+                    if near := difflib.get_close_matches(flag, list(sp._option_string_actions), 1, 0.6):
+                        return f"{flag}: did you mean {sp.prog} {near[0]}?"
+        return ""
+
+    def error(self, message):
+        formatter = self.formatter_class(prog=self.prog, width=10_000)  # unwrapped: one line however many options
+        formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
+        hint = "" if "\ndid you mean" in message else self.hint()
+        self.exit(2, f"{formatter.format_help()}{self.prog}: error: {message}\n" + (f"{hint}\n" if hint else ""))
 
 
 def build() -> argparse.ArgumentParser:
@@ -717,7 +768,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     if extra and args.cmd == "reuse" and not any(e.startswith("-") for e in extra):
         args.need += extra
     elif extra:
-        p.error(f"unrecognized arguments: {' '.join(extra)}")
+        p.invoked(args).error(f"unrecognized arguments: {' '.join(extra)}")
     return args
 
 
