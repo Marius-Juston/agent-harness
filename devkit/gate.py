@@ -604,6 +604,7 @@ def stages(
         lambda: checks.check_ratchets(base),
         lambda: weaken.check_weakening(base, issue),
         lambda: checks.check_installs(base),
+        lambda: checks.check_clones(base),
         lambda: checks.check_generated(docs.render(help_rows)),
         lambda: _run("ruff lint", ["ruff", "check", "--quiet", "--output-format", "concise", "."]),
         lambda: _run("ruff format", ["ruff", "format", "--check", "--quiet", "--output-format", "concise", "."]),
