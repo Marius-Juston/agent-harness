@@ -142,6 +142,18 @@ def test_doctor_names_each_key_found_or_missing_never_its_value_and_points_to_th
     assert bad[-1][0] is False and "Research API keys" in bad[-1][2]
 
 
+def test_doctor_says_what_each_missing_secret_costs_for_all_four():
+    lines = setup.key_lines({name: "missing" for name in lit.SECRET_NAMES}, "")
+    assert [w.split()[0] for _, w, _ in lines] == list(lit.SECRET_NAMES) and all(ok is None for ok, _, _ in lines)
+    by = {w.split()[0]: w for _, w, _ in lines}
+    assert "Unpaywall" in by["UNPAYWALL_EMAIL"] and "CORE" in by["CORE_API_KEY"] and "pool" in by["S2_API_KEY"]
+    assert setup.key_lines({"UNPAYWALL_EMAIL": "project config"}, "")[0] == (
+        True,
+        "UNPAYWALL_EMAIL found (project config)",
+        "",
+    )
+
+
 def test_doctor_prints_key_origins_but_not_values(tmp_path, monkeypatch, capsys):
     p = tmp_path / "keys"
     p.write_text("export S2_API_KEY=fake-s2-000\n")
@@ -233,7 +245,7 @@ def stub_project(tmp_path, monkeypatch):
     monkeypatch.setattr(setup, "git", lambda *a, **k: str(project / ".git") if "--git-common-dir" in a else "true")
     monkeypatch.setattr(setup.shutil, "which", lambda tool: f"/usr/bin/{tool}")
     monkeypatch.setattr(setup, "_trusted", lambda: True)
-    monkeypatch.setattr(setup.lit, "key_report", lambda env: ({}, ""))
+    monkeypatch.setattr(setup.lit, "key_report", lambda env, contact="": ({}, ""))
     monkeypatch.setattr(quota, "quota_reading", lambda: (10, 95))
     monkeypatch.setattr(setup, "remote_tags", lambda url: [])
     plugins = {"harness-ops@agent-harness": f"{remote}@v0.1.1"}

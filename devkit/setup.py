@@ -289,7 +289,7 @@ def key_lines(where: dict[str, str], problem: str) -> list[tuple[bool | None, st
     out: list[tuple[bool | None, str, str]] = [
         (True, f"{name} found ({origin})", "")
         if origin != "missing"
-        else (None, f"{name} missing (dev lit uses the shared, rate-limited pool)", KEYS_DOC)
+        else (None, f"{name} missing ({lit.WITHOUT.get(name, 'dev lit runs without it')})", KEYS_DOC)
         for name, origin in where.items()
     ]
     if problem:
@@ -336,7 +336,7 @@ def doctor() -> int:
         "workspace trusted by Claude Code (else headless agents ignore the project allowlist)",
         "run `claude` here once interactively and accept the trust dialog",
     )
-    for ok, what, fix in key_lines(*lit.key_report(dict(os.environ))):
+    for ok, what, fix in key_lines(*lit.key_report(dict(os.environ), lit.oa.contact_email())):
         if ok is None:
             print(f"WARN {what}  ->  {fix}")
         else:
