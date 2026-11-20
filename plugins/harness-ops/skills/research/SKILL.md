@@ -32,11 +32,12 @@ rounds.
    write (`docs/research/_scratch/<slug>/r<round>-<topic>.md`), and "round mode". A researcher hands back only once
    `uv run dev cite-check` passes on that file, which needs an `against:` line (query and result) per
    recommendation-driving claim.
-3. **Gap pass.** When all have returned, read their hand-backs, not the files. Write
+3. **Gap pass.** Once all return, read their hand-backs, not the files. Write
    `_scratch/<slug>/gaps-r<round>.md`, headed `findings that changed the recommendation: N, new primary sources: M`,
    with: those findings, contradictions between researchers, claims resting on one weak source or tagged
-   `single-source`, and questions nobody answered. Snowball the key papers
-   (`uv run dev lit refs <id>`, `uv run dev lit cited-by <id>`); new papers go to the next round.
+   `single-source`, and questions nobody answered. Snowball the accepted papers together
+   (`uv run dev lit snowball <accepted ids>`; one paper: `uv run dev lit refs <id>`, `uv run dev lit cited-by <id>`);
+   new papers go to the next round.
 4. **Stop or loop.** Run another round only on the gaps, never the whole question again. Past the default rounds,
    run one more only if the last round's N > 0, and only once. Stop when that round limit is reached, on saturation
    (N is 0), or when the quota cap is near (spawn_guard refuses). Record the stop reason in the gaps file.
@@ -54,9 +55,9 @@ stated as such.
   failed claims or relabels them BELIEVED, rewrites the Recommendation without them and lists them in the note's
   open-issues section; the lead asks the owner before integrating a changed Recommendation.
 - The synthesis researcher opens the PR (`uv run dev pr <n>`).
-- The scratch folder stays in git as the audit trail. It merges with the union driver.
+- The scratch folder stays in git (union-merged) as the audit trail.
 
 ## Cheap alternative
-For a quick narrative answer that does not drive a decision, one `harness-ops:researcher` in issue mode is enough. Anthropic's
+For a quick narrative answer that drives no decision, one `harness-ops:researcher` in issue mode is enough. Anthropic's
 `deep-research` skill's report is not house style: cite-check it and fold it into a note before anything depends
 on it.
