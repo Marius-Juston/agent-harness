@@ -46,3 +46,15 @@ min_coverage = 91      # line % of devkit/ ([tool.coverage.run] source): 91.7% m
 # or add a [[raise]] with `to` = the new count and reason = "ty <old> -> <new>".
 [types]
 max_diagnostics = 330  # `ty check` on this repository (ty 0.0.107, 2026-11-19); the gate prompts to lower it
+
+# Architecture ratchets (the gate's arch stage; `uv run dev arch` shows the numbers). Both only tighten: raising
+# max_import_cycle, module_loc_ceiling or a pin needs a [[raise]] (key "arch.<key>" or "arch.module_loc.<path>"),
+# and so does a new pin, which is a module crossing the ceiling. Evidence: docs/research/architecture-grading.md §5.
+[arch]
+max_import_cycle = 2       # modules in the largest import cycle of the non-test code (code and reuse; integrate and workflow)
+module_loc_ceiling = 1000  # LOC (non-blank, non-comment) a module may have without a pin below
+
+[arch.module_loc]          # modules over the ceiling, pinned at their LOC: they may only shrink
+"devkit/board.py" = 1525
+"plugins/harness-ops/scripts/guard_bash.py" = 1169
+"scripts/repo_metrics.py" = 1290

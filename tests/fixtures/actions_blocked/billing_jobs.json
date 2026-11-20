@@ -1,0 +1,27 @@
+{
+ "total_count": 1,
+ "jobs": [
+  {
+   "id": 135917571091,
+   "run_id": 44625354699,
+   "run_url": "https://api.github.com/repos/o/r/actions/runs/44625354699",
+   "run_attempt": 1,
+   "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "url": "https://api.github.com/repos/o/r/actions/jobs/135917571091",
+   "html_url": "https://github.com/o/r/actions/runs/44625354699/job/135917571091",
+   "status": "completed",
+   "conclusion": "failure",
+   "created_at": "2026-11-19T22:06:19Z",
+   "started_at": "2026-11-19T22:06:19Z",
+   "completed_at": "2026-11-19T22:06:21Z",
+   "name": "check",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/o/r/check-runs/135917571091",
+   "labels": [
+    "ubuntu-latest"
+   ],
+   "runner_id": 0,
+   "runner_name": ""
+  }
+ ]
+}
