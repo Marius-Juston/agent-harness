@@ -9,7 +9,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from devkit import cli, config, consolidation, workflow
+from devkit import board_gh, cli, config, consolidation, workflow
 
 ENV = {
     "GIT_AUTHOR_NAME": "t",
@@ -224,11 +224,9 @@ def test_only_a_first_parent_trailer_block_resets_the_trigger(repo):
 
 
 def test_integrate_writes_the_trailer_into_the_merge_commit(monkeypatch):
-    from devkit import board
-
     calls = []
-    monkeypatch.setattr(board, "gh", lambda *a, **k: calls.append(a) or "")
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", lambda *a, **k: calls.append(a) or "")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     monkeypatch.setattr(workflow, "_remote_shas", lambda n: ("h1", "m1"))
     assert workflow._merge_if_unchanged(7, "h1", "m1", review=138) is None
     assert calls[-1][calls[-1].index("--body") + 1] == "Consolidation-Review: #138"

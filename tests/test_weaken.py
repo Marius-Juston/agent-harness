@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-from devkit import board, weaken
+from devkit import board, board_gh, weaken
 
 OWNER = "octo"
 # Spelled in pieces so this file's own diff does not add a skip marker.
@@ -244,14 +244,14 @@ def repo(tmp_path, monkeypatch):
     monkeypatch.setattr(weaken, "root", lambda: tmp_path)
     monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
     monkeypatch.setattr(weaken, "repo_owner", lambda: OWNER)
-    monkeypatch.setattr(board, "repo", lambda: "octo/r")
+    monkeypatch.setattr(board_gh, "repo", lambda: "octo/r")
     base = subprocess.run(["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True).stdout.strip()
     return tmp_path, base
 
 
 def fake_issue(monkeypatch, body: str):
     monkeypatch.setattr(
-        board, "gh", lambda *a, **k: f'{{"author": {{"login": "{OWNER}"}}, "body": "{body}", "comments": []}}'
+        board_gh, "gh", lambda *a, **k: f'{{"author": {{"login": "{OWNER}"}}, "body": "{body}", "comments": []}}'
     )
 
 
@@ -273,7 +273,7 @@ def test_the_gate_fails_a_weakening_diff_and_passes_it_once_approved(repo, monke
 def test_the_gate_passes_an_unweakened_diff_without_reading_the_issue(repo, monkeypatch):
     path, base = repo
     (path / "tests/test_x.py").write_text("def test_f():\n    assert 1 + 1 == 2\n    assert 2 * 2 == 4\n")
-    monkeypatch.setattr(board, "gh", lambda *a, **k: pytest.fail("no finding needs no issue"))
+    monkeypatch.setattr(board_gh, "gh", lambda *a, **k: pytest.fail("no finding needs no issue"))
     ran = weaken.check_weakening(base)
     assert ran.ok
     assert ran.checked == 1
@@ -286,7 +286,7 @@ def test_an_unreadable_issue_fails_closed(repo, monkeypatch):
     def down(*a, **k):
         raise board.BoardError("gh: not logged in")
 
-    monkeypatch.setattr(board, "gh", down)
+    monkeypatch.setattr(board_gh, "gh", down)
     ran = weaken.check_weakening(base)
     assert not ran.ok
     assert "#55 could not be read" in ran.problems[-1]
@@ -331,7 +331,7 @@ def issues(monkeypatch, approving: set[int]) -> list[str]:
         body = "weakening-ok: agreed" if int(args[2]) in approving else "## DONE WHEN"
         return f'{{"author": {{"login": "{OWNER}"}}, "body": "{body}", "comments": []}}'
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     return read
 
 
@@ -376,7 +376,7 @@ def test_a_train_judges_each_members_commits_against_its_own_issue(repo, monkeyp
 def test_a_malformed_or_unchained_env_value_fails_closed(repo, monkeypatch, value):
     """Ranges that skip commits, end before the working tree, or do not parse fail the stage, never pass it."""
     _, base = repo
-    monkeypatch.setattr(board, "gh", lambda *a, **k: pytest.fail("a malformed value reads no issue"))
+    monkeypatch.setattr(board_gh, "gh", lambda *a, **k: pytest.fail("a malformed value reads no issue"))
     ran = weaken.check_weakening(base, value)
     assert not ran.ok and ran.problems[0].startswith(f"{weaken.ISSUE_ENV}=")
 

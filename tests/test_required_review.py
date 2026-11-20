@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from devkit import board, config, workflow
+from devkit import board_gh, config, workflow
 from tests.test_gate import _last_json, _merged, fake_integrate  # noqa: F401 - fake_integrate is a fixture
 from tests.test_workflow import _github_keeps_comments, _push, _verdict
 
@@ -46,7 +46,7 @@ def test_integrate_refuses_a_devkit_pr_here_until_the_reviewer_says_merge(fake_i
     _push(fake_integrate, "c" * 40)
     _github_keeps_comments(fake_integrate, monkeypatch)
     reviews: list[dict] = []
-    real = board.gh
+    real = board_gh.gh
 
     def gh(*args, **kw):
         out = real(*args, **kw)
@@ -56,7 +56,7 @@ def test_integrate_refuses_a_devkit_pr_here_until_the_reviewer_says_merge(fake_i
             return json.dumps(data)
         return out
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     res = _last_json(capsys.readouterr().out)
     assert res["outcome"] == "refused" and REVIEWER in res["reason"] and "devkit/workflow.py" in res["reason"]

@@ -1,7 +1,7 @@
 """Board automation: PR and issue events, the stale sweep, area labels from the shared path map.
 
-No test calls GitHub: `board.gh` is an in-memory fake of the issues it is asked about, so the real parsing in
-`board.get`, `board.fetch` and `board.closed_numbers` runs against it.
+No test calls GitHub: `board_gh.gh` is an in-memory fake of the issues it is asked about, so the real parsing in
+`board_state.get`, `board_state.fetch` and `board_state.closed_numbers` runs against it.
 """
 
 import json
@@ -15,7 +15,7 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, workflow
+from devkit import board, board_gh, board_state, workflow
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / "template/.github/workflows"  # the board workflow ships to projects
@@ -40,7 +40,7 @@ class FakeBoard:
 
     def __init__(self):
         self.issues: dict[int, dict] = {}
-        self.labels = set(board.LABELS) | set(board.area_globs())
+        self.labels = set(board.LABELS) | set(board_state.area_globs())
         self.calls: list[tuple] = []
 
     def add(self, n, labels, body="", comments=None, state="OPEN"):
@@ -101,8 +101,8 @@ class FakeBoard:
 @pytest.fixture
 def fake(monkeypatch):
     f = FakeBoard()
-    monkeypatch.setattr(board, "gh", f.gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", f.gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     board.repo_labels.cache_clear()
     yield f
     board.repo_labels.cache_clear()
@@ -115,7 +115,7 @@ def merged_notes(fake, n):
     return len(comments) + len(closes)
 
 
-# --- what a merge does (`dev integrate` -> board.merged_pr) ------------------------------------------------
+# --- what a merge does (`dev integrate` -> board_state.merged_pr) ------------------------------------------------
 
 
 def test_linked_reads_closing_keywords_and_the_branch_number_never_refs():
@@ -131,7 +131,7 @@ def test_merged_pr_closes_its_issue_and_unblocks_dependents(fake):
     fake.add(1, ["status:review"])
     fake.add(2, ["status:blocked"], "## Blocked by\n#1")
     fake.add(3, ["status:blocked"], "## Blocked by\n#1, #99")  # #99 unknown: stays blocked
-    assert board.merged_pr(50, "Closes #1", "1-x", "main") == ["#1 -> done", "#2 -> ready"]
+    assert board_state.merged_pr(50, "Closes #1", "1-x", "main") == ["#1 -> done", "#2 -> ready"]
     assert fake.issues[1]["state"] == "CLOSED"
     assert "status:ready" in fake.names(2)
     assert "status:blocked" in fake.names(3)
@@ -141,7 +141,7 @@ def test_merged_pr_closes_its_issue_and_unblocks_dependents(fake):
 def test_merged_pr_after_github_closed_the_issue_comments_once_and_syncs(fake):
     fake.add(1, ["status:review"], state="CLOSED")
     fake.add(2, ["status:blocked"], "## Blocked by\n#1")
-    assert board.merged_pr(50, "Closes #1", "1-x", "main") == ["#2 -> ready"]
+    assert board_state.merged_pr(50, "Closes #1", "1-x", "main") == ["#2 -> ready"]
     assert not any(c[:2] == ("issue", "close") for c in fake.calls)
     assert merged_notes(fake, 1) == 1
 
@@ -149,7 +149,7 @@ def test_merged_pr_after_github_closed_the_issue_comments_once_and_syncs(fake):
 def test_a_merge_into_another_branch_closes_nothing(fake):
     fake.add(1, ["status:review"])
     fake.add(2, ["status:blocked"], "## Blocked by\n#1")
-    assert board.merged_pr(50, "Closes #1", "1-x", "test-base") == []
+    assert board_state.merged_pr(50, "Closes #1", "1-x", "test-base") == []
     assert fake.issues[1]["state"] == "OPEN" and "status:blocked" in fake.names(2)
     assert fake.calls == []
 
@@ -157,8 +157,8 @@ def test_a_merge_into_another_branch_closes_nothing(fake):
 def test_refs_never_moves_another_agents_issue(fake):
     fake.add(4, ["status:review"], comments=[claim_comment(1)])
     fake.add(5, ["status:review"])
-    assert board.merged_pr(50, "Refs #4", "5-x", "main") == ["#5 -> ready"]  # its own branch's issue only
-    assert "status:review" in fake.names(4) and board.get(4).claim() is not None
+    assert board_state.merged_pr(50, "Refs #4", "5-x", "main") == ["#5 -> ready"]  # its own branch's issue only
+    assert "status:review" in fake.names(4) and board_state.get(4).claim() is not None
     assert fake.issues[4]["state"] == "OPEN" and fake.issues[5]["state"] == "OPEN"
 
 
@@ -173,22 +173,22 @@ def test_sync_keeps_a_manual_block_after_its_blockers_close(fake):
     """#5: a `board block --reason` outlives the declared blockers; only release or claim lifts it."""
     fake.add(1, ["status:ready"], state="CLOSED")
     fake.add(2, ["status:ready"], "## Blocked by\n#1")
-    board.block(2, "waiting on the owner's API key")
+    board_state.block(2, "waiting on the owner's API key")
     assert "status:blocked" in fake.names(2)
-    assert board.sync() == [] and board.event("schedule", {}, NOW) == []
+    assert board_state.sync() == [] and board.event("schedule", {}, NOW) == []
     assert "status:blocked" in fake.names(2)
     board.release(2, "key arrived")
-    assert "status:ready" in fake.names(2) and board.sync() == []
+    assert "status:ready" in fake.names(2) and board_state.sync() == []
 
 
 def test_sync_lifts_a_dependency_block_after_a_manual_block_was_released(fake):
     fake.add(1, ["status:ready"])
     fake.add(2, ["status:ready"], "## Blocked by\n#1")
-    board.block(2, "owner action")
+    board_state.block(2, "owner action")
     board.release(2, "done")
-    assert board.sync() == ["#2 -> blocked"]  # #1 still open: an ordinary dependency block now
+    assert board_state.sync() == ["#2 -> blocked"]  # #1 still open: an ordinary dependency block now
     fake.issues[1].update(state="CLOSED", stateReason="COMPLETED")
-    assert board.sync() == ["#2 -> ready"]
+    assert board_state.sync() == ["#2 -> ready"]
 
 
 def test_sync_honours_a_legacy_block_comment(fake):
@@ -196,7 +196,7 @@ def test_sync_honours_a_legacy_block_comment(fake):
     legacy = {"body": "<!-- devkit:release -->\nBlocked: owner action", "createdAt": at(1), "url": "x#issuecomment-1"}
     fake.add(1, ["status:ready"], state="CLOSED")
     fake.add(2, ["status:blocked"], "## Blocked by\n#1", comments=[legacy])
-    assert board.sync() == []
+    assert board_state.sync() == []
 
 
 @given(st.lists(st.sampled_from(["block", "release", "claim", "note"]), max_size=8))
@@ -268,13 +268,13 @@ def test_hours_idle_without_comments_uses_the_update_time():
 
 
 def test_the_template_area_map_has_the_five_areas_in_the_shared_shape():
-    globs = board.area_globs(TEMPLATE_MAP)
+    globs = board_state.area_globs(TEMPLATE_MAP)
     assert set(globs) == {"area:harness", "area:research", "area:docs", "area:tests", "area:product"}
     assert ".devkit/**" in globs["area:harness"] and ".claude/**" in globs["area:harness"]
 
 
 def test_this_repository_reads_its_own_area_map():
-    assert {"area:devkit", "area:plugin", "area:template"} <= set(board.area_globs())
+    assert {"area:devkit", "area:plugin", "area:template"} <= set(board_state.area_globs())
 
 
 @pytest.mark.parametrize(
@@ -292,12 +292,12 @@ def test_this_repository_reads_its_own_area_map():
 )
 def test_areas_from_owns(owns, expected):
     files = ["docs/research/a.md", "docs/specs/s.md", "README.md"]  # a project tree
-    assert board.areas(owns, board.area_globs(TEMPLATE_MAP), files) == expected
+    assert board.areas(owns, board_state.area_globs(TEMPLATE_MAP), files) == expected
 
 
 @given(st.from_regex(r"[a-z]{1,8}(/[a-z]{1,8}){0,3}\.py", fullmatch=True))
 def test_anything_under_claude_is_harness_and_under_tests_is_tests(rest):
-    globs = board.area_globs(TEMPLATE_MAP)
+    globs = board_state.area_globs(TEMPLATE_MAP)
     assert "area:harness" in board.areas([f".claude/{rest}"], globs, [])
     assert board.areas([f"tests/{rest}"], globs, []) == ["area:tests"]
 
@@ -322,15 +322,15 @@ def test_area_map_rejects_shapes_board_cannot_read(tmp_path):
         p = tmp_path / f"{name}.yml"
         p.write_text(yaml.safe_dump(data))
         with pytest.raises(board.BoardError, match="cannot read"):
-            board.area_globs(p)
+            board_state.area_globs(p)
     ok = tmp_path / "ok.yml"
     ok.write_text("changed-files-labels-limit: 3\na:\n  - changed-files:\n      - any-glob-to-any-file: 'x/**'\n")
-    assert board.area_globs(ok) == {"a": ["x/**"]}
+    assert board_state.area_globs(ok) == {"a": ["x/**"]}
 
 
 def test_ensure_labels_creates_area_labels(fake):
-    fake.labels -= set(board.area_globs())
-    assert set(board.area_globs()) <= set(board.ensure_labels())
+    fake.labels -= set(board_state.area_globs())
+    assert set(board_state.area_globs()) <= set(board.ensure_labels())
 
 
 # --- the workflow file and `dev pr` labels ----------------------------------------------------------------------

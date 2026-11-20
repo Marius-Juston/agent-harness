@@ -6,7 +6,19 @@ import subprocess
 
 import pytest
 
-from devkit import autopilot, board, cli, config, frontmatter, quota, train, workflow
+from devkit import (
+    autopilot,
+    board,
+    board_brief,
+    board_gh,
+    board_state,
+    cli,
+    config,
+    frontmatter,
+    quota,
+    train,
+    workflow,
+)
 from tests.test_merge_hygiene import ROOT, commit, note, out, sh
 from tests.test_train import closed, main_log, open_pr, sent_back, world  # noqa: F401 - `world` is a fixture
 
@@ -19,7 +31,7 @@ RED = [{"__typename": "CheckRun", "name": "check", "status": "COMPLETED", "concl
 def pilot(world, monkeypatch):  # noqa: F811 - the imported fixture
     """`world` plus `gh pr list` over its PRs, each with its `checks` rollup and `reviews`, a quota reading under the
     cap and a board with nothing to sync or dispatch."""
-    fake, w = board.gh, world
+    fake, w = board_gh.gh, world
 
     def gh(*args, **kw):
         if args[:2] == ("pr", "list") and args[args.index("--base") + 1 if "--base" in args else 0] == "main":
@@ -42,16 +54,16 @@ def pilot(world, monkeypatch):  # noqa: F811 - the imported fixture
             return json.dumps(rows)
         return fake(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     monkeypatch.setattr(
-        board,
+        board_brief,
         "pr_feedback",
         lambda n: {"since": "", "comments": [], "threads": [], "reviews": w["prs"][n].get("reviews", [])},
     )
     monkeypatch.setattr(quota, "quota_reading", lambda: (10, 80))
-    monkeypatch.setattr(board, "sync", lambda: [])
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: [])
-    monkeypatch.setattr(board, "closed_numbers", set)
+    monkeypatch.setattr(board_state, "sync", lambda: [])
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: [])
+    monkeypatch.setattr(board_state, "closed_numbers", set)
     return w
 
 
@@ -89,7 +101,7 @@ def test_several_ready_prs_go_through_one_train(pilot, capsys):
 
 
 def test_a_dry_run_merges_nothing_and_syncs_nothing(pilot, capsys, monkeypatch):
-    monkeypatch.setattr(board, "sync", lambda: pytest.fail("a dry run syncs nothing"))
+    monkeypatch.setattr(board_state, "sync", lambda: pytest.fail("a dry run syncs nothing"))
     pr_with(pilot, 1, note(pilot["clone"], "n1"))
     before = main_log(pilot)
     code, lines = tick(capsys, "--dry-run")
@@ -174,7 +186,7 @@ def test_startable_items_with_disjoint_owns_are_offered_for_dispatch(pilot, caps
         labels = [{"name": f"status:{status}"}, {"name": "type:build"}, {"name": "P1"}]
         return board._issue({"number": n, "title": f"item {n}", "labels": labels, "body": f"## Owns\n- `{owns}`\n"})
 
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: [issue(1, "a.py"), issue(2, "a.py"), issue(3, "b.py"),
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: [issue(1, "a.py"), issue(2, "a.py"), issue(3, "b.py"),
                                                           issue(4, "c.py", "in-progress"), issue(5, "c.py")])  # fmt: skip
     _, lines = tick(capsys)
     assert [ln.split(":")[0] for ln in lines[1:-1]] == ["dispatch #1 P1 build", "dispatch #3 P1 build"]
@@ -184,7 +196,7 @@ def test_github_not_answering_stops_in_one_line(pilot, capsys, monkeypatch):
     def down():
         raise board.BoardError("gh: HTTP 502")
 
-    monkeypatch.setattr(board, "sync", down)
+    monkeypatch.setattr(board_state, "sync", down)
     code, lines = tick(capsys)
     assert code == 1 and lines == ["AUTOPILOT: stop (cannot read GitHub or the board: gh: HTTP 502)"]
 
