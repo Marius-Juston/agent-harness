@@ -32,6 +32,18 @@ quota_cap = 95
 # can combine, such as a line hashing other files. Mark that file `merge=devkit-generated` in .gitattributes too.
 # regenerate = [["uv", "run", "python", "scripts/rehash.py"]]
 
+# Import contracts the gate's arch stage keeps (`uv run dev arch` reports them); none until you declare one.
+# [[tool.devkit.arch.contracts]]
+# name = "{{ project_name | replace('-', '_') }} modules form no import cycle"
+# type = "acyclic_siblings"
+# ancestors = ["{{ project_name | replace('-', '_') }}"]
+#
+# [[tool.devkit.arch.contracts]]
+# name = "only the entry point imports the CLI"
+# type = "forbidden"
+# source_modules = ["{{ project_name | replace('-', '_') }}.*"]
+# forbidden_modules = ["{{ project_name | replace('-', '_') }}.cli"]
+
 [tool.devkit.plugins]
 "harness-ops@agent-harness" = "Marius-Juston/agent-harness@{{ harness_ref }}"
 "astral@astral-sh" = "astral-sh/claude-code-plugins"

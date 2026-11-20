@@ -106,6 +106,7 @@
 | `consolidation` | architecture review: is one due (orient shows it), and the report the architect reads |
 | `consolidation status` | is a review due since the last Consolidation-Review: trailer, and why (fast) |
 | `consolidation report` | read-only measurements: smells, growth by directory, command overlap, parse errors |
+| `arch` | architecture in at most 8 lines: import contracts, largest cycle, top 3 hotspots, LOC ceiling |
 | `agent-stats` | scorecard from transcripts: tokens, calls, big-result share per agent type |
 | `suite-audit` | size-tiered audit of the whole test suite: is one due, and the nine checks |
 | `suite-audit status` | is an audit due since the last one (what orient shows), and why |

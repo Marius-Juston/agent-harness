@@ -76,6 +76,19 @@ exclude = [
     "template/*",
 ]
 
+# Import contracts the gate's arch stage keeps (`uv run dev arch`). Review 1 cut docs -> cli (#140) and PR #417 put
+# the pattern back as checks -> cli, which review 2 cut again (#449): docs/research/architecture-grading.md §4.
+[[tool.devkit.arch.contracts]]
+name = "devkit modules form no import cycle"
+type = "acyclic_siblings"
+ancestors = ["devkit"]
+
+[[tool.devkit.arch.contracts]]
+name = "only the entry point imports the CLI"
+type = "forbidden"
+source_modules = ["devkit.*"]
+forbidden_modules = ["devkit.cli"]
+
 # `dev integrate --local-ci`: what stands in for each required CI job when Actions cannot run (ci.yml's commands).
 [tool.devkit.local_ci]
 check = []

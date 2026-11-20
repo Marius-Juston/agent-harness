@@ -27,6 +27,17 @@ CONSOLIDATION: dict[str, float | int | str | list[str]] = {
     "since": "",  # a commit to count from instead of the newest `Consolidation-Review:` trailer
 }
 
+# `[tool.devkit.arch]`: what `dev arch` and the gate's arch stage check (devkit/arch.py). Contracts on the import
+# graph, each a `[[tool.devkit.arch.contracts]]` table (none by default), with import-linter's names for two kinds:
+# `acyclic_siblings` (`ancestors`: no import cycle among each package's direct submodules) and `forbidden`
+# (`source_modules` may not import `forbidden_modules`, directly or through other modules). A pattern names a module
+# and its descendants; `*` stands for one name part. Imports inside functions count (they run when called); imports
+# under `if TYPE_CHECKING:` never run, so they count only when `type_checking_imports` is true.
+# Evidence: docs/research/architecture-grading.md §4.
+ARCH: dict[str, object] = {"type_checking_imports": False, "contracts": []}
+CONTRACT_KEYS = {"acyclic_siblings": ("ancestors",), "forbidden": ("source_modules", "forbidden_modules")}
+MODULE_PATTERN = re.compile(r"(?:\w+|\*)(?:\.(?:\w+|\*))*")
+
 # `[tool.devkit.prices."<model id>"]`: list $ per million tokens that `dev agent-stats --cost` prices with
 # (devkit/stats.py). A model is priced only by its exact id (a -YYYYMMDD snapshot suffix ignored), so an older model
 # never takes a newer one's prices; unpriced models are listed. Defaults: the pricing page as fetched for
@@ -115,6 +126,7 @@ class Config:
     # `Verdict: merge` review (board.VERDICT) naming that agent on its head or an ancestor. {} requires none.
     required_reviews: dict[str, str] = field(default_factory=dict)
     consolidation: dict[str, object] = field(default_factory=lambda: dict(CONSOLIDATION))
+    arch: dict[str, object] = field(default_factory=lambda: dict(ARCH))
     prices: dict[str, dict[str, float]] = field(default_factory=lambda: {k: dict(v) for k, v in PRICES.items()})
 
 
@@ -159,6 +171,8 @@ def parse(data: dict) -> Config:
         data = {**data, "consolidation": _consolidation(data["consolidation"])}
     if "prices" in data:
         data = {**data, "prices": _prices(data["prices"])}
+    if "arch" in data:
+        data = {**data, "arch": _arch(data["arch"])}
     return Config(**data)
 
 
@@ -188,6 +202,32 @@ def _consolidation(table: dict) -> dict:
         if not ok:
             raise ConfigError(f"[tool.devkit.consolidation] {key} = {value!r}: expected {type(default).__name__}")
     return {**CONSOLIDATION, **table}
+
+
+def _arch(table: dict) -> dict:
+    if unknown := sorted(set(table) - set(ARCH)):
+        raise ConfigError(f"[tool.devkit.arch]: unknown key(s) {unknown}; known: {sorted(ARCH)}")
+    if not isinstance(table.get("type_checking_imports", False), bool):
+        raise ConfigError("[tool.devkit.arch] type_checking_imports: expected true or false")
+    contracts = table.get("contracts", [])
+    if not isinstance(contracts, list) or not all(isinstance(c, dict) for c in contracts):
+        raise ConfigError("[tool.devkit.arch] contracts: expected [[tool.devkit.arch.contracts]] tables")
+    names: set[str] = set()
+    for c in contracts:
+        kind, name = c.get("type"), c.get("name")
+        where = f"[[tool.devkit.arch.contracts]] {name!r}"
+        if kind not in CONTRACT_KEYS:
+            raise ConfigError(f"{where}: type {kind!r}; known: {sorted(CONTRACT_KEYS)}")
+        if not isinstance(name, str) or not name or name in names:
+            raise ConfigError(f"{where}: expected a unique non-empty `name`")
+        names.add(name)
+        if unknown := sorted(set(c) - {"name", "type", *CONTRACT_KEYS[kind]}):
+            raise ConfigError(f"{where}: unknown key(s) {unknown} for type {kind}")
+        for key in CONTRACT_KEYS[kind]:
+            v = c.get(key)
+            if not (isinstance(v, list) and v and all(isinstance(m, str) and MODULE_PATTERN.fullmatch(m) for m in v)):
+                raise ConfigError(f"{where}: {key} = {v!r}: expected a list of dotted module names (`*` allowed)")
+    return {**ARCH, **table}
 
 
 def parse_cap(text: str) -> int:

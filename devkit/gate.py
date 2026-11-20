@@ -34,7 +34,7 @@ from typing import IO
 from xml.etree import ElementTree
 
 import devkit
-from devkit import board, checks, config, docs, rules, weaken
+from devkit import arch, board, checks, config, docs, rules, weaken
 from devkit.paths import git, root, state_dir
 from devkit.ran import Ran
 
@@ -602,6 +602,7 @@ def stages(
         lambda: rules.check_rules(base),
         board.check_board,
         lambda: checks.check_ratchets(base),
+        arch.check_arch,
         lambda: weaken.check_weakening(base, issue),
         lambda: checks.check_installs(base),
         lambda: checks.check_clones(base),
