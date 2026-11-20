@@ -21,6 +21,7 @@ dependencies = [
     "diff-cover>=11.0.0",
     "pytest-timeout>=2.4",
     "pathspec>=1.1",
+    "pypdf>=7.1",
     "ty==0.0.107",  # pre-1.0: pinned exactly, so a bump is a deliberate PR whose gate shows the new count
 ]
 
