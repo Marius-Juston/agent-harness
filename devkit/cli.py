@@ -27,6 +27,7 @@ from devkit import (
     mutants,
     prtext,
     quota,
+    release,
     reuse,
     rules,
     setup,
@@ -190,6 +191,12 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("--partial", action="store_true", help="some DONE WHEN item is not met: 'Refs #N', not 'Closes #N'")
     x = sub.add_parser("pr-title", help="CI: fail unless the PR title is Conventional Commits (title from PR_TITLE)")
     x.add_argument("--title", default=os.environ.get("PR_TITLE"), help="default: the PR_TITLE environment variable")
+    x = sub.add_parser("release", help="lead: prepare (version bumps, uv lock) or publish (tag, GitHub Release) X.Y.Z")
+    xs = x.add_subparsers(dest="sub", required=True)
+    y = xs.add_parser("prepare", help="on a release branch: write the version into release_files and run uv lock")
+    y.add_argument("version", help="X.Y.Z; CHANGELOG.md must have its `## vX.Y.Z (YYYY-MM-DD)` section")
+    y = xs.add_parser("publish", help="on main at the merged release commit: tag, push, GitHub Release (rerun-safe)")
+    y.add_argument("version", help="X.Y.Z, as the release files at HEAD state it")
     x = sub.add_parser("integrate", help="lead: re-gate a PR merged onto main in a throwaway worktree, then merge it")
     x.add_argument("pr", type=int)
     x.add_argument("more", type=int, nargs="*", metavar="PR", help="with --train: the other members, in priority order")
@@ -526,6 +533,8 @@ def run(a: argparse.Namespace) -> int:
                 return 2
             harness_ok = a.harness_ok is not None
             return workflow.integrate(a.pr, harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
+        case "release":
+            return run_release(a)
         case "cite-check":
             paths = [Path(p) for p in a.paths] or _changed_notes()
             if not paths:
@@ -573,6 +582,21 @@ def run(a: argparse.Namespace) -> int:
             return run_consolidation(a)
         case name if name in config.get().commands:
             return run_project_command(name, a.args)
+    return 0
+
+
+def run_release(a: argparse.Namespace) -> int:
+    files = config.get().release_files
+    try:
+        if a.sub == "prepare":
+            lines = release.prepare(a.version, root(), files)
+        else:
+            lines = release.publish(a.version, root(), files, board.repo())
+    except RuntimeError as exc:  # ReleaseError, BoardError, a failed git
+        print(f"RESULT: refused: {exc}")
+        return 1
+    print("\n".join(lines))
+    print(f"RESULT: {a.sub}{'d' if a.sub == 'prepare' else 'ed'} v{a.version}")
     return 0
 
 

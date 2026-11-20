@@ -243,6 +243,18 @@ def _recheck(args: tuple[str, ...], input: str | None) -> Callable[[float], str 
             return args
 
         return settled
+    if head == ("release", "create") and len(args) > 2 and not args[2].startswith("-"):
+
+        def released(since: float) -> str | tuple[str, ...]:  # one release per tag: the tag's, whenever it was made
+            try:
+                url = gh("api", f"repos/{where}/releases/tags/{args[2]}", "--jq", ".html_url").strip()
+            except BoardError as e:
+                if "HTTP 404" not in str(e):
+                    raise
+                return args
+            return url + "\n" if url else args
+
+        return released
     return None
 
 
