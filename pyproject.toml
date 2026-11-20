@@ -34,10 +34,14 @@ dev = "devkit.cli:main"
 semantic = [
     "model2vec>=0.10",
 ]
+mutants = [
+    "cosmic-ray>=8.9.0",
+]
 
 [dependency-groups]
 dev = [
     "copier>=9.19.1",
+    "cosmic-ray>=8.9.0",
 ]
 
 [build-system]
