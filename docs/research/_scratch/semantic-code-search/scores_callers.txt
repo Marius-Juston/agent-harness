@@ -1,0 +1,9 @@
+
+### callers: 22 targets, 92 gold caller functions; ty server start 28 ms
+
+| arm | recall | precision | all callers found | tokens (mean) | tokens per caller found | median ms |
+|---|---|---|---|---|---|---|
+| refs | 0.93 | 0.44 | 19/22 | 629 | 161 | 304 |
+| astgrep | 0.98 | 0.99 | 20/22 | 99 | 24 | 242 |
+| ty | 1.00 | 1.00 | 22/22 | 99 | 24 | 43 |
+| resolver | 0.76 | 1.00 | 13/22 | 21 | 7 | 1240 |

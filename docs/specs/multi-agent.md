@@ -96,7 +96,14 @@ Nothing assumes that two machines share a disk.
    re-runs it before blaming the last member. With `--local-ci` each member first waits for Actions on its head;
    a check that ran and failed refuses it, and statuses for the checks Actions never ran are posted on each member's
    head only after main was pushed. The last line is `RESULT-JSON: {"train", "outcome", "members", "gates_run"}`.
-   `--override` and `--consolidation-review` are single-PR only.
+   A train and a single integrate admit a PR through one function (`devkit/integrate.py` `admit`), so a check added
+   for one holds for both. `--override '<reason>'` works as for one PR, on every member: it lifts unfinished
+   feedback only (a member then neither waits for running checks nor is refused for failing ones), is logged on
+   each member PR just before main is pushed, and the train tree is gated all the same; feedback that arrives
+   during the gate still stops the train. Before anything is admitted the train reads main's branch protection and
+   rulesets and refuses up front when they would refuse its direct push (a required pull request or status checks,
+   signed commits, push restrictions) for this user: integrate those PRs one by one there.
+   `--consolidation-review` is single-PR only.
 
 ## 2a. Conventions (`uv run dev board lint`)
 Every open item meets these. `board lint` lists what breaks them and exits 1. `--fix` makes the label edits that

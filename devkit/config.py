@@ -5,8 +5,11 @@ a typo must not silently fall back to a default."""
 import dataclasses
 import functools
 import re
+import sys
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from devkit.paths import root
 
@@ -57,6 +60,7 @@ class Config:
     generated_dir: str = "docs/generated"
     handoff: str = "docs/HANDOFF.md"
     evals_dir: str = "evals/scenarios"
+    research_eval_dir: str = "evals/research"  # `dev eval research` (#590): questions.yaml and gold.json
     area_map: str = ".github/labeler.yml"  # path -> area label map, in actions/labeler format
     # Plain content: a PR touching only these (with CONTENT_SUFFIXES) is not harness and needs no lead read.
     content: list[str] = field(default_factory=lambda: ["docs/research/", "docs/log/", "docs/questions/"])
@@ -80,6 +84,10 @@ class Config:
     # cores and memory idle; integrate's gate still takes the next free slot ahead of queued worker gates. A gate uses
     # every slot file it finds, so lowering it takes effect once the extra `gate.lock.<n>` files are deleted.
     gate_slots: int = 1
+    # #381: the bound the guard_bash hook puts on an agent's Bash command that waits without one (an until/while poll
+    # loop, `tail -f`, `watch`, `wait`, `gh run watch`, ...): it runs as `timeout <wait_bound_s> bash -c '<command>'`.
+    # The hook reads this key itself (it cannot import devkit); 0 turns the rewrite off.
+    wait_bound_s: int = 3600
     # `dev integrate --local-ci` (#76): a required check that has not queued after this long means Actions cannot run.
     local_ci_wait_s: int = 600
     # #531: "actions" waits for GitHub Actions, and stands in (as `--local-ci` does) once a head shows Actions cannot
@@ -149,6 +157,8 @@ def parse(data: dict) -> Config:
         raise ConfigError(f'[tool.devkit] ci = {data["ci"]!r}: expected "actions" or "local"')
     if data.get("gate_slots", 1) < 1:
         raise ConfigError(f"[tool.devkit] gate_slots = {data['gate_slots']!r}: expected a whole number of at least 1")
+    if data.get("wait_bound_s", 0) < 0:
+        raise ConfigError(f"[tool.devkit] wait_bound_s = {data['wait_bound_s']!r}: expected seconds, or 0 for no bound")
     for match, tools in data.get("mcp_prereqs", {}).items():
         if not (isinstance(tools, list) and all(isinstance(t, str) and t for t in tools)):
             raise ConfigError(f"[tool.devkit.mcp_prereqs] {match} = {tools!r}: expected a list of binary names")
@@ -209,6 +219,27 @@ def parse_cap(text: str) -> int:
     if not re.fullmatch(r"[0-9]{1,3}", t) or int(t) > 100:
         raise ValueError(f"quota cap {text!r}: expected an integer percent 0-100")
     return int(t)
+
+
+def parse_slots(text: str) -> int:
+    """A gate slot count: a decimal integer 1-256 (surrounding whitespace allowed), else ValueError."""
+    t = text.strip()
+    if not re.fullmatch(r"[0-9]{1,3}", t) or not 1 <= int(t) <= 256:
+        raise ValueError(f"gate slots {text!r}: expected a whole number 1-256")
+    return int(t)
+
+
+def local_override(path: Path, parse: Callable[[str], int], key: str) -> tuple[int, str]:
+    """(value, "local" | "pyproject"): the owner's machine-local override in `path` (`dev quota-cap`, `dev gate-slots`)
+    when `parse` accepts it, else `[tool.devkit] <key>`. A corrupt or unreadable override falls back with a warning,
+    never an error: a guard or the gate must not lose its setting."""
+    try:
+        return parse(path.read_text(errors="replace")), "local"
+    except FileNotFoundError:
+        pass
+    except (OSError, ValueError) as exc:
+        print(f"warning: ignoring {path} ({exc}); using [tool.devkit] {key}", file=sys.stderr)
+    return getattr(get(), key), "pyproject"
 
 
 @functools.cache
