@@ -54,7 +54,7 @@ def admit(
     info: dict,
     *,
     override: str | None = None,
-    harness_ok: bool = False,
+    harness_ok: bool | str = False,
     at: At | None = None,
     ignore: frozenset[str] = frozenset(),
     hold_pending: bool = False,
@@ -64,7 +64,7 @@ def admit(
     Closes/Refs line (#434), a reason with `override`): callers run them before they fetch or wait. With `at` they run
     again (on what may be a fresh `info`), then: the head GitHub shows is the one fetched, no unfinished feedback
     (`ignore`: the contexts `--local-ci` stands in for), the reviews `required_reviews` asks for (#391), and
-    `harness_ok` when it touches harness files. `override` lifts unfinished feedback only (then `overridden` lists
+    `harness_ok` when it touches harness files (True, or the fetched head's SHA: `dev autopilot`, #499). `override` lifts unfinished feedback only (then `overridden` lists
     it); nothing else. Feedback that is only checks still running is `waiting` with `hold_pending` (the caller waits
     or defers), else refused like any other."""
     if info["state"] != "OPEN" or info["isDraft"]:
@@ -111,7 +111,8 @@ def admit(
 
         if why := workflow.review_problem(at.touched, at.feedback["reviews"], at.head, trusted, rules, ancestor):
             return _refused(f"{why}, then rerun integrate")
-    if (harness := [f for f in at.touched if workflow.is_harness(f)]) and not harness_ok:
+    cleared = harness_ok is True or harness_ok == at.head  # a SHA clears that head only (#499)
+    if (harness := [f for f in at.touched if workflow.is_harness(f)]) and not cleared:
         said = [
             "PR changes the harness (rules agents are judged by):\n  " + "\n  ".join(harness),
             f"Read that diff yourself (`git diff {at.main[:10]}...{at.head[:10]}`), then rerun with --harness-ok.",

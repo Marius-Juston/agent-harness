@@ -128,6 +128,9 @@ class Config:
     # `commands = { coverage = ["python", "-m", "study.coverage"] }`. `dev coverage <args>` runs that list with <args>
     # appended, in the project root, and exits with its code; `dev --help` lists it. A built-in's name is an error.
     commands: dict[str, list[str]] = field(default_factory=dict)
+    # #9: the contact address `dev lit read` sends Unpaywall, which asks for one on every call, when UNPAYWALL_EMAIL is
+    # unset. "" skips Unpaywall. A shared team or project address, never a person's private one in a public repo.
+    contact_email: str = ""
     # Claude Code plugins `dev setup` installs at project scope: "plugin@marketplace" -> marketplace source.
     plugins: dict[str, str] = field(
         default_factory=lambda: {
@@ -147,6 +150,11 @@ class Config:
     # `{ "src/math/" = "harness-ops:reviewer" }`. integrate refuses a PR touching such a path until the gh user posted a
     # `Verdict: merge` review (board.VERDICT) naming that agent on its head or an ancestor. {} requires none.
     required_reviews: dict[str, str] = field(default_factory=dict)
+    # #499: the reviewer agent `dev autopilot` trusts, e.g. "harness-ops:reviewer": it integrates a harness PR (with
+    # --harness-ok for that head only) when the gh user's latest Verdict review naming that agent (as required_reviews
+    # matches it) says merge on the PR's current head, instead of waiting for the lead to read the diff. Every other
+    # integrate check still applies. "" (the default) trusts none: a project opts in.
+    autopilot_trust_review: str = ""
     consolidation: dict[str, object] = field(default_factory=lambda: dict(CONSOLIDATION))
     arch: dict[str, object] = field(default_factory=lambda: dict(ARCH))
     prices: dict[str, dict[str, float]] = field(default_factory=lambda: {k: dict(v) for k, v in PRICES.items()})
