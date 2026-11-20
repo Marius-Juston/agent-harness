@@ -782,8 +782,9 @@ def run_consolidation(a: argparse.Namespace) -> int:
 
 def run_lit(a: argparse.Namespace) -> int:
     if a.sub == "status":
-        health = lit.client().status()
-        print(lit.render_status(health))
+        c = lit.client()
+        health = c.status()
+        print(lit.render_status(health, c.env))
         return 1 if lit.degraded(health) else 0
     try:
         if a.sub == "search":
