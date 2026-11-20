@@ -19,7 +19,7 @@
 | name | invocation | words | purpose |
 |---|---|---|---|
 | harness-ops:harness | model + /harness-ops:harness | 558 | How to change a project's agent surface safely — CLAUDE.md, .claude/ settings and agents, skills, hooks, the [tool.devkit] config, CI — without drift or bloa... |
-| harness-ops:lead | model + /harness-ops:lead | 718 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
+| harness-ops:lead | model + /harness-ops:lead | 720 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
 | harness-ops:research | model + /harness-ops:research | 650 | Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reve... |
 
 ## Hooks
@@ -30,7 +30,7 @@
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash/WebFetch | `scripts/guard_bash.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash | `scripts/uv_add_guard.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash/Read | `scripts/read_guard.py` |
-| plugins/harness-ops/hooks/hooks.json | PreToolUse | Edit/Write/NotebookEdit | `scripts/edit_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Edit/Write/MultiEdit/NotebookEdit | `scripts/edit_guard.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Agent/Workflow | `scripts/spawn_guard.sh` |
 | plugins/harness-ops/hooks/hooks.json | SubagentStart | * | `scripts/spawn_guard.sh` |
 | plugins/harness-ops/hooks/hooks.json | SubagentStop | builder$ | `scripts/completion_gate.py` |
@@ -126,5 +126,5 @@
 | plugins/harness-ops/agents/tester.md | 285 | 600 |
 | plugins/harness-ops/commands/gotcha.md | 177 | 650 |
 | plugins/harness-ops/skills/harness/SKILL.md | 558 | 650 |
-| plugins/harness-ops/skills/lead/SKILL.md | 718 | 720 |
+| plugins/harness-ops/skills/lead/SKILL.md | 720 | 720 |
 | plugins/harness-ops/skills/research/SKILL.md | 650 | 650 |

@@ -2,7 +2,7 @@
 
 It stops at the quota cap; syncs the board; reads every open PR into main; integrates those integrate would take on
 its own (checks complete and green, no open feedback, required reviews in place, no harness file unless
-`autopilot_trust_review` and a merge verdict on the current head clear it) through `workflow.integrate`, or
+a merge verdict naming the reviewer `autopilot_trust_review` names, on the current head, clears it) through `workflow.integrate`, or
 `train.train` for two or more, never with `--override`; then prints only
 what needs a model or the owner: an integrate that did not merge (and stops there), harness PRs waiting for a
 reviewer or the lead's read, PRs to resume, and the next disjoint wave to dispatch. Integrate stays the judge: the
@@ -63,27 +63,31 @@ def fetch_paths(prs: list[Pr]) -> None:
             workflow.git("update-ref", "-d", ref, check=False)
 
 
-def verdict(p: Pr, trusted: set[str]) -> tuple[str, str] | None:
-    """(word, sha) of the latest Verdict review by a `trusted` login, or None."""
+def verdict(p: Pr, trusted: set[str], who: str = "") -> tuple[str, str] | None:
+    """(word, sha) of the latest Verdict review by a `trusted` login, or None. With `who`, only a review whose body
+    names that reviewer agent counts (as `workflow.review_problem` matches it): every agent posts as the gh user."""
     found = [
         (r.get("submittedAt") or "", v[1], v[3])
         for r in p.feedback.get("reviews") or []
-        if board.login(r) in trusted and (v := board.verdict_of(r.get("body") or ""))
+        if board.login(r) in trusted and (v := board.verdict_of(r.get("body") or "")) and who in (r.get("body") or "")
     ]
     return max(found, key=lambda f: f[0])[1:] if found else None
 
 
-def trusted_merge(p: Pr, trusted: set[str]) -> bool:
-    """The latest trusted verdict says merge on the PR's current head (an earlier head's verdict does not count)."""
-    v = verdict(p, trusted)
+def trusted_merge(p: Pr, trusted: set[str], who: str) -> bool:
+    """`who` (the reviewer agent `autopilot_trust_review` names) is set and its latest verdict says merge on the PR's
+    current head (an earlier head's verdict does not count)."""
+    v = verdict(p, trusted, who) if who else None
     return v is not None and v[0] == "merge" and p.head.lower().startswith(v[1].lower())
 
 
-def review_line(p: Pr, trusted: set[str]) -> str:
-    """What a harness PR waits for: a reviewer, a re-review of a newer head, the worker, or the lead's read."""
-    v = verdict(p, trusted)
+def review_line(p: Pr, trusted: set[str], who: str) -> str:
+    """What a harness PR waits for: a reviewer, a re-review of a newer head, the worker, or the lead's read. With
+    `who`, only that reviewer's verdicts count."""
+    v = verdict(p, trusted, who)
     if v is None:
-        return f"review #{p.number} (harness): no verdict; spawn harness-ops:reviewer"
+        named = f" naming {who}" if who else ""
+        return f"review #{p.number} (harness): no verdict{named}; spawn {who or 'harness-ops:reviewer'}"
     word, sha = v
     if not p.head.lower().startswith(sha.lower()):
         return f"review #{p.number} (harness): verdict {word} on {sha[:7]}, head is {p.head[:7]}; re-review"
@@ -109,14 +113,16 @@ def land(numbers: list[int], cleared: dict[int, str], dry_run: bool) -> tuple[in
     --harness-ok for that head only, so a push after the verdict is not cleared. Their output goes to a log;
     returns the exit code and `outcomes`."""
     buf = io.StringIO()
-    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-        if len(numbers) == 1:
-            code = workflow.integrate(numbers[0], cleared.get(numbers[0], False), dry_run)
-        else:
-            code = train.train(numbers, cleared, dry_run)
-    log = workflow.state_dir("autopilot") / "last.log"
-    log.parent.mkdir(parents=True, exist_ok=True)
-    log.write_text(buf.getvalue())
+    try:
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            if len(numbers) == 1:
+                code = workflow.integrate(numbers[0], cleared.get(numbers[0], False), dry_run)
+            else:
+                code = train.train(numbers, cleared, dry_run)
+    finally:  # this tick's output, even when integrate or the train raised
+        log = workflow.state_dir("autopilot") / "last.log"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text(buf.getvalue())
     return code, *outcomes(buf.getvalue(), numbers)
 
 
@@ -166,8 +172,8 @@ def _run(dry_run: bool) -> int:
     stop = ""
     for p in settled:
         harness = [f for f in p.touched if workflow.is_harness(f)]
-        if harness and not (trust and trusted_merge(p, trusted)):
-            body.append(review_line(p, trusted))
+        if harness and not trusted_merge(p, trusted, trust):
+            body.append(review_line(p, trusted, trust))
         elif rules and (why := workflow.review_problem(p.touched, p.feedback["reviews"], p.head, trusted, rules,
                                                        lambda sha, h=p.head: workflow._is_ancestor(sha, h))):  # fmt: skip
             body.append(f"review #{p.number}: {why[:100]}")

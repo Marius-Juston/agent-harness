@@ -21,7 +21,7 @@ Then `uv run dev orient` if SessionStart context is old; `uv run dev board list 
 `Suite audit due` in orient: run what it names; `harness-ops:suite-auditor` takes its judgement items.
 
 ## 2. Close the loop first
-Each tick: `uv run dev autopilot` merges what integrate takes alone (harness PRs: with `autopilot_trust_review`, a current merge verdict); act on its lines. Per review item, by priority:
+Each tick: `uv run dev autopilot` merges what integrate takes alone (harness PRs: a current merge verdict by the `autopilot_trust_review` reviewer); act on its lines. Per review item, by priority:
 1. `gh pr diff <pr> --name-only`, `uv run dev board feedback <pr>`.
 2. Spawn a `harness-ops:reviewer` for PRs touching harness files, several Owns, or anything a user sees; a `harness-ops:research-auditor` for decision-driving research.
 3. Answer or fix every comment (people, bots; resume the worker for fixes), resolve its thread (outdated ones block too).

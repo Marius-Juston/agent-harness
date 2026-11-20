@@ -62,7 +62,7 @@ path_check_skip = ["plugins/", "template/"]
 # Dependabot bumps ci.yml only; `dev docs` (and so integrate) moves the template's copies of those pins with it (#431).
 action_pins = { ".github/workflows/ci.yml" = ["template/.github/workflows/*.yml"] }
 # Owner decision (#499): a harness-ops:reviewer merge verdict on the current head suffices; autopilot integrates it.
-autopilot_trust_review = true
+autopilot_trust_review = "harness-ops:reviewer"
 
 # The review trigger's code count leaves out research evidence (experiment scripts never imported) and the trees
 # reached only by path: eval fixtures from evals/scenarios/*.yaml, test fixtures, and the Copier template (#451).

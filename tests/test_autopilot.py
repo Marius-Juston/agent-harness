@@ -195,14 +195,15 @@ def test_the_lead_skill_runs_autopilot_in_its_loop():
     assert "`uv run dev autopilot`" in loop.splitlines()[1]
 
 
-def verdict(word: str, sha: str, login: str = "lead") -> dict:
-    return {"author": {"login": login}, "body": f"Verdict: {word}, round 1, {sha[:7]}", "submittedAt": "2026-11-19"}
+def verdict(word: str, sha: str, login: str = "lead", by: str = "harness-ops:reviewer") -> dict:
+    body = f"Verdict: {word}, round 1, {sha[:7]}\n- a finding\n" + (f"Reviewed by {by}." if by else "")
+    return {"author": {"login": login}, "body": body, "submittedAt": "2026-11-19"}
 
 
 @pytest.fixture
 def trusting(pilot, monkeypatch):
     """This repository's setting (#499, owner decision): a merge verdict on the current head clears a harness PR."""
-    monkeypatch.setattr(config, "get", lambda: config.Config(autopilot_trust_review=True))
+    monkeypatch.setattr(config, "get", lambda: config.Config(autopilot_trust_review="harness-ops:reviewer"))
     return pilot
 
 
@@ -259,8 +260,37 @@ def test_a_merge_verdict_by_another_login_integrates_nothing(trusting, capsys):
     assert "no verdict" in lines[1] and merges(trusting) == []
 
 
+@pytest.mark.parametrize("path", ["devkit/x.py", ".claude/settings.json", ".github/workflows/ci.yml", "CLAUDE.md"])
+def test_a_merge_verdict_naming_no_reviewer_integrates_nothing(trusting, capsys, path):
+    """Round 1 Blocking: every agent posts as the gh user, so only a verdict naming the trusted reviewer counts, on
+    every harness path (required_reviews covers only some)."""
+    tip = open_pr(trusting, 1, {path: "x\n"})
+    trusting["prs"][1]["reviews"] = [verdict("merge", tip, by=""), verdict("merge", tip, by="harness-ops:builder")]
+    _, lines = tick(capsys)
+    assert lines[1] == "review #1 (harness): no verdict naming harness-ops:reviewer; spawn harness-ops:reviewer"
+    assert merges(trusting) == [] and closed(trusting) == []
+
+
+@pytest.mark.parametrize("path", [".claude/settings.json", ".github/workflows/ci.yml", "CLAUDE.md"])
+def test_a_named_merge_verdict_clears_any_harness_path(trusting, capsys, path):
+    tip = open_pr(trusting, 1, {path: "x\n"})
+    trusting["prs"][1]["reviews"] = [verdict("merge", tip)]
+    code, lines = tick(capsys)
+    assert code == 0 and lines[1] == "merged #1: #101 -> done"
+
+
+def test_an_empty_trust_key_trusts_no_reviewer(pilot, capsys, monkeypatch):
+    monkeypatch.setattr(config, "get", lambda: config.Config(autopilot_trust_review=""))
+    tip = open_pr(pilot, 1, {"devkit/x.py": "x = 1\n"})
+    pilot["prs"][1]["reviews"] = [verdict("merge", tip)]
+    _, lines = tick(capsys)
+    assert lines[1].startswith("lead #1 (harness): verdict merge;") and merges(pilot) == []
+
+
 def test_a_trusted_harness_pr_still_needs_its_required_review(trusting, capsys, monkeypatch):
-    cfg = config.Config(autopilot_trust_review=True, required_reviews={"devkit/": "security-reviewer"})
+    cfg = config.Config(
+        autopilot_trust_review="harness-ops:reviewer", required_reviews={"devkit/": "security-reviewer"}
+    )
     monkeypatch.setattr(config, "get", lambda: cfg)
     tip = open_pr(trusting, 1, {"devkit/x.py": "x = 1\n"})
     trusting["prs"][1]["reviews"] = [verdict("merge", tip)]
