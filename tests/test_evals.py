@@ -537,12 +537,16 @@ def test_the_research_question_set_has_six_questions_with_queries_notes_and_gold
         assert len(gold[q["id"]]) >= 3 and all(g["key"] and g["title"] for g in gold[q["id"]])
 
 
-def test_cli_routes_eval_research_to_the_research_eval(monkeypatch):
-    seen = {}
-    monkeypatch.setattr(research_eval, "run", lambda *a: seen.setdefault("run", a) and 0)
-    monkeypatch.setattr(research_eval, "run_compare", lambda *a: seen.setdefault("cmp", a) and 0)
-    cli.run(
-        cli.build().parse_args(["eval", "research", "--claims", "1", "--offline", "--label", "x", "--max-usd", "2"])
+def test_cli_parses_eval_research_and_routes_its_compare_to_research_records(capsys):
+    a = cli.build().parse_args(["eval", "research", "--claims", "1", "--offline", "--label", "x", "--max-usd", "2"])
+    assert (a.names, a.claims, a.offline, a.label, a.max_usd, a.source, a.notes) == (
+        ["research"],
+        1,
+        True,
+        "x",
+        2.0,
+        "auto",
+        "",
     )
-    cli.run(cli.build().parse_args(["eval", "research", "--compare", "a", "b"]))
-    assert seen["run"] == ("x", 1, "", "auto", True, "", 2.0) and seen["cmp"] == ("a", "b")
+    assert cli.run(cli.build().parse_args(["eval", "research", "--compare", "no-such-a", "no-such-b"])) == 1
+    assert "no research eval record 'no-such-a'" in capsys.readouterr().out
