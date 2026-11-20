@@ -5,8 +5,11 @@ a typo must not silently fall back to a default."""
 import dataclasses
 import functools
 import re
+import sys
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from devkit.paths import root
 
@@ -202,6 +205,27 @@ def parse_cap(text: str) -> int:
     if not re.fullmatch(r"[0-9]{1,3}", t) or int(t) > 100:
         raise ValueError(f"quota cap {text!r}: expected an integer percent 0-100")
     return int(t)
+
+
+def parse_slots(text: str) -> int:
+    """A gate slot count: a decimal integer 1-256 (surrounding whitespace allowed), else ValueError."""
+    t = text.strip()
+    if not re.fullmatch(r"[0-9]{1,3}", t) or not 1 <= int(t) <= 256:
+        raise ValueError(f"gate slots {text!r}: expected a whole number 1-256")
+    return int(t)
+
+
+def local_override(path: Path, parse: Callable[[str], int], key: str) -> tuple[int, str]:
+    """(value, "local" | "pyproject"): the owner's machine-local override in `path` (`dev quota-cap`, `dev gate-slots`)
+    when `parse` accepts it, else `[tool.devkit] <key>`. A corrupt or unreadable override falls back with a warning,
+    never an error: a guard or the gate must not lose its setting."""
+    try:
+        return parse(path.read_text(errors="replace")), "local"
+    except FileNotFoundError:
+        pass
+    except (OSError, ValueError) as exc:
+        print(f"warning: ignoring {path} ({exc}); using [tool.devkit] {key}", file=sys.stderr)
+    return getattr(get(), key), "pyproject"
 
 
 @functools.cache

@@ -7,7 +7,6 @@ and `dev status` read it, with the effective cap written alongside.
 import json
 import re
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -29,14 +28,7 @@ CAP_SOURCES = {
 def quota_cap() -> tuple[int, str]:
     """(cap percent, "local" | "pyproject"): the override from `dev quota-cap` when it is valid, else [tool.devkit].
     A corrupt or unreadable override falls back with a warning, never an error: the guard must not lose its cap."""
-    f = state_dir() / CAP_FILE
-    try:
-        return config.parse_cap(f.read_text(errors="replace")), "local"
-    except FileNotFoundError:
-        pass
-    except (OSError, ValueError) as exc:
-        print(f"warning: ignoring {f} ({exc}); using [tool.devkit] quota_cap", file=sys.stderr)
-    return config.get().quota_cap, "pyproject"
+    return config.local_override(state_dir() / CAP_FILE, config.parse_cap, "quota_cap")
 
 
 def set_quota_cap(pct: int | None) -> Path:

@@ -16,7 +16,7 @@ You implement ONE issue for this project. Other agents work in parallel, so stay
 1. `uv run dev board brief <n>`, and claim the issue if the lead did not (`uv run dev board claim <n> --agent builder --branch <n>-<slug>`). Rename your branch to match (`git branch -m <n>-<slug>`).
 2. Read the research notes in the issue's Refs. If a design choice has no note, stop and ask the lead for a researcher. Do not guess.
 3. Reuse before build: name candidate libraries from what you know, verify them with `uv run dev reuse check <name>...`, and search with `uv run dev reuse "<need>"` only when you know no good one or want more options. Ask whether it does your need, and through which API. Add the chosen one with `uv add`.
-4. grep before creating anything; `uv run dev code show <Symbol>` prints one definition. Match the surrounding code's naming, style and comment density.
+4. grep before creating anything; `uv run dev code search "<what it does>"` names the functions a task means, `uv run dev code show <Symbol>` prints one definition. Match the surrounding code's naming, style and comment density.
 
 ## Method
 - Write a failing test per DONE WHEN item first, then implement until it passes. Use Hypothesis for pure logic with large input spaces. A bug you find gets a regression test.
