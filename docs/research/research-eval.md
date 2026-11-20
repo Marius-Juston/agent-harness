@@ -2,6 +2,7 @@
 
 Status: v0.9 (2026-11-19). Issue: #590. The baseline run on main has not been made yet (§4). Serves #584, #9 and any change to the research skill, its sources or its tools: each gets measured the way the gate's changes are.
 Labels: VERIFIED = measured in this repo (test or script named); SOURCED = cited and fetched; BELIEVED = judgment; ASSUMED = unchecked premise.
+Search coverage: `uv run dev lit search` on 2026-11-20 printed `discovery 2026-11-20: OK (openalex, s2 answered)` (one query on benchmarks of deep research agents); `dev lit get` then saw an s2 HTTP 429. The design reuses #192, so it needed little new literature.
 Companions: [lit-search-quality.md](lit-search-quality.md) (#192: the gold, the queries, the matching rules and the metric this eval reuses), [harness-efficiency.md](harness-efficiency.md) §10 (paired comparison of `dev eval` runs). Code: `devkit/research_eval.py`. Question set: `evals/research/questions.yaml` and `evals/research/gold.json`, built by [build_gold.py](_scratch/research-eval/build_gold.py).
 
 ## 0. Findings in one paragraph
@@ -17,6 +18,10 @@ Every number is per question, and the record stores per-question rows, so two ru
 - **read tokens**: the characters of `dev lit` output an agent would read for all of this, divided by 4. No tokenizer is called, so the count stays offline. It is an estimate and is only comparable between runs of this eval.
 - **supported share**: the share of the sampled claims that the auditor marks supported. Unreachable and unparsed verdicts are left out of the denominator. The sample is seeded per question, and a claim is a line of the note that links a web source, outside its Sources list. The auditor prompt uses the research-auditor agent's verdicts (supported, partly, unsupported, unsourced) and its rule that papers are fetched with `dev lit get`. `--notes DIR` audits candidate notes from a research run instead of the merged ones.
 - **audit tokens and cost**: the billed tokens and dollars of the auditor calls, read from each call's own transcript (`evals.parse`).
+
+**Prior art (SOURCED, abstracts via `dev lit get`).**
+- BrowseComp-Plus replaces live web search APIs with a fixed corpus. Its authors say dynamic, opaque APIs "hinder fair comparisons and reproducibility" ([BrowseComp-Plus](https://arxiv.org/abs/2508.06600)). The cassette here does the same job for `dev lit`'s sources: it freezes them.
+- DeepResearch Bench scores retrieval by "effective citation count and overall citation accuracy" ([DeepResearch Bench](https://arxiv.org/abs/2506.11763)). The two halves here play the same parts: cited-works recall and the share of claims supported.
 
 `--compare A B` gives B minus A for each metric, as the mean paired difference over questions with a seeded 95% percentile bootstrap interval. VERIFIED (the replay test above shows a snowball drop of -0.333 [-0.333, -0.333] when the hop is switched off).
 
@@ -50,5 +55,7 @@ uv run dev eval research --label baseline-main --claims 2 --model sonnet --max-u
 Then add the printed table here as §4, labelled VERIFIED with the record's name, and check that A2's recall@20 is close to #192's L0 value. An exact match is not expected: the index has changed since 2026-10-13, and Semantic Scholar may answer now.
 
 ## Sources
+- Du, Xu, Zhu, Wang, Mao. DeepResearch Bench: A Comprehensive Benchmark for Deep Research Agents. 2025. https://arxiv.org/abs/2506.11763 (abstract)
+- Chen, Ma, Zhuang, et al. BrowseComp-Plus: A More Fair and Transparent Evaluation Benchmark of Deep-Research Agent. 2025. https://arxiv.org/abs/2508.06600 (abstract)
 - [lit-search-quality.md](lit-search-quality.md): #192's protocol, gold, queries and results.
 - [harness-efficiency.md](harness-efficiency.md): the paired-run comparison of `dev eval`.
