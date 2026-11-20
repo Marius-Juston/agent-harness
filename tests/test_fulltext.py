@@ -502,9 +502,11 @@ def test_the_claims_own_words_decide_its_kind():
 OLD_AND_NEW = """# Research: x
 
 - An old claim (SOURCED, [Old paper](https://arxiv.org/abs/2601.00004), §2).
+  against: "old claim failed replication" → none
 
 - A new claim the branch adds (SOURCED, [New paper](https://arxiv.org/abs/2601.00005),
   §2).
+  against: "new claim failed replication" → none
 """
 
 

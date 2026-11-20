@@ -75,6 +75,9 @@ class Config:
     evals_dir: str = "evals/scenarios"
     research_eval_dir: str = "evals/research"  # `dev eval research` (#590): questions.yaml and gold.json
     area_map: str = ".github/labeler.yml"  # path -> area label map, in actions/labeler format
+    # #605: the files `dev release prepare` writes the version into and `publish` requires to agree: a .toml's
+    # [project] version, a .json's top-level version, a .yml's first `default: v<version>` line.
+    release_files: list[str] = field(default_factory=lambda: ["pyproject.toml"])
     # Plain content: a PR touching only these (with CONTENT_SUFFIXES) is not harness and needs no lead read.
     content: list[str] = field(default_factory=lambda: ["docs/research/", "docs/log/", "docs/questions/"])
     # Backticked repository paths in prose under these prefixes are not checked (their markdown links still are).

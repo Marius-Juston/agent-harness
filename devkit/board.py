@@ -139,6 +139,7 @@ GH_READS = {
     ("label", "list"), ("repo", "view"), ("run", "list"), ("run", "view"), ("run", "download"), ("auth", "status"),
 }  # fmt: skip
 GH_IDEMPOTENT = {("issue", "edit"), ("pr", "edit"), ("label", "edit"), ("pr", "ready")}  # set state, add nothing
+RECHECKS: dict[tuple[str, ...], Callable] = {}  # (gh, sub) -> a _recheck for a module's own write (devkit.release)
 GH_STATUS_API = re.compile(r"^repos/[^/]+/[^/]+/statuses/\w+$")  # a commit status: the latest per context counts
 
 
@@ -154,10 +155,9 @@ def _flag(args: tuple[str, ...], *names: str) -> str | None:
 
 def _api_method(args: tuple[str, ...]) -> str:
     """The HTTP method of `gh api ...`: -X/--method, else POST when it sends fields (gh's own default), else GET."""
-    if m := _flag(args, "-X", "--method"):
-        return m.upper()
     sends = {"-f", "-F", "--field", "--raw-field", "--input"}
-    return "POST" if any(a in sends or a.partition("=")[0] in sends for a in args) else "GET"
+    fields = any(a in sends or a.partition("=")[0] in sends for a in args)
+    return (_flag(args, "-X", "--method") or ("POST" if fields else "GET")).upper()
 
 
 def gh_kind(args: tuple[str, ...]) -> str:
@@ -248,7 +248,7 @@ def _recheck(args: tuple[str, ...], input: str | None) -> Callable[[float], str 
 
 def gh(*args: str, input: str | None = None) -> str:
     kind, since = gh_kind(args), GH_CLOCK()
-    recheck = _recheck(args, input) if kind == "write" else None
+    recheck = RECHECKS.get(tuple(args[:2]), _recheck)(args, input) if kind == "write" else None
     sent = args  # what the next try sends: a recheck may drop a part that already landed
     unknown = False  # the last try's connection dropped: GitHub may have acted on it
     dropped = ""  # that try's error line
