@@ -1,7 +1,7 @@
 """Integrate's fix loop and outcome records: the comment that sends a PR integrate did not merge back to its worker
-(failing lines, scrubbed of secrets and session links), the conflict send-backs after a merge, and the RESULT-JSON
-record `dev integrate --why` prints. Integrate is the caller; devkit.workflow re-exports these names (devkit/train.py
-reads them through it).
+(failing lines, scrubbed of secrets and session links), the conflict send-backs after a merge, the RESULT-JSON
+record `dev integrate --why` prints, and the disposition the lead records per reviewer finding (#83). Integrate is the
+caller; devkit.workflow re-exports these names (devkit/train.py reads them through it).
 """
 
 import hashlib
@@ -9,6 +9,8 @@ import json
 import os
 import re
 import time
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 from devkit import board
@@ -366,3 +368,119 @@ def why(pr_number: int) -> int:
     else:
         print(f"PR head moved since: {judged[:10]} -> {head[:10]}: a rerun judges the new head")
     return 0
+
+
+# --- reviewer finding dispositions (#83) -----------------------------------------------------------------------------
+# A finding is one tagged bullet under the verdict line of a trusted board.VERDICT review (reviewer.md: one line per
+# finding, tagged **Blocking**, **Nit**, **Pre-existing** or **Follow-up**). Its disposition is the lead's judgement at
+# integrate, recorded on the PR as a comment of board.DISPOSITION_MARK lines, never as thread resolutions
+# (issue-pr-automation.md §3.1). `false` is a finding that was wrong: `dev agent-stats --findings` rates those.
+DISPOSITIONS = {
+    "fixed": "right, fixed in this PR",
+    "filed": "right, filed as an issue",
+    "declined": "right or arguable, deliberately left as is",
+    "false": "wrong: the code was correct",
+}
+# A finding's bullet starts with its tag; untagged bullets are a review's notes (re-run probes, fixes checked), so a
+# merge verdict's checklist does not pass for findings (18 bullets on #362, 6 of them tagged).
+FINDING_TAG = re.compile(r"\s*[-*]\s+\*\*(Blocking|Nit|Pre-existing|Follow-up)\*\*")
+REVIEW_ID = re.compile(r"#pullrequestreview-(\d+)$")
+
+
+@dataclass(frozen=True)
+class Finding:
+    ref: str  # F<n>: what the lead types, numbered over the PR's verdict reviews in submission order
+    key: str  # <review id>.<bullet>: what a disposition records, stable when later reviews arrive
+    tag: str  # Blocking, Nit, Pre-existing or Follow-up
+    url: str  # the review's
+
+
+def review_findings(reviews: list[dict], trusted: Iterable[str]) -> list[Finding]:
+    """Every finding of the verdict reviews a `trusted` login posted, oldest review first."""
+    trusted = set(trusted)
+    out: list[Finding] = []
+    for r in sorted(reviews, key=lambda r: r.get("submittedAt") or ""):
+        body = r.get("body") or ""
+        if board.login(r) not in trusted or not board.verdict_of(body):
+            continue
+        url = r.get("url") or ""
+        rid = m[1] if (m := REVIEW_ID.search(url)) else url
+        tags = [t[1] for ln in body.strip().splitlines()[1:] if (t := FINDING_TAG.match(ln))]
+        out += [Finding(f"F{len(out) + k}", f"{rid}.{k}", tag, url) for k, tag in enumerate(tags, 1)]
+    return out
+
+
+def recorded(comments: list[dict], trusted: Iterable[str]) -> dict[str, str]:
+    """Finding key -> its disposition, from the `trusted` disposition comments; a later record replaces an earlier."""
+    trusted = set(trusted)
+    out: dict[str, str] = {}
+    for c in comments:
+        if board.login(c) in trusted:
+            out |= {m[1]: m[2] for m in board.DISPOSITION_MARK.finditer(c.get("body") or "") if m[2] in DISPOSITIONS}
+    return out
+
+
+def chosen(specs: list[str], findings: list[Finding], done: dict[str, str]) -> dict[Finding, str]:
+    """The dispositions `specs` give: `F<n>=<disposition>` per finding, and `rest=<disposition>` for every other
+    finding with none recorded in `done`. ValueError names a bad spec."""
+    by_ref = {f.ref: f for f in findings}
+    out: dict[Finding, str] = {}
+    rest = ""
+    for spec in specs:
+        ref, _, value = spec.partition("=")
+        if value not in DISPOSITIONS:
+            raise ValueError(f"{spec!r}: give F<n>=<disposition>, one of {', '.join(DISPOSITIONS)}")
+        if ref == "rest":
+            rest = value
+        elif ref in by_ref:
+            out[by_ref[ref]] = value
+        else:
+            raise ValueError(f"{spec!r}: no finding {ref}; this PR has {', '.join(by_ref) or 'none'}")
+    if rest:
+        out |= {f: rest for f in findings if f not in out and f.key not in done}
+    if not out:
+        raise ValueError("no finding to record")
+    return out
+
+
+def disposition_comment(chosen: dict[Finding, str]) -> str:
+    """The PR comment recording `chosen`: one readable line per finding, each carrying its marker."""
+    lines = [f"Reviewer finding dispositions ({'; '.join(f'{k}: {v}' for k, v in DISPOSITIONS.items())}):"]
+    for f, value in chosen.items():
+        lines.append(f"- {f.ref} {f.tag}: {value} <!-- devkit:disposition id={f.key} value={value} -->")
+    return "\n".join(lines)
+
+
+def finding_lines(findings: list[Finding], done: dict[str, str]) -> list[str]:
+    return [f"- {f.ref} {f.tag}: {done.get(f.key, 'no disposition')} ({f.url})" for f in findings]
+
+
+def _findings_of(pr_number: int) -> tuple[list[Finding], dict[str, str]]:
+    """The PR's findings and their recorded dispositions; only the gh user's reviews and records count."""
+    trusted = {board.gh_user()} - {""}
+    findings = review_findings(board.pr_feedback(pr_number)["reviews"], trusted)
+    if not findings:
+        return [], {}
+    return findings, recorded(board.marked_comments(pr_number, "devkit:disposition"), trusted)
+
+
+def dispose(pr_number: int, specs: list[str]) -> list[str]:
+    """`dev board feedback <pr> --dispose [F<n>=<disposition> ...]`: record the dispositions `specs` give in one PR
+    comment (no specs: record nothing), then list every finding with its disposition."""
+    findings, done = _findings_of(pr_number)
+    if specs:
+        pick = chosen(specs, findings, done)
+        board.comment(pr_number, disposition_comment(pick))
+        done |= {f.key: v for f, v in pick.items()}
+    return finding_lines(findings, done) or [f"PR #{pr_number} has no findings in a verdict review"]
+
+
+def undisposed_hint(pr_number: int) -> str:
+    """The line integrate prints after a merge while a reviewer finding has no disposition; "" when none lacks one."""
+    findings, done = _findings_of(pr_number)
+    if not (left := [f.ref for f in findings if f.key not in done]):
+        return ""
+    return (
+        f"reviewer findings without a disposition: {', '.join(left)}; record them (#83): uv run dev board feedback "
+        f"{pr_number} --dispose F<n>={'|'.join(DISPOSITIONS)} ... [rest=fixed]"
+    )
