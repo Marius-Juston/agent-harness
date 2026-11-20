@@ -37,10 +37,13 @@ MIN_PYTHON = (3, 10)
 PIP = "Python is managed with uv only: `uv add <pkg>` (or `uv add --dev`), `uv run ...`. Never pip."
 PKILL = '`pkill -f` matches the shell running it. Collect PIDs with `pgrep -f "[p]attern"` in one call, kill them in another.'
 ENV = "Never read secrets: .env stays unread. Commands that need it load it themselves."
-SECRETS = (
+KEYS_FILE = (
     "Never read the research API keys file (~/.config/api-keys.env or $DEVKIT_SECRETS_FILE): `uv run dev lit` "
     "loads it itself, and `uv run dev doctor` says whether each key is found, never its value."
 )
+# The older name. Code returns and prints KEYS_FILE: CodeQL treats a value read from a variable named like a
+# secret as one (py/clear-text-logging-sensitive-data on #603), though this is a fixed refusal message.
+SECRETS = KEYS_FILE
 SECRETS_NAME = "api-keys.env"
 # #601: gh's credential: its hosts file (under $GH_CONFIG_DIR, $XDG_CONFIG_HOME/gh or ~/.config/gh) and the token
 # variables. gh reads them itself as a program; an agent reading one holds the owner's GitHub token outside every
@@ -862,7 +865,7 @@ class Checker:
                 if is_env(Word(s)):
                     return ENV
                 if is_secrets(Word(s)):
-                    return SECRETS
+                    return KEYS_FILE
                 if s in TOKEN_NAMES or cred_path(s, self.cwd):  # os.environ["GH_TOKEN"], open(".../hosts.yml")
                     return GH_CRED
                 if why := self.text(s, depth + 1):
@@ -908,7 +911,7 @@ class Checker:
         if (any(is_env(w, in_py) for w in paths) and not env_ok) or any(is_env(Word(r), in_py) for r in c.reads):
             return ENV
         if (any(is_secrets(w) for w in paths) and not env_ok) or any(is_secrets(Word(r)) for r in c.reads):
-            return SECRETS
+            return KEYS_FILE
         if why := self.gh_cred(c, argv, paths, name in CRED_OK) or self.reaches(c, argv, fed):
             return why
         exported = argv[1:] if name in ("export", "declare", "typeset", "local", "readonly") else []
@@ -1832,6 +1835,33 @@ def bound_waits(cmd: str, cwd: str) -> tuple[str, str] | None:
     return new, note + (" " + PGREP_F if pgrep_f else "")
 
 
+FILE_RULES = {"env": ENV, "keys": KEYS_FILE, "cred": GH_CRED, "above": GREP_ABOVE}  # file_tool_rule -> message
+
+
+def file_tool_rule(data: dict, cwd: str) -> str:
+    """Which FILE_RULES refusal a Read or Grep call gets, or "": by its path, its Grep glob, or a Grep of a folder
+    above a credential store."""
+    given = data.get("tool_input")
+    inp: dict = given if isinstance(given, dict) else {}
+    path = inp.get("file_path") or inp.get("path") or ""
+    path = path if isinstance(path, str) else ""
+    if path:
+        w = Word(path, glob=any(ch in path for ch in "*?["))
+        if is_env(w):
+            return "env"
+        if is_secrets(w):
+            return "keys"
+        if cred_path(path, cwd):
+            return "cred"
+    glob = inp.get("glob")
+    hint = glob if isinstance(glob, str) else ""
+    if cred_path(hint, cwd, glob=True) or "hosts.yml" in hint or ".ssh/" in hint:
+        return "cred"
+    if data.get("tool_name") == "Grep" and holds_cred(path or cwd, cwd):
+        return "above"  # Grep searches hidden files: a folder above the store reaches it
+    return ""
+
+
 def main(raw: str | None = None) -> int:
     """`raw`: the hook input file_guard.py already read from stdin."""
     try:
@@ -1845,20 +1875,9 @@ def main(raw: str | None = None) -> int:
         print(f"Blocked by project rule: {LIT}", file=sys.stderr)
         return 2
     if data.get("tool_name") in ("Read", "Grep"):  # #601: the file tools reach the same secrets
-        inp = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
-        path = inp.get("file_path") or inp.get("path") or ""
-        why = None
-        if isinstance(path, str) and path:
-            w = Word(path, glob=any(ch in path for ch in "*?["))
-            why = ENV if is_env(w) else SECRETS if is_secrets(w) else GH_CRED if cred_path(path, cwd) else None
-        glob = inp.get("glob")
-        hint = glob if isinstance(glob, str) else ""
-        if not why and (cred_path(hint, cwd, glob=True) or "hosts.yml" in hint or ".ssh/" in hint):
-            why = GH_CRED
-        if not why and data.get("tool_name") == "Grep" and holds_cred(path or cwd, cwd):
-            why = GREP_ABOVE  # Grep searches hidden files: a folder above the store reaches it
-        if why:
-            print(f"Blocked by project rule: {why}", file=sys.stderr)
+        rule = file_tool_rule(data, cwd)
+        if rule:
+            print("Blocked by project rule: " + FILE_RULES[rule], file=sys.stderr)
             return 2
         return 0
     if not isinstance(cmd, str):

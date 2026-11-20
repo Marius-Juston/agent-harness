@@ -2231,3 +2231,20 @@ def test_every_file_guard_handler_fails_closed():
         if h["command"].endswith("/file_guard.py")
     ]
     assert len(handlers) == 7 and all(h.get("onFailure") == "block" for h in handlers)
+
+
+@pytest.mark.parametrize(
+    ("tool", "path", "rule"),
+    [
+        ("Read", "/repo/.env", "ENV"),
+        ("Read", f"{HOME}/.config/{GUARD.SECRETS_NAME}", "KEYS_FILE"),
+        ("Read", f"{HOME}/.config/gh/hosts.yml", "GH_CRED"),
+        ("Grep", HOME, "GREP_ABOVE"),
+    ],
+)
+def test_a_file_tool_refusal_prints_exactly_its_fixed_message(hook, tool, path, rule):
+    """#603 CodeQL: the refusal printed is one fixed message chosen by file_tool_rule, never text built from the input."""
+    code, err = _file_tool(hook, tool, path)
+    assert code == 2 and err == f"Blocked by project rule: {getattr(GUARD, rule)}\n", err
+    assert GUARD.SECRETS is GUARD.KEYS_FILE  # the older name still names the same message
+    assert "uv run dev lit" in GUARD.KEYS_FILE
