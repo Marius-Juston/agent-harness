@@ -13,6 +13,7 @@ from importlib import metadata
 from pathlib import Path
 
 from devkit import (
+    arch,
     board,
     branches,
     checks,
@@ -442,6 +443,11 @@ def build() -> Parser:
     )
     y.add_argument("--json", action="store_true")
     y.add_argument("--tools", action="store_true", help="also run pinned pyscn and vulture on a git-archive copy")
+    x = sub.add_parser(
+        "arch", help="architecture in at most 8 lines: import contracts, largest cycle, top 3 hotspots, LOC ceiling"
+    )
+    x.add_argument("--json", action="store_true")
+    x.add_argument("--rev", help="read this commit's git objects instead of the working tree (a replay)")
     x = sub.add_parser("agent-stats", help="scorecard from transcripts: tokens, calls, big-result share per agent type")
     x.add_argument("--json", action="store_true")
     g = x.add_mutually_exclusive_group()
@@ -679,6 +685,13 @@ def run(a: argparse.Namespace) -> int:
             print(stats.run(a.mode, a.since, a.until, a.json) if a.mode else stats.report(a.json))
         case "consolidation":
             return run_consolidation(a)
+        case "arch":
+            r = arch.measure(root(), a.rev)
+            print(
+                json.dumps({k: v for k, v in r.items() if k != "loc"}, indent=1)
+                if a.json
+                else "\n".join(arch.render(r))
+            )
         case name if name in config.get().commands:
             return run_project_command(name, a.args)
     return 0
