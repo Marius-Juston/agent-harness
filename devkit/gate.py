@@ -31,7 +31,7 @@ import sys
 import tempfile
 import time
 import tomllib
-from collections.abc import Callable, Iterator, Mapping, MutableMapping, Sequence
+from collections.abc import Callable, Generator, Mapping, MutableMapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import IO
 from xml.etree import ElementTree
@@ -607,7 +607,7 @@ def gate_lock(
     priority: bool = False,
     held: Path | None = None,
     slots: int = 1,
-) -> Iterator[None]:
+) -> Generator[None]:
     """At most `slots` gates per machine (effective_slots: more when slot files on disk show more), one per lock file
     of slot_paths (#461). Opened with "a+" (never truncating) so a waiting gate does not erase a holder's pid.
     A gate tries every slot without blocking. Worker gates that find none free queue on `<path>.wait` (plain flock, so
@@ -664,7 +664,7 @@ def _try(f: IO[str]) -> bool:
     return True
 
 
-def _any_free(locks: list[IO[str]]) -> bool:
+def _any_free(locks: Sequence[IO[str]]) -> bool:
     for f in locks:
         if _try(f):
             fcntl.flock(f, fcntl.LOCK_UN)
@@ -672,7 +672,7 @@ def _any_free(locks: list[IO[str]]) -> bool:
     return False
 
 
-def _wait_slot(locks: list[IO[str]]) -> IO[str]:
+def _wait_slot(locks: Sequence[IO[str]]) -> IO[str]:
     """Block until a slot is held: on the lock itself when there is one, else by trying them all every SLOT_POLL_S
     (flock cannot wait on several files at once)."""
     if len(locks) == 1:

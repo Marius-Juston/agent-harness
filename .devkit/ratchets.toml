@@ -45,4 +45,4 @@ min_coverage = 91      # line % of devkit/ ([tool.coverage.run] source): 91.7% m
 # it exactly, so a new ty arrives only with a harness update: if that update's gate reports more diagnostics, fix them
 # or add a [[raise]] with `to` = the new count and reason = "ty <old> -> <new>".
 [types]
-max_diagnostics = 333  # `ty check` on this repository (ty 0.0.107, 2026-11-19); the gate prompts to lower it
+max_diagnostics = 331  # `ty check` on this repository (ty 0.0.107, 2026-11-19); the gate prompts to lower it
