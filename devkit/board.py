@@ -1584,7 +1584,7 @@ class Fenced(NamedTuple):
 
 
 def fence(f: Fenced, nonce: str) -> list[str]:
-    """Spotlighting (docs/research/agent-harness.md §12c): the heading opens `<<<data <nonce>`, every line is quoted
+    """Spotlighting (docs/research/agent-harness.md §12d): the heading opens `<<<data <nonce>`, every line is quoted
     with `> ` so none can pass as the brief's own, and `data <nonce>>>>` closes it, the cut count after it. The section
     stays within SECTION_LINES under its heading."""
     rows, close = f.lines, f"data {nonce}>>>"

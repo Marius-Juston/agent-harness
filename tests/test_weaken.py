@@ -316,6 +316,71 @@ def test_the_gate_reads_test_config_goldens_and_the_test_file(repo, monkeypatch)
     }
 
 
+def commit_all(path, message: str) -> str:
+    subprocess.run(["git", "add", "."], cwd=path, check=True)
+    subprocess.run(["git", "commit", "-qm", message], cwd=path, check=True)
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=path, capture_output=True, text=True).stdout.strip()
+
+
+def issues(monkeypatch, approving: set[int]) -> list[str]:
+    """Fake `gh issue view N`: the owner approved each issue in `approving`. Returns the numbers read."""
+    read: list[str] = []
+
+    def gh(*args, **_):
+        read.append(args[2])
+        body = "weakening-ok: agreed" if int(args[2]) in approving else "## DONE WHEN"
+        return f'{{"author": {{"login": "{OWNER}"}}, "body": "{body}", "comments": []}}'
+
+    monkeypatch.setattr(board, "gh", gh)
+    return read
+
+
+def test_a_detached_tree_finds_the_issue_only_through_the_env_value(repo, monkeypatch):
+    """#487: integrate gates a detached worktree, where no branch names the issue; ISSUE_ENV does."""
+    path, base = repo
+    (path / "tests/test_x.py").write_text("def test_f():\n    pass\n")
+    subprocess.run(["git", "checkout", "-q", "--detach"], cwd=path, check=True)
+    read = issues(monkeypatch, {55})
+    ran = weaken.check_weakening(base)
+    assert not ran.ok and "no `<n>-slug` branch names the issue" in ran.problems[-1]
+    assert read == []
+    ran = weaken.check_weakening(None, f"55:{base}")  # integrate's value: no merge base needed
+    assert ran.ok and ran.warnings == ["tests/test_x.py:2: removed assert: assert 1 + 1 == 2 (approved in #55)"]
+    assert weaken.check_weakening(base, "55").ok  # a bare number judges the diff against the base
+
+
+def test_a_train_judges_each_members_commits_against_its_own_issue(repo, monkeypatch):
+    """#251: in a merge train each member's weakening needs its own issue's approval; another's does not cover it."""
+    path, main = repo
+    (path / "tests/test_x.py").write_text("def test_f():\n    pass\n")
+    first = commit_all(path, "member 7 drops an assert")
+    (path / "tests/test_y.py").write_text("def test_g():\n    assert g() == 1\n")
+    second = commit_all(path, "member 8 adds a test")
+    (path / "tests/test_y.py").write_text(f"{SKIP_MARK}\ndef test_g():\n    assert g() == 1\n")  # uncommitted tail
+    read = issues(monkeypatch, {7})
+    ran = weaken.check_weakening(None, f"7:{main}..{first} 8:{first}")  # the tail is the last member's
+    assert not ran.ok and read == ["7", "8"]
+    assert ran.warnings == ["tests/test_x.py:2: removed assert: assert 1 + 1 == 2 (approved in #7)"]
+    assert ran.problems[:-1] == [f"tests/test_y.py:1: added skip/xfail: {SKIP_MARK}"]
+    assert ran.problems[-1].startswith("#8 records no owner `weakening-ok:` line")
+    issues(monkeypatch, {7, 8})
+    assert not weaken.check_weakening(None, f"7:{main}..{first} 8:{first}..{second} 9:{second}").ok
+    issues(monkeypatch, {7, 9})
+    assert weaken.check_weakening(None, f"7:{main}..{first} 8:{first}..{second} 9:{second}").ok
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["x", "7:abcdefg..1234567 8:7654321", "7:abcdefg 8:abcdefg", "7:abcdefg..1234567", "7 8", "7:ABCDEFG", "7:abc"],
+)
+def test_a_malformed_or_unchained_env_value_fails_closed(repo, monkeypatch, value):
+    """Ranges that skip commits, end before the working tree, or do not parse fail the stage, never pass it."""
+    _, base = repo
+    monkeypatch.setattr(board, "gh", lambda *a, **k: pytest.fail("a malformed value reads no issue"))
+    ran = weaken.check_weakening(base, value)
+    assert not ran.ok and ran.problems[0].startswith(f"{weaken.ISSUE_ENV}=")
+
+
 def test_weaken_parse_stays_importable_and_is_the_diffparse_parser():
     """#449 moved the diff parser to devkit.diffparse; external importers of devkit.weaken.parse keep working."""
     from devkit import diffparse
