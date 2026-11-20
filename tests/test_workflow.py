@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 from hypothesis import given
@@ -750,8 +751,8 @@ def _timed(world: dict, monkeypatch) -> dict:
     """Real-time fakes over fake_integrate: Actions takes `actions_s` on the head integrate judges (the PR's own head,
     or with `behind` the merged tree it pushes, timed from the push) and concludes `verdict`; the gate takes `gate_s`
     and exits `gate_code`. Returns the knobs; `_integrate_wall` runs integrate with some of them changed."""
-    knobs = {"behind": False, "actions_s": 0.0, "gate_s": 0.0, "gate_code": 0, "verdict": "SUCCESS", "start": None}
-    knobs["gates"] = []
+    knobs: dict[str, Any] = {"behind": False, "actions_s": 0.0, "gate_s": 0.0, "gate_code": 0, "verdict": "SUCCESS"}
+    knobs |= {"start": None, "gates": []}
     monkeypatch.setattr(workflow.time, "sleep", REAL_SLEEP)
     for name, value in (("CHECKS_FLOOR_S", 0.01), ("CHECKS_BASE_S", 0.02), ("CHECKS_CAP_S", 0.02)):
         monkeypatch.setattr(ci_status, name, value)
