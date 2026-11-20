@@ -19,9 +19,9 @@ Every number is per question, and the record stores per-question rows, so two ru
 - **supported share**: the share of the sampled claims that the auditor marks supported. Unreachable and unparsed verdicts are left out of the denominator. The sample is seeded per question, and a claim is a line of the note that links a web source, outside its Sources list. The auditor prompt uses the research-auditor agent's verdicts (supported, partly, unsupported, unsourced) and its rule that papers are fetched with `dev lit get`. `--notes DIR` audits candidate notes from a research run instead of the merged ones.
 - **audit tokens and cost**: the billed tokens and dollars of the auditor calls, read from each call's own transcript (`evals.parse`).
 
-**Prior art (SOURCED, abstracts via `dev lit get`).**
-- BrowseComp-Plus replaces live web search APIs with a fixed corpus. Its authors say dynamic, opaque APIs "hinder fair comparisons and reproducibility" ([BrowseComp-Plus](https://arxiv.org/abs/2508.06600)). The cassette here does the same job for `dev lit`'s sources: it freezes them.
-- DeepResearch Bench scores retrieval by "effective citation count and overall citation accuracy" ([DeepResearch Bench](https://arxiv.org/abs/2506.11763)). The two halves here play the same parts: cited-works recall and the share of claims supported.
+**Prior art** (abstracts via `dev lit get`):
+- SOURCED: BrowseComp-Plus replaces live web search APIs with a fixed corpus. Its authors say dynamic, opaque APIs "hinder fair comparisons and reproducibility" ([BrowseComp-Plus](https://arxiv.org/abs/2508.06600)). The cassette here does the same job for `dev lit`'s sources: it freezes them.
+- SOURCED: DeepResearch Bench scores retrieval by "effective citation count and overall citation accuracy" ([DeepResearch Bench](https://arxiv.org/abs/2506.11763)). The two halves here play the same parts: cited-works recall and the share of claims supported.
 
 `--compare A B` gives B minus A for each metric, as the mean paired difference over questions with a seeded 95% percentile bootstrap interval. VERIFIED (the replay test above shows a snowball drop of -0.333 [-0.333, -0.333] when the hop is switched off).
 
