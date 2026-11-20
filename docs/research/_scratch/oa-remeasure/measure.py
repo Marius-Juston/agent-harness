@@ -18,6 +18,7 @@ paper results (ident, publisher, claims, abstract-only claims, each arm's text U
 import argparse
 import collections
 import json
+import re
 import sys
 import urllib.parse
 from pathlib import Path
@@ -111,7 +112,8 @@ def cell(t: collections.Counter, arm: str) -> str:
 def table(rows: list[dict], n_claims: int) -> str:
     agg: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     for r in rows:
-        t = agg[r["publisher"]]
+        # Crossref spells one publisher two ways: "Association for Computing Machinery (ACM)" and "ACM"
+        t = agg[m.group(1) if (m := re.search(r"\(([^()]+)\)$", r["publisher"])) else r["publisher"]]
         t["claims"] += r["claims"]
         t["abstract_only"] += r["abstract_only"]
         for arm in ("keyless", "keyed"):
