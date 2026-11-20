@@ -44,6 +44,26 @@ quota_cap = 95
 # source_modules = ["{{ project_name | replace('-', '_') }}.*"]
 # forbidden_modules = ["{{ project_name | replace('-', '_') }}.cli"]
 
+# `uv run dev integrate --local-ci` (no Actions minutes): what stands in for each required check. `check` runs, after
+# the gate, each other `run:` step of .github/workflows/gate.yml's check job, the same text in the same order; a
+# multi-line step runs as itself under bash -e, as Actions runs it. Change one, change the other.
+[tool.devkit.local_ci]
+check = [
+    ["uv", "run", "dev", "cite-check"],
+    ["uvx", "prek@0.5.3", "run", "-c", ".pre-commit-config.yaml", "--hook-stage", "manual", "gitleaks-history", "--all-files"],
+    ["uv", "audit", "--locked", "--preview-features", "audit-command"],
+    ["env", "RUNNER_TEMP={tmpdir}", "bash", "-ec", '''
+rules="$RUNNER_TEMP/semgrep-rules"
+mkdir -p "$rules"
+curl -fsSL --retry 3 https://codeload.github.com/semgrep/semgrep-rules/tar.gz/a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2 \
+  | tar -xz -C "$rules" --strip-components=1
+uvx semgrep@1.186.0 scan --error --metrics=off --disable-version-check \
+  --config "$rules/bash" --config "$rules/yaml/github-actions" --config "$rules/dockerfile" \
+  --config "$rules/generic/ci" .
+'''],
+    ["uv", "export", "--frozen", "--format", "cyclonedx1.5", "--preview-features", "sbom-export", "--quiet", "--output-file", "sbom.cdx.json"],
+]
+
 [tool.devkit.plugins]
 "harness-ops@agent-harness" = "Marius-Juston/agent-harness@{{ harness_ref }}"
 "astral@astral-sh" = "astral-sh/claude-code-plugins"

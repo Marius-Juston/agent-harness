@@ -8,20 +8,34 @@ four questions agents actually ask, each with a hard cap:
     show <Symbol> [path]  the body of a function/class/method (Class.method), with line numbers
     refs <Symbol>         who mentions it, grouped by file, tests last
     find <regex> [--notes] lines matching, capped per file (--notes: docs/ only)
+    search "<words>" [-n N] [--tests]  the N functions a task description most likely means, one line each
 
-Search uses `git grep`, so it sees exactly the tracked and untracked-but-not-ignored files of this worktree.
+refs and find use `git grep`, so they see exactly the tracked and untracked-but-not-ignored files of this worktree;
+search ranks the functions and methods of the same .py files outside docs/ (and outside tests unless --tests) by
+BM25 over path words, qualname, signature, first docstring paragraph and the body's identifiers, attribute names and
+string literals: on 47 questions replayed from history it put the answer in its 5 cards for 0.53 of them, against
+0.17 for one `find` call, at 1/26 of the tokens per answer (docs/research/semantic-code-search.md §3.1).
 """
 
 import ast
+import contextlib
+import hashlib
+import json
+import os
 import re
 import subprocess
-from pathlib import Path
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
 
-from devkit.paths import root
+from devkit.paths import root, state_dir
 
 SHOW_CAP = 150
 REFS_CAP = 60
 PER_FILE = 6
+SEARCH_N = 5
+SEARCH_LITERAL_MAX = 300  # longer string literals are prose or templates, not names a task would use
+SEARCH_CACHE_FILES = 5000  # parsed files kept in the shared cache before unused entries are dropped
+SEARCH_FORMAT = b"code-search 1\0"  # part of every cache key: change it when _parse_units changes
 
 
 def _grep(pattern: str, *paths: str, word: bool = False, ignore_case: bool = False) -> list[tuple[str, int, str]]:
@@ -202,3 +216,140 @@ def source(path: str, name: str | None = None) -> str:
     node = defs[0][1]
     start = min([node.lineno, *[d.lineno for d in node.decorator_list]])
     return "\n".join(text.splitlines()[start - 1 : node.end_lineno or node.lineno])
+
+
+def is_test(path: str) -> bool:
+    """Test and eval-fixture code, which `search` leaves out unless asked: test functions named after a feature
+    crowd its top 5 (with them, the replay's top 5 fell from 0.53 to 0.28)."""
+    p = PurePosixPath(path)
+    return (
+        p.parts[0] in {"tests", "evals"}
+        or "tests" in p.parts[:-1]
+        or p.name.startswith("test_")
+        or p.name == "conftest.py"
+    )
+
+
+def _words(text: str) -> list[str]:
+    from devkit.board import STOP_WORDS
+    from devkit.reuse import words
+
+    return [w for w in words(text) if len(w) > 1 and w not in STOP_WORDS]
+
+
+@dataclass(frozen=True)
+class Unit:
+    """A function or method of one file, as `search` ranks and prints it."""
+
+    path: str
+    line: int
+    qualname: str  # Class.method for a method
+    signature: str  # (args) -> returns
+    doc: str  # the docstring's first line
+    words: tuple[str, ...]  # what BM25 indexes: path words, then the unit's own
+
+    def card(self) -> str:
+        return f"{self.path}:{self.line}  {self.qualname}{self.signature}" + (f"  # {self.doc}" if self.doc else "")
+
+
+def _body_words(node: ast.AST) -> list[str]:
+    out = []
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name):
+            out.append(sub.id)
+        elif isinstance(sub, ast.Attribute):
+            out.append(sub.attr)
+        elif isinstance(sub, ast.Constant) and isinstance(sub.value, str) and len(sub.value) < SEARCH_LITERAL_MAX:
+            out.append(sub.value)
+    return out
+
+
+def _parse_units(text: str) -> list[list]:
+    """[qualname, line, signature, doc, words] of every function and method in `text`, without the path (so it caches
+    by content). A function nested in a function belongs to the outer one."""
+    out: list[list] = []
+
+    def visit(node: ast.AST, prefix: str) -> None:
+        for sub in ast.iter_child_nodes(node):
+            if isinstance(sub, ast.ClassDef):
+                visit(sub, f"{prefix}{sub.name}.")
+            elif isinstance(sub, ast.FunctionDef | ast.AsyncFunctionDef):
+                qualname, sig = f"{prefix}{sub.name}", _signature(sub)
+                doc = ast.get_docstring(sub) or ""
+                para = doc.split("\n\n")[0].replace("\n", " ")
+                first = doc.strip().splitlines()[0][:100] if doc.strip() else ""
+                text = " ".join([qualname, sig, para, *_body_words(sub)])
+                out.append([qualname, sub.lineno, sig[sig.index("(") :], first, " ".join(_words(text))])
+
+    visit(ast.parse(text), "")
+    return out
+
+
+def _search_files() -> list[str]:
+    out = subprocess.run(
+        ["git", "ls-files", "-z", "-c", "-o", "--exclude-standard", "--", "*.py"],
+        cwd=root(),
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
+    return sorted({f for f in out.split("\0") if f and not f.startswith("docs/")})
+
+
+def units() -> list[Unit]:
+    """Every function and method of this worktree's .py files outside docs/. Parsing is most of a cold run, so parsed
+    files are cached by content hash in <git-common-dir>/devkit/code-search/, shared by every worktree and tree."""
+    cache_file = state_dir("code-search") / "units.json"
+    try:
+        cache = json.loads(cache_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cache = {}
+    if not isinstance(cache, dict):
+        cache = {}
+    used, added, found = set(), False, []
+    top = root()
+    for rel in _search_files():
+        try:
+            data = (top / rel).read_bytes()
+        except OSError:
+            continue  # deleted in the worktree, still in the index
+        key = hashlib.sha256(SEARCH_FORMAT + data).hexdigest()[:32]
+        used.add(key)
+        if key not in cache:
+            try:
+                cache[key] = _parse_units(data.decode("utf-8", errors="replace"))
+            except (SyntaxError, ValueError):
+                cache[key] = []
+            added = True
+        path_words = tuple(_words(rel))
+        found += [Unit(rel, line, q, sig, doc, path_words + tuple(w.split())) for q, line, sig, doc, w in cache[key]]
+    if added:
+        if len(cache) > SEARCH_CACHE_FILES:
+            cache = {k: v for k, v in cache.items() if k in used}
+        tmp = cache_file.with_name(f"{cache_file.name}.{os.getpid()}.tmp")
+        with contextlib.suppress(OSError):
+            tmp.write_text(json.dumps(cache), encoding="utf-8")
+            os.replace(tmp, cache_file)  # atomic: a concurrent reader sees the old file or the new one, never half
+    return found
+
+
+def query_words(query: str) -> list[str]:
+    from devkit.board import terms
+
+    return _words(" ".join(terms(query)))
+
+
+def rank(pool: list[Unit], query: str) -> list[Unit]:
+    """`pool` by BM25 score for `query`, best first (ties in pool order); a unit sharing no word with it is left out."""
+    from devkit.board import bm25
+
+    scores = bm25([list(u.words) for u in pool], query_words(query))
+    return [pool[i] for i in sorted((i for i, s in enumerate(scores) if s > 0), key=lambda i: -scores[i])]
+
+
+def search(query: str, n: int = SEARCH_N, tests: bool = False) -> str:
+    hits = rank([u for u in units() if tests or not is_test(u.path)], query)[: max(n, 1)]
+    if not hits:
+        more = "" if tests else ", or --tests"
+        return f"no function matches {query!r} (try other words, `uv run dev code find <regex>`{more})"
+    return "\n".join(u.card() for u in hits)

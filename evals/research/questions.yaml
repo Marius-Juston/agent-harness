@@ -1,0 +1,91 @@
+# `uv run dev eval research` (#590): a fixed set of research questions with known answer notes.
+# Each question: its merged answer note (whose cited works are the gold, evals/research/gold.json), its pre-research
+# QUESTION.md, and the 8 opening queries a fresh tool-less model wrote from that question alone, never from the note.
+# A1-A4: #192's queries (claude-opus-5-5, 2026-10-13); B5-B7: claude-opus-5-5, 2026-11-19, the same prompt
+# (docs/research/_scratch/lit-recall/scripts/data/query_prompt.md, run_agent.py --batch 1). Do not edit the queries:
+# a run is compared with an earlier one only while both read the same set.
+questions:
+- id: A1
+  note: docs/research/architecture-consolidation.md
+  question: docs/research/_scratch/architecture-consolidation/QUESTION.md
+  queries:
+  - when to refactor software codebase size churn duplication triggers
+  - large-scale refactoring reduce code size preserving behavior
+  - AI-generated code growth duplication maintainability empirical study
+  - characterization tests legacy code safe refactoring
+  - strangler fig pattern incremental system re-architecture
+  - LLM agents automated refactoring repository-level
+  - code clone detection consolidation technical debt reduction
+  - feature inventory regression testing behavior preservation refactoring
+- id: A2
+  note: docs/research/fix-now-vs-defer.md
+  question: docs/research/_scratch/fix-now-vs-defer/QUESTION.md
+  queries:
+  - self-admitted technical debt removal empirical study
+  - TODO comments survival in software repositories
+  - boy scout rule refactoring opportunistic code improvement
+  - LLM coding agents scope creep task boundaries
+  - autonomous software agents over-caution deferring work
+  - issue tracker follow-up issues small fix resolution time
+  - multi-agent software engineering role instructions planner builder
+  - deferred maintenance cost technical debt repayment effort
+- id: A3
+  note: docs/research/software-discovery.md
+  question: docs/research/_scratch/software-discovery/QUESTION.md
+  queries:
+  - semantic code search for reusable open source libraries
+  - software package recommendation from source code context
+  - LLM agents library discovery before implementing code
+  - package hallucination large language model code generation
+  - open source repository maintenance health metrics
+  - embedding retrieval reranking GitHub repository search
+  - Model Context Protocol tools for coding agents
+  - LLM agent literature search research automation
+- id: A4
+  note: docs/research/test-suite-design.md
+  question: docs/research/_scratch/test-suite-design/QUESTION.md
+  queries:
+  - test pyramid versus testing trophy empirical comparison
+  - test-to-code ratio open source projects empirical study
+  - mutation score versus code coverage test suite effectiveness
+  - flaky tests root causes detection mitigation
+  - regression test selection change impact analysis continuous integration
+  - continuous integration build duration merge queue delivery performance
+  - LLM generated unit tests quality redundancy evaluation
+  - property-based testing contract testing microservices end-to-end tests
+- id: B5
+  note: docs/research/decision-records-and-drift.md
+  question: docs/research/_scratch/adr-drift/QUESTION.md
+  queries:
+  - architecture decision records software maintenance
+  - architecture decision records erosion supersession lifecycle
+  - architectural fitness functions automated conformance checking
+  - architecture erosion drift detection source code
+  - documentation code inconsistency detection outdated comments
+  - LLM coding agents context files repository instructions
+  - configuration drift detection infrastructure as code
+  - LLM behavior drift over time model updates
+- id: B6
+  note: docs/research/harness-efficiency.md
+  question: docs/research/_scratch/harness-efficiency/QUESTION.md
+  queries:
+  - LLM coding agent scaffold design effect on task success
+  - multi-agent software engineering subagent orchestration evaluation
+  - reasoning effort extended thinking budget token cost tradeoff
+  - prompt compression reducing tokens coding agents equal accuracy
+  - agentic pull request review rounds rework rate
+  - context engineering long-horizon coding agents
+  - model routing smaller models per agent role cost
+  - developer productivity AI coding assistants merged pull requests
+- id: B7
+  note: docs/research/issue-pr-automation.md
+  question: docs/research/_scratch/issue-pr-automation/QUESTION.md
+  queries:
+  - automating issue triage and pull request bookkeeping
+  - duplicate issue detection GitHub repositories
+  - merge conflict prediction before integration
+  - automatic changelog generation from commits
+  - pull request description generation
+  - software bots maintenance tasks GitHub pull requests
+  - multi-agent coding workflow coordination overhead
+  - merge queue continuous integration batching cost
