@@ -305,7 +305,7 @@ def test_a_train_with_a_billing_blocked_member_stands_in_without_the_flag(world,
     monkeypatch.setattr(ci_status, "required_contexts", lambda: (["check"], []))
     monkeypatch.setattr(ci_status, "cannot_run", lambda rollup, head, probe: True)
     monkeypatch.setattr(ci_status, "actions_enabled", lambda: False)
-    monkeypatch.setattr(train.config, "get", lambda: train.config.Config(local_ci={"check": []}))
+    monkeypatch.setattr(config, "get", lambda: config.Config(local_ci={"check": []}))
     assert train.train([1, 2], harness_ok=True, dry_run=False) == 0
     posts = [e for e in world["events"] if e[:4] == ("gh", "api", "-X", "POST")]
     assert len(posts) == 2 and all("context=check" in e for e in posts)
@@ -329,7 +329,7 @@ def test_ci_local_a_failing_gate_posts_nothing(fake_integrate, actions, capsys):
 def test_ci_local_trains_post_on_each_member_head_without_querying_actions(world, capsys, monkeypatch):  # noqa: F811
     three(world)
     monkeypatch.setattr(ci_status, "required_contexts", lambda: (["check"], []))
-    monkeypatch.setattr(train.config, "get", lambda: train.config.Config(local_ci={"check": []}, ci="local"))
+    monkeypatch.setattr(config, "get", lambda: config.Config(local_ci={"check": []}, ci="local"))
     assert train.train([1, 2], harness_ok=True, dry_run=False) == 0
     posts = [e for e in world["events"] if e[:4] == ("gh", "api", "-X", "POST")]
     assert len(posts) == 2 and all("context=check" in e for e in posts)
