@@ -556,4 +556,5 @@ def test_a_cached_full_text_from_before_levels_still_reads(tmp_path):
     del rec["levels"]
     path.write_text(json.dumps(rec))
     ft, _ = client(tmp_path, Net({})).full_text("2607.00001")
-    assert ft and ft.locate("§3") and "six verifiers" in ft.locate("§3")[1]
+    found = ft.locate("§3") if ft else None
+    assert found and "six verifiers" in found[1]
