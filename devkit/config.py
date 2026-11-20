@@ -91,6 +91,10 @@ class Config:
     # Mark each such file `merge=devkit-generated` in `.gitattributes` so merging main keeps one side; integrate then
     # runs these and commits what they changed, as it does for generated docs.
     regenerate: list[list[str]] = field(default_factory=list)
+    # #492: the project's own subcommands under `dev`: name -> argument list, e.g.
+    # `commands = { coverage = ["python", "-m", "study.coverage"] }`. `dev coverage <args>` runs that list with <args>
+    # appended, in the project root, and exits with its code; `dev --help` lists it. A built-in's name is an error.
+    commands: dict[str, list[str]] = field(default_factory=dict)
     # Claude Code plugins `dev setup` installs at project scope: "plugin@marketplace" -> marketplace source.
     plugins: dict[str, str] = field(
         default_factory=lambda: {
@@ -118,6 +122,9 @@ class ConfigError(ValueError):
     pass
 
 
+COMMAND_NAME = re.compile(r"[a-z][a-z0-9-]*")  # a `[tool.devkit.commands]` name: what `dev <name>` can be typed as
+
+
 def parse(data: dict) -> Config:
     known = {f.name: f for f in dataclasses.fields(Config)}
     if unknown := sorted(set(data) - set(known)):
@@ -143,6 +150,11 @@ def parse(data: dict) -> Config:
     for argv in data.get("regenerate", []):
         if not (isinstance(argv, list) and argv and all(isinstance(a, str) and a for a in argv)):
             raise ConfigError(f"[tool.devkit] regenerate entry {argv!r}: expected a command as a list of arguments")
+    for name, argv in data.get("commands", {}).items():
+        if not COMMAND_NAME.fullmatch(name):
+            raise ConfigError(f"[tool.devkit.commands] {name!r}: expected a command name like `coverage` or `my-check`")
+        if not (isinstance(argv, list) and argv and all(isinstance(a, str) and a for a in argv)):
+            raise ConfigError(f"[tool.devkit.commands] {name} = {argv!r}: expected a command as a list of arguments")
     if "consolidation" in data:
         data = {**data, "consolidation": _consolidation(data["consolidation"])}
     if "prices" in data:
