@@ -682,7 +682,9 @@ def test_feedback_arriving_during_the_gate_still_stops_an_overridden_train(world
     assert closed(world) == []
 
 
-def protected(world: dict, monkeypatch, protection: dict | None, rules: list | None = None, **repo: object) -> None:
+def protected(
+    world: dict, monkeypatch, protection: dict | list | None, rules: list | None = None, **repo: object
+) -> None:
     """main's branch protection and active rulesets as GitHub reports them to the train's preflight (#472)."""
     fake = board.gh
 

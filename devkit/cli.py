@@ -118,13 +118,14 @@ class Parser(argparse.ArgumentParser):
         return ""
 
     def error(self, message):
-        formatter = self.formatter_class(prog=self.prog, width=10_000)  # unwrapped: one line however many options
+        make: Callable[..., argparse.HelpFormatter] = self.formatter_class
+        formatter = make(prog=self.prog, width=10_000)  # unwrapped: one line however many options
         formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
         hint = "" if "\ndid you mean" in message else self.hint()
         self.exit(2, f"{formatter.format_help()}{self.prog}: error: {message}\n" + (f"{hint}\n" if hint else ""))
 
 
-def build() -> argparse.ArgumentParser:
+def build() -> Parser:
     p = Parser(prog="dev", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
