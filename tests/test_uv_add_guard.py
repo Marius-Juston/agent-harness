@@ -184,6 +184,20 @@ def test_an_inline_assignment_is_not_the_owner_override(wired, monkeypatch, caps
     assert run(monkeypatch, capsys, f"{G.ALLOW_ENV}=pyqt6 uv add pyqt6")[0] == 2
 
 
+@pytest.mark.parametrize("settings", ["settings.json", "settings.local.json"])
+def test_a_settings_env_block_is_not_the_owner_override(wired, monkeypatch, capsys, tmp_path, settings):
+    """Claude Code passes a settings file's env to hooks, and an agent can write that file (#191)."""
+    home, project = tmp_path / "home", tmp_path / "project"
+    (project / ".claude").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
+    monkeypatch.setenv(G.ALLOW_ENV, "pyqt6")
+    assert run(monkeypatch, capsys, "uv add pyqt6", cwd=str(project))[0] == 0  # the shell's value counts
+    (project / ".claude" / settings).write_text(json.dumps({"env": {G.ALLOW_ENV: "pyqt6"}}))
+    assert run(monkeypatch, capsys, "uv add pyqt6", cwd=str(project))[0] == 2
+
+
 # ---- DONE WHEN 2: warnings ----
 
 

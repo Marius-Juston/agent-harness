@@ -36,16 +36,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }} # reads the issue's weakening-ok approval
         run: uv run dev check --no-cache
-      # Free stand-ins for GitHub secret scanning and dependency alerts, which private user-owned repositories do not
-      # get: gitleaks over every commit, uv audit (OSV) over uv.lock, and a CycloneDX SBOM of uv.lock kept with the
-      # run. Network-bound, so CI runs these rather than `dev check`. A false positive: add its fingerprint to
-      # .gitleaksignore, or `--ignore <id>` to the audit with the reason beside it.
+      # Free stand-ins for GitHub secret scanning, dependency alerts and code scanning, which private user-owned
+      # repositories do not get: gitleaks over every commit, uv audit (OSV) over uv.lock, Semgrep CE over shell,
+      # workflows and Dockerfiles, and a CycloneDX SBOM of uv.lock kept with the run. Network-bound, so CI runs these
+      # rather than `dev check`. A false positive: add its fingerprint to .gitleaksignore, or `--ignore <id>` to the
+      # audit with the reason beside it.
       - name: secrets in history (gitleaks, pinned in .pre-commit-config.yaml)
         if: ${{ !cancelled() }}
         run: uvx prek@0.5.3 run -c .pre-commit-config.yaml --hook-stage manual gitleaks-history --all-files
       - name: known vulnerabilities and yanked or deprecated packages (uv audit, OSV)
         if: ${{ !cancelled() }}
         run: uv audit --locked --preview-features audit-command
+      - name: static analysis of shell, workflow run blocks and Dockerfiles (Semgrep CE; ruff S covers Python)
+        if: ${{ !cancelled() }}
+        # Engine and rules pinned: semgrep-rules at one commit, fetched per run (its license allows internal use, not
+        # redistribution, so no copy lives here). A false positive: `# nosemgrep: <rule-id>` with the reason beside it.
+        run: |
+          rules="$RUNNER_TEMP/semgrep-rules"
+          mkdir -p "$rules"
+          curl -fsSL --retry 3 https://codeload.github.com/semgrep/semgrep-rules/tar.gz/a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2 \
+            | tar -xz -C "$rules" --strip-components=1
+          uvx semgrep@1.186.0 scan --error --metrics=off --disable-version-check \
+            --config "$rules/bash" --config "$rules/yaml/github-actions" --config "$rules/dockerfile" \
+            --config "$rules/generic/ci" .
       - name: SBOM (CycloneDX 1.5 from uv.lock)
         if: ${{ !cancelled() }}
         run: uv export --frozen --format cyclonedx1.5 --preview-features sbom-export --quiet --output-file sbom.cdx.json
