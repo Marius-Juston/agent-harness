@@ -2095,3 +2095,14 @@ def test_over_budget_the_ty_stage_lists_the_changed_files_diagnostics_first(tmp_
     monkeypatch.setattr(gate, "git", git)
     ran = gate.type_check("BASE", root)
     assert ran.problems[1].startswith("z.py:1:") and ran.problems[2].startswith("m.py:1:")
+
+
+def test_diagnostics_that_depend_on_installed_packages_are_reported_not_counted(tmp_path, monkeypatch):
+    """#59: an unresolved import depends on the venv (extras installed or not), so counting it made the budget flap."""
+    monkeypatch.setattr(config, "get", lambda: SimpleNamespace(ratchets=".devkit/ratchets.toml"))
+    body = TY_ERROR + "import no_such_package_anywhere\n"
+    ran = gate.type_check(None, _typed(tmp_path, "[types]\nmax_diagnostics = 1\n", body))
+    assert ran.ok, ran.problems
+    assert ran.notes == [
+        "1 more depend on installed packages (" + ", ".join(sorted(gate.TYPE_ENV_RULES)) + "): not counted"
+    ]

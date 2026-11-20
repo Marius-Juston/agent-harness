@@ -304,6 +304,9 @@ def zizmor(cwd: Path | None = None) -> Ran:
 
 TYPE_KEY = "types.max_diagnostics"  # the [[raise]] key that loosens the ty budget
 TYPE_SHOWN = 10  # diagnostics listed when the count is over the budget
+# Rules whose result depends on which packages (extras, optional tools) the environment has installed: kept out of the
+# budgeted count, so the count is the same in every venv of one tree, and only reported.
+TYPE_ENV_RULES = frozenset({"import-not-found", "missing-module-member", "possibly-missing-submodule"})
 
 
 def type_budget(text: str) -> int | None:
@@ -390,13 +393,21 @@ def type_check(base: str | None, cwd: Path | None = None) -> Ran:
         ran.problems += (out.stdout + out.stderr).strip().splitlines()[-FAIL_LINES:] or [f"ty exited {out.returncode}"]
         return ran
     ran.checked = len(checks.tracked("*.py")) if cwd is None else len(list(cwd.rglob("*.py")))
-    if budget is None:
+    env = [d for d in found if d.get("check_name") in TYPE_ENV_RULES]
+    found = [d for d in found if d.get("check_name") not in TYPE_ENV_RULES]
+    if env:
         ran.notes.append(
+            f"{len(env)} more depend on installed packages ({', '.join(sorted(TYPE_ENV_RULES))}): not counted"
+        )
+    if budget is None:
+        ran.notes.insert(
+            0,
             f"{len(found)} ty diagnostics (report-only: set [types] max_diagnostics = {len(found)} in {where} "
-            "to ratchet them)"
+            "to ratchet them)",
         )
         return ran
-    problems, ran.notes = type_problems(len(found), budget)
+    problems, notes = type_problems(len(found), budget)
+    ran.notes[:0] = notes
     if problems:  # the change's own files first: that is where the new diagnostics most likely are
         changed = set(git("diff", "--name-only", base).splitlines()) if base else set()
         found.sort(key=lambda d: d["location"]["path"] not in changed)
