@@ -4,6 +4,7 @@ import json
 import re
 import runpy
 import subprocess
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -366,7 +367,7 @@ class FakeWeb:
 
     def __call__(self, url: str, headers: dict) -> tuple[int, dict, str]:
         self.calls += 1
-        if "api.openalex.org" not in url:
+        if urllib.parse.urlsplit(url).hostname != "api.openalex.org":
             return 404, {}, ""
         if m := re.search(r"search=q(\d)", url):
             q = m.group(1)
@@ -484,6 +485,98 @@ def test_research_eval_stops_auditing_at_the_spend_cap(tmp_path, capsys):
     rec = research_eval.load_record("cap", tmp_path / "state")
     assert rec["audit"] == {"cost_usd": 0.15, "skipped_over_cap": 9}
     assert "auditor stopped at $0.15" in capsys.readouterr().out
+
+
+# --- held-out snowball arm (#619): half the gold as seeds, `dev lit snowball` recall of the other half --------------
+
+
+def _held_out_web(gold: list[dict], qid: str):
+    """A FakeOpenAlex graph built on the question's seeded split, so each arm finds a known part of the held-out
+    works: every seed cites h1 (link); seed 0's related works list h2 (found only with the neighbour signals); h1 cites
+    h3 (two hops). OpenAlex search ranks h1; S2 search answers empty; every other source is down."""
+    from test_snowball import FakeOpenAlex
+
+    seed_ids, held = research_eval.held_out(gold, qid)
+    h1, h2, h3 = (g["ids"]["openalex"] for g in held)
+    graph = {s: {"title": f"Seed {s}", "refs": [h1], "cites": 50} for s in seed_ids}
+    graph[seed_ids[0]]["related"] = [h2]
+    graph |= {
+        h1: {"title": "Held one", "refs": [h3], "cites": 40},
+        h2: {"title": "Held two", "cites": 30},
+        h3: {"title": "Held three", "cites": 20},
+    }
+    oa = FakeOpenAlex(graph)
+    calls: list[str] = []
+
+    def web(url: str, headers: dict) -> tuple[int, dict, str]:
+        calls.append(url)
+        parts = urllib.parse.urlsplit(url)
+        if parts.hostname == "api.semanticscholar.org":
+            return 200, {}, json.dumps({"data": []})
+        if parts.hostname != "api.openalex.org":
+            return 404, {}, ""
+        if parts.path == "/works" and "search" in urllib.parse.parse_qs(parts.query):
+            return 200, {}, _oa([(h1, "Held one")])
+        return oa(url, headers)
+
+    web.calls = calls
+    return web
+
+
+def _held_out_set(tmp: Path) -> list[dict]:
+    spec, base = tmp / "set", tmp / "repo"
+    spec.mkdir()
+    (base / "notes").mkdir(parents=True)
+    gold = [{"key": f"g{k}", "title": f"gold {k}", "ids": {"openalex": f"W{k}00", "doi": ""}} for k in range(1, 7)]
+    gold.append({"key": "g7", "title": "gold without a W-id", "ids": {"doi": "10.1/none"}})
+    (spec / "questions.yaml").write_text(
+        yaml.safe_dump({"questions": [{"id": "Q1", "note": "notes/n1.md", "queries": ["q1 alpha"]}]})
+    )
+    (spec / "gold.json").write_text(json.dumps({"Q1": gold}))
+    (base / "notes" / "n1.md").write_text("# Note\n")
+    return gold
+
+
+def test_research_eval_reports_held_out_snowball_recall_per_depth_and_signals_with_openalex_calls(tmp_path, capsys):
+    """DONE WHEN: held-out snowball recall@20 per question at depth 1 and 2, with and without the neighbour signals,
+    and their OpenAlex calls, in the record and the printout; S2's answers are counted per source."""
+    gold = _held_out_set(tmp_path)
+    web = _held_out_web(gold, "Q1")
+    assert _run_research(tmp_path, web, None, "held", n_claims=0) == 0
+    out = capsys.readouterr().out
+    row = research_eval.load_record("held", tmp_path / "state")["questions"]["Q1"]
+    assert (row["held_seeds"], row["held"]) == (3, 3)
+    assert row["held search@20"] == 0.3333  # OpenAlex search ranks h1
+    assert (row["held@20 d1"], row["held@20 d1 link"]) == (0.6667, 0.3333)  # h2 only as a related work
+    assert (row["held@20 d2"], row["held@20 d2 link"]) == (1.0, 0.6667)  # h3 is two hops out
+    assert (row["calls d1"], row["calls d1 link"], row["calls d2"], row["calls d2 link"]) == (5, 4, 9, 7)
+    assert re.search(r"Q1\s+3\s+3\s+0\.333\s+0\.667\s+0\.333\s+1\.000\s+0\.667\s+5\s+4\s+9\s+7", out), out
+    rec = research_eval.load_record("held", tmp_path / "state")
+    assert rec["summary"]["held@20 d2"] == 1.0 and rec["summary"]["calls d1"] == 5
+    assert rec["by_source"]["s2"]["live"] > 0 and rec["by_source"]["s2"]["failed"] == 0
+    assert "S2: " in out and " answered, 0 failed" in out
+
+    def no_net(url, headers):
+        raise AssertionError("the replay made a call")
+
+    assert _run_research(tmp_path, no_net, None, "again", n_claims=0, offline=True) == 0
+    again = research_eval.load_record("again", tmp_path / "state")["questions"]["Q1"]
+    assert {k: v for k, v in again.items() if "held" in k or "calls " in k} == {
+        k: v for k, v in row.items() if "held" in k or "calls " in k
+    }
+
+
+@given(st.lists(st.booleans(), max_size=12), st.sampled_from(["Q1", "A2", "B7"]))
+def test_held_out_split_is_seeded_and_halves_the_gold_with_a_w_id(has_w, qid):
+    gold = [{"key": f"g{i}", "title": f"t{i}", "ids": {"openalex": f"W{i}" if w else ""}} for i, w in enumerate(has_w)]
+    seed_ids, held = research_eval.held_out(gold, qid)
+    assert (seed_ids, held) == research_eval.held_out(gold, qid)
+    n = sum(has_w)
+    assert len(seed_ids) == n // 2 and len(held) == n - n // 2
+    assert not set(seed_ids) & {g["ids"]["openalex"] for g in held}
+    assert set(seed_ids) | {g["ids"]["openalex"] for g in held} == {
+        g["ids"]["openalex"] for g in gold if g["ids"]["openalex"]
+    }
 
 
 def test_research_eval_matcher_takes_ids_case_and_version_free_then_titles_and_link_texts():

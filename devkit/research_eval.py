@@ -9,7 +9,12 @@ given), then one snowball hop (`dev lit refs` and `cited-by`, 20 each) from the 
 round-robin rank order. Scored against the gold: recall@10 and @20 (a work counts when any query ranks it that high,
 lit-search-quality.md §2), snowball recall (search@20 plus the hop), and the tokens an agent reads to see it all. Every
 HTTP answer comes from a replay cassette in the state dir, so the same code reads the same answers; a URL not yet
-recorded is fetched live and recorded, and the record counts those; `--offline` fetches nothing.
+recorded is fetched live and recorded, and the record counts those, per source; `--offline` fetches nothing.
+
+Held-out snowball arm (#619, #591's replay): a seeded half of each note's cited works with an OpenAlex id are the
+seeds of `dev lit snowball -n 20` (devkit.snowball) at depth 1 and 2, with all four signals and with direct links
+only; each arm's recall is over the other half (held out), next to the search lists' recall@20 of that half, with the
+OpenAlex calls each arm cost.
 
 Sampled part, one agent call per claim: `--claims K` draws K claims per question (seeded) from its note, or from the
 note of the same name in `--notes DIR` (a candidate research run's output), and a tool-limited `claude -p` auditor
@@ -30,7 +35,7 @@ from pathlib import Path
 
 import yaml
 
-from devkit import config, evals, lit
+from devkit import config, evals, lit, snowball
 from devkit.netsafe import atomic_write
 from devkit.paths import git, root, state_dir, user_state_dir
 
@@ -40,6 +45,14 @@ SEEDS = 5  # snowball seeds per question
 CHASE_N = 20  # works per refs or cited-by call
 SEED = 590  # claim sampling
 DRAWS = 10_000
+HELD_N = 20  # snowball candidates scored against the held-out half
+# The held-out arms: (name, depth, signals); "link" is snowball without its neighbour signals.
+HELD_ARMS = (
+    ("d1", 1, snowball.SIGNALS),
+    ("d1 link", 1, ("link",)),
+    ("d2", 2, snowball.SIGNALS),
+    ("d2 link", 2, ("link",)),
+)
 VERDICTS = ("supported", "partly", "unsupported", "unsourced", "unreachable")
 AUDIT_TOOLS = ["WebFetch", "Bash(uv run dev lit get *)", "Bash(uv run --quiet dev lit get *)"]
 AUDIT_PROMPT = """You audit ONE claim from a research note. Do not edit anything.
@@ -68,32 +81,42 @@ class Replay(lit.Client):
     counts: dict[str, int] = field(
         default_factory=lambda: {"replayed": 0, "live": 0, "missing": 0, "failed": 0, "replayed_failures": 0}
     )
+    by_source: dict[str, dict[str, int]] = field(default_factory=dict)  # the same counts per source
 
     def _tape(self, url: str) -> Path:
         return self.cassette / (hashlib.sha256(url.encode()).hexdigest()[:32] + ".json")
+
+    def _count(self, source: str, kind: str) -> None:
+        self.counts[kind] += 1
+        per = self.by_source.setdefault(source, dict.fromkeys(self.counts, 0))
+        per[kind] += 1
+
+    def calls(self, source: str) -> int:
+        """Every answer `source` gave this run, replayed or live, failures included: the calls the code made."""
+        return sum(self.by_source.get(source, {}).values())
 
     def fetch(self, source, url, *, live=False, tries=lit.TRIES, max_age=lit.CACHE_DAYS * 86400):
         tape = self._tape(url)
         if tape.is_file():
             rec = json.loads(tape.read_text())
             if "error" in rec:
-                self.counts["replayed_failures"] += 1
+                self._count(source, "replayed_failures")
                 raise lit.SourceError(rec["error"])
-            self.counts["replayed"] += 1
+            self._count(source, "replayed")
             return rec["body"]
         if self.offline:
-            self.counts["missing"] += 1
+            self._count(source, "missing")
             raise lit.SourceError(f"{source}: not in the replay cassette (--offline)")
         self.cassette.mkdir(parents=True, exist_ok=True)
         meta = {"url": url, "source": source, "t": self.clock()}
         try:
             body = super().fetch(source, url, live=True, tries=tries)
         except lit.SourceError as exc:
-            self.counts["failed"] += 1
+            self._count(source, "failed")
             atomic_write(tape, json.dumps({**meta, "error": str(exc)}))
             raise
         atomic_write(tape, json.dumps({**meta, "body": body}))
-        self.counts["live"] += 1
+        self._count(source, "live")
         return body
 
 
@@ -183,6 +206,36 @@ def score_question(c: lit.Client, q: dict, gold: list[dict], source: str = "auto
         "read_tokens": read,
         "source_notes": notes,
     }
+
+
+def held_out(gold: list[dict], qid: str, seed: int = SEED) -> tuple[list[str], list[dict]]:
+    """(seed W-ids, held-out gold): a seeded half (rounded down) of the gold works with an OpenAlex id, and the rest of
+    them. Works without one are left out of both: a snowball can neither start from nor be scored on them alike."""
+    with_w = [g for g in gold if g["ids"].get("openalex")]
+    order = random.Random(f"{seed}:{qid}:held-out").sample(with_w, len(with_w))  # noqa: S311 - a seeded split
+    half = len(order) // 2
+    return [g["ids"]["openalex"].upper() for g in order[:half]], order[half:]
+
+
+def score_held_out(c: Replay, qid: str, gold: list[dict], found: list[str]) -> dict:
+    """Held-out recall of each snowball arm's top HELD_N and of the search lists (`found`: the gold keys any query
+    ranked in its top 20), and the OpenAlex calls each arm made."""
+    seed_ids, held = held_out(gold, qid)
+    m, n = Matcher(held), len(held)
+    keys = {g["key"] for g in held}
+
+    def share(hits: set[str]) -> float:
+        return round(len(hits) / n, 4) if n else 0.0
+
+    row = {"held_seeds": len(seed_ids), "held": n, "held search@20": share(keys & set(found))}
+    for name, depth, signals in HELD_ARMS:
+        before = c.calls("openalex")
+        cands = snowball.snowball(c, seed_ids, HELD_N, depth, signals)[0] if seed_ids and n else []
+        row[f"held@20 {name}"] = share(
+            {h for x in cands if (h := m.match(x.paper or lit.Paper("", ids={"openalex": x.wid})))}
+        )
+        row[f"calls {name}"] = c.calls("openalex") - before
+    return row
 
 
 def claims(text: str) -> list[str]:
@@ -309,6 +362,7 @@ def run(
         "max_usd": max_usd,
         "seeds": SEEDS,
         "n": N,
+        "held_n": HELD_N,
     }
     record: dict = {"when": time.strftime("%Y-%m-%d %H:%M", time.localtime(clock())), "arm": arm, "questions": {}}
     print(f"research eval: {len(questions)} questions, source={source}, claims={n_claims}, commit={arm['commit'][:7]}")
@@ -316,6 +370,7 @@ def run(
     spent, skipped = 0.0, 0
     for q in questions:
         row = score_question(c, q, gold[q["id"]], source)
+        row |= score_held_out(c, q["id"], gold[q["id"]], row["found@20"])
         note = Path(notes_dir) / Path(q["note"]).name if notes_dir else base / q["note"]
         text = note.read_text() if note.is_file() else ""
         audits = []
@@ -338,8 +393,19 @@ def run(
             f"{q['id']:<4}{row['gold']:>5}{row['recall@10']:>7.3f}{row['recall@20']:>7.3f}{row['snowball']:>7.3f}"
             f"{row['read_tokens']:>10}{supp:>6}{row['audit_tokens']:>10}"
         )
+    print(f"held-out snowball recall@{HELD_N} (half the gold as seeds) and OpenAlex calls per arm:")
+    arms = [a[0] for a in HELD_ARMS]
+    print(f"{'q':<4}{'seeds':>6}{'held':>5}{'search':>8}" + "".join(f"{a:>9}" for a in arms) + "  calls")
+    for qid, row in record["questions"].items():
+        print(
+            f"{qid:<4}{row['held_seeds']:>6}{row['held']:>5}{row['held search@20']:>8.3f}"
+            + "".join(f"{row[f'held@20 {a}']:>9.3f}" for a in arms)
+            + "  "
+            + " ".join(f"{row[f'calls {a}']}" for a in arms)
+        )
     record["summary"] = summary(record["questions"])
     record["calls"] = dict(c.counts)
+    record["by_source"] = c.by_source
     record["audit"] = {"cost_usd": round(spent, 4), "skipped_over_cap": skipped}
     if skipped:
         print(f"auditor stopped at ${spent:.2f} (--max-usd {max_usd}): {skipped} sampled claims not audited")
@@ -353,13 +419,27 @@ def run(
         f"HTTP: {c.counts['replayed']} replayed, {c.counts['live']} live, {c.counts['missing']} missing offline, "
         f"{c.counts['failed']} failed live, {c.counts['replayed_failures']} recorded failures replayed"
     )
+    s2 = c.by_source.get("s2", {})
+    print(  # whether S2 answered while the cassette was recorded: its failures replay as failures
+        f"S2: {s2.get('live', 0) + s2.get('replayed', 0)} answered, "
+        f"{s2.get('failed', 0) + s2.get('replayed_failures', 0)} failed, {s2.get('missing', 0)} missing offline"
+    )
     path = state / f"run-{int(clock())}.json"
     path.write_text(json.dumps(record, indent=1))
     print(f"record: {path} (compare: uv run dev eval research --compare <A> {label or path.stem})")
     return 0
 
 
-METRICS = ("recall@10", "recall@20", "snowball", "read_tokens", "supported", "audit_tokens")
+METRICS = (
+    "recall@10",
+    "recall@20",
+    "snowball",
+    "read_tokens",
+    "supported",
+    "audit_tokens",
+    "held search@20",
+    *(f"{k} {a[0]}" for a in HELD_ARMS for k in ("held@20", "calls")),
+)
 
 
 def summary(rows: dict[str, dict]) -> dict:
