@@ -7,9 +7,9 @@
 | name | model | effort | tools | words | use when |
 |---|---|---|---|---|---|
 | harness-ops:architect | opus | high | Read, Grep, Glob, Bash | 426 | Read-only consolidation review of the whole repository, run when `uv run dev orient` says a review is due or the owner asks for one. |
-| harness-ops:builder | opus | medium | all | 619 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
-| harness-ops:research-auditor | opus | high | Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers | 600 | Adversarial, read-only audit of one research note. |
-| harness-ops:researcher | opus | high | all | 600 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
+| harness-ops:builder | opus | medium | all | 633 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
+| harness-ops:research-auditor | opus | high | Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers | 598 | Adversarial, read-only audit of one research note. |
+| harness-ops:researcher | opus | high | all | 599 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
 | harness-ops:reviewer | opus | medium | Read, Grep, Glob, Bash | 600 | Read-only pre-merge review of one PR against its issue's DONE WHEN, the research it cites and the project rules. |
 | harness-ops:suite-auditor | opus | medium | Read, Grep, Glob, Bash | 272 | Read-only judgement pass of a size-tiered test-suite audit, run when `uv run dev suite-audit report` lists judgement items. |
 | harness-ops:tester | opus | high | all | 285 | Writes adversarial, property-based and regression tests for one issue or one merged change (inputs nobody planned for, wrong state, crashes midway), fixes sm... |
@@ -62,11 +62,12 @@
 | `check` | the gate: drift checks, budgets, lint, tests (one per machine; cached per tree) |
 | `test` | pytest with workers scaled to free memory; --affected runs the change's tests |
 | `docs` | regenerate the generated references and the research INDEX.md |
-| `code` | navigate by symbol: outline / show / refs / find (capped output) |
+| `code` | navigate by symbol: outline / show / refs / find / search (capped output) |
 | `code outline` | signatures / headings of a file |
 | `code show` | body of a function, class or Class.method |
 | `code refs` | who mentions a symbol, grouped by file, tests last |
 | `code find` | regex search, capped per file |
+| `code search` | the functions a task description most likely means (BM25), one line each |
 | `board` | work items (GitHub issues): list, next, new, claim, beat, block, release, sync, sweep, event, brief |
 | `board init` | create the status/priority/type/area/stale labels in the GitHub repo |
 | `board list` | open items, one line each (STALE = in progress, no update for 6 h) |
@@ -92,6 +93,7 @@
 | `lit search` | papers for a query: title, year, venue, cites, ids, abstract snippet |
 | `lit status` | each source's health now (live probe); exits 1 only when every default source is down: run before a research round |
 | `lit get` | papers by DOI, arXiv id, OpenAlex W-id or S2 id: authors, open-access link, full abstract; several ids batch into one OpenAlex call |
+| `lit read` | a paper's full text (arXiv HTML/PDF, Europe PMC, the open-access copy), cached: its outline, or one section with --section |
 | `lit refs` | citation chasing through OpenAlex: the works it cites (backward), most cited first, compact lines like search |
 | `lit cited-by` | citation chasing through OpenAlex: the works citing it (forward), most cited first, compact lines like search |
 | `reuse` | reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); `"<need>"` searches for more (GitHub, ecosyste.ms, deps.dev; shares dev lit's cache and rate limits) |
@@ -103,6 +105,7 @@
 | `doctor` | read-only: what this machine still needs |
 | `usage-poll` | record the weekly usage percent every 10 min for the spawn guard (detach it) |
 | `quota-cap` | the spawn guard's weekly cap and its source; owner only: `! uv run dev quota-cap <0-100>` sets a machine-local override (never committed), --clear drops it |
+| `gate-slots` | how many gates run at once here, and the source; owner only: `! uv run dev gate-slots <n>` sets a machine-local override (never committed), --clear drops it |
 | `eval` | micro-scenario evals of the agent surface via claude -p in a remote-less clone |
 | `consolidation` | architecture review: is one due (orient shows it), and the report the architect reads |
 | `consolidation status` | is a review due since the last Consolidation-Review: trailer, and why (fast) |
@@ -119,9 +122,9 @@
 |---|---|---|
 | CLAUDE.md | 277 | 600 |
 | plugins/harness-ops/agents/architect.md | 426 | 600 |
-| plugins/harness-ops/agents/builder.md | 619 | 650 |
-| plugins/harness-ops/agents/research-auditor.md | 600 | 600 |
-| plugins/harness-ops/agents/researcher.md | 600 | 600 |
+| plugins/harness-ops/agents/builder.md | 633 | 650 |
+| plugins/harness-ops/agents/research-auditor.md | 598 | 600 |
+| plugins/harness-ops/agents/researcher.md | 599 | 600 |
 | plugins/harness-ops/agents/reviewer.md | 600 | 600 |
 | plugins/harness-ops/agents/suite-auditor.md | 272 | 600 |
 | plugins/harness-ops/agents/tester.md | 285 | 600 |

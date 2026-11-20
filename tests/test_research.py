@@ -2,12 +2,14 @@
 
 import json
 import time
+from pathlib import Path
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from devkit import cli, research
+from devkit import cli, lit, research
 from devkit.board import bm25, terms
+from devkit.fulltext import FullText
 from devkit.paths import root
 
 NOTE = """# Research: flaky tests
@@ -27,7 +29,12 @@ Reruns hide flaky tests. Quarantine beats retry for order-dependent tests.
 """
 
 
+PAPERS = Path(__file__).parent / "fixtures" / "papers"
+
+
 def write_tree(tmp_path, papers=()):
+    """Notes under tmp_path/docs/research; `papers` as cache records under tmp_path/fulltext, the layout of a lit
+    client's dir (tmp_path)."""
     notes = tmp_path / "docs" / "research"
     (notes / "_scratch" / "round").mkdir(parents=True)
     (notes / "flaky.md").write_text(NOTE)
@@ -37,7 +44,30 @@ def write_tree(tmp_path, papers=()):
     texts.mkdir()
     for i, rec in enumerate(papers):
         (texts / f"{i}.json").write_text(json.dumps(rec))
-    return notes, texts
+    return notes, tmp_path
+
+
+def test_a_paper_cached_by_lit_full_text_is_found(tmp_path, monkeypatch, capsys):
+    """#584's writer (lit.Client.full_text) caches a paper; research search finds it through the same reader."""
+    filler = "<p>" + "padding words for a full paper " * 250 + "</p>"
+    page = (PAPERS / "latexml.html").read_text().replace("</article>", filler + "</article>").encode()
+    html_url = "https://arxiv.org/html/2607.00001"
+    c = lit.Client(
+        tmp_path / "lit",
+        get=lambda url, headers: (404, {}, ""),
+        get_bytes=lambda url, headers: (200, {}, page) if url == html_url else (404, {}, b""),
+        clock=lambda: 1_000_000.0,
+        sleep=lambda s: None,
+        env={},
+    )
+    ft, _ = c.full_text("2607.00001")
+    assert ft
+    heading, text = next((h, t) for h, t in ft.sections if h and t.strip() and "padding" not in t)
+    query = " ".join(terms(text)[:6])
+    monkeypatch.setattr(cli, "state_dir", lambda *parts: tmp_path.joinpath(*parts))
+    (tmp_path / "research-search").mkdir()
+    cli.run(cli.parse(["research", "search", query, "-n", "50"]))
+    assert f"arXiv:2607.00001 §{heading}: " in capsys.readouterr().out
 
 
 def test_note_units_are_sections_and_labelled_claims():
@@ -62,24 +92,22 @@ def test_paper_ids_from_full_text_urls():
     assert research.paper_id("https://example.org/paper") == "https://example.org/paper"
 
 
-def test_paper_units_skip_back_matter_and_none_records():
-    rec = {
-        "url": "https://arxiv.org/html/2501.00001",
-        "kind": "html",
-        "sections": [["", "Front"], ["3 Method", "We rerun flaky tests."], ["References", "Flaky tests, 2014."]],
-    }
-    units = research.paper_units(rec)
+def test_paper_units_skip_back_matter():
+    sections = [("", "Front"), ("3 Method", "We rerun flaky tests."), ("References", "Flaky tests, 2014.")]
+    units = research.paper_units(FullText("https://arxiv.org/html/2501.00001", "html", sections))
     assert [u.where for u in units] == ["arXiv:2501.00001 §(front matter)", "arXiv:2501.00001 §3 Method"]
-    assert research.paper_units({"t": 1, "none": "no open-access copy"}) == []
 
 
 def test_search_ranks_notes_and_papers_and_caps_hits(tmp_path):
-    paper = {"url": "https://arxiv.org/abs/2501.00001", "sections": [["4 Results", "Quarantine of flaky tests. " * 3]]}
-    notes, texts = write_tree(tmp_path, [paper, {"t": 0, "none": "404"}, "not a record"])
-    (texts / "broken.json").write_text("{")
-    pool = research.units(notes, texts, tmp_path)
+    paper = {"t": 0, "url": "https://arxiv.org/abs/2501.00001", "kind": "html"}
+    paper["sections"] = [["4 Results", "Quarantine of flaky tests. " * 3]]
+    notes, lit_dir = write_tree(tmp_path, [paper, {"t": 0, "none": "404"}, "not a record", {"url": "no kind"}])
+    (lit_dir / "fulltext" / "broken.json").write_text("{")
+    papers = lit.cached_full_texts(lit_dir)
+    assert [ft.url for ft in papers] == ["https://arxiv.org/abs/2501.00001"]  # 'none' and unreadable ones skipped
+    pool = research.units(notes, papers, tmp_path)
     assert not any("INDEX.md" in u.where or "_scratch" in u.where for u in pool)
-    assert any("_scratch" in u.where for u in research.units(notes, texts, tmp_path, scratch=True))
+    assert any("_scratch" in u.where for u in research.units(notes, [], tmp_path, scratch=True))
     hits = research.search(pool, "quarantine flaky tests", n=2)
     assert len(hits) == 2
     out = research.render(research.search(pool, "quarantine flaky tests", n=10), "quarantine flaky tests").splitlines()
@@ -89,8 +117,8 @@ def test_search_ranks_notes_and_papers_and_caps_hits(tmp_path):
 
 
 def test_a_claim_hides_its_section_when_both_show_the_same_sentence(tmp_path):
-    notes, texts = write_tree(tmp_path)
-    out = research.render(research.search(research.units(notes, texts, tmp_path), "order-dependent 59", 10), "59")
+    notes, _ = write_tree(tmp_path)
+    out = research.render(research.search(research.units(notes, [], tmp_path), "order-dependent 59", 10), "59")
     evidence = [line for line in out.splitlines() if "#2. Evidence" in line]
     assert evidence == [
         "docs/research/flaky.md#2. Evidence [SOURCED]: Order-dependent tests were 59 % of flaky tests (SOURCED, An "

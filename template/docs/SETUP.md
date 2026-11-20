@@ -53,6 +53,11 @@ The harness runs in the environment the project declares, not the one your shell
 The spawn guard refuses new agents at `[tool.devkit] quota_cap`; `! uv run dev quota-cap 90` overrides it on this
 machine only (`.git/devkit/quota_cap`, no PR), `--clear` drops the override, and agents are denied both.
 
+## Gate slots
+At most `[tool.devkit] gate_slots` gates run at once on a machine; `! uv run dev gate-slots 4` overrides it on this
+machine only (`.git/devkit/gate_slots`, no PR), `--clear` drops the override, `uv run dev status` shows the effective
+count and its source, and agents are denied setting it.
+
 ## Removing devkit's local files
 devkit keeps no state outside these places, all plain files owned by you:
 - `<repository>/.git/devkit/`: per-repository caches, logs and locks (never committed); deleting the repository

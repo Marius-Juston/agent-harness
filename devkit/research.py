@@ -5,8 +5,8 @@ BM25 (devkit.board.bm25, Lucene's defaults) over three kinds of unit, one line p
 - a note section: each heading of a note in research_dir and the text up to the next heading (`path#heading`);
 - a labelled claim: a line of a note carrying VERIFIED, SOURCED, BELIEVED or ASSUMED, shown with its label and the
   title of the first source it links (a legend such as `Labels: VERIFIED = ...` is not a claim);
-- a section of a full text `dev lit read` cached (<git-common-dir>/devkit/lit/fulltext/, written by #512's reader),
-  shown as the paper's id (arXiv id, PMC id, DOI, else its URL) and the section heading.
+- a section of a full text `dev lit read` cached (lit.cached_full_texts reads them through fulltext.from_record, so
+  the record format has one reader), shown as the paper's id (arXiv id, PMC id, DOI, else its URL) and the section heading.
 
 Each hit's line is the unit's sentence sharing most query words, so the line says why it matched. Round scratch files
 (`_scratch/`) are searched only with --scratch: the synthesized notes supersede them. Notes and full texts are
@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from devkit.board import STOP_WORDS, WORD, bm25, terms
+from devkit.fulltext import BACK_MATTER, FullText
 
 DEFAULT_N, MAX_N = 8, 50
 NOTE_SHARE = 2  # notes per full-text section in the merged list (see `search`)
@@ -38,7 +39,6 @@ LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)[^)]*\)")
 SENTENCE = re.compile(r"(?<=[.!?;])\s+(?=[A-Z(`*\[])|\n+")
 ARXIV = re.compile(r"arxiv\.org/(?:abs|html|pdf)/([a-z-]*/?\d{4}\.\d{4,5}|[a-z-]+/\d{7})", re.I)
 PMC = re.compile(r"\b(PMC\d+)\b")
-BACK_MATTER = re.compile(r"^\W*(?:[\dIVX.]+\s+)?(references|bibliography|acknowledge?ments?)\b", re.I)
 DOI = re.compile(r"\b(10\.\d{4,9}/[^\s?#]+?)(?:\.pdf)?$", re.I)
 
 
@@ -121,13 +121,12 @@ def paper_id(url: str) -> str:
     return url
 
 
-def paper_units(rec: dict) -> list[Unit]:
-    """Each section of one cached full-text record ({"url", "sections": [[heading, text], ...]}); none for a cached
-    'no full text' answer."""
-    pid = paper_id(rec.get("url", ""))
+def paper_units(ft: FullText) -> list[Unit]:
+    """Each section of one cached full text, back matter left out."""
+    pid = paper_id(ft.url)
     units = []
-    for heading, text in rec.get("sections") or []:
-        if text.strip() and not BACK_MATTER.match(heading):
+    for heading, text in ft.sections:
+        if text.strip() and not BACK_MATTER.search(heading):
             units.append(Unit(f"{pid} §{heading or '(front matter)'}", f"{heading}\n{text}".strip(), paper=True))
     return units
 
@@ -142,19 +141,14 @@ def notes(research_dir: Path, scratch: bool = False) -> Iterable[Path]:
         yield path
 
 
-def units(research_dir: Path, fulltext_dir: Path | None, base: Path, scratch: bool = False) -> list[Unit]:
-    """Every unit: notes under `research_dir` (paths shown relative to `base`), then cached full texts."""
+def units(research_dir: Path, papers: Iterable[FullText], base: Path, scratch: bool = False) -> list[Unit]:
+    """Every unit: notes under `research_dir` (paths shown relative to `base`), then the sections of `papers` (the
+    full texts lit.cached_full_texts reads)."""
     found: list[Unit] = []
     for path in notes(research_dir, scratch):
         found += note_units(path.relative_to(base).as_posix(), path.read_text(encoding="utf-8", errors="replace"))
-    if fulltext_dir and fulltext_dir.is_dir():
-        for path in sorted(fulltext_dir.glob("*.json")):
-            try:
-                rec = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                continue  # a record being written, or not one of ours
-            if isinstance(rec, dict):
-                found += paper_units(rec)
+    for ft in papers:
+        found += paper_units(ft)
     return found
 
 
