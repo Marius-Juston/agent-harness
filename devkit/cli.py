@@ -26,6 +26,7 @@ from devkit import (
     lit,
     prtext,
     quota,
+    research,
     reuse,
     rules,
     setup,
@@ -33,7 +34,7 @@ from devkit import (
     train,
     workflow,
 )
-from devkit.paths import pin_git_output, root
+from devkit.paths import pin_git_output, root, state_dir
 from devkit.suite_audit import due, file_report, last_snapshot, render, report
 
 NOTE_TEMPLATE = """# Research: {title}
@@ -298,8 +299,15 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("-n", type=int, default=reuse.DEFAULT_N, help=f"candidates (max {reuse.MAX_N})")
     x.add_argument("--json", action="store_true", help="JSON to paste into a research note")
     x.add_argument("--allow-copyleft", action="store_true", help="the owner allows strong copyleft (gate G5)")
-    r = sub.add_parser("research", help="research notes: new")
+    r = sub.add_parser("research", help="research notes: new, search")
     rs = r.add_subparsers(dest="sub", required=True)
+    x = rs.add_parser(
+        "search",
+        help="what earlier notes, their labelled claims and cached full texts already say (BM25), one line each",
+    )
+    x.add_argument("words", nargs="+")
+    x.add_argument("-n", type=int, default=research.DEFAULT_N, help=f"hits (max {research.MAX_N})")
+    x.add_argument("--scratch", action="store_true", help="also search research rounds' _scratch/ files")
     x = rs.add_parser("new", help="create <research_dir>/<slug>.md from the house template")
     x.add_argument("slug")
     x.add_argument("--title", required=True)
@@ -537,6 +545,13 @@ def run(a: argparse.Namespace) -> int:
             return run_lit(a)
         case "reuse":
             return run_reuse(a)
+        case "research" if a.sub == "search":
+            query = " ".join(a.words)
+            pool = research.units(
+                root() / config.get().research_dir, state_dir("lit") / "fulltext", root(), scratch=a.scratch
+            )
+            hits = research.search_cached(pool, query, a.n, state_dir("research-search") / "lengths.json")
+            print(research.render(hits, query))
         case "research":
             path = root() / config.get().research_dir / f"{a.slug}.md"
             if path.exists():
