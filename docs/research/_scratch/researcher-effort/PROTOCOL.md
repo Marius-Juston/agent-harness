@@ -72,7 +72,7 @@ point rule decides, and a winner whose bound is below -0.10 ships with a 30-run 
   and B alone. Per-run cap: twice stage 0's highest run cost in that arm.
 
 ## Amendments
-- **2026-11-20, after stage 0 (scoring only, no change to arms, tasks, metrics or the decision rule).**
+- **2026-11-20, after stage 0 (scoring, plus a proposed stage-1 environment change in item 4; no change to arms, tasks, metrics or the decision rule).**
   1. Budget: the owner now gives $25 for #262 and #590 together, instead of $15 for this issue. Stage 0 spent
      $2.6603 (ledger). The three $0.0 ledger rows of 04:17Z are a first attempt the API refused with 401; nothing ran.
   2. `scripts/summarize.py` read only the last `result` event. A main thread that waits on background agents (arm C)
@@ -83,7 +83,8 @@ point rule decides, and a winner whose bound is below -0.10 ships with a 30-run 
      to the Opus `modelUsage` figures. Cost, `by_model` and gold recall did not change.
   3. Added, not deciding: `scripts/score_pilot.py` (gold-work overlap across arms; share of 25+ character quotes found
      verbatim in a tool result the trial saw) and `scripts/pilot_arith.py` (cost by token kind, ratios, re-priced
-     stage 1, power of budget-sized designs). Quote grounding is not §4's accuracy and does not replace the auditor.
+     stage 1, power of budget-sized designs) and `scripts/count_refetch.py` (arm C: helper calls, the Opus thread's
+     fetches and how many a scout had opened). Quote grounding is not §4's accuracy and does not replace the auditor.
      Each arm's `pilot/<arm>/scripts/` holds the check script that trial wrote (copied from the clone, one blank line
      added by `ruff format` in B's); none of them ran in the trial.
   4. Proposed for stage 1, in force only once the owner approves stage 1: the trial clone carries no history (the

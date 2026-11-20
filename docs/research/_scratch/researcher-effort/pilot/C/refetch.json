@@ -1,0 +1,37 @@
+{
+ "C": {
+  "agent_calls": 2,
+  "helper_tool_calls": 23,
+  "helper_fetches": 9,
+  "helper_targets": [
+   "arxiv:2203.04374",
+   "arxiv:2508.21634",
+   "arxiv:2511.04427",
+   "arxiv:2601.13597",
+   "arxiv:2601.21276",
+   "arxiv:2603.28592",
+   "arxiv:2609.04208",
+   "gitclear.com/ai_assistant_code_quality_2025_research"
+  ],
+  "main_fetches": 9,
+  "main_fetches_by_kind": {
+   "abstract": 7,
+   "page": 2
+  },
+  "main_targets": [
+   "arxiv:2203.04374",
+   "arxiv:2511.04427",
+   "arxiv:2601.13597",
+   "arxiv:2603.28592",
+   "arxiv:2601.21276",
+   "arxiv:2511.04824",
+   "arxiv:2508.21634",
+   "arxiv:2511.04427",
+   "gitclear.com/ai_assistant_code_quality_2025_research"
+  ],
+  "main_fetches_of_helper_targets": 8,
+  "main_new_targets": [
+   "arxiv:2511.04824"
+  ]
+ }
+}
