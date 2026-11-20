@@ -1,0 +1,45 @@
+{
+ "cost_usd": 0.6295,
+ "tokens": {
+  "input": 38,
+  "write_1h": 0,
+  "write_5m": 36269,
+  "read": 717118,
+  "output": 11742
+ },
+ "by_model": {
+  "claude-opus-5-5": {
+   "input": 38,
+   "cache_write": 36269,
+   "cache_read": 717118,
+   "output": 11742,
+   "cost_usd_reported": 0.5598,
+   "read_usd": 0.1434,
+   "output_usd": 0.2348
+  },
+  "claude-haiku-5-5": {
+   "input": 143519,
+   "cache_write": 0,
+   "cache_read": 0,
+   "output": 10690,
+   "cost_usd_reported": 0.0697,
+   "read_usd": 0.0,
+   "output_usd": 0.0053
+  }
+ },
+ "models": [
+  "claude-opus-5-5"
+ ],
+ "num_turns": 31,
+ "main_assistant_messages": 46,
+ "duration_s": 288,
+ "stop": "success",
+ "is_error": false,
+ "agent_calls": [],
+ "leaks": [],
+ "answer_chars": 9573,
+ "gold_works": 35,
+ "answer_works": 12,
+ "gold_recall": 0.2,
+ "claude_code_version": "2.1.329"
+}

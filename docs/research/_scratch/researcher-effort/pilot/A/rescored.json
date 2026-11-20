@@ -1,0 +1,57 @@
+{
+ "cost_usd": 1.0833,
+ "tokens": {
+  "input": 62,
+  "write_1h": 0,
+  "write_5m": 75610,
+  "read": 1531423,
+  "output": 16904
+ },
+ "by_model": {
+  "claude-opus-5-5": {
+   "input": 62,
+   "cache_write": 75610,
+   "cache_read": 1531423,
+   "output": 16904,
+   "cost_usd_reported": 1.0227,
+   "read_usd": 0.3063,
+   "output_usd": 0.3381
+  },
+  "claude-haiku-5-5": {
+   "input": 213914,
+   "cache_write": 0,
+   "cache_read": 0,
+   "output": 18513,
+   "cost_usd_reported": 0.0606,
+   "read_usd": 0.0,
+   "output_usd": 0.0093
+  }
+ },
+ "models": [
+  "claude-opus-5-5"
+ ],
+ "num_turns": 48,
+ "main_assistant_messages": 68,
+ "duration_s": 370,
+ "wall_s": 376,
+ "result_segments": 1,
+ "permission_denials": [
+  "Bash",
+  "mcp__arxiv__search_paper_text",
+  "mcp__arxiv__download_paper",
+  "Bash",
+  "Bash",
+  "Bash",
+  "Bash",
+  "Bash"
+ ],
+ "stop": "success",
+ "is_error": false,
+ "agent_calls": [],
+ "leaks": [],
+ "answer_chars": 13307,
+ "gold_works": 35,
+ "answer_works": 16,
+ "gold_recall": 0.257,
+ "claude_code_version": "2.1.329"
+}

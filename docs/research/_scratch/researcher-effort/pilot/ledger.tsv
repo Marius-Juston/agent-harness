@@ -1,0 +1,7 @@
+arm	question	cost_usd	when	note
+A	Q06	0.0	2026-11-20T04:17:05Z	failed attempt: API returned 401 (key not accepted), nothing ran, $0 billed
+B	Q06	0.0	2026-11-20T04:17:12Z	failed attempt: API returned 401 (key not accepted), nothing ran, $0 billed
+C	Q06	0.0	2026-11-20T04:17:19Z	failed attempt: API returned 401 (key not accepted), nothing ran, $0 billed
+A	Q06	1.0833	2026-11-20T19:49:47Z	stage 0 trial, owner-run
+B	Q06	0.6295	2026-11-20T19:54:51Z	stage 0 trial, owner-run
+C	Q06	0.9475	2026-11-20T19:57:34Z	stage 0 trial, owner-run

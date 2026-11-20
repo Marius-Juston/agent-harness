@@ -1,0 +1,41 @@
+per arm (n = 1 each, Q06): $ total, turns, wall s; priced by kind at [tool.devkit.prices]
+  A: $1.0833  turns 48  wall 376 s
+     claude-opus-5-5: input $0.0002  cache_write_5m $0.3780  cache_read $0.3063  output $0.3381  reported $1.0227
+     claude-haiku-5-5: input $0.0214  cache_write_5m $0.0000  cache_read $0.0000  output $0.0093  reported $0.0606
+  B: $0.6295  turns 31  wall 295 s
+     claude-opus-5-5: input $0.0002  cache_write_5m $0.1813  cache_read $0.1434  output $0.2348  reported $0.5598
+     claude-haiku-5-5: input $0.0144  cache_write_5m $0.0000  cache_read $0.0000  output $0.0053  reported $0.0697
+  C: $0.9475  turns 28  wall 158 s
+     claude-opus-5-5: input $0.0002  cache_write_5m $0.3007  cache_read $0.1524  output $0.2021  reported $0.6553
+     claude-sonnet-5-5: input $0.0000  cache_write_5m $0.1077  cache_read $0.0120  output $0.0893  reported $0.2091
+     claude-haiku-5-5: input $0.0172  cache_write_5m $0.0000  cache_read $0.0000  output $0.0059  reported $0.0832
+
+ratios: B/A 0.581  C/A 0.875  C/B 1.505
+Opus-only $: A 1.0227  B 0.5598  C 0.6553 (C's Opus / B's Opus 1.171)
+pilot total $2.6603; remaining of $25.00: $22.34
+
+stage 1 as pre-registered (10 q x 3 trials), re-priced at the pilot's per-run $ (one draw per arm):
+  auditor $0.93 (low): arms A, B, C $164; arms A, B $107
+  auditor $1.48 (high): arms A, B, C $213; arms A, B $140
+  per-run caps (PROTOCOL.md §6: 2x stage 0's run): A $2.17  B $1.26  C $1.90
+
+what fits the remaining budget, arms A and B, one audit per trial:
+  3 q x 1 trial: $10.72-14.02
+  5 q x 1 trial: $17.86-23.36
+  10 q x 1 trial: $35.73-46.73
+  audit the 3 pilot answers only: $2.79-4.44
+
+power of the 5-point point rule in budget-sized designs (power_and_cost.simulate, seed 262, 400 sims)
+  q  trials  p_base  true B-A | P(B kept)
+   3  1       0.75    +0.00    | 0.66
+   3  1       0.75    -0.10    | 0.31
+   3  1       0.85    +0.00    | 0.66
+   3  1       0.85    -0.10    | 0.36
+   5  1       0.75    +0.00    | 0.69
+   5  1       0.75    -0.10    | 0.29
+   5  1       0.85    +0.00    | 0.69
+   5  1       0.85    -0.10    | 0.32
+  10  3       0.75    +0.00    | 0.88
+  10  3       0.75    -0.10    | 0.10
+  10  3       0.85    +0.00    | 0.94
+  10  3       0.85    -0.10    | 0.10

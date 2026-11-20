@@ -70,3 +70,22 @@ point rule decides, and a winner whose bound is below -0.10 ships with a 30-run 
 - **Stage 1, full (needs an owner-approved budget).** Q01-Q10, three trials per arm, 90 researcher runs and 90
   audits: $339-535 at repo-E's per-run costs (VERIFIED arithmetic, `scripts/power_and_cost.py`), $226-357 for arms A
   and B alone. Per-run cap: twice stage 0's highest run cost in that arm.
+
+## Amendments
+- **2026-11-20, after stage 0 (scoring only, no change to arms, tasks, metrics or the decision rule).**
+  1. Budget: the owner now gives $25 for #262 and #590 together, instead of $15 for this issue. Stage 0 spent
+     $2.6603 (ledger). The three $0.0 ledger rows of 04:17Z are a first attempt the API refused with 401; nothing ran.
+  2. `scripts/summarize.py` read only the last `result` event. A main thread that waits on background agents (arm C)
+     emits one `result` per resume, with per-segment usage, turns and duration (cost and `modelUsage` are cumulative).
+     It now sums the segments and adds `wall_s` (first to last event timestamp), `result_segments` and
+     `permission_denials`. The run's own output stays in `pilot/<arm>/summary.json`; `rescored.json` is the amended
+     script on the same transcripts. Only arm C changed: turns 15 to 28, duration 84 s to 118 s, main-thread tokens
+     to the Opus `modelUsage` figures. Cost, `by_model` and gold recall did not change.
+  3. Added, not deciding: `scripts/score_pilot.py` (gold-work overlap across arms; share of 25+ character quotes found
+     verbatim in a tool result the trial saw) and `scripts/pilot_arith.py` (cost by token kind, ratios, re-priced
+     stage 1, power of budget-sized designs). Quote grounding is not §4's accuracy and does not replace the auditor.
+  4. Proposed for stage 1, in force only once the owner approves stage 1: the trial clone carries no history (the
+     default allowlist has `git log*` and `git show*`, so `git show HEAD~1:<hidden path>` would read the gold); the
+     allowlist adds `Bash(uv run python *)` and `Bash(python3 -I *)` (every arm's math-check script was denied) and the
+     arxiv tools the researcher called (`search_paper_text`, `download_paper`); per-run caps per §6 are A $2.17,
+     B $1.26, C $1.90. Filed as #655.

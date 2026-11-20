@@ -1,0 +1,68 @@
+{
+ "A": {
+  "gold_hits": [
+   "arxiv:1701.05472",
+   "arxiv:2203.04374",
+   "arxiv:2401.13407",
+   "arxiv:2511.04427",
+   "arxiv:2511.04824",
+   "arxiv:2603.28592",
+   "doi:10.1007/s10664-011-9195-3",
+   "doi:10.1109/tse.2014.2318734",
+   "doi:10.1145/1062455.1062514"
+  ],
+  "quotes": 35,
+  "grounded": 35,
+  "share": 1.0,
+  "not_found": []
+ },
+ "B": {
+  "gold_hits": [
+   "arxiv:1701.05472",
+   "arxiv:2203.04374",
+   "arxiv:2511.04427",
+   "arxiv:2511.04824",
+   "doi:10.1016/j.jss.2015.05.024",
+   "doi:10.1109/tse.2014.2318734",
+   "url:gitclear.com/ai_assistant_code_quality_2025_research"
+  ],
+  "quotes": 13,
+  "grounded": 13,
+  "share": 1.0,
+  "not_found": []
+ },
+ "C": {
+  "gold_hits": [
+   "arxiv:2203.04374",
+   "arxiv:2511.04427",
+   "arxiv:2511.04824",
+   "arxiv:2601.21276",
+   "arxiv:2603.28592",
+   "url:gitclear.com/ai_assistant_code_quality_2025_research"
+  ],
+  "quotes": 16,
+  "grounded": 15,
+  "share": 0.938,
+  "not_found": [
+   "explicitly target[] refactoring in 26.1% of commits"
+  ]
+ },
+ "overlap": {
+  "gold_works": 35,
+  "any_arm": 12,
+  "all_arms": 3,
+  "only": {
+   "A": [
+    "arxiv:2401.13407",
+    "doi:10.1007/s10664-011-9195-3",
+    "doi:10.1145/1062455.1062514"
+   ],
+   "B": [
+    "doi:10.1016/j.jss.2015.05.024"
+   ],
+   "C": [
+    "arxiv:2601.21276"
+   ]
+  }
+ }
+}
