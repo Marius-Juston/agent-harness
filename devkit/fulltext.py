@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
 MIN_WORDS = 1000  # fewer words is a landing page or an abstract, not a paper
-# A PDF is untrusted input: refused above PDF_MAX_BYTES, parsed in a child process killed after PDF_SECONDS, and only
+# A PDF is untrusted input: refused above PDF_MAX_BYTES, parsed in a subprocess killed after PDF_SECONDS, and only
 # its first MAX_PAGES pages are read. A refusal or a kill counts as no full text.
 PDF_MAX_BYTES = 50_000_000
 PDF_SECONDS = 30.0
@@ -233,7 +233,7 @@ PDF_HEAD = re.compile(
 def from_pdf(data: bytes, url: str, seconds: float = PDF_SECONDS) -> FullText | None:
     """Sections of a PDF by heading-looking lines (numbered titles, Abstract, References ...): approximate, so
     cite-check reports a quote outside the located section of a PDF as a note, not a problem. None when the PDF is
-    over PDF_MAX_BYTES, broken, or not parsed within `seconds` (pypdf runs in a child process that is then killed)."""
+    over PDF_MAX_BYTES, broken, or not parsed within `seconds` (pypdf runs in a subprocess that is then killed)."""
     if len(data) > PDF_MAX_BYTES:
         return None
     cmd = [sys.executable, "-I", "-m", "devkit.fulltext", str(MAX_PAGES)]
@@ -256,8 +256,8 @@ def from_pdf(data: bytes, url: str, seconds: float = PDF_SECONDS) -> FullText | 
 
 
 def _pdf_pages(data: bytes, max_pages: int) -> list[str]:
-    """The text of each of the first `max_pages` pages (the child process's work; pypdf also caps decompression)."""
-    import pypdf  # only the child process parses PDFs
+    """The text of each of the first `max_pages` pages (the subprocess's work; pypdf also caps decompression)."""
+    import pypdf  # only the subprocess parses PDFs
 
     reader = pypdf.PdfReader(io.BytesIO(data))
     return [(pg.extract_text() or "") for pg in reader.pages[:max_pages]]
