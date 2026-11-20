@@ -21,6 +21,7 @@ dependencies = [
     "diff-cover>=11.0.0",
     "pytest-timeout>=2.4",
     "pathspec>=1.1",
+    "ty==0.0.107",  # pre-1.0: pinned exactly, so a bump is a deliberate PR whose gate shows the new count
 ]
 
 [project.urls]
@@ -120,6 +121,11 @@ ignore = ["E501", "RUF001", "RUF002", "RUF003", "S603", "S607"]
 [tool.ruff.lint.per-file-ignores]
 # pytest asserts; fake tokens and seeded random generators are test fixtures, not secrets
 "**/tests/**" = ["S101", "S105", "S311"]
+
+# The gate's ty stage counts diagnostics against [types] max_diagnostics of .devkit/ratchets.toml. Research scratch is
+# frozen evidence, not code (#451): it is not type checked.
+[tool.ty.src]
+exclude = ["docs/research/_scratch/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

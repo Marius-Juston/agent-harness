@@ -3,6 +3,7 @@
 import ast
 import inspect
 import textwrap
+from collections.abc import Callable
 
 from hypothesis import given
 from hypothesis import strategies as st
@@ -16,7 +17,7 @@ CHECKS = {"refusal", "session_leaks", "title_problem", "closes_problem", "unfini
 WORDING = {"expected_title", "failed_check_lines", "_is_ancestor"}
 
 
-def called(fn: object, module: str | None = None) -> set[str]:
+def called(fn: Callable[..., object], module: str | None = None) -> set[str]:
     """The names `fn` calls (nested helpers included); with `module`, only `<module>.<name>(...)` calls."""
     tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
     out = set()
