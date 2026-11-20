@@ -11,7 +11,7 @@ import yaml
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from devkit import cli, evals
+from devkit import cli, evals, lit, research_eval
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -338,3 +338,215 @@ def test_cli_parses_the_arm_flags_and_compare():
     assert a.compare == ["A", "B"] and a.margin == 0.1
     with pytest.raises(SystemExit):
         cli.build().parse_args(["eval", "--effort", "huge"])
+
+
+# --- research eval (#590): known-answer recall of search and snowball, sampled claim audit ----------------------------
+
+
+def _oa(works: list[tuple[str, str]]) -> str:
+    """An OpenAlex list answer of (W-id, title) works."""
+    rows = [
+        {
+            "id": f"https://openalex.org/{w}",
+            "doi": f"https://doi.org/10.1/{w.lower()}",
+            "title": t,
+            "publication_year": 2020,
+        }
+        for w, t in works
+    ]
+    return json.dumps({"results": rows, "meta": {"count": len(rows)}})
+
+
+class FakeWeb:
+    """OpenAlex only: a search ranks gold work 1 first and gold work 2 at rank 15 among fillers; refs of any seed list
+    gold work 3; every other source is down. Counts calls, so a replay can show it made none."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self, url: str, headers: dict) -> tuple[int, dict, str]:
+        self.calls += 1
+        if "api.openalex.org" not in url:
+            return 404, {}, ""
+        if m := re.search(r"search=q(\d)", url):
+            q = m.group(1)
+            fill = [(f"W{q}9{i:02d}", f"filler paper {q} {i}") for i in range(20)]
+            return 200, {}, _oa([(f"W{q}01", f"gold one {q}"), *fill[:13], (f"W{q}02", f"gold two {q}"), *fill[13:18]])
+        if m := re.search(r"filter=cited_by:W(\d)", url):
+            return 200, {}, _oa([(f"W{m.group(1)}03", f"gold three {m.group(1)}")])
+        return 200, {}, _oa([])
+
+
+def _question_set(tmp: Path, n: int = 6) -> tuple[Path, Path]:
+    spec, base = tmp / "set", tmp / "repo"
+    spec.mkdir()
+    (base / "notes").mkdir(parents=True)
+    qs, gold = [], {}
+    for q in range(1, n + 1):
+        qs.append({"id": f"Q{q}", "note": f"notes/n{q}.md", "queries": [f"q{q} alpha", f"q{q} beta"]})
+        gold[f"Q{q}"] = [
+            {"key": f"g{k}", "title": f"gold {w} {q}", "ids": {"openalex": f"W{q}0{k}", "doi": ""}}
+            for k, w in ((1, "one"), (2, "two"), (3, "three"))
+        ]
+        (base / "notes" / f"n{q}.md").write_text(
+            f"# Note {q}\n- Claim a [s](https://example.org/a{q}).\n- Claim b [s](https://example.org/b{q}).\n"
+            "- no link here\n## Sources\n- [s](https://example.org/listed)\n"
+        )
+    (spec / "questions.yaml").write_text(yaml.safe_dump({"questions": qs}))
+    (spec / "gold.json").write_text(json.dumps(gold))
+    return spec, base
+
+
+def _auditor(verdicts: list[str]):
+    """A stand-in for `claude -p`: each call answers the next verdict with a fixed bill."""
+    it = iter(verdicts)
+
+    def runner(cmd, **kw):
+        assert cmd[:2] == ["claude", "-p"] and "--allowedTools" in cmd
+        lines = [
+            json.dumps({"type": "system", "subtype": "init", "model": "claude-sonnet-5"}),
+            json.dumps(
+                {
+                    "type": "result",
+                    "result": f"Checked.\nVERDICT: {next(it)}",
+                    "total_cost_usd": 0.05,
+                    "usage": {"input_tokens": 100, "output_tokens": 50, "cache_read_input_tokens": 850},
+                }
+            ),
+        ]
+        return subprocess.CompletedProcess(cmd, 0, "\n".join(lines), "")
+
+    return runner
+
+
+def _run_research(tmp_path, web, runner, label, **kw):
+    if not (tmp_path / "set").exists():
+        _question_set(tmp_path)
+    clock = iter(range(1_000, 10**9, 7))
+    return research_eval.run(
+        label,
+        spec_dir=tmp_path / "set",
+        base=tmp_path / "repo",
+        state=tmp_path / "state",
+        get=web,
+        clock=lambda: next(clock),
+        sleep=lambda s: None,
+        runner=runner,
+        commit="c0ffee0",
+        **kw,
+    )
+
+
+def test_research_eval_fake_run_records_recall_claim_support_and_tokens_per_question(tmp_path, capsys):
+    """DONE WHEN 1: six questions, recall@20, the audited share supported and tokens per question, in a record."""
+    assert _run_research(tmp_path, FakeWeb(), _auditor(["supported", "partly"] * 6), "base", n_claims=2) == 0
+    rec = research_eval.load_record("base", tmp_path / "state")
+    assert len(rec["questions"]) == 6
+    for row in rec["questions"].values():
+        assert (row["recall@10"], row["recall@20"], row["snowball"]) == (0.3333, 0.6667, 1.0)
+        assert row["supported"] == 0.5 and row["audit_tokens"] == 2 * 1000 and row["read_tokens"] > 0
+        assert all("listed" not in a["claim"] for a in row["audits"])  # the Sources list is not a claim
+    assert rec["summary"]["recall@20"] == 0.6667 and rec["summary"]["judged"] == 12
+    assert rec["audit"]["cost_usd"] == 0.6 and rec["arm"]["commit"] == "c0ffee0"
+    assert "mean recall@20 0.667" in capsys.readouterr().out
+
+
+def test_research_eval_replays_its_cassette_so_a_rerun_makes_no_call_and_a_change_shows_in_compare(
+    tmp_path, monkeypatch, capsys
+):
+    """A later run reads the recorded answers (no HTTP), so only the code under test differs, and --compare shows it."""
+    web = FakeWeb()
+    assert _run_research(tmp_path, web, None, "before", n_claims=0) == 0
+    first = web.calls
+    assert first > 0
+    monkeypatch.setattr(research_eval, "SEEDS", 0)  # a "research change": no snowball hop
+    assert _run_research(tmp_path, web, None, "after", n_claims=0) == 0
+    assert web.calls == first  # every answer replayed
+    capsys.readouterr()
+    assert research_eval.run_compare("before", "after", tmp_path / "state") == 0
+    out = capsys.readouterr().out
+    assert re.search(r"snowball\s+-0\.333\s+\[-0\.333, -0\.333\]\s+n=6", out), out
+    assert re.search(r"recall@20\s+\+0\.000", out) and "supported      n/a" in out
+    assert research_eval.run_compare("before", "nope", tmp_path / "state") == 1
+
+
+def test_research_eval_offline_fetches_nothing_and_counts_what_it_missed(tmp_path):
+    def no_net(url, headers):
+        raise AssertionError("offline run made a call")
+
+    assert _run_research(tmp_path, no_net, None, "off", n_claims=0, offline=True) == 0
+    rec = research_eval.load_record("off", tmp_path / "state")
+    assert rec["calls"]["missing"] > 0 and rec["calls"]["live"] == 0 and rec["summary"]["recall@20"] == 0.0
+
+
+def test_research_eval_stops_auditing_at_the_spend_cap(tmp_path, capsys):
+    assert _run_research(tmp_path, FakeWeb(), _auditor(["supported"] * 12), "cap", n_claims=2, max_usd=0.12) == 0
+    rec = research_eval.load_record("cap", tmp_path / "state")
+    assert rec["audit"] == {"cost_usd": 0.15, "skipped_over_cap": 9}
+    assert "auditor stopped at $0.15" in capsys.readouterr().out
+
+
+def test_research_eval_matcher_takes_ids_case_and_version_free_then_titles_and_link_texts():
+    gold = [
+        {
+            "key": "g0",
+            "title": "A long enough title about refactoring at scale",
+            "ids": {"doi": "10.1/AB", "arxiv": ""},
+        },
+        {"key": "g1", "title": "Short", "ids": {"arxiv": "2401.00001"}, "alt": ["The link text the note used"]},
+    ]
+    m = research_eval.Matcher(gold)
+    assert m.match(lit.Paper("x", ids={"doi": "10.1/ab"})) == "g0"
+    assert m.match(lit.Paper("x", ids={"arxiv": "2401.00001v3"})) == "g1"
+    assert m.match(lit.Paper("A long enough title about refactoring at scale: extended", ids={})) == "g0"
+    assert m.match(lit.Paper("the link text the note used", ids={"doi": "10.9/zz"})) == "g1"
+    assert m.match(lit.Paper("Short story", ids={})) is None
+
+
+@given(st.lists(st.text(alphabet="abc ", min_size=1, max_size=5), max_size=12), st.integers(0, 6))
+@settings(max_examples=50, deadline=None)
+def test_claim_sample_is_seeded_bounded_and_drawn_from_linked_lines(words, k):
+    text = "\n".join(f"- {w} [s](https://e.org/{i})" for i, w in enumerate(words)) + "\n- plain\n"
+    a = research_eval.sample_claims(text, k, "Q1")
+    assert a == research_eval.sample_claims(text, k, "Q1") and len(a) == min(k, len(words))
+    assert set(a) <= set(research_eval.claims(text)) and all("](https://" in c for c in a)
+
+
+@given(
+    st.lists(st.lists(st.tuples(st.sampled_from("abcdef"), st.booleans()), max_size=6), max_size=4),
+    st.integers(0, 7),
+)
+def test_snowball_seeds_are_distinct_openalex_works_in_round_robin_order_and_at_most_k(lists, k):
+    """Regression: k = 0 once returned every distinct paper instead of none."""
+    papers = [[lit.Paper(t, ids={"openalex": f"W{t}"} if oa else {}) for t, oa in lst] for lst in lists]
+    got = research_eval.seeds(papers, k)
+    order = list(dict.fromkeys(lst[i].title for i in range(6) for lst in papers if i < len(lst) and lst[i].ids))
+    assert [p.title for p in got] == order[:k]
+
+
+def test_auditor_verdict_is_the_last_verdict_line():
+    assert research_eval.verdict("VERDICT: partly\n...\nVERDICT: **Supported**") == "supported"
+    assert research_eval.verdict("no verdict") == "none"
+
+
+def test_the_research_question_set_has_six_questions_with_queries_notes_and_gold():
+    questions, gold = research_eval.load_set(ROOT / "evals" / "research")
+    assert len(questions) >= 6
+    for q in questions:
+        assert len(q["queries"]) == 8 and (ROOT / q["note"]).is_file() and (ROOT / q["question"]).is_file()
+        assert len(gold[q["id"]]) >= 3 and all(g["key"] and g["title"] for g in gold[q["id"]])
+
+
+def test_cli_parses_eval_research_and_routes_its_compare_to_research_records(capsys):
+    a = cli.build().parse_args(["eval", "research", "--claims", "1", "--offline", "--label", "x", "--max-usd", "2"])
+    assert (a.names, a.claims, a.offline, a.label, a.max_usd, a.source, a.notes) == (
+        ["research"],
+        1,
+        True,
+        "x",
+        2.0,
+        "auto",
+        "",
+    )
+    assert cli.run(cli.build().parse_args(["eval", "research", "--compare", "no-such-a", "no-such-b"])) == 1
+    assert "no research eval record 'no-such-a'" in capsys.readouterr().out

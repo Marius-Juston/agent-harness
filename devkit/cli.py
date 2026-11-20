@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from datetime import date
 from importlib import metadata
 from pathlib import Path
@@ -28,6 +29,7 @@ from devkit import (
     mutants,
     prtext,
     quota,
+    research_eval,
     reuse,
     rules,
     setup,
@@ -116,13 +118,14 @@ class Parser(argparse.ArgumentParser):
         return ""
 
     def error(self, message):
-        formatter = self.formatter_class(prog=self.prog, width=10_000)  # unwrapped: one line however many options
+        make: Callable[..., argparse.HelpFormatter] = self.formatter_class
+        formatter = make(prog=self.prog, width=10_000)  # unwrapped: one line however many options
         formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
         hint = "" if "\ndid you mean" in message else self.hint()
         self.exit(2, f"{formatter.format_help()}{self.prog}: error: {message}\n" + (f"{hint}\n" if hint else ""))
 
 
-def build() -> argparse.ArgumentParser:
+def build() -> Parser:
     p = Parser(prog="dev", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
@@ -147,7 +150,7 @@ def build() -> argparse.ArgumentParser:
     s.add_argument("-n", type=int, default=None)
     sub.add_parser("docs", help="regenerate the generated references and the research INDEX.md")
 
-    c = sub.add_parser("code", help="navigate by symbol: outline | show | refs | find (capped output)")
+    c = sub.add_parser("code", help="navigate by symbol: outline | show | refs | find | search (capped output)")
     cs = c.add_subparsers(dest="sub", required=True)
     x = cs.add_parser("outline", help="signatures / headings of a file")
     x.add_argument("path")
@@ -160,6 +163,10 @@ def build() -> argparse.ArgumentParser:
     x = cs.add_parser("find", help="regex search, capped per file")
     x.add_argument("pattern")
     x.add_argument("--notes", action="store_true", help="search docs/ only")
+    x = cs.add_parser("search", help="the functions a task description most likely means (BM25), one line each")
+    x.add_argument("words", nargs="+", help="what the code does, in a few words")
+    x.add_argument("-n", type=int, default=code.SEARCH_N, help="cards to print (default 5)")
+    x.add_argument("--tests", action="store_true", help="rank test and eval code too")
     x.add_argument("-i", action="store_true", dest="ignore_case")
 
     b = sub.add_parser(
@@ -259,7 +266,9 @@ def build() -> argparse.ArgumentParser:
     )
     x.add_argument("--dry-run", action="store_true")
     x.add_argument(
-        "--override", metavar="REASON", help="merge despite unfinished PR feedback; the reason is logged on the PR"
+        "--override",
+        metavar="REASON",
+        help="merge despite unfinished PR feedback (with --train: every member); the reason is logged on each PR",
     )
     x.add_argument(
         "--local-ci",
@@ -393,8 +402,19 @@ def build() -> argparse.ArgumentParser:
     )
     x.add_argument("pct", nargs="?", help="new cap percent, 0-100")
     x.add_argument("--clear", action="store_true", help="drop the override: back to [tool.devkit] quota_cap")
+    x = sub.add_parser(
+        "gate-slots",
+        help="how many gates run at once here, and the source; owner only: `! uv run dev gate-slots <n>` sets a "
+        "machine-local override (never committed), --clear drops it",
+    )
+    x.add_argument("n", nargs="?", help="gates at once on this machine, 1-256")
+    x.add_argument("--clear", action="store_true", help="drop the override: back to [tool.devkit] gate_slots")
     x = sub.add_parser("eval", help="micro-scenario evals of the agent surface via claude -p in a remote-less clone")
-    x.add_argument("names", nargs="*", help="scenario names (default: all in the evals dir)")
+    x.add_argument(
+        "names",
+        nargs="*",
+        help="scenario names (default: all in the evals dir), or `research` alone for the research eval (#590)",
+    )
     x.add_argument("--trials", type=int, default=3)
     x.add_argument(
         "--model", default="", help="run every trial on this model; a trial whose transcript shows another fails"
@@ -406,6 +426,11 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("--label", default="", help="name this run's record so --compare can find it")
     x.add_argument("--compare", nargs=2, metavar=("A", "B"), help="paired B-A deltas of two run records, no trials run")
     x.add_argument("--margin", type=float, default=0.05, help="non-inferiority margin of --compare (pass rate)")
+    x.add_argument("--claims", type=int, default=2, help="eval research: claims audited per question (0 = no agent)")
+    x.add_argument("--source", default="auto", help="eval research: `dev lit search --source` of the search arm")
+    x.add_argument("--offline", action="store_true", help="eval research: replay only, never fetch")
+    x.add_argument("--notes", default="", help="eval research: audit the same-named notes in this dir instead")
+    x.add_argument("--max-usd", type=float, default=5.0, help="eval research: stop auditing at this spend")
     x = sub.add_parser(
         "consolidation", help="architecture review: is one due (orient shows it), and the report the architect reads"
     )
@@ -564,6 +589,7 @@ def run(a: argparse.Namespace) -> int:
                     "show": lambda: code.show(a.symbol, a.path, a.full),
                     "refs": lambda: code.refs(a.symbol),
                     "find": lambda: code.find(a.pattern, a.notes, a.ignore_case),
+                    "search": lambda: code.search(" ".join(a.words), a.n, a.tests),
                 }[a.sub]()
             )
         case "board":
@@ -576,11 +602,14 @@ def run(a: argparse.Namespace) -> int:
             return fixloop.why(a.pr)
         case "integrate" if a.train is not None or a.more:
             members = [a.pr, *a.more]
-            if a.train != len(members) or a.override or a.consolidation_review:
+            if a.train != len(members) or a.consolidation_review:
                 print(
                     f"integrate --train N takes exactly N PRs (got --train {a.train} and {len(members)}), "
-                    "and neither --override nor --consolidation-review"
+                    "and no --consolidation-review"
                 )
+                return 2
+            if a.override is not None and not a.override.strip():
+                print("integrate --train: --override needs a reason")
                 return 2
             if len(set(members)) != len(members):
                 print(f"integrate --train: a PR is named twice: {' '.join(map(str, members))}")
@@ -591,7 +620,7 @@ def run(a: argparse.Namespace) -> int:
             if stray := sorted(set(a.harness_ok or []) - set(members)):
                 print(f"integrate --train: --harness-ok names {', '.join(map(str, stray))}, not in the train")
                 return 2
-            return train.train(members, set(a.harness_ok or []), a.dry_run, a.local_ci)
+            return train.train(members, set(a.harness_ok or []), a.dry_run, a.local_ci, a.override)
         case "integrate":
             if stray := sorted(set(a.harness_ok or []) - {a.pr}):
                 print(f"integrate: --harness-ok names {', '.join(map(str, stray))}, not PR {a.pr}")
@@ -632,11 +661,17 @@ def run(a: argparse.Namespace) -> int:
             return quota.usage_poll(once=a.once)
         case "quota-cap":
             return run_quota_cap(a)
+        case "gate-slots":
+            return run_gate_slots(a)
         case "suite-audit":
             return run_suite_audit(a)
         case "mutants":
             return mutants.run(a.base, a.rev, None if a.all else mutants.SHOWN)
         case "eval":
+            if a.names == ["research"]:  # #590: the research eval, not a scenario
+                if a.compare:
+                    return research_eval.run_compare(*a.compare)
+                return research_eval.run(a.label, a.claims, a.model, a.source, a.offline, a.notes, a.max_usd)
             if a.compare:
                 return evals.run_compare(*a.compare, a.margin)
             return evals.run(a.names, a.trials, a.model, a.effort, a.agent, a.label)
@@ -650,19 +685,44 @@ def run(a: argparse.Namespace) -> int:
 
 
 def run_quota_cap(a: argparse.Namespace) -> int:
-    if a.pct is not None and a.clear:
-        print("error: give a percent or --clear, not both", file=sys.stderr)
+    return run_override(
+        a.pct, a.clear, "a percent", config.parse_cap, quota.set_quota_cap, quota.quota_cap, quota.CAP_SOURCES,
+        "quota cap {}%",
+    )  # fmt: skip
+
+
+def run_gate_slots(a: argparse.Namespace) -> int:
+    return run_override(
+        a.n, a.clear, "a slot count", config.parse_slots, gate.set_gate_slots, gate.slots_setting, gate.SLOTS_SOURCES,
+        "gate slots {}",
+    )  # fmt: skip
+
+
+def run_override(
+    value: str | None,
+    clear: bool,
+    what: str,
+    parse: Callable[[str], int],
+    write: Callable[[int | None], Path],
+    read: Callable[[], tuple[int, str]],
+    sources: dict[str, str],
+    shown: str,
+) -> int:
+    """An owner-only machine-local override (`dev quota-cap`, `dev gate-slots`): set it to `value`, drop it with
+    `clear`, then print the effective value (`shown`) and its source."""
+    if value is not None and clear:
+        print(f"error: give {what} or --clear, not both", file=sys.stderr)
         return 1
-    if a.pct is not None:
+    if value is not None:
         try:
-            quota.set_quota_cap(config.parse_cap(a.pct))
+            write(parse(value))
         except ValueError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
-    elif a.clear:
-        quota.set_quota_cap(None)
-    cap, source = quota.quota_cap()
-    print(f"quota cap {cap}% ({quota.CAP_SOURCES[source]})")
+    elif clear:
+        write(None)
+    n, source = read()
+    print(f"{shown.format(n)} ({sources[source]})")
     return 0
 
 

@@ -2,6 +2,7 @@
 one HTTP GET and one atomic file write that citecheck and lit share (#139)."""
 
 import contextlib
+import http.client
 import os
 import re
 import tempfile
@@ -67,7 +68,7 @@ def http_get_bytes(
             return r.status, dict(r.headers), r.read(cap)
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers or {}), b""
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
+    except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException) as e:  # a cut body too
         return 0, {}, str(e).encode()
 
 
