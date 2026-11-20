@@ -14,6 +14,7 @@ from copier import run_copy, run_update
 
 from devkit import checks, config, frontmatter
 from devkit.paths import root
+from tests.test_config import as_ci_run, ci_check_commands
 
 ROOT = root()
 
@@ -77,6 +78,14 @@ def test_the_project_pins_the_devkit_and_the_plugin_to_this_release(rendered):
     assert settings["enabledPlugins"]["harness-ops@agent-harness"] is True
     source = settings["extraKnownMarketplaces"]["agent-harness"]["source"]
     assert source == {"source": "github", "repo": "Marius-Juston/agent-harness", "ref": tag}
+
+
+def test_the_local_check_runs_what_the_gate_workflow_runs(rendered):
+    """#544: `dev integrate --local-ci` stands in for the gate workflow's `check` job with `local_ci.check`."""
+    local = config.parse(tomllib.loads((rendered / "pyproject.toml").read_text())["tool"]["devkit"]).local_ci
+    ci = ci_check_commands((rendered / ".github/workflows/gate.yml").read_text())
+    assert [as_ci_run(argv) for argv in local["check"]] == ci
+    assert any("gitleaks-history" in c for c in ci) and any(c.startswith("uv audit") for c in ci)
 
 
 def test_the_answers_file_supports_copier_update(rendered):
