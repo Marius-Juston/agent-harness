@@ -503,14 +503,7 @@ SLOTS_SOURCES = {
 def slots_setting() -> tuple[int, str]:
     """(gate slots, "local" | "pyproject"): this machine's override from `dev gate-slots` when it is valid (#523), else
     `[tool.devkit] gate_slots` (#461). A corrupt or unreadable override falls back with a warning, never an error."""
-    f = state_dir() / SLOTS_FILE
-    try:
-        return config.parse_slots(f.read_text(errors="replace")), "local"
-    except FileNotFoundError:
-        pass
-    except (OSError, ValueError) as exc:
-        print(f"warning: ignoring {f} ({exc}); using [tool.devkit] gate_slots", file=sys.stderr)
-    return config.get().gate_slots, "pyproject"
+    return config.local_override(state_dir() / SLOTS_FILE, config.parse_slots, "gate_slots")
 
 
 def gate_slots() -> int:

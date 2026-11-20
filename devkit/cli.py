@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from datetime import date
 from importlib import metadata
 from pathlib import Path
@@ -565,36 +566,44 @@ def run(a: argparse.Namespace) -> int:
 
 
 def run_quota_cap(a: argparse.Namespace) -> int:
-    if a.pct is not None and a.clear:
-        print("error: give a percent or --clear, not both", file=sys.stderr)
-        return 1
-    if a.pct is not None:
-        try:
-            quota.set_quota_cap(config.parse_cap(a.pct))
-        except ValueError as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            return 1
-    elif a.clear:
-        quota.set_quota_cap(None)
-    cap, source = quota.quota_cap()
-    print(f"quota cap {cap}% ({quota.CAP_SOURCES[source]})")
-    return 0
+    return run_override(
+        a.pct, a.clear, "a percent", config.parse_cap, quota.set_quota_cap, quota.quota_cap, quota.CAP_SOURCES,
+        "quota cap {}%",
+    )  # fmt: skip
 
 
 def run_gate_slots(a: argparse.Namespace) -> int:
-    if a.n is not None and a.clear:
-        print("error: give a slot count or --clear, not both", file=sys.stderr)
+    return run_override(
+        a.n, a.clear, "a slot count", config.parse_slots, gate.set_gate_slots, gate.slots_setting, gate.SLOTS_SOURCES,
+        "gate slots {}",
+    )  # fmt: skip
+
+
+def run_override(
+    value: str | None,
+    clear: bool,
+    what: str,
+    parse: Callable[[str], int],
+    write: Callable[[int | None], Path],
+    read: Callable[[], tuple[int, str]],
+    sources: dict[str, str],
+    shown: str,
+) -> int:
+    """An owner-only machine-local override (`dev quota-cap`, `dev gate-slots`): set it to `value`, drop it with
+    `clear`, then print the effective value (`shown`) and its source."""
+    if value is not None and clear:
+        print(f"error: give {what} or --clear, not both", file=sys.stderr)
         return 1
-    if a.n is not None:
+    if value is not None:
         try:
-            gate.set_gate_slots(config.parse_slots(a.n))
+            write(parse(value))
         except ValueError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
-    elif a.clear:
-        gate.set_gate_slots(None)
-    n, source = gate.slots_setting()
-    print(f"gate slots {n} ({gate.SLOTS_SOURCES[source]})")
+    elif clear:
+        write(None)
+    n, source = read()
+    print(f"{shown.format(n)} ({sources[source]})")
     return 0
 
 
