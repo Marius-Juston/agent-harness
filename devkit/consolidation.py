@@ -132,6 +132,12 @@ def is_test(path: str) -> bool:
     return bool(TEST_RE.search(path))
 
 
+def is_code(path: str, exclude: list[str]) -> bool:
+    """A file of a counted language outside the excluded globs (and the built-in EXCLUDE)."""
+    ext = os.path.splitext(path)[1].lower()
+    return ext in COMMENT and not any(fnmatch.fnmatch(path, g) for g in EXCLUDE + exclude)
+
+
 def code_files(repo: Path, rev: str, exclude: list[str]) -> list[tuple[str, str]]:
     """(blob sha, path) of tracked code files at ``rev``, symlinks and excluded globs left out."""
     out = []
@@ -140,9 +146,7 @@ def code_files(repo: Path, rev: str, exclude: list[str]) -> list[tuple[str, str]
             continue
         meta, path = entry.split("\t", 1)
         mode, typ, sha = meta.split()
-        if typ != "blob" or mode == "120000" or os.path.splitext(path)[1].lower() not in COMMENT:
-            continue
-        if not any(fnmatch.fnmatch(path, g) for g in EXCLUDE + exclude):
+        if typ == "blob" and mode != "120000" and is_code(path, exclude):
             out.append((sha, path))
     return out
 
