@@ -32,8 +32,8 @@ class FakeGitHub:
     """`gh` for releases over the origin's tags: `drop[i]` = (kind, stderr) fails the i-th gh call as a dropped
     connection, before ("before") or after ("after") GitHub acted; `refuse[i]` fails it plainly."""
 
-    def __init__(self, origin: Path) -> None:
-        self.origin = origin
+    def __init__(self, origin: Path, clone: Path) -> None:
+        self.origin, self.clone = origin, clone
         self.calls: list[list[str]] = []
         self.releases: dict[str, dict] = {}
         self.drop: dict[int, tuple[str, str]] = {}
@@ -85,12 +85,11 @@ def world(tmp_path, monkeypatch):
     sh(clone, "git", "config", "user.name", "t")
     commit(clone, {**release_files("0.1.18"), "CHANGELOG.md": changelog("0.1.18")}, "chore(release): v0.1.18")
     sh(clone, "git", "push", "-q", "origin", "main")
-    gh = FakeGitHub(origin)
+    gh = FakeGitHub(origin, clone)
     monkeypatch.setattr(board.subprocess, "run", gh.run)
     monkeypatch.setattr(board, "root", lambda: clone)
     monkeypatch.setattr(board, "GH_SLEEP", lambda s: None)
     monkeypatch.setattr(board, "GH_RNG", random.Random(7))
-    gh.clone = clone
     return gh
 
 
