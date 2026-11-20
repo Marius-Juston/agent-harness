@@ -22,8 +22,7 @@ rounds.
 
 ## 1. A round
 0. **Check discovery.** `uv run dev lit search` prints a `discovery` line first. A researcher whose line says DEGRADED
-   (OpenAlex and Semantic Scholar both down; one is enough) stops and reports; re-dispatch only once
-   `uv run dev lit status` reports OK. Fallbacks miss papers. The worst line is `Search coverage:`.
+   stops and reports; re-dispatch only once `uv run dev lit status` reports OK. Fallbacks miss papers. The worst line is `Search coverage:`.
 1. **Decompose** what is still open into sub-questions that do not overlap and together cover it, one per
    researcher. Split by mechanism, evidence base, prior art, tools (`uv run dev reuse check`), and risks or counter-evidence.
    One researcher argues *against* the leading answer; the contrarian is one of them.
@@ -31,12 +30,14 @@ rounds.
    background).
    Each prompt names: the sub-question, what is already known (file paths, not pasted text), the scratch file to
    write (`docs/research/_scratch/<slug>/r<round>-<topic>.md`), and "round mode". A researcher hands back only once
-   `uv run dev cite-check` passes on that file.
-3. **Gap pass.** When all have returned, read their hand-backs, not the files. Write
+   `uv run dev cite-check` passes on that file, which needs an `against:` line (query and result) per
+   recommendation-driving claim.
+3. **Gap pass.** Once all return, read their hand-backs, not the files. Write
    `_scratch/<slug>/gaps-r<round>.md`, headed `findings that changed the recommendation: N, new primary sources: M`,
    with: those findings, contradictions between researchers, claims resting on one weak source or tagged
-   `single-source`, and questions nobody answered. Snowball the key papers
-   (`uv run dev lit refs <id>`, `uv run dev lit cited-by <id>`); new papers go to the next round.
+   `single-source`, and questions nobody answered. Snowball the accepted papers together
+   (`uv run dev lit snowball <accepted ids>`; one paper: `uv run dev lit refs <id>`, `uv run dev lit cited-by <id>`);
+   new papers go to the next round.
 4. **Stop or loop.** Run another round only on the gaps, never the whole question again. Past the default rounds,
    run one more only if the last round's N > 0, and only once. Stop when that round limit is reached, on saturation
    (N is 0), or when the quota cap is near (spawn_guard refuses). Record the stop reason in the gaps file.
@@ -53,10 +54,10 @@ stated as such.
   runs, told it is the last round, so its Blocking findings mean 'reconsider'. On 'reconsider', the researcher drops
   failed claims or relabels them BELIEVED, rewrites the Recommendation without them and lists them in the note's
   open-issues section; the lead asks the owner before integrating a changed Recommendation.
-- The synthesis researcher opens the PR (`uv run dev pr <n>`). The lead integrates it.
-- The scratch folder stays in git as the audit trail. It merges with the union driver.
+- The synthesis researcher opens the PR (`uv run dev pr <n>`).
+- The scratch folder stays in git (union-merged) as the audit trail.
 
 ## Cheap alternative
-For a quick narrative answer that does not drive a decision, one `harness-ops:researcher` in issue mode is enough. Anthropic's
+For a quick narrative answer that drives no decision, one `harness-ops:researcher` in issue mode is enough. Anthropic's
 `deep-research` skill's report is not house style: cite-check it and fold it into a note before anything depends
 on it.

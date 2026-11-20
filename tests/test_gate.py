@@ -1342,7 +1342,8 @@ def test_a_dry_run_conflict_comments_and_blocks_nothing(fake_integrate, capsys):
 
 
 def test_a_pr_behind_main_is_updated_then_merged_at_the_gated_tip(fake_integrate, capsys):
-    """#38: when the merged tree is not the head, integrate pushes it to the PR branch, then merges exactly it."""
+    """#38: when the merged tree is not the head, integrate pushes it to the PR branch, then merges exactly it. #541:
+    the push comes before the gate, so the gate runs while Actions runs on the pushed tree."""
     tip = "t" * 40
     fake_integrate["tip"] = tip
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
@@ -1350,7 +1351,7 @@ def test_a_pr_behind_main_is_updated_then_merged_at_the_gated_tip(fake_integrate
     gate_run = _index(ev, lambda e: e[0] == "run" and "check" in e)
     push = _index(ev, lambda e: e[:2] == ("git", "push"))
     merge = _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
-    assert gate_run < push < merge
+    assert push < gate_run < merge
     assert ev[push] == ("git", "push", "origin", f"{tip}:refs/heads/5-x")  # a plain push: never forced
     assert ev[merge][ev[merge].index("--match-head-commit") + 1] == tip
     res = _last_json(capsys.readouterr().out)
@@ -1518,7 +1519,7 @@ def test_no_issue_moves_when_the_merge_does_not_happen(fake_integrate, monkeypat
     [
         ("checks", [_run("check", conclusion="FAILURE")], True, "refused", 1),
         ("gate_code", 1, True, "gate-failed", 1),
-        ("files", ["devkit/x.py"], False, "harness-review", 2),
+        ("files", ["CLAUDE.md"], False, "harness-review", 2),  # devkit/ here needs a review first (#501)
         ("fetched_head", "x" * 40, True, "stopped", 1),
         ("tip", HEAD, True, "merged", 0),
     ],
