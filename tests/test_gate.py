@@ -714,7 +714,7 @@ def test_the_gate_hands_integrates_issue_to_the_weakening_stage_and_hides_it_fro
     assert seen == {"issue": "12:abc1234", "env": None}
     captured = []
     monkeypatch.setattr(weaken, "check_weakening", lambda base, issue=None: captured.append((base, issue)))
-    (stage,) = [s for s in real(False, {}, "BASE", issue="7:abc1234") if "check_weakening" in s.__code__.co_names]
+    (stage,) = [s for s in real(False, {}, "BASE", issue="7:abc1234") if _calls(s, "check_weakening")]
     stage()
     assert captured == [("BASE", "7:abc1234")]
 
@@ -873,11 +873,123 @@ def test_gate_slots_must_be_a_positive_integer(value):
         config.parse({"gate_slots": value})
 
 
-def test_gate_slots_defaults_to_one_and_the_gate_reads_it(monkeypatch):
+def test_gate_slots_defaults_to_one_and_the_gate_reads_it(monkeypatch, tmp_path):
+    _shared_state(monkeypatch, tmp_path / "common")  # no machine-local override (#523)
     assert config.Config().gate_slots == 1
     assert config.parse({"gate_slots": 4}).gate_slots == 4
     monkeypatch.setattr(gate.config, "get", lambda: config.Config(gate_slots=3))
     assert gate.gate_slots() == 3
+
+
+@pytest.fixture
+def slots_repo(repo, tmp_path, monkeypatch):
+    """`repo` as cwd, its state dir under tmp_path, and [tool.devkit] gate_slots = 2 (#523)."""
+    monkeypatch.chdir(repo)
+    state = _shared_state(monkeypatch, tmp_path / "common")
+    monkeypatch.setattr(gate.config, "get", lambda: config.Config(gate_slots=2))
+    return state
+
+
+def test_dev_gate_slots_sets_a_machine_local_value_that_wins_and_clear_drops_it(slots_repo, repo, capsys):
+    """#523: the override lives in the state dir (never in the tree), wins over pyproject, and status shows it."""
+    from devkit import cli
+
+    assert gate.slots_setting() == (2, "pyproject")
+    assert cli.run(cli.parse(["gate-slots", "6"])) == 0
+    assert "gate slots 6 (local:" in capsys.readouterr().out
+    assert gate.slots_setting() == (6, "local") and gate.gate_slots() == 6
+    assert gate.effective_slots(slots_repo / "gate.lock") == 6
+    assert gate.workers(cores=32, gb=64) == 32 // 2 // 6
+    assert (slots_repo / gate.SLOTS_FILE).read_text().strip() == "6"
+    assert _sh_out(repo, "git", "status", "--porcelain") == ""  # nothing to commit
+    data = json.loads(workflow.status(as_json=True))
+    assert (data["gate_slots"], data["gate_slots_source"]) == (6, "local")
+    assert "6 gate slots (local)" in workflow.status()
+    assert cli.run(cli.parse(["gate-slots", "--clear"])) == 0
+    assert gate.slots_setting() == (2, "pyproject")
+    assert "2 gate slots (pyproject)" in workflow.status()
+    assert cli.run(cli.parse(["gate-slots"])) == 0
+    assert capsys.readouterr().out.strip().endswith("gate slots 2 (pyproject: [tool.devkit] gate_slots)")
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "1.5", "x", "", "1000"])
+def test_dev_gate_slots_refuses_a_bad_value_and_writes_nothing(slots_repo, value, capsys):
+    from devkit import cli
+
+    assert cli.run(cli.parse(["gate-slots", "--", value])) == 1
+    assert not (slots_repo / gate.SLOTS_FILE).exists()
+    assert cli.run(cli.parse(["gate-slots", "3", "--clear"])) == 1
+
+
+@pytest.mark.parametrize("junk", ["0", "abc", "", "2.5"])
+def test_a_corrupt_gate_slots_override_falls_back_to_pyproject(slots_repo, junk, capsys):
+    (slots_repo / gate.SLOTS_FILE).write_text(junk)
+    assert gate.slots_setting() == (2, "pyproject")
+    assert "ignoring" in capsys.readouterr().err
+
+
+def _sh_out(cwd, *args):
+    return subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+
+
+def _timed_ran(name, ok=True, tests=None):
+    ran = gate.PytestRan(name, checked=1, tests=tests) if tests is not None else gate.Ran(name, checked=1)
+    if not ok:
+        ran.problems.append("boom")
+    return ran
+
+
+def test_the_gate_prints_each_stages_seconds_and_the_ten_slowest_tests_and_records_them(
+    repo, tmp_path, monkeypatch, capsys
+):
+    """#521: a seconds column per stage, at most 11 lines of slowest tests after the tests stage, and the same stage
+    timings in the run's history record."""
+    monkeypatch.chdir(repo)
+    state = _shared_state(monkeypatch, tmp_path / "common")
+    monkeypatch.setattr(gate, "clean_bytecode", lambda: True)
+    monkeypatch.setattr(gate, "gate_lock", lambda *a, **k: contextlib.nullcontext())
+    ticks = iter(range(0, 1000, 1))
+    monkeypatch.setattr(gate, "STAGE_CLOCK", lambda: next(ticks) * 1.5)  # every stage takes 1.5 s
+    monkeypatch.setattr(gate, "HISTORY_CLOCK", lambda: 4321.0)
+    tests = {f"t::test_{i}": ["passed", float(i)] for i in range(25)} | {"t::bad": ["failed", 7.5]}
+    stages = [
+        lambda: _timed_ran("ruff lint"),
+        lambda: _timed_ran("tests", ok=False, tests=tests),
+        lambda: _timed_ran("lock"),
+    ]
+    monkeypatch.setattr(gate, "stages", lambda *a: stages)
+    assert gate.check({}) == 1
+    out = capsys.readouterr().out.splitlines()
+    assert "ok      1.5s ruff lint: 1 checked, 0 problem(s)" in out
+    assert "FAIL    1.5s tests: 1 checked, 1 problem(s)" in out
+    start = out.index("slowest 10 of 26 tests:")
+    slow = out[start + 1 : start + 11]
+    assert slow[0].split() == ["24.00s", "t::test_24"] and slow[-1].split() == ["15.00s", "t::test_15"]
+    assert all(ln.startswith(" ") for ln in slow) and not out[start + 11].startswith(" ")  # 11 lines in all
+    assert out[start - 1] == "     boom"  # after the tests stage and its problems
+    (run,) = [json.loads(line) for line in (state / gate.HISTORY_FILE).read_text().splitlines()]
+    assert run["at"] == 4321 and run["tests"] == tests
+    assert run["stages"] == {"ruff lint": 1.5, "tests": 1.5, "lock": 1.5}
+
+
+def test_a_gate_without_a_test_run_records_no_history_and_prints_no_slowest(repo, tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    state = _shared_state(monkeypatch, tmp_path / "common")
+    monkeypatch.setattr(gate, "clean_bytecode", lambda: True)
+    monkeypatch.setattr(gate, "gate_lock", lambda *a, **k: contextlib.nullcontext())
+    monkeypatch.setattr(gate, "stages", lambda *a: [lambda: _timed_ran("lock")])
+    gate.check({}, use_cache=False)
+    assert "slowest" not in capsys.readouterr().out
+    assert not (state / gate.HISTORY_FILE).exists()
+
+
+@given(st.dictionaries(st.text(min_size=1), st.floats(0, 1e5, allow_nan=False), max_size=40))
+def test_slowest_is_at_most_eleven_lines_slowest_first(times):
+    tests = {k: ["passed", v] for k, v in times.items()}
+    lines = gate.slowest(tests)
+    assert len(lines) <= 11 and (lines == []) == (not tests)
+    shown = [float(ln.split()[0].removesuffix("s")) for ln in lines[1:]]
+    assert shown == sorted(shown, reverse=True) and len(shown) == min(10, len(tests))
 
 
 def _info(**over):
@@ -1999,8 +2111,14 @@ def test_integrate_whose_gate_waits_for_the_lock_longer_than_its_deadline_is_not
     assert _merged(fake_integrate["events"]), res
 
 
+def _calls(stage, name):
+    """Whether a gate stage (a lambda) names `name` in its code."""
+    code = getattr(stage, "__code__", None)
+    return code is not None and name in code.co_names
+
+
 def _dev_command_stage(**kw):
-    (stage,) = [s for s in gate.stages(False, {"x": set()}, None, **kw) if "check_dev_commands" in s.__code__.co_names]
+    (stage,) = [s for s in gate.stages(False, {"x": set()}, None, **kw) if _calls(s, "check_dev_commands")]
     return stage
 
 
@@ -2018,3 +2136,128 @@ def test_the_dev_command_stage_uses_the_parser_factory_it_is_handed(monkeypatch)
 def test_the_dev_command_stage_refuses_to_run_without_a_parser_factory():
     with pytest.raises(ValueError, match="parser"):
         _dev_command_stage()()
+
+
+# The ty stage: a diagnostics-count ratchet ([types] max_diagnostics of ratchets.toml) that only tightens.
+
+TY_ERROR = 'X: int = "not an int"\n'
+
+
+def _typed(tmp_path, ratchets, body=TY_ERROR):
+    (tmp_path / ".devkit").mkdir(exist_ok=True)
+    (tmp_path / ".devkit/ratchets.toml").write_text(ratchets)
+    (tmp_path / "m.py").write_text(body)
+    return tmp_path
+
+
+def test_type_budget_reads_max_diagnostics_and_refuses_a_bad_one():
+    assert gate.type_budget("[tests]\nmin_tests = 1\n") is None
+    assert gate.type_budget("[types]\nmax_diagnostics = 7\n") == 7
+    for bad in ("-1", "1.5", "true", '"3"'):
+        with pytest.raises(ValueError, match="max_diagnostics"):
+            gate.type_budget(f"[types]\nmax_diagnostics = {bad}\n")
+    with pytest.raises(ValueError, match="unknown key"):
+        gate.type_budget("[types]\nmax_errors = 3\n")
+
+
+def test_type_problems_fail_above_the_budget_and_prompt_lowering_below_it():
+    assert gate.type_problems(5, 5) == ([], [])
+    problems, notes = gate.type_problems(6, 5)
+    assert problems and "6 ty diagnostics" in problems[0] and "max_diagnostics = 5" in problems[0] and not notes
+    problems, notes = gate.type_problems(3, 5)
+    assert problems == [] and notes == ["lower max_diagnostics to 3 (3 ty diagnostics, budget 5)"]
+
+
+@given(st.integers(0, 5000), st.integers(0, 5000))
+def test_the_type_budget_fails_exactly_above_it_and_prompts_exactly_below_it(count, budget):
+    problems, notes = gate.type_problems(count, budget)
+    assert bool(problems) == (count > budget)
+    assert bool(notes) == (count < budget)
+
+
+def test_the_type_budget_only_tightens_against_main():
+    old = "[types]\nmax_diagnostics = 10\n"
+    assert gate.type_raises("[types]\nmax_diagnostics = 9\n", old) == []
+    assert gate.type_raises(old, old) == []
+    assert gate.type_raises("[types]\nmax_diagnostics = 3\n", "") == []  # turning the ratchet on is a tightening
+    raised = gate.type_raises("[types]\nmax_diagnostics = 11\n", old)
+    assert raised and "raised 10 -> 11" in raised[0]
+    removed = gate.type_raises("", old)
+    assert removed and "removed" in removed[0]
+    signed = '\n[[raise]]\nkey = "types.max_diagnostics"\nto = 12\napproved_by = "someone"\n'
+    assert gate.type_raises("[types]\nmax_diagnostics = 11\n" + signed, old) == []
+    assert gate.type_raises("[types]\nmax_diagnostics = 13\n" + signed, old)  # above its [[raise]] to
+    assert gate.type_raises("[types]\nmax_diagnostics = 11\n" + signed, old + signed)  # an old raise is spent
+
+
+def test_the_ty_stage_counts_diagnostics_against_the_budget(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "get", lambda: SimpleNamespace(ratchets=".devkit/ratchets.toml"))
+    over = gate.type_check(None, _typed(tmp_path, "[types]\nmax_diagnostics = 0\n"))
+    assert not over.ok and "1 ty diagnostics" in over.problems[0]
+    assert any("m.py:1" in p and "invalid-assignment" in p for p in over.problems)
+    at = gate.type_check(None, _typed(tmp_path, "[types]\nmax_diagnostics = 1\n"))
+    assert at.ok and not at.notes
+    under = gate.type_check(None, _typed(tmp_path, "[types]\nmax_diagnostics = 4\n"))
+    assert under.ok and under.notes == ["lower max_diagnostics to 1 (1 ty diagnostics, budget 4)"]
+
+
+def test_without_a_type_budget_the_ty_stage_only_reports(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "get", lambda: SimpleNamespace(ratchets=".devkit/ratchets.toml"))
+    ran = gate.type_check(None, _typed(tmp_path, "[tests]\nmin_tests = 1\n"))
+    assert ran.ok and not ran.warnings
+    assert ran.notes and "report-only" in ran.notes[0] and "max_diagnostics = 1" in ran.notes[0]
+    monkeypatch.setattr(gate, "tool", lambda name: None)
+    monkeypatch.setenv("CI", "true")
+    off = gate.type_check(None, tmp_path)  # no budget, no ty: off, even in CI
+    assert off.ok and off.notes and "off" in off.notes[0]
+
+
+def test_a_budget_without_ty_installed_fails_in_ci(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "get", lambda: SimpleNamespace(ratchets=".devkit/ratchets.toml"))
+    monkeypatch.setattr(gate, "tool", lambda name: None)
+    monkeypatch.delenv("CI", raising=False)
+    root = _typed(tmp_path, "[types]\nmax_diagnostics = 1\n")
+    assert gate.type_check(None, root).ok
+    monkeypatch.setenv("CI", "true")
+    assert not gate.type_check(None, root).ok
+
+
+def test_a_bad_type_budget_or_a_ty_crash_fails_the_stage(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "get", lambda: SimpleNamespace(ratchets=".devkit/ratchets.toml"))
+    assert not gate.type_check(None, _typed(tmp_path, "[types]\nmax_diagnostics = -1\n")).ok
+    (tmp_path / "pyproject.toml").write_text("[tool.ty]\nnot_an_option = 1\n")  # ty exits 2 on a bad config
+    ran = gate.type_check(None, _typed(tmp_path, "[types]\nmax_diagnostics = 5\n"))
+    assert not ran.ok and ran.problems
+
+
+def test_the_gate_runs_the_ty_stage_and_both_ratchets_files_set_a_type_budget():
+    codes = [getattr(s, "__code__", None) for s in gate.stages(False, {}, None)]
+    assert any(c is not None and "type_check" in c.co_names for c in codes)
+    assert gate.type_budget((gate.root() / ".devkit/ratchets.toml").read_text()) is not None
+    assert gate.type_budget((gate.root() / "template/.devkit/ratchets.toml").read_text()) is not None
+
+
+def test_over_budget_the_ty_stage_lists_the_changed_files_diagnostics_first(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "get", lambda: SimpleNamespace(ratchets=".devkit/ratchets.toml"))
+    root = _typed(tmp_path, "[types]\nmax_diagnostics = 0\n")
+    (root / "z.py").write_text(TY_ERROR)
+
+    def git(*args):
+        if args[0] == "show":
+            raise RuntimeError("no such file on main")
+        return "z.py\n"
+
+    monkeypatch.setattr(gate, "git", git)
+    ran = gate.type_check("BASE", root)
+    assert ran.problems[1].startswith("z.py:1:") and ran.problems[2].startswith("m.py:1:")
+
+
+def test_diagnostics_that_depend_on_installed_packages_are_reported_not_counted(tmp_path, monkeypatch):
+    """#59: an unresolved import depends on the venv (extras installed or not), so counting it made the budget flap."""
+    monkeypatch.setattr(config, "get", lambda: SimpleNamespace(ratchets=".devkit/ratchets.toml"))
+    body = TY_ERROR + "import no_such_package_anywhere\n"
+    ran = gate.type_check(None, _typed(tmp_path, "[types]\nmax_diagnostics = 1\n", body))
+    assert ran.ok, ran.problems
+    assert ran.notes == [
+        "1 more depend on installed packages (" + ", ".join(sorted(gate.TYPE_ENV_RULES)) + "): not counted"
+    ]

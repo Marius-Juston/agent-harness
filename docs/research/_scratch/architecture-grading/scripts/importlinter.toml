@@ -1,0 +1,15 @@
+# Contracts tried on three commits of this repository with import-linter 2.15 (#496). Not this repository's config.
+# Run by extracting `git archive <rev> devkit` and calling `lint-imports --config <this file>` in that directory.
+[tool.importlinter]
+root_package = "devkit"
+
+[[tool.importlinter.contracts]]
+name = "devkit modules form no import cycle"
+type = "acyclic_siblings"
+ancestors = ["devkit"]
+
+[[tool.importlinter.contracts]]
+name = "only the entry point imports the CLI"
+type = "forbidden"
+source_modules = ["devkit.*"]
+forbidden_modules = ["devkit.cli"]

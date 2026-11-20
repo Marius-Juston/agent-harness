@@ -3,9 +3,12 @@ the paths the checks read."""
 
 import json
 import re
+import shlex
 import sys
+import tomllib
 
 import pytest
+import yaml
 
 from devkit import checks, cli, config, paths, quota
 
@@ -196,3 +199,41 @@ def test_dev_help_lists_project_commands_and_the_doc_checks_accept_them(monkeypa
     assert cli.command_map()["coverage"] == set()
     parser = checks.loosen(cli.build())
     assert checks.span_problem(parser, cli.command_map(), "coverage", " --json units") is None
+
+
+# #544: `dev integrate --local-ci` posts the `check` context from `local_ci.check`, so that list runs what the ci
+# `check` job runs. These `run:` steps the gate already covers; every other one needs its local command, in order.
+GATE_COVERS = {
+    "uv sync --locked": "the gate's `uv lock --check` stage",
+    "uv run dev check --no-cache": "the gate itself",
+    "uv run dev docs": "integrate runs it on the merged tree before the gate",
+}
+# A multi-line `run:` block stands in as itself, under bash -e as Actions runs it, with $RUNNER_TEMP a fresh directory.
+AS_ACTIONS = ["env", "RUNNER_TEMP={tmpdir}", "bash", "-ec"]
+
+
+def ci_check_commands(workflow: str) -> list[str]:
+    """The `run:` text of each step of the workflow's `check` job that the gate does not cover, in order."""
+    steps = yaml.safe_load(workflow)["jobs"]["check"]["steps"]
+    return [s["run"].strip() for s in steps if "run" in s and s["run"].strip() not in GATE_COVERS]
+
+
+def as_ci_run(argv: list[str]) -> str:
+    """The `run:` text a `local_ci` command stands in for."""
+    return argv[len(AS_ACTIONS)].strip() if argv[: len(AS_ACTIONS)] == AS_ACTIONS else shlex.join(argv)
+
+
+def test_the_local_check_runs_what_the_ci_check_job_runs():
+    local = tomllib.loads((paths.root() / "pyproject.toml").read_text())["tool"]["devkit"]["local_ci"]["check"]
+    ci = ci_check_commands((paths.root() / ".github/workflows/ci.yml").read_text())
+    assert [as_ci_run(argv) for argv in local] == ci
+    assert any("gitleaks-history" in c for c in ci) and any(c.startswith("uv audit") for c in ci)
+    assert any("-m live tests/test_security.py" in c for c in ci)
+
+
+def test_a_ci_step_without_its_local_command_is_a_gap():
+    workflow = "jobs:\n  check:\n    steps:\n      - run: uv sync --locked\n      - run: uv audit --locked\n"
+    workflow += '      - run: |\n          a=1\n          echo "$a" \\\n            | cat\n'
+    assert ci_check_commands(workflow) == ["uv audit --locked", 'a=1\necho "$a" \\\n  | cat']
+    assert as_ci_run(["uv", "audit", "--locked"]) == "uv audit --locked"
+    assert as_ci_run([*AS_ACTIONS, 'a=1\necho "$a" \\\n  | cat\n']) == 'a=1\necho "$a" \\\n  | cat'
