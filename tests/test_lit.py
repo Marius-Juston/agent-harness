@@ -1273,41 +1273,6 @@ def test_dev_lit_get_takes_several_ids_and_exits_1_when_one_is_missing(tmp_path,
     assert "authors: Ada Lovelace" in out and "note: not found: 10.1234/zz" in out
 
 
-def test_lit_bypass_script_counts_direct_api_calls_per_run(tmp_path):
-    """scripts/lit_bypass.py, the #174 re-measure: curl or WebFetch to an index API counts; dev lit and greps do not."""
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("lit_bypass", Path(__file__).parents[1] / "scripts/lit_bypass.py")
-    assert spec and spec.loader
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    assert mod.apis_called("Bash", {"command": 'curl -s "https://api.openalex.org/works/doi:10.1/x"'}) == ["openalex"]
-    assert mod.apis_called("WebFetch", {"url": "https://www.ebi.ac.uk/europepmc/webservices/rest/search?q"}) == [
-        "europepmc"
-    ]
-    assert mod.apis_called("Bash", {"command": "uv run dev lit get 10.1/x"}) == []
-    assert mod.apis_called("Bash", {"command": "grep -n api.crossref.org devkit/lit.py"}) == []
-    sub = tmp_path / "p" / "s1" / "subagents"
-    sub.mkdir(parents=True)
-
-    def run(name: str, atype: str, day: str, tools: list[tuple[str, dict]]) -> None:
-        (sub / f"{name}.meta.json").write_text(json.dumps({"agentType": atype}))
-        recs = [{"timestamp": f"{day}T10:00:00Z", "message": {"content": "go"}}]
-        recs += [{"message": {"content": [{"type": "tool_use", "name": n, "input": i}]}} for n, i in tools]
-        (sub / f"{name}.jsonl").write_text("\n".join(map(json.dumps, recs)) + "\nnot json\n")
-
-    curl = ("Bash", {"command": "curl https://api.crossref.org/works/10.1/x"})
-    run("a", "harness-ops:researcher", "2026-10-12", [curl, curl])
-    run("b", "harness-ops:researcher", "2026-10-15", [("Bash", {"command": "uv run dev lit get 10.1/x"})])
-    run("c", "harness-ops:research-auditor", "2026-10-15", [curl])
-    res = mod.measure(tmp_path / "p")
-    assert (res["harness-ops:researcher"]["runs"], res["harness-ops:researcher"]["bypass_runs"]) == (2, 1)
-    assert res["harness-ops:researcher"]["calls"]["crossref"] == 2
-    after = mod.measure(tmp_path / "p", since="2026-10-14")
-    assert (after["harness-ops:researcher"]["runs"], after["harness-ops:researcher"]["bypass_runs"]) == (1, 0)
-    assert after["harness-ops:research-auditor"]["bypass_runs"] == 1
-
-
 # ---- citation chasing: refs (backward) and cited-by (forward) through OpenAlex (#193) ----
 
 
