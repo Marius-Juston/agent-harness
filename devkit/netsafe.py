@@ -46,16 +46,30 @@ def http_get(
     """(status, headers, at most `cap` bytes of body) for a GET of an http(s) `url`. A refused scheme or a network
     failure is status 0 with the reason as the body; an HTTP error is its status with an empty body. A header or URL
     urllib cannot send raises ValueError, for the caller to word (its message may quote a key)."""
+    status, got, body = http_get_bytes(url, ua=ua, headers=headers, timeout=timeout, cap=cap, opener=opener)
+    return status, got, body.decode("utf-8", errors="replace")
+
+
+def http_get_bytes(
+    url: str,
+    *,
+    ua: str,
+    headers: dict[str, str] | None = None,
+    timeout: int = 30,
+    cap: int = 2_000_000,
+    opener: urllib.request.OpenerDirector | None = None,
+) -> tuple[int, dict[str, str], bytes]:
+    """http_get with the body undecoded, for a PDF."""
     if why := bad_scheme(url):
-        return 0, {}, why
+        return 0, {}, why.encode()
     req = urllib.request.Request(url, headers={"User-Agent": ua, "Accept": "*/*", **(headers or {})})  # noqa: S310
     try:
         with (opener or OPENER).open(req, timeout=timeout) as r:
-            return r.status, dict(r.headers), r.read(cap).decode("utf-8", errors="replace")
+            return r.status, dict(r.headers), r.read(cap)
     except urllib.error.HTTPError as e:
-        return e.code, dict(e.headers or {}), ""
+        return e.code, dict(e.headers or {}), b""
     except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException) as e:  # a cut body too
-        return 0, {}, str(e)
+        return 0, {}, str(e).encode()
 
 
 def atomic_write(path: Path, text: str) -> None:

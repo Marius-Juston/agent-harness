@@ -13,6 +13,7 @@ from importlib import metadata
 from pathlib import Path
 
 from devkit import (
+    arch,
     board,
     branches,
     checks,
@@ -292,6 +293,11 @@ def build() -> Parser:
     )
     x.add_argument("paths", nargs="*", help="notes (default: notes changed vs main)")
     x.add_argument("--offline-ok", action="store_true")
+    x.add_argument(
+        "--all",
+        action="store_true",
+        help="quote rules strict for every claim, not only those on lines changed vs main (audits)",
+    )
     lt = sub.add_parser(
         "lit",
         help="literature search shared by all agents: rate-limited, cached, compact (OpenAlex, S2, Crossref, Europe PMC, arXiv)",
@@ -323,6 +329,13 @@ def build() -> Parser:
     )
     x.add_argument("id", nargs="+")
     x.add_argument("--snippet", type=int, default=None, help="abstract characters (default: all; 0 = none)")
+    x = ls.add_parser(
+        "read",
+        help="a paper's full text (arXiv HTML/PDF, Europe PMC, the open-access copy), cached: its outline, or one "
+        "section with --section",
+    )
+    x.add_argument("id", help="a DOI or arXiv id")
+    x.add_argument("--section", default="", help="a locator: abstract, 3.2, Results, 'Appendix B'")
     for name, what in (("refs", "the works it cites (backward)"), ("cited-by", "the works citing it (forward)")):
         x = ls.add_parser(
             name, help=f"citation chasing through OpenAlex: {what}, most cited first, compact lines like search"
@@ -430,6 +443,11 @@ def build() -> Parser:
     )
     y.add_argument("--json", action="store_true")
     y.add_argument("--tools", action="store_true", help="also run pinned pyscn and vulture on a git-archive copy")
+    x = sub.add_parser(
+        "arch", help="architecture in at most 8 lines: import contracts, largest cycle, top 3 hotspots, LOC ceiling"
+    )
+    x.add_argument("--json", action="store_true")
+    x.add_argument("--rev", help="read this commit's git objects instead of the working tree (a replay)")
     x = sub.add_parser("agent-stats", help="scorecard from transcripts: tokens, calls, big-result share per agent type")
     x.add_argument("--json", action="store_true")
     g = x.add_mutually_exclusive_group()
@@ -514,6 +532,15 @@ def command_help() -> list[tuple[str, str]]:
 
 
 _NOT_NOTES = {"INDEX.md", "README.md"}
+
+
+def _changed_lines(paths: list[Path]) -> dict[Path, set[int]]:
+    """Per note, the line numbers the branch added or changed since the merge base with main (committed or not); every
+    line of an untracked note."""
+    rels = [str(p.resolve().relative_to(root())) for p in paths]
+    diff = checks.git("diff", "-U0", checks.merge_base() or "HEAD", "--", *rels, check=False)
+    untracked = checks.git("ls-files", "--others", "--exclude-standard", "--", *rels, check=False).splitlines()
+    return citecheck.changed_lines(diff, [root() / f for f in untracked], root(), paths)
 
 
 def _changed_notes() -> list[Path]:
@@ -611,7 +638,8 @@ def run(a: argparse.Namespace) -> int:
             if not paths:
                 print("no research notes changed (pass paths to check others)")
                 return 0
-            n, problems, notes = citecheck.check_notes(paths, a.offline_ok)
+            changed = None if a.all else _changed_lines(paths)
+            n, problems, notes = citecheck.check_notes(paths, a.offline_ok, changed=changed)
             for line in problems:
                 print(f"FAIL {line}")
             for line in notes:
@@ -657,6 +685,13 @@ def run(a: argparse.Namespace) -> int:
             print(stats.run(a.mode, a.since, a.until, a.json) if a.mode else stats.report(a.json))
         case "consolidation":
             return run_consolidation(a)
+        case "arch":
+            r = arch.measure(root(), a.rev)
+            print(
+                json.dumps({k: v for k, v in r.items() if k != "loc"}, indent=1)
+                if a.json
+                else "\n".join(arch.render(r))
+            )
         case name if name in config.get().commands:
             return run_project_command(name, a.args)
     return 0
@@ -737,6 +772,10 @@ def run_lit(a: argparse.Namespace) -> int:
             if lit.degraded(health) or not any(h.ok for h in health):
                 return 1
             return 0 if papers or not notes else 1
+        elif a.sub == "read":
+            code, text = lit.read(lit.client(), a.id, a.section)
+            print(text)
+            return code
         elif a.sub in lit.CHASE:
             papers, notes = lit.client().chase(a.id, a.sub, a.n, a.years)
         else:
@@ -746,6 +785,9 @@ def run_lit(a: argparse.Namespace) -> int:
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except lit.SourceError as exc:  # `read`: the full text was not reachable now
+        print(f"not reachable now: {exc}")
+        return 1
     print(lit.render(papers, notes, a.snippet))
     return 0 if papers or not notes else 1
 
