@@ -38,7 +38,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
 
-from devkit import backoff, fulltext, lit, netsafe
+from devkit import backoff, diffparse, fulltext, lit, netsafe
 from devkit.paths import state_dir
 
 CACHE_DAYS = 14
@@ -227,12 +227,32 @@ def save_cache(path: Path, new: dict) -> None:
         netsafe.atomic_write(path, json.dumps(_read_cache(path) | new))
 
 
+def changed_lines(diff: str, untracked: list[Path], root: Path, paths: list[Path]) -> dict[Path, set[int]]:
+    """{each of `paths`: its added or changed line numbers} from a `git diff -U0` run in `root`; every line of an
+    untracked note (a new note is all new)."""
+    added: dict[Path, set[int]] = {}
+    for f in diffparse.parse(diff):
+        if f.new:
+            added.setdefault((root / f.new).resolve(), set()).update(x.number for x in f.added)
+    new = {p.resolve() for p in untracked}
+    out = {}
+    for p in paths:
+        r = p.resolve()
+        out[p] = set(range(1, len(p.read_text(encoding="utf-8").splitlines()) + 1)) if r in new else added.get(r, set())
+    return out
+
+
 def check_notes(
-    paths: list[Path], offline_ok: bool = False, texts: "TextSource | None" = None
+    paths: list[Path],
+    offline_ok: bool = False,
+    texts: "TextSource | None" = None,
+    changed: "dict[Path, set[int]] | None" = None,
 ) -> tuple[int, list[str], list[str]]:
     """(links checked, problems, notes) for the given markdown files, then each SOURCED paper claim's quote against
     the full text from `texts` (default: dev lit's cached reader). Under CI or offline_ok, a link or full text that
-    stayed unreachable after its retry is a note, so one rate-limited site cannot fail the run."""
+    stayed unreachable after its retry is a note, so one rate-limited site cannot fail the run. The quote rules are
+    strict only for claims on the lines in `changed` (path -> line numbers the branch added or changed); a claim on
+    an untouched line gets notes, so editing one line of an old note does not fail its old claims. None: all strict."""
     lenient = offline_ok or bool(os.environ.get("CI"))
     cache_file = state_dir() / "cite-cache.json"
     cache = _read_cache(cache_file)
@@ -302,7 +322,11 @@ def check_notes(
             notes.append(f"{where}: {rec['note']}")
     found = [c for p in paths for c in claims(p, p.read_text(encoding="utf-8"))]
     if found:
-        more, said, counts = check_quotes(found, texts or lit.client().full_text, lenient)
+
+        def strict(c: Claim) -> bool:
+            return changed is None or bool(c.lines() & changed.get(c.path, set()))
+
+        more, said, counts = check_quotes(found, texts or lit.client().full_text, lenient, strict)
         problems += more
         notes += said
         for p, n in counts.items():
@@ -344,6 +368,10 @@ class Claim:
     quote: str
     context: str  # what decides the claim's kind: its quote and its own words
     tags: frozenset[str]
+    last: int = 0  # the claim's paragraph or list item ends on this line (0: on `line`)
+
+    def lines(self) -> set[int]:
+        return set(range(self.line, max(self.line, self.last) + 1))
 
     def where(self) -> str:
         return f"{self.path.name}:{self.line}: {self.url}"
@@ -360,8 +388,8 @@ class Claim:
         return self.locator.lower() == "abstract" or "abstract-only" in self.tags
 
 
-def _blocks(text: str) -> list[tuple[int, str]]:
-    """(first line number, text) of each paragraph, list item or table row."""
+def _blocks(text: str) -> list[tuple[int, int, str]]:
+    """(first line number, last line number, text) of each paragraph, list item or table row."""
     out: list[tuple[int, list[str]]] = []
     for i, line in enumerate(text.splitlines(), 1):
         if not line.strip():
@@ -370,7 +398,7 @@ def _blocks(text: str) -> list[tuple[int, str]]:
             out.append((i, [line]))
         else:
             out[-1][1].append(line)
-    return [(n, " ".join(lines)) for n, lines in out if lines]
+    return [(n, n + len(lines) - 1, " ".join(lines)) for n, lines in out if lines]
 
 
 def _mask(block: str) -> str:
@@ -407,7 +435,7 @@ def claims(path: Path, text: str) -> list[Claim]:
     """The SOURCED claims of a note that rest on a paper, with their quote, locator and tags."""
     found: list[Claim] = []
     text = re.sub(r"`(abstract-only|single-source)`", r"\1", text)  # tags are written as code; keep them
-    for line, block in _blocks(CODE.sub("", text)):
+    for line, last, block in _blocks(CODE.sub("", text)):
         links = [m for m in LINK.finditer(block) if ARXIV.search(m.group(2)) or DOI.search(m.group(2))]
         masked = _mask(block)
         groups = _groups(masked)
@@ -435,7 +463,7 @@ def claims(path: Path, text: str) -> list[Claim]:
             quote = inside[0] if inside else outside[-1] if outside else ""
             loc = fulltext.LOCATOR.findall(QUOTED.sub(" ", seg))
             tags = frozenset(t for t in ("abstract-only", "single-source") if t in seg)
-            found.append(Claim(path, line, url, ident, loc[0] if loc else "", quote, f"{quote} {before}", tags))
+            found.append(Claim(path, line, url, ident, loc[0] if loc else "", quote, f"{quote} {before}", tags, last))
     return found
 
 
@@ -443,10 +471,11 @@ TextSource = Callable[[str], "tuple[fulltext.FullText | None, str]"]  # ident ->
 
 
 def check_quotes(
-    found: list[Claim], texts: TextSource, lenient: bool = False
+    found: list[Claim], texts: TextSource, lenient: bool = False, strict: Callable[[Claim], bool] = lambda c: True
 ) -> tuple[list[str], list[str], dict[str, dict[str, int]]]:
     """(problems, notes, counts per note) for the claims' quotes against their sources' full texts. A source that
-    could not be reached now is a problem, or a note when `lenient` (CI, --offline-ok)."""
+    could not be reached now is a problem, or a note when `lenient` (CI, --offline-ok). A claim `strict` refuses
+    (one on a line the branch did not touch) reports its problems as notes."""
     problems, notes = [], []
     counts: dict[str, dict[str, int]] = {}
     seen: dict[str, tuple[fulltext.FullText | None, str, str]] = {}
@@ -461,28 +490,42 @@ def check_quotes(
         ft, why, transient = seen[c.ident]
         if (ft is None and not transient) or c.abstract():
             n["abstract-only"] += 1
-        if not c.quote:
-            problems.append(f"{c.where()}: SOURCED claim on a paper has no verbatim quote")
-            continue
-        n["quoted"] += 1
-        if not c.locator and "abstract-only" not in c.tags:
-            problems.append(f"{c.where()}: the quote has no locator (§3.2, Table 2, p. 7 or abstract)")
-        elif short := fulltext.too_short(c.quote):
-            problems.append(f"{c.where()}: the quote is too short to prove anything ({short}): {c.quote[:80]!r}")
-        elif transient:
-            (notes if lenient else problems).append(f"{c.where()}: {transient}")
-        elif ft is None:
-            if "abstract-only" not in c.tags:
-                problems.append(f"{c.where()}: no full text reachable ({why}): tag the claim `abstract-only`")
-        elif c.abstract() and (kind := c.kind()):
-            problems.append(
-                f"{c.where()}: a {kind} claim rests on the abstract, but the full text is reachable "
-                f"({ft.url}): read it and cite the section that reports it"
-            )
+        n["quoted"] += bool(c.quote)
+        bad, read = _judge(c, ft, why, transient, notes if lenient else None, notes)
+        n["in full text"] += read
+        if strict(c):
+            problems += bad
         else:
-            problems += [p for p in _placed(c, ft, notes) if p]
-            n["in full text"] += 1
+            notes += [f"{x} (an untouched line: a note; `--all` fails it)" for x in bad]
     return problems, notes, counts
+
+
+def _judge(
+    c: Claim, ft: "fulltext.FullText | None", why: str, transient: str, soft: list[str] | None, notes: list[str]
+) -> tuple[list[str], bool]:
+    """(one claim's problems, whether its quote was looked up in the full text). A transient failure goes to
+    `soft` when given (lenient), approximate checks to `notes`."""
+    if not c.quote:
+        return [f"{c.where()}: SOURCED claim on a paper has no verbatim quote"], False
+    if not c.locator and "abstract-only" not in c.tags:
+        return [f"{c.where()}: the quote has no locator (§3.2, Table 2, p. 7 or abstract)"], False
+    if short := fulltext.too_short(c.quote):
+        return [f"{c.where()}: the quote is too short to prove anything ({short}): {c.quote[:80]!r}"], False
+    if transient:
+        if soft is not None:
+            soft.append(f"{c.where()}: {transient}")
+            return [], False
+        return [f"{c.where()}: {transient}"], False
+    if ft is None:
+        if "abstract-only" in c.tags:
+            return [], False
+        return [f"{c.where()}: no full text reachable ({why}): tag the claim `abstract-only`"], False
+    if c.abstract() and (kind := c.kind()):
+        return [
+            f"{c.where()}: a {kind} claim rests on the abstract, but the full text is reachable "
+            f"({ft.url}): read it and cite the section that reports it"
+        ], False
+    return _placed(c, ft, notes), True
 
 
 def _placed(c: Claim, ft: fulltext.FullText, notes: list[str]) -> list[str]:

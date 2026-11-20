@@ -283,6 +283,11 @@ def build() -> argparse.ArgumentParser:
     )
     x.add_argument("paths", nargs="*", help="notes (default: notes changed vs main)")
     x.add_argument("--offline-ok", action="store_true")
+    x.add_argument(
+        "--all",
+        action="store_true",
+        help="quote rules strict for every claim, not only those on lines changed vs main (audits)",
+    )
     lt = sub.add_parser(
         "lit",
         help="literature search shared by all agents: rate-limited, cached, compact (OpenAlex, S2, Crossref, Europe PMC, arXiv)",
@@ -498,6 +503,15 @@ def command_help() -> list[tuple[str, str]]:
 _NOT_NOTES = {"INDEX.md", "README.md"}
 
 
+def _changed_lines(paths: list[Path]) -> dict[Path, set[int]]:
+    """Per note, the line numbers the branch added or changed since the merge base with main (committed or not); every
+    line of an untracked note."""
+    rels = [str(p.resolve().relative_to(root())) for p in paths]
+    diff = checks.git("diff", "-U0", checks.merge_base() or "HEAD", "--", *rels, check=False)
+    untracked = checks.git("ls-files", "--others", "--exclude-standard", "--", *rels, check=False).splitlines()
+    return citecheck.changed_lines(diff, [root() / f for f in untracked], root(), paths)
+
+
 def _changed_notes() -> list[Path]:
     base = checks.merge_base()
     notes = f"{config.get().research_dir}/*.md"
@@ -589,7 +603,8 @@ def run(a: argparse.Namespace) -> int:
             if not paths:
                 print("no research notes changed (pass paths to check others)")
                 return 0
-            n, problems, notes = citecheck.check_notes(paths, a.offline_ok)
+            changed = None if a.all else _changed_lines(paths)
+            n, problems, notes = citecheck.check_notes(paths, a.offline_ok, changed=changed)
             for line in problems:
                 print(f"FAIL {line}")
             for line in notes:

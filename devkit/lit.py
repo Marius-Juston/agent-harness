@@ -908,7 +908,7 @@ class Client:
                 if "none" in rec:
                     return None, rec["none"]
                 sections = [tuple(s) for s in rec["sections"]]
-                return fulltext.FullText(rec["url"], rec["kind"], sections, rec["levels"]), ""
+                return fulltext.FullText(rec["url"], rec["kind"], sections, rec.get("levels") or []), ""
         ft, why = self._read_full_text(ident)
         path.parent.mkdir(parents=True, exist_ok=True)
         rec = {"t": self.clock(), "none": why} if ft is None else {"t": self.clock(), **dataclasses.asdict(ft)}

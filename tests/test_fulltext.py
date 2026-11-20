@@ -495,3 +495,65 @@ def test_the_claims_own_words_decide_its_kind():
     c = citecheck.Claim(Path("n.md"), 1, "u", "2607.00001", "abstract", "verifiers disagree on which citations",
                         "verifiers disagree on which citations The rate ranged to 18 %", frozenset())  # fmt: skip
     assert c.kind() == "numeric"
+
+
+# ---- review round 2 on #584 ----
+
+OLD_AND_NEW = """# Research: x
+
+- An old claim (SOURCED, [Old paper](https://arxiv.org/abs/2601.00004), §2).
+
+- A new claim the branch adds (SOURCED, [New paper](https://arxiv.org/abs/2601.00005),
+  §2).
+"""
+
+
+def test_strict_rules_hold_only_for_claims_on_lines_the_branch_touched(tmp_path, monkeypatch):
+    """B1: an edit to one line of an old note must not fail the note's untouched claims (they become notes); a claim
+    on a changed line, even its paragraph's second line, stays strict; `changed=None` (`--all`) is strict for all."""
+    monkeypatch.setattr(citecheck, "state_dir", lambda *p: tmp_path)
+    monkeypatch.setattr(citecheck, "arxiv_titles", lambda ids: dict.fromkeys(ids, "Paper"))
+    note = tmp_path / "n.md"
+    note.write_text(OLD_AND_NEW)
+
+    def texts(ident):
+        return html(), ""
+
+    _, problems, notes = citecheck.check_notes([note], texts=texts, changed={note: {6}})
+    assert len(problems) == 1 and "2601.00005" in problems[0] and "no verbatim quote" in problems[0]
+    assert any("2601.00004" in n and "untouched line" in n for n in notes)
+    _, problems, _ = citecheck.check_notes([note], texts=texts, changed={note: {1}})
+    assert problems == []  # a one-line unrelated edit: no claim fails
+    _, problems, _ = citecheck.check_notes([note], texts=texts, changed=None)
+    assert len(problems) == 2
+
+
+def test_changed_lines_come_from_the_diff_and_an_untracked_note_is_all_new(tmp_path):
+    old, new = tmp_path / "old.md", tmp_path / "new.md"
+    old.write_text("a\nb\nc\nd\n")
+    new.write_text("x\ny\n")
+    diff = "diff --git a/old.md b/old.md\n--- a/old.md\n+++ b/old.md\n@@ -2,0 +3,2 @@\n+c\n+d\n"
+    assert citecheck.changed_lines(diff, [new], tmp_path, [old, new]) == {old: {3, 4}, new: {1, 2}}
+
+
+def test_cite_check_all_is_an_option():
+    assert cli.build().parse_args(["cite-check", "--all", "n.md"]).all is True
+    assert cli.build().parse_args(["cite-check", "n.md"]).all is False
+
+
+def test_the_pdf_subprocess_runs_under_a_memory_limit():
+    """Nit: pypdf's own caps cover known bombs; an address-space limit bounds the rest. Too little memory is no text."""
+    assert fulltext.from_pdf(pdf_bytes(PDF_LINES), "u", memory=1_000_000) is None
+    assert fulltext.from_pdf(pdf_bytes(PDF_LINES), "u") is not None
+
+
+def test_a_cached_full_text_from_before_levels_still_reads(tmp_path):
+    """Nit: a cache entry written before sections carried levels is read with depths from the headings."""
+    net = Net({"https://arxiv.org/html/2607.00001": (200, long_html())})
+    client(tmp_path, net).full_text("2607.00001")
+    [path] = (tmp_path / "fulltext").glob("*.json")
+    rec = json.loads(path.read_text())
+    del rec["levels"]
+    path.write_text(json.dumps(rec))
+    ft, _ = client(tmp_path, Net({})).full_text("2607.00001")
+    assert ft and ft.locate("§3") and "six verifiers" in ft.locate("§3")[1]
