@@ -550,8 +550,10 @@ def _follow(log: Path, stop: threading.Event) -> None:
             stop.wait(FOLLOW_S)
 
 
-def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: list[str], update: dict) -> int | None:
-    """`--local-ci`, after the local run passed on the merged tree whose commit is `tip`: wait for Actions on `tip`
+def _stand_in(
+    pr_number: int, tip: str, contexts: list[str], log: Path, todo: list[str], update: dict, mode: str = "--local-ci"
+) -> int | None:
+    """`--local-ci` (or what `mode` names: why CI ran locally, kept in the status and the comment), after the local run passed on the merged tree whose commit is `tip`: wait for Actions on `tip`
     (not with `ci = "local"`), then post a success status for each required context Actions did not run, with the
     log's hash, and say so on the PR. None to go on to the merge, else the exit code after the result line."""
     if config.get().ci != "local":
@@ -568,7 +570,7 @@ def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: li
         return result(pr_number, 1, "waiting", judged=tip, pending=running, **({"head": tip} | update))
     if stood := [c for c, s in now.items() if s == "never-ran"]:
         digest = hashlib.sha256(log.read_bytes()).hexdigest()
-        note = f"dev integrate --local-ci: passed on this commit; log sha256 {digest[:16]}"
+        note = f"dev integrate ({mode}): passed on this commit; log sha256 {digest[:16]}"
         for ctx in stood:
             board.gh(
                 "api", "-X", "POST", f"repos/{board.repo()}/statuses/{tip}",
@@ -578,9 +580,9 @@ def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: li
             f"`{c}`: " + (" && ".join(" ".join(a) for a in config.get().local_ci[c]) or "the gate") for c in stood
         )
         body = (
-            f"CI ran locally (`dev integrate --local-ci`): GitHub Actions did not run {', '.join(stood)} on {tip} "
+            f"CI ran locally (`dev integrate`, {mode}): GitHub Actions did not run {', '.join(stood)} on {tip} "
             + (
-                '(`ci = "local"`: Actions is not used)'
+                "(it is not waited on)"
                 if config.get().ci == "local"
                 else "(disabled, billing-blocked, no runner, or not queued in time)"
             )
@@ -912,7 +914,7 @@ def _integrate(
                             reason="feedback on the pushed head", feedback=arrived, **update)  # fmt: skip
     if local_ci and dry_run:
         print(f"would wait for Actions on {tip[:10]} and post what it does not run as statuses: {', '.join(contexts)}")
-    elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update)) is not None:
+    elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update, mode)) is not None:
         return code
     try:
         reason = _merge_if_unchanged(

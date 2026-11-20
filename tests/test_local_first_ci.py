@@ -4,6 +4,7 @@ self-hosted runner, no workflow run at all) instead of waiting `local_ci_wait_s`
 from real repositories (tests/fixtures/actions_blocked, scrubbed; docs/research/agent-harness.md)."""
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,17 @@ RECORDED = Path(__file__).parent / "fixtures" / "actions_blocked"
 
 def recorded(name: str):
     return json.loads((RECORDED / name).read_text())
+
+
+QUEUED_AT = datetime.fromisoformat(recorded("queued_jobs.json")["jobs"][0]["created_at"])
+
+
+@pytest.fixture(autouse=True)
+def aged(monkeypatch):
+    """GitHub's clock as `stranded` reads it: the recorded queued job is 60 s old unless a test calls aged(seconds)."""
+    now = {"t": QUEUED_AT + timedelta(seconds=60)}
+    monkeypatch.setattr(ci_status, "WALL_CLOCK", lambda: now["t"])
+    return lambda seconds: now.update(t=QUEUED_AT + timedelta(seconds=seconds))
 
 
 def _actions_calls(events) -> list[tuple]:
@@ -62,21 +74,74 @@ def test_a_billing_block_on_any_check_of_the_head_covers_a_required_check_not_re
     assert ci_status.standing([other], ["check"], True, ci_status.Probe()) == {"check": "queued"}
 
 
-def test_a_job_queued_for_an_offline_self_hosted_runner_is_stranded(actions):  # noqa: F811
+def _queued(knobs, **job_fields) -> dict:
+    """The recorded rollup CheckRun of a job queued for a self-hosted runner; its job payload with `job_fields`."""
     (check,) = [c for c in recorded("queued_rollup.json")["statusCheckRollup"] if c["name"] == "check"]
     (job,) = recorded("queued_jobs.json")["jobs"]
-    actions["jobs"][str(job["id"])] = job
-    actions["runners"] = recorded("queued_runners.json")
-    assert ci_status.standing([check], ["check"], True, ci_status.Probe()) == {"check": "never-ran"}
+    knobs["jobs"][str(job["id"])] = job | job_fields
+    return check
+
+
+def _reads(check) -> str:
+    return ci_status.standing([check], ["check"], True, ci_status.Probe())["check"]
+
+
+def test_a_job_queued_for_an_offline_self_hosted_runner_is_stranded(actions, aged):  # noqa: F811
+    check = _queued(actions)
+    actions["runners"] = recorded("queued_runners.json")  # all three offline
+    assert _reads(check) == "never-ran"
     online = recorded("queued_runners.json")
     online["runners"][1]["status"] = "online"
     actions["runners"] = online
-    assert ci_status.standing([check], ["check"], True, ci_status.Probe()) == {"check": "queued"}
-    actions["runners"] = None  # the runner list needs admin access: unknown, so it waits
-    assert ci_status.standing([check], ["check"], True, ci_status.Probe()) == {"check": "queued"}
+    assert _reads(check) == "queued"
+    actions["jobs"][next(iter(actions["jobs"]))]["labels"] = ["ubuntu-latest"]  # a GitHub-hosted job just waits
     actions["runners"] = recorded("queued_runners.json")
-    actions["jobs"][str(job["id"])] = job | {"labels": ["ubuntu-latest"]}  # a GitHub-hosted job just waits
-    assert ci_status.standing([check], ["check"], True, ci_status.Probe()) == {"check": "queued"}
+    assert _reads(check) == "queued"
+
+
+def test_a_queued_job_is_never_stranded_before_actions_start_s(actions, aged):  # noqa: F811
+    """Round 1 (#573): a runner list alone is never proof; the job must also have waited `actions_start_s`."""
+    check = _queued(actions)
+    actions["runners"] = recorded("queued_runners.json")
+    aged(5)
+    assert _reads(check) == "queued"
+    aged(20)
+    assert _reads(check) == "never-ran"
+    actions["jobs"][next(iter(actions["jobs"]))] |= {"runner_id": 21, "runner_name": "runner-0"}  # a runner took it
+    assert _reads(check) == "queued"
+
+
+def test_runner_labels_match_case_insensitively(actions, aged):  # noqa: F811
+    """Reviewer probe (a): `runs-on: [self-hosted, linux]` next to an online runner labelled `Linux` can run."""
+    check = _queued(actions, labels=["self-hosted", "linux"])
+    online = recorded("queued_runners.json")
+    online["runners"][0]["status"] = "online"  # labels self-hosted, Linux, X64
+    actions["runners"] = online
+    assert _reads(check) == "queued"
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["empty list", "unreadable", "incomplete", "organisation"],
+)
+def test_without_the_whole_runner_list_only_the_time_rule_decides(actions, aged, case):  # noqa: F811
+    """Reviewer probe (b): repository runners [] (scale-from-zero, or an organisation's runner group the list does not
+    show), an unreadable or a partial list: a young queued job waits, one queued past `actions_start_s` is stranded."""
+    check = _queued(actions, labels=["self-hosted", "linux"])
+    online = recorded("queued_runners.json")
+    online["runners"][0]["status"] = "online"
+    actions["runners"] = {
+        "empty list": {"total_count": 0, "runners": []},
+        "unreadable": None,
+        "incomplete": online | {"total_count": 120},  # an online match on page 1 but the list is partial
+        "organisation": online,
+    }[case]
+    if case == "organisation":
+        actions["owner"] = "Organization"
+    aged(5)
+    assert _reads(check) == "queued"
+    aged(60)
+    assert _reads(check) == "never-ran"
 
 
 # --- ci = "actions": standing in within seconds ----------------------------------------------------------------------

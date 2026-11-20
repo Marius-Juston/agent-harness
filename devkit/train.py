@@ -231,21 +231,21 @@ def _send_back_owns(m: Member, dry_run: bool) -> None:
     m.fields |= workflow.fix_loop(m.number, m.info, "refused", [why, *(f"- {r}" for r in rows)], [], m.head, dry_run)
 
 
-def _post_local_ci(m: Member, log: Path, names: str) -> None:
+def _post_local_ci(m: Member, log: Path, names: str, mode: str = "--local-ci") -> None:
     """`--local-ci` with `--train`, after main was pushed: the gated candidate holding this member passed the gate
     and each stand-in, so post a success status for each required context Actions never ran on the member's head (the
     commit whose checks branch protection reads for the PR), with the log's hash, and say so on the PR."""
     if not m.stood:
         return
     digest = hashlib.sha256(log.read_bytes()).hexdigest()
-    note = f"dev integrate --local-ci --train: passed in train {names}; log sha256 {digest[:16]}"
+    note = f"dev integrate --train ({mode}): passed in train {names}; log sha256 {digest[:16]}"
     for ctx in m.stood:
         board.gh(
             "api", "-X", "POST", f"repos/{board.repo()}/statuses/{m.head}",
             "-f", "state=success", "-f", f"context={ctx}", "-f", f"description={note}",
         )  # fmt: skip
     body = (
-        f"CI ran locally (`dev integrate --local-ci --train`): GitHub Actions did not run {', '.join(m.stood)} on "
+        f"CI ran locally (`dev integrate --train`, {mode}): GitHub Actions did not run {', '.join(m.stood)} on "
         f"{m.head}. The train {names} holding this PR passed `uv run dev check --no-cache` and each required check's "
         f"stand-in. Log sha256 `{digest}`, kept at `{log}` on {os.uname().nodename}. Posted {', '.join(m.stood)} as "
         f"commit statuses on {m.head[:10]}."
@@ -521,7 +521,7 @@ def _train(members: list[Member], gates: list[dict], harness_ok: set[int] | bool
         for m in landing:
             if local_ci and landed.log is not None:
                 try:
-                    _post_local_ci(m, landed.log, names)
+                    _post_local_ci(m, landed.log, names, mode)
                 except (board.BoardError, RuntimeError, OSError) as exc:
                     m.fields["local_ci_error"] = str(exc)
             _close_merged(m, names, tip)

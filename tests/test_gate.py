@@ -1586,7 +1586,7 @@ def actions(fake_integrate, monkeypatch, clock):
     """GitHub's REST side for --local-ci on top of fake_integrate. Knobs: protection (required_status_checks, None
     when unreadable), enabled (Actions permissions), steps (job id -> steps it ran), jobs (job id -> the whole job
     payload, over steps), notes (check run id -> annotations), runners (self-hosted runners; None when unreadable),
-    runs (workflow runs on a head), ci and start_s (config ci, actions_start_s; #531), commands (config local_ci);
+    owner (the repository owner's type), runs (workflow runs on a head), ci and start_s (config ci, actions_start_s; #531), commands (config local_ci);
     statuses records each status posted."""
     knobs = {
         "protection": {"contexts": ["check"], "checks": [{"context": "check", "app_id": None}]},
@@ -1594,7 +1594,8 @@ def actions(fake_integrate, monkeypatch, clock):
         "steps": {},
         "jobs": {},
         "notes": {},
-        "runners": {"runners": []},
+        "runners": {"total_count": 0, "runners": []},
+        "owner": "User",
         "runs": 1,
         "ci": "actions",
         "start_s": 20,
@@ -1619,7 +1620,9 @@ def actions(fake_integrate, monkeypatch, clock):
             return json.dumps(knobs["jobs"].get(job) or {"steps": [{}] * knobs["steps"].get(job, 0)})
         if path.endswith("/annotations"):
             return json.dumps(knobs["notes"].get(path.split("/")[-2], []))
-        if path.endswith("/actions/runners"):
+        if path == "repos/o/r":
+            return json.dumps({"owner": {"type": knobs["owner"]}})
+        if "/actions/runners" in path:
             if knobs["runners"] is None:
                 raise board.BoardError("gh api: 403 Must have admin rights to Repository")
             return json.dumps(knobs["runners"])

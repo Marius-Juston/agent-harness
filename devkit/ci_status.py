@@ -9,6 +9,7 @@ import random
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from devkit import backoff, board, config
 
@@ -152,7 +153,7 @@ def local() -> bool:
 def _api(path: str) -> object | None:
     """A GitHub REST read, None when it fails or is not JSON: what it would have told is then unknown."""
     try:
-        return json.loads(board.gh("api", f"repos/{board.repo()}/{path}"))
+        return json.loads(board.gh("api", f"repos/{board.repo()}/{path}".rstrip("/")))
     except (board.BoardError, ValueError):
         return None
 
@@ -167,20 +168,40 @@ def actions_enabled() -> bool:
 
 # #531: how a head shows that Actions cannot run, recorded in tests/fixtures/actions_blocked (research note
 # agent-harness.md, "Actions that cannot run"). A billing block or spending limit fails each job within seconds with
-# no step, no runner and one annotation naming billing; a job for a self-hosted runner stays queued while no runner
-# with its labels is online; a head with no workflow run at all never gets its checks.
+# no step, no runner and one annotation naming billing; a job for a self-hosted runner stays queued, with no runner
+# assigned, while no runner with its labels is online; a head with no workflow run at all never gets its checks.
 BILLING = re.compile(r"spending limit|payments have failed|billing", re.I)
 
 
 @dataclass
 class Probe:
     """What one look at a head read from the Actions API, each item at most once: job id -> job (None unreadable),
-    check run id -> its annotations' messages, and the repository's self-hosted runners (None unreadable)."""
+    check run id -> its annotations' messages, and the repository's self-hosted runners (None when unreadable,
+    incomplete, or the repository belongs to an organisation, whose runner groups this list does not show)."""
 
     jobs: dict[str, dict | None] = field(default_factory=dict)
     notes: dict[str, list[str]] = field(default_factory=dict)
     runners: list[dict] | None = None
     runners_read: bool = False
+
+
+def WALL_CLOCK() -> datetime:  # a module clock tests replace, as CHECKS_CLOCK
+    """Now, against which a job's `created_at` (GitHub's time) gives its age."""
+    return datetime.now(UTC)
+
+
+def _runners(probe: Probe) -> list[dict] | None:
+    """The repository's self-hosted runners when that list is the whole truth: readable (it needs admin access),
+    complete (one page holds them all) and the repository user-owned. Else None: unknown."""
+    if not probe.runners_read:
+        probe.runners_read = True
+        repo, got = _api(""), _api("actions/runners?per_page=100")
+        owner = repo.get("owner") if isinstance(repo, dict) else None
+        user = isinstance(owner, dict) and owner.get("type") == "User"
+        listed = got.get("runners") if isinstance(got, dict) else None
+        whole = isinstance(listed, list) and isinstance(got, dict) and got.get("total_count") == len(listed)
+        probe.runners = listed if user and whole else None
+    return probe.runners
 
 
 def _job(c: dict, probe: Probe) -> tuple[str, dict | None]:
@@ -215,22 +236,27 @@ def billing_blocked(c: dict, probe: Probe) -> bool:
 
 
 def stranded(c: dict, probe: Probe) -> bool:
-    """A queued CheckRun whose job waits for a self-hosted runner while no runner with all its labels is online: it
-    never starts. A GitHub-hosted job that is queued, or an unreadable job or runner list, is not stranded."""
+    """A queued CheckRun whose job waits for a self-hosted runner and never starts. A missing runner is never proof
+    alone (an organisation's runner groups and scale-from-zero runners are not in the repository's list): the job
+    must still be queued with no runner assigned `actions_start_s` after it was created, and when the repository's
+    runner list is the whole truth (`_runners`) no online runner may carry all its labels, which GitHub matches
+    case-insensitively. A GitHub-hosted job, or one whose age is unreadable, is not stranded."""
     if c.get("__typename") == "StatusContext" or c.get("status") in ("COMPLETED", "IN_PROGRESS"):
         return False
     job = _job(c, probe)[1]
-    if not job or job.get("status") != "queued" or "self-hosted" not in (labels := set(job.get("labels") or [])):
+    if not job or job.get("status") != "queued" or job.get("runner_id") or job.get("runner_name"):
         return False
-    if not probe.runners_read:
-        probe.runners_read = True
-        got = _api("actions/runners")  # needs admin access: unreadable is unknown, so the wait decides
-        probe.runners = got.get("runners") if isinstance(got, dict) else None
-    if probe.runners is None:
+    if "self-hosted" not in (labels := {str(lab).casefold() for lab in job.get("labels") or []}):
         return False
-    return not any(
-        r.get("status") == "online" and labels <= {lab.get("name") for lab in r.get("labels") or []}
-        for r in probe.runners
+    try:
+        age = (WALL_CLOCK() - datetime.fromisoformat(job["created_at"])).total_seconds()
+    except (KeyError, TypeError, ValueError):
+        return False
+    if age < config.get().actions_start_s:
+        return False
+    return (runners := _runners(probe)) is None or not any(
+        r.get("status") == "online" and labels <= {str(lab.get("name")).casefold() for lab in r.get("labels") or []}
+        for r in runners
     )
 
 
