@@ -82,11 +82,12 @@ class Config:
     gate_slots: int = 1
     # `dev integrate --local-ci` (#76): a required check that has not queued after this long means Actions cannot run.
     local_ci_wait_s: int = 600
-    # #531: "actions" waits for GitHub Actions, and with `--local-ci` stands in for what it cannot run; "local" never
-    # uses Actions: integrate and the train always run the `local_ci` stand-ins and post the required statuses at
-    # once, as `--local-ci` does, for a repository whose Actions minutes run out.
+    # #531: "actions" waits for GitHub Actions, and stands in (as `--local-ci` does) once a head shows Actions cannot
+    # run it (billing block, offline self-hosted runners, no workflow run). "local" never waits on Actions: integrate
+    # and the train read each head's checks once, refuse a required check Actions ran and failed, and stand in for
+    # the rest at once; for a repository whose Actions minutes run out.
     ci: str = "actions"
-    # #531: `--local-ci` with ci = "actions": a head with no workflow run after this long means Actions cannot run.
+    # #531: with ci = "actions", a head with no workflow run after this long means Actions cannot run.
     actions_start_s: int = 20
     # `dev integrate --local-ci`: required check context -> the commands (argument lists, run in the merged tree after
     # the gate passed; "{tmpdir}" becomes a fresh empty directory) that stand in for it. [] = the gate alone. A required

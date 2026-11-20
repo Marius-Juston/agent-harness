@@ -31,6 +31,7 @@ from devkit.ci_status import (  # re-exported: devkit/train.py reads these throu
     local_ci_refusal,
     only_pending,
     required_contexts,
+    stand_in_mode,
     standing,
     unfinished,
 )
@@ -761,12 +762,15 @@ def _integrate(
         print("RESULT: refused: --override needs a reason")
         return done(1, "refused", reason="--override needs a reason")
     contexts, ignore = [], frozenset()
-    local_ci = local_ci or config.get().ci == "local"  # #531: one path for the flag and the setting
-    if local_ci:
+    # #531: one path for the flag, `ci = "local"` and a head Actions cannot run (billing, offline runners, no run)
+    if mode := stand_in_mode(local_ci, info.get("statusCheckRollup") or [], info["headRefOid"]):
+        local_ci = True
+        if mode != "--local-ci":
+            print(f"running CI locally ({mode}), as --local-ci does", flush=True)
         contexts, bound = required_contexts()
         if why := local_ci_refusal(contexts, bound):
-            print(f"RESULT: refused: --local-ci: {why}")
-            return done(1, "refused", reason=f"--local-ci: {why}")
+            print(f"RESULT: refused: {mode}: {why}")
+            return done(1, "refused", reason=f"{mode}: {why}")
         now = standing(info.get("statusCheckRollup") or [], contexts, actions_enabled(), Probe())
         ignore = frozenset(c for c, s in now.items() if s != "failed")  # judged on the gated head, after the run
     again = False  # the last run timed out waiting on this same head (#305)

@@ -144,19 +144,25 @@ def required_contexts() -> tuple[list[str], list[str]]:
 
 
 def local() -> bool:
-    """`ci = "local"` under [tool.devkit] (#531): Actions is not used at all; the local run stands in for every
-    required context, with no wait and no query of Actions."""
+    """`ci = "local"` under [tool.devkit] (#531): Actions is never waited for. Each head's checks are read once; a
+    required check Actions ran and failed refuses, every other required context is stood in for at once."""
     return config.get().ci == "local"
+
+
+def _api(path: str) -> object | None:
+    """A GitHub REST read, None when it fails or is not JSON: what it would have told is then unknown."""
+    try:
+        return json.loads(board.gh("api", f"repos/{board.repo()}/{path}"))
+    except (board.BoardError, ValueError):
+        return None
 
 
 def actions_enabled() -> bool:
     """Whether Actions may run on this repository (`ci = "local"`: no, without asking)."""
     if local():
         return False
-    try:
-        return bool(json.loads(board.gh("api", f"repos/{board.repo()}/actions/permissions")).get("enabled", True))
-    except board.BoardError:
-        return True  # unreadable: the wait for a check that never queues decides
+    got = _api("actions/permissions")
+    return bool(got.get("enabled", True)) if isinstance(got, dict) else True  # unreadable: the wait decides
 
 
 # #531: how a head shows that Actions cannot run, recorded in tests/fixtures/actions_blocked (research note
@@ -181,10 +187,8 @@ def _job(c: dict, probe: Probe) -> tuple[str, dict | None]:
     if not (m := JOB_URL.search(c.get("detailsUrl") or "")):
         return "", None
     if m[1] not in probe.jobs:
-        try:
-            probe.jobs[m[1]] = json.loads(board.gh("api", f"repos/{board.repo()}/actions/jobs/{m[1]}"))
-        except board.BoardError:
-            probe.jobs[m[1]] = None
+        got = _api(f"actions/jobs/{m[1]}")
+        probe.jobs[m[1]] = got if isinstance(got, dict) else None
     return m[1], probe.jobs[m[1]]
 
 
@@ -205,11 +209,8 @@ def billing_blocked(c: dict, probe: Probe) -> bool:
         return False
     job_id = _job(c, probe)[0]
     if job_id not in probe.notes:
-        try:
-            got = json.loads(board.gh("api", f"repos/{board.repo()}/check-runs/{job_id}/annotations"))
-            probe.notes[job_id] = [a.get("message") or "" for a in got]
-        except board.BoardError:
-            probe.notes[job_id] = []
+        got = _api(f"check-runs/{job_id}/annotations")
+        probe.notes[job_id] = [a.get("message") or "" for a in got] if isinstance(got, list) else []
     return any(BILLING.search(n) for n in probe.notes[job_id])
 
 
@@ -223,10 +224,8 @@ def stranded(c: dict, probe: Probe) -> bool:
         return False
     if not probe.runners_read:
         probe.runners_read = True
-        try:
-            probe.runners = json.loads(board.gh("api", f"repos/{board.repo()}/actions/runners")).get("runners")
-        except board.BoardError:
-            probe.runners = None  # needs admin access: unknown, so the wait decides
+        got = _api("actions/runners")  # needs admin access: unreadable is unknown, so the wait decides
+        probe.runners = got.get("runners") if isinstance(got, dict) else None
     if probe.runners is None:
         return False
     return not any(
@@ -241,10 +240,8 @@ STANDING = ("failed", "running", "queued", "never-ran", "passed")  # the first o
 def standing(rollup: list[dict], contexts: list[str], enabled: bool, probe: Probe) -> dict[str, str]:
     """Each required context on a head: failed (it ran and failed), running, queued (not registered yet, or waiting
     for a runner), never-ran (Actions did not start it, Actions are disabled or billing-blocked, its self-hosted
-    runner is offline, or `ci = "local"`) or passed. A billing block on any check of the head counts for every
-    context still queued: the account runs no job."""
-    if local():
-        return dict.fromkeys(contexts, "never-ran")
+    runner is offline) or passed. A billing block on any check of the head counts for every context still queued:
+    the account runs no job. With `ci = "local"` nothing is waited for: running and queued read as never-ran."""
     checks = latest_checks(rollup)
     blocked = not enabled or any(billing_blocked(c, probe) for c in checks)
     out = {}
@@ -272,26 +269,45 @@ def standing(rollup: list[dict], contexts: list[str], enabled: bool, probe: Prob
                 )
         seen = ["never-ran" if s == "queued" and blocked else s for s in seen or ["queued"]]
         out[ctx] = min(seen, key=STANDING.index)
+    if local():
+        return {k: "never-ran" if v in ("running", "queued") else v for k, v in out.items()}
     return out
+
+
+def cannot_run(rollup: list[dict], head: str, probe: Probe) -> bool:
+    """Whether a PR head shows, within seconds, that Actions cannot run (#531): a check billing-blocked or stranded
+    on an offline self-hosted runner, or no check at all while Actions is disabled or made no run for `head`. Only
+    what the rollup hints at is read from the API, so a head whose checks ran costs no call."""
+    if local():
+        return True
+    checks = [c for c in latest_checks(rollup) if c.get("__typename") != "StatusContext"]
+    if any(billing_blocked(c, probe) or stranded(c, probe) for c in checks):
+        return True
+    return not checks and (not actions_enabled() or no_runs(head))
+
+
+def stand_in_mode(flag: bool, rollup: list[dict], head: str) -> str:
+    """Why integrate or the train runs CI locally for a head (#531), or "" when it waits for Actions as usual:
+    `--local-ci`, `ci = "local"`, or (with `ci = "actions"`) Actions shows it cannot run the head (`cannot_run`)."""
+    if flag:
+        return "--local-ci"
+    if local():
+        return 'ci = "local"'
+    return "Actions cannot run on this head" if cannot_run(rollup, head, Probe()) else ""
 
 
 def no_runs(tip: str) -> bool:
     """True when Actions created no workflow run for `tip` (an unreadable answer is not)."""
-    try:
-        got = json.loads(board.gh("api", f"repos/{board.repo()}/actions/runs?head_sha={tip}&per_page=1"))
-    except board.BoardError:
-        return False
-    return got.get("total_count") == 0
+    got = _api(f"actions/runs?head_sha={tip}&per_page=1")
+    return isinstance(got, dict) and got.get("total_count") == 0
 
 
 def await_actions(pr_number: int, tip: str, contexts: list[str]) -> tuple[str, dict[str, str]]:
     """Poll the required contexts on `tip` until none runs, and none is queued unless Actions cannot run it
     (`standing`), Actions created no workflow run for `tip` after `actions_start_s`, or `local_ci_wait_s` passed.
     ("ready", standing) with what is still queued read as never-ran, ("moved", {}) when the head is no longer `tip`,
-    ("timeout", standing) when a check still runs after `checks_wait_s`. With `ci = "local"` it is ready at once,
-    every context never-ran, without reading GitHub."""
-    if local():
-        return "ready", dict.fromkeys(contexts, "never-ran")
+    ("timeout", standing) when a check still runs after `checks_wait_s`. With `ci = "local"` it reads `tip` once and
+    is ready at once (`standing`)."""
     cfg = config.get()
     enabled, probe, start, ran = actions_enabled(), Probe(), CHECKS_CLOCK(), False
     for attempt in itertools.count():

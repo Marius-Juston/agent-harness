@@ -70,7 +70,12 @@ Nothing assumes that two machines share a disk.
    context Actions did not run as a success commit status carrying the log's sha256, comment on the PR that CI ran
    locally, and merge. A check Actions did run and fail still refuses. It refuses up front when a required check
    accepts only the GitHub Actions app (a posted status would not count; the refusal names the `app_id: -1` change
-   for the owner) or has no stand-in. The board needs no scheduled job either: `dev orient` and `dev integrate` run
+   for the owner) or has no stand-in. Integrate and a train take this path without the flag when a head shows within
+   seconds that Actions cannot run it: a job failed with GitHub's billing annotation, a job is queued for a
+   self-hosted runner while none with its labels is online, or the head has no workflow run (`actions_start_s`,
+   20 s). `ci = "local"` in `[tool.devkit]` makes the path the default. Each head's checks are read once, a required
+   check that Actions ran and failed refuses, and the rest are stood in for at once, never waited on. The board needs
+   no scheduled job either: `dev orient` and `dev integrate` run
    `board sync`, so the template's `board.yml` is optional.
 9. **A merge train** (lead, a long review queue): `uv run dev integrate --train N <pr> <pr>...` takes N ready PRs in
    board priority order. Each member passes integrate's per-PR checks first; one that fails is sent back or held

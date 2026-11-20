@@ -420,17 +420,24 @@ def _stop_rest(members: list[Member], why: str) -> None:
 def _train(members: list[Member], gates: list[dict], harness_ok: set[int] | bool, dry_run: bool, local_ci: bool) -> int:
     contexts: list[str] = []
     enabled = True
-    local_ci = local_ci or config.get().ci == "local"  # #531: as integrate does
-    if local_ci:
+    for m in members:
+        m.info = json.loads(board.gh("pr", "view", str(m.number), "-R", board.repo(), "--json", workflow.PR_FIELDS))
+    # #531: integrate's choice (`stand_in_mode`), made once for the train: the flag, `ci = "local"`, or a member head
+    # Actions cannot run
+    modes = (
+        ci_status.stand_in_mode(local_ci, m.info.get("statusCheckRollup") or [], m.info["headRefOid"]) for m in members
+    )
+    if mode := next((w for w in modes if w), ""):
+        if mode != "--local-ci":
+            print(f"train: running CI locally ({mode}), as --local-ci does", flush=True)
         contexts, bound = ci_status.required_contexts()
         if why := ci_status.local_ci_refusal(contexts, bound):
             for m in members:
-                m.outcome, m.fields = "refused", {"reason": f"--local-ci: {why}"}
-            print(f"RESULT: refused: --local-ci: {why}")
-            return _result(members, gates, 1, "refused", reason=f"--local-ci: {why}")
+                m.outcome, m.fields = "refused", {"reason": f"{mode}: {why}"}
+            print(f"RESULT: refused: {mode}: {why}")
+            return _result(members, gates, 1, "refused", reason=f"{mode}: {why}")
         enabled = ci_status.actions_enabled()
-    for m in members:
-        m.info = json.loads(board.gh("pr", "view", str(m.number), "-R", board.repo(), "--json", workflow.PR_FIELDS))
+    local_ci = bool(mode)
     refs = {m.number: f"refs/devkit/train/pr-{m.number}" for m in members}
     main_ref = "refs/devkit/train/main"
     tree = workflow.state_dir("integrate") / "train"

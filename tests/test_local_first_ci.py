@@ -141,16 +141,96 @@ def test_a_head_actions_runs_on_still_waits_for_its_checks(fake_integrate, actio
 # --- ci = "local": no wait, no Actions query -------------------------------------------------------------------------
 
 
-def test_ci_local_posts_the_required_statuses_and_merges_without_querying_actions(fake_integrate, actions, clock):  # noqa: F811
-    """DONE WHEN (#531): no --local-ci flag; nothing under /actions/ is read, nothing waited for."""
+def _polls(events) -> int:
+    return sum(1 for e in events if e[:2] == ("gh", "pr") and "headRefOid,statusCheckRollup" in e)
+
+
+def test_ci_local_posts_the_required_statuses_and_merges_without_waiting_on_actions(fake_integrate, actions, clock):  # noqa: F811
+    """DONE WHEN (#531): no --local-ci flag. The head's checks are read once, nothing is waited for, and no workflow
+    run is looked up: a job Actions never ran, one still queued and one not registered are all stood in for."""
     actions["ci"] = "local"
-    actions["protection"] = {"contexts": ["check", "template"], "checks": []}
-    actions["commands"]["template"] = []
-    fake_integrate["checks"] = [_job("check", 11)]  # whatever Actions shows is not consulted
+    actions["protection"] = {"contexts": ["check", "template", "plugin"], "checks": []}
+    actions["commands"] |= {"template": [], "plugin": []}
+    fake_integrate["checks"] = [_job("check", 11), _run("template", status="QUEUED")]
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     ev = fake_integrate["events"]
-    assert sorted(s["context"] for s in actions["statuses"]) == ["check", "template"]
-    assert _merged(ev) and _actions_calls(ev) == [] and clock["sleeps"] == []
+    assert sorted(s["context"] for s in actions["statuses"]) == ["check", "plugin", "template"]
+    assert _merged(ev) and clock["sleeps"] == [] and _polls(ev) == 1
+    assert not any("/actions/runs" in a for e in _actions_calls(ev) for a in e)
+
+
+def test_ci_local_refuses_a_required_check_actions_ran_and_failed(fake_integrate, actions, clock, capsys):  # noqa: F811
+    """Owner (2026-11-19): with ci = "local", a required check that completed with a real failure on the head
+    refuses; nothing is posted over it and nothing is waited for."""
+    actions["ci"] = "local"
+    actions["steps"] = {"11": 5}  # the job ran its steps: a real failure
+    fake_integrate["checks"] = [_job("check", 11)]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert actions["statuses"] == [] and not _merged(fake_integrate["events"]) and clock["sleeps"] == []
+    assert _last_json(capsys.readouterr().out)["outcome"] == "refused"
+
+
+# --- ci = "actions" without --local-ci: the automatic stand-in (owner, 2026-11-19) ----------------------------------
+
+
+def test_a_billing_blocked_head_is_stood_in_for_without_the_flag(fake_integrate, actions, clock, capsys):  # noqa: F811
+    check, job = _billing("check", 11)
+    actions["jobs"]["11"] = job
+    actions["notes"]["11"] = recorded("billing_annotations.json")
+    fake_integrate["checks"] = [check]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert [s["context"] for s in actions["statuses"]] == ["check"] and _merged(fake_integrate["events"])
+    assert sum(clock["sleeps"]) < 30 and "Actions cannot run on this head" in capsys.readouterr().out
+
+
+def test_an_offline_runner_head_is_stood_in_for_without_the_flag(fake_integrate, actions, clock):  # noqa: F811
+    (check,) = [c for c in recorded("queued_rollup.json")["statusCheckRollup"] if c["name"] == "check"]
+    (job,) = recorded("queued_jobs.json")["jobs"]
+    actions["jobs"][str(job["id"])] = job
+    actions["runners"] = recorded("queued_runners.json")
+    fake_integrate["checks"] = [check]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert [s["context"] for s in actions["statuses"]] == ["check"] and clock["sleeps"] == []
+
+
+def test_a_head_with_no_workflow_run_is_stood_in_for_without_the_flag(fake_integrate, actions, clock):  # noqa: F811
+    fake_integrate["checks"] = []
+    actions["runs"] = 0
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    assert [s["context"] for s in actions["statuses"]] == ["check"] and sum(clock["sleeps"]) < 30
+
+
+def test_without_the_flag_a_required_check_actions_ran_and_failed_still_refuses(fake_integrate, actions, capsys):  # noqa: F811
+    """The head is billing-blocked (template), so the stand-in starts; but `check` ran its steps and failed."""
+    other, job = _billing("template", 12)
+    actions["jobs"]["12"] = job
+    actions["notes"]["12"] = recorded("billing_annotations.json")
+    actions["steps"] = {"11": 5}
+    actions["protection"] = {"contexts": ["check", "template"], "checks": []}
+    actions["commands"]["template"] = []
+    fake_integrate["checks"] = [_job("check", 11), other]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
+    assert actions["statuses"] == [] and not _merged(fake_integrate["events"])
+    assert _last_json(capsys.readouterr().out)["outcome"] == "refused"
+
+
+def test_a_head_actions_runs_normally_takes_no_stand_in_and_no_extra_call(fake_integrate, actions):  # noqa: F811
+    fake_integrate["checks"] = [_run("check")]
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    ev = fake_integrate["events"]
+    assert actions["statuses"] == [] and _actions_calls(ev) == [] and _merged(ev)
+
+
+def test_a_train_with_a_billing_blocked_member_stands_in_without_the_flag(world, capsys, monkeypatch):  # noqa: F811
+    three(world)
+    monkeypatch.setattr(ci_status, "required_contexts", lambda: (["check"], []))
+    monkeypatch.setattr(ci_status, "cannot_run", lambda rollup, head, probe: True)
+    monkeypatch.setattr(ci_status, "actions_enabled", lambda: False)
+    monkeypatch.setattr(train.config, "get", lambda: train.config.Config(local_ci={"check": []}))
+    assert train.train([1, 2], harness_ok=True, dry_run=False) == 0
+    posts = [e for e in world["events"] if e[:4] == ("gh", "api", "-X", "POST")]
+    assert len(posts) == 2 and all("context=check" in e for e in posts)
+    assert "running CI locally (Actions cannot run on this head)" in capsys.readouterr().out
 
 
 def test_ci_local_still_refuses_what_a_status_cannot_satisfy(fake_integrate, actions, capsys):  # noqa: F811
