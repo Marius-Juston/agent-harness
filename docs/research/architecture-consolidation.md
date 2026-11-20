@@ -119,6 +119,8 @@ Metadata VERIFIED through the GitHub and PyPI APIs on 2026-10-12. The measuremen
 | qlty | BSL 1.1 | | **excluded**: the Business Source License is not open source, and the owner requires free and open-source tools ([LICENSE](https://github.com/qltysh/qlty/blob/main/LICENSE.md)) |
 | [wshobson/agents](https://github.com/wshobson/agents), [VoltAgent subagents](https://github.com/VoltAgent/awesome-claude-code-subagents), `code-simplifier`, `/simplify` | MIT, Apache-2.0 | prompt-only or diff-scoped | **do not adopt**: no measurement, or no repository-wide view |
 
+Update 2026-11-19 (#496): import-linter contracts, complexity, coupling and hotspot metrics were later replayed against this repository's history; contracts and a churn x LOC hotspot ranking carried the signal, and they became the `dev arch` report and gate stage. See [architecture-grading.md](architecture-grading.md).
+
 ## 8. Component shape for #113
 The owner suggested a subagent. The evidence supports a subagent for the judgement, but only fed by deterministic code.
 

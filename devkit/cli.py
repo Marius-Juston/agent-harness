@@ -1,6 +1,7 @@
 """`uv run dev <command>`: the single entry point for agents and humans. `uv run dev --help` is the command list."""
 
 import argparse
+import difflib
 import json
 import os
 import subprocess
@@ -24,6 +25,7 @@ from devkit import (
     gate,
     handoff,
     lit,
+    mutants,
     prtext,
     quota,
     reuse,
@@ -68,6 +70,56 @@ class Parser(argparse.ArgumentParser):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("allow_abbrev", False)
         super().__init__(*args, **kwargs)
+        self.argv: list[str] = []
+
+    # A usage error names the invoked subcommand's usage on one line and the nearest option, in at most 3 lines: agents
+    # guessed flags and then called --help for the usage the top-level error did not show (#524).
+    def parse_known_args(self, args=None, namespace=None):
+        self.argv = list(sys.argv[1:] if args is None else args)  # a subparser's own share of the command line
+        return super().parse_known_args(args, namespace)
+
+    def invoked(self, ns: argparse.Namespace) -> "Parser":
+        """The deepest subparser the parsed namespace went through."""
+        for action in self._actions:
+            if isinstance(action, argparse._SubParsersAction) and getattr(ns, action.dest, None) in action.choices:
+                return action.choices[getattr(ns, action.dest)].invoked(ns)
+        return self
+
+    def _check_value(self, action, value):
+        try:
+            super()._check_value(action, value)
+        except argparse.ArgumentError as exc:
+            near = difflib.get_close_matches(str(value), [str(c) for c in action.choices or ()], 1, 0.6)
+            if not near:
+                raise
+            raise argparse.ArgumentError(action, f"{exc.message}\ndid you mean {near[0]}?") from None
+
+    def hint(self) -> str:
+        """'did you mean' for the first unknown flag: an option of this parser, a positional, or a subcommand's
+        option; empty below difflib ratio 0.6."""
+        argv = self.argv[: self.argv.index("--")] if "--" in self.argv else self.argv
+        flags = [a.split("=", 1)[0] for a in argv if a.startswith("-") and not self._negative_number_matcher.match(a)]
+        unknown = [f for f in flags if f not in self._option_string_actions]
+        if not unknown:
+            return ""
+        flag = unknown[0]
+        if near := difflib.get_close_matches(flag, list(self._option_string_actions), 1, 0.6):
+            return f"{flag}: did you mean {near[0]}?"
+        positionals = [a.metavar or a.dest for a in self._get_positional_actions() if a.nargs != argparse.PARSER]
+        if near := difflib.get_close_matches(flag.lstrip("-"), [str(p) for p in positionals], 1, 0.6):
+            return f"{flag}: did you mean the positional {near[0]}?"
+        for action in self._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for sp in action.choices.values():
+                    if near := difflib.get_close_matches(flag, list(sp._option_string_actions), 1, 0.6):
+                        return f"{flag}: did you mean {sp.prog} {near[0]}?"
+        return ""
+
+    def error(self, message):
+        formatter = self.formatter_class(prog=self.prog, width=10_000)  # unwrapped: one line however many options
+        formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
+        hint = "" if "\ndid you mean" in message else self.hint()
+        self.exit(2, f"{formatter.format_help()}{self.prog}: error: {message}\n" + (f"{hint}\n" if hint else ""))
 
 
 def build() -> argparse.ArgumentParser:
@@ -171,6 +223,13 @@ def build() -> argparse.ArgumentParser:
     x.add_argument("number", type=int)
     x = bs.add_parser("feedback", help="a PR's comments and reviews since its last commit, and its unresolved threads")
     x.add_argument("pr", type=int)
+    x.add_argument(
+        "--dispose",
+        nargs="*",
+        metavar="F<n>=VALUE",
+        help="lead, at integrate: list the reviewer findings, recording each F<n>=fixed|filed|declined|false given "
+        "(rest=VALUE: every finding without one); agent-stats --findings rates the false ones",
+    )
 
     x = sub.add_parser("pr", help="worker: push the gated branch, open the PR, move the item to review")
     x.add_argument("number", type=int)
@@ -356,8 +415,19 @@ def build() -> argparse.ArgumentParser:
     g.add_argument(
         "--misses", dest="mode", action="store_const", const="misses", help="candidate post-merge defect pairs"
     )
+    g.add_argument(
+        "--findings",
+        dest="mode",
+        action="store_const",
+        const="findings",
+        help="false-finding rate of reviewer findings, from the dispositions recorded on merged PRs (GitHub only)",
+    )
     x.add_argument("--since", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or after")
     x.add_argument("--until", default="", help="YYYY-MM-DD: transcripts started and PRs merged on or before")
+    x = sub.add_parser("mutants", help="advisory mutation of the change's lines: surviving mutants, untested lines")
+    x.add_argument("--base", help="compare against this ref (default: origin/main, else main)")
+    x.add_argument("--rev", help="a commit or branch to mutate instead of the working tree")
+    x.add_argument("--all", action="store_true", help="print every survivor, not the 10 weakest")
     x = sub.add_parser("suite-audit", help="size-tiered audit of the whole test suite: is one due, and the nine checks")
     xs = x.add_subparsers(dest="sub", required=True)
     y = xs.add_parser("status", help="is an audit due since the last one (what orient shows), and why")
@@ -547,6 +617,8 @@ def run(a: argparse.Namespace) -> int:
             return run_quota_cap(a)
         case "suite-audit":
             return run_suite_audit(a)
+        case "mutants":
+            return mutants.run(a.base, a.rev, None if a.all else mutants.SHOWN)
         case "eval":
             if a.compare:
                 return evals.run_compare(*a.compare, a.margin)
@@ -690,6 +762,12 @@ def run_board(a: argparse.Namespace) -> int:
             print("\n".join(board.event(a.name, json.loads(Path(a.payload).read_text()))) or "nothing to move")
         case "brief":
             print(board.brief(a.number))
+        case "feedback" if a.dispose is not None:
+            try:
+                print("\n".join(fixloop.dispose(a.pr, a.dispose)))
+            except ValueError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 2
         case "feedback":
             print(
                 "\n".join(board.pr_feedback_lines(board.pr_feedback(a.pr))) or "no new comments, no unresolved threads"
@@ -722,7 +800,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     if extra and args.cmd == "reuse" and not any(e.startswith("-") for e in extra):
         args.need += extra
     elif extra:
-        p.error(f"unrecognized arguments: {' '.join(extra)}")
+        p.invoked(args).error(f"unrecognized arguments: {' '.join(extra)}")
     return args
 
 
