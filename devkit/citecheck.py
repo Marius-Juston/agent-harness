@@ -48,8 +48,8 @@ LINK = re.compile(r"\[([^\]]+)\]\((https?://(?:[^()\s]|\([^()\s]*\))+)\)")  # a 
 BARE = re.compile(r"(?<![(\[])\bhttps?://(?:[^\s()<>\]`'\"]|\([^\s()]*\))+")
 # an id right after '.', '/', '-' or a word character is part of a DOI or a path, not an arXiv id
 BARE_ARXIV = re.compile(r"(?:\barXiv[: ]*|(?<![\w./-]))(\d{4}\.\d{4,5})(?:v\d+)?\b")
-CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
-FENCE = re.compile(r"```.*?```", re.S)
+CODE = re.compile(r"(```|~~~).*?\1|`[^`\n]*`", re.S)
+FENCE = re.compile(r"(```|~~~).*?\1", re.S)
 ARXIV = re.compile(r"arxiv\.org/(?:abs|html|pdf)/(\d{4}\.\d{4,5})(?:v\d+)?")
 DOI = re.compile(r"doi\.org/(10\.\d{4,9}/[^\s?#]+)")
 GITHUB = re.compile(r"^https?://github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
@@ -350,8 +350,9 @@ def check_notes(
 # full text is reachable; with none reachable, the claim says so with the `abstract-only` tag.
 
 # #592: one targeted search for contrary findings or failed replications per claim, its query quoted or in code, then
-# its result. It sits on its own line (or a table cell) within the claim's paragraph or list item, or right after it.
-AGAINST = re.compile(r"(^[ \t]*(?:[-*+][ \t]+)?|\|[ \t]*)against:([^|\n]*)", re.M)
+# its result. It sits on its own line (a list item or a quote too) within the claim's paragraph or list item, or right
+# after it; in a table, in a cell of the claim's own row.
+AGAINST = re.compile(r"(^[ \t]*(?:>[ \t]*)*(?:(?:[-*+]|\d+[.)])[ \t]+)?|\|[ \t]*)against:([^|\n]*)", re.M)
 AGAINST_SHAPE = re.compile(r"(?:\"[^\"\n]{3,}\"|`[^`\n]{3,}`)\s*(?:→|->)\s*\S")
 AGAINST_FORM = 'against: "<query>" → <result>'
 UNTOUCHED = "(an untouched line: a note; `--all` fails it)"
@@ -385,9 +386,10 @@ class Claim:
     tags: frozenset[str]
     last: int = 0  # the claim's paragraph or list item ends on this line (0: on `line`)
     against: str | None = None  # what follows `against:` in the claim's paragraph or on the line after it
+    against_line: int = 0  # the line it sits on (0: none); an edit there touches the claim
 
     def lines(self) -> set[int]:
-        return set(range(self.line, max(self.line, self.last) + 1))
+        return set(range(self.line, max(self.line, self.last) + 1)) | ({self.against_line} - {0})
 
     def where(self) -> str:
         return f"{self.path.name}:{self.line}: {self.url}"
@@ -456,11 +458,11 @@ def claims(path: Path, text: str) -> list[Claim]:
     """The SOURCED claims of a note that rest on a paper, with their quote, locator, tags and `against:` line."""
     found: list[Claim] = []
     text = re.sub(r"`(abstract-only|single-source)`", r"\1", FENCE.sub(_blank, text))  # tags are code; keep them
-    against: dict[int, str] = {}
+    against: dict[int, tuple[str, bool]] = {}  # line -> (text, whether it is a table cell)
 
     def record(m: re.Match) -> str:
         """The against line's text, kept aside and blanked, so its query is never taken for a claim's quote."""
-        against[text.count("\n", 0, m.start()) + 1] = m.group(2).strip()
+        against[text.count("\n", 0, m.start()) + 1] = (m.group(2).strip(), m.group(1).startswith("|"))
         return f"{m.group(1)}against:{' ' * len(m.group(2))}"
 
     text = AGAINST.sub(record, text)
@@ -492,9 +494,12 @@ def claims(path: Path, text: str) -> list[Claim]:
             quote = inside[0] if inside else outside[-1] if outside else ""
             loc = fulltext.LOCATOR.findall(QUOTED.sub(" ", seg))
             tags = frozenset(t for t in ("abstract-only", "single-source") if t in seg)
-            said = next((against[n] for n in range(line, last + 2) if n in against), None)
+            # the claim's own lines, or the line right after them when it is a line of its own (another row's cell
+            # belongs to that row)
+            at = next((n for n in range(line, last + 2) if n in against and (n <= last or not against[n][1])), 0)
+            said = against[at][0] if at else None
             context = f"{quote} {before}"
-            found.append(Claim(path, line, url, ident, loc[0] if loc else "", quote, context, tags, last, said))
+            found.append(Claim(path, line, url, ident, loc[0] if loc else "", quote, context, tags, last, said, at))
     return found
 
 

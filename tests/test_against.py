@@ -128,3 +128,53 @@ def test_the_researcher_auditor_and_skill_require_the_against_line():
     skill = " ".join((PLUGIN / "skills/research/SKILL.md").read_text().split())
     assert "`uv run dev cite-check` passes on that file, which needs an `against:` line (query and result) per" in skill
     assert "recommendation-driving claim" in skill
+
+
+# ---- review round 1 on #617 ----
+
+AGAINST = 'against: "verifier strictness replication" → none'
+
+
+def cite(n: int) -> str:
+    return f"{QUOTE} (SOURCED, [T T T T](https://arxiv.org/abs/2607.0000{n}), X 2026, §3.2)"
+
+
+@pytest.mark.parametrize(
+    "first",
+    [
+        f"| r1 | {cite(1)} | |",  # a table row
+        f"- r1 {cite(1)}",  # a list item
+        f"1. r1 {cite(1)}",  # a numbered item
+    ],
+)
+def test_a_claim_never_borrows_the_next_rows_against_cell(tmp_path, first):
+    """B1: the lookup read the line after a claim, so a table row without an against cell took the next row's."""
+    nxt = f"| r2 | {cite(2)} | {AGAINST} |"
+    found = citecheck.claims(tmp_path / "n.md", f"{first}\n{nxt}\n")
+    assert [(c.line, c.against is None) for c in found] == [(1, True), (2, False)]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [f"   1. {AGAINST}", f"> {AGAINST}", f"  - {AGAINST}", f"  {AGAINST}"],
+)
+def test_numbered_and_blockquote_against_lines_count(tmp_path, line):
+    [c] = citecheck.claims(tmp_path / "n.md", f"- Rate {cite(1)}.\n{line}\n")
+    assert c.against is not None and citecheck.against_problem(c) == ""
+
+
+def test_an_against_line_inside_a_tilde_fence_does_not_count(tmp_path):
+    [c] = citecheck.claims(tmp_path / "n.md", f"- Rate {cite(1)}.\n~~~\n{AGAINST}\n~~~\n")
+    assert c.against is None
+
+
+def test_a_tilde_fence_does_not_shift_the_line_numbers_of_later_claims(tmp_path):
+    [c] = citecheck.claims(tmp_path / "n.md", f"~~~\na\nb\n~~~\n\n- Rate {cite(1)}.\n")
+    assert c.line == 6
+
+
+def test_an_edit_to_only_the_nested_against_line_makes_its_claim_strict(tmp_path, monkeypatch):
+    """Nit: a malformed `- against:` added under an old claim was only a note: the claim's lines ended above it."""
+    text = f"# Research: x\n\n- Old: {QUOTE} {CITE}.\n  - against: none\n"
+    problems, _ = check(tmp_path, monkeypatch, text, changed={4})
+    assert len(problems) == 1 and "query and its result" in problems[0]
