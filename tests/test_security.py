@@ -21,10 +21,19 @@ from pathlib import Path
 import pytest
 import yaml
 
-from devkit import citecheck, lit, netsafe
+from devkit import citecheck, lit, merging, netsafe, workflow
 from devkit.paths import root
+from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate are fixtures
+    _job,
+    _last_json,
+    _merged,
+    actions,
+    clock,
+    fake_integrate,
+)
 
 ROOT = root()
+REAL_POPEN = subprocess.Popen  # fake_integrate replaces Popen and run; the stand-in command still runs for real
 PRECOMMIT = [ROOT / ".pre-commit-config.yaml", ROOT / "template/.pre-commit-config.yaml"]
 WORKFLOWS = [ROOT / ".github/workflows/ci.yml", ROOT / "template/.github/workflows/gate.yml"]
 GITLEAKS = "https://github.com/gitleaks/gitleaks"
@@ -140,6 +149,23 @@ def leak_repo(tmp_path) -> Path:
     return repo
 
 
+def _leak(repo: Path) -> None:
+    """Commit a fake secret, then remove it: gone from the tree, still in history."""
+    (repo / "leak.py").write_text(f'token = "{fake_token()}"\n')
+    _git(repo, "add", "leak.py")
+    _git(repo, "commit", "-q", "-m", "leak")  # no hooks installed in the fixture: the commit lands
+    (repo / "leak.py").unlink()
+    _git(repo, "commit", "-qam", "remove it")
+
+
+@pytest.fixture(params=[False, True], ids=["clean", "leaked"])
+def merged_tree(request, leak_repo) -> tuple[Path, bool]:
+    """The tree integrate gates, with a fake secret in its history or not; built before the fakes replace git."""
+    if request.param:
+        _leak(leak_repo)
+    return leak_repo, request.param
+
+
 def _bash(cmd: str, cwd: Path, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
     full = {**os.environ, **(env or {})}
     return subprocess.run(
@@ -167,13 +193,47 @@ def test_precommit_hook_fails_on_a_staged_fake_secret(leak_repo):
 def test_ci_step_fails_on_a_committed_fake_secret(leak_repo):
     cmd = step_run(WORKFLOWS[0], "gitleaks-history")
     assert _bash(cmd, leak_repo).returncode == 0
-    (leak_repo / "leak.py").write_text(f'token = "{fake_token()}"\n')
-    _git(leak_repo, "add", "leak.py")
-    _git(leak_repo, "commit", "-q", "-m", "leak")  # no hooks installed in the fixture: the commit lands
-    (leak_repo / "leak.py").unlink()
-    _git(leak_repo, "commit", "-qam", "remove it")  # gone from the tree, still in history
+    _leak(leak_repo)
     out = _bash(cmd, leak_repo)
     assert out.returncode != 0 and "github-pat" in out.stdout + out.stderr
+
+
+@pytest.mark.live
+@needs_uv
+def test_local_ci_refuses_a_secret_in_history(merged_tree, fake_integrate, actions, capsys, monkeypatch):  # noqa: F811
+    """#544: the `check` stand-in runs ci's gitleaks step, so a secret in history keeps a --local-ci merge off main.
+    Git, gh and the gate are faked; the configured gitleaks command runs for real in the merged tree."""
+    repo, leaked = merged_tree
+    local = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["devkit"]["local_ci"]["check"]
+    stand_in = [argv for argv in local if "gitleaks-history" in argv]
+    assert len(stand_in) == 1
+    actions["commands"]["check"] = stand_in
+    fake_integrate["checks"] = [_job("check", 11)]  # Actions failed the job without running a step: billing-blocked
+    fake_git, fake_run = merging.git, workflow.subprocess.run
+
+    def git(*args, cwd=None, check=True):
+        out = fake_git(*args, cwd=cwd, check=check)
+        if args[:2] == ("worktree", "add"):
+            shutil.copytree(repo, args[3], dirs_exist_ok=True)  # the merged tree is the fixture repo
+        return out
+
+    def run(cmd, check=False, **kw):
+        if cmd not in stand_in:
+            return fake_run(cmd, check=check, **kw)
+        with REAL_POPEN(cmd, **kw) as proc:  # subprocess.run would reach fake_integrate's Popen
+            return subprocess.CompletedProcess(cmd, proc.wait())
+
+    monkeypatch.setattr(merging, "git", git)
+    monkeypatch.setattr(workflow.subprocess, "run", run)
+    code = workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True)
+    out = capsys.readouterr().out
+    if leaked:
+        assert code == 1 and actions["statuses"] == [] and not _merged(fake_integrate["events"])
+        assert _last_json(out)["outcome"] == "gate-failed" and "github-pat" in out
+        assert fake_token() not in out  # redacted
+    else:
+        assert code == 0 and [s["context"] for s in actions["statuses"]] == ["check"], out
+        assert _merged(fake_integrate["events"])
 
 
 @pytest.mark.live

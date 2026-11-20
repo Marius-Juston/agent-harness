@@ -21,6 +21,7 @@ from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 from devkit import board, branches, checks, config, consolidation, handoff, quota
+from devkit import integrate as admission
 from devkit.ci_status import (  # re-exported: devkit/train.py reads these through devkit.workflow
     actions_enabled,
     await_actions,
@@ -28,7 +29,7 @@ from devkit.ci_status import (  # re-exported: devkit/train.py reads these throu
     check_key,
     latest_checks,
     local_ci_refusal,
-    only_pending,
+    only_pending,  # noqa: F401 - devkit/integrate.py and devkit/train.py read it by name
     required_contexts,
     standing,
     unfinished,
@@ -40,8 +41,9 @@ from devkit.fixloop import (  # re-exported: devkit/train.py reads these through
     result,
     send_back,
     send_back_conflicting,
+    undisposed_hint,
 )
-from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, holders, recorded_pass
+from devkit.gate import HELD_ENV, PRIORITY_ENV, effective_slots, free_gb, holders, recorded_pass, slots_setting
 from devkit.merging import (  # re-exported: devkit/train.py reads these through devkit.workflow
     GENERATED_MERGE,  # noqa: F401 - tests read it here
     _add_worktree,
@@ -59,7 +61,7 @@ from devkit.prtext import (  # re-exported: plugin scripts and devkit/train.py r
     REUSE_FORMS,  # noqa: F401 - completion_gate.py imports it by name
     SESSION_RULE,
     conventional_title,
-    expected_title,
+    expected_title,  # noqa: F401 - devkit/integrate.py reads it by name (tests patch it here)
     reuse_problem,  # noqa: F401 - completion_gate.py imports it by name
     session_leaks,
     title_problem,
@@ -162,8 +164,12 @@ def status(as_json: bool = False, resume: bool = False) -> str:
         return json.dumps(rows, indent=1) if as_json else resume_text(rows)
     wts = branches.worktrees()
     pct, cap = quota.quota_reading()
+    setting, source = slots_setting()
+    slots = effective_slots(state_dir() / "gate.lock", setting)  # slot files a larger setting left count too
     data = {
         "gate": gate_holder(),
+        "gate_slots": slots,
+        "gate_slots_source": source if slots == setting else "slot files on disk",
         "mem_gb": round(free_gb(), 1),
         "worktrees": wts,
         "quota": quota.quota(),
@@ -172,7 +178,8 @@ def status(as_json: bool = False, resume: bool = False) -> str:
     }
     if as_json:
         return json.dumps(data, indent=1)
-    out = [f"gate {data['gate']} . {data['mem_gb']} GB free . {data['quota']}"]
+    slots = f"{data['gate_slots']} gate slots ({data['gate_slots_source']})"
+    out = [f"gate {data['gate']} . {slots} . {data['mem_gb']} GB free . {data['quota']}"]
     for w in wts:
         out.append(
             f"  {w['branch']:<40} +{w['ahead']} {'*' + str(w['dirty']) if w['dirty'] else ''}  {w['last']}  {w['path']}"
@@ -732,27 +739,17 @@ def _integrate(
         head = pushed or info["headRefOid"]
         return done(1, outcome, **fields, **fix_loop(pr_number, info, outcome, reasons, failing, head, dry_run))
 
-    if info["state"] != "OPEN" or info["isDraft"]:
-        print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
-        return done(1, "not-open")
-    if reason := refusal(info):
-        print(f"RESULT: refused: {reason}")
-        return done(1, "refused", reason=reason)
-    if (leaks := session_leaks(**{"PR title": info.get("title"), "PR body": info.get("body")})) and repo_public():
-        reason = f"{SESSION_RULE}: the {' and '.join(leaks)} carry one; edit the PR, then rerun integrate"
-        print(f"RESULT: refused: {reason}")
-        return back("refused", [reason], [], reason=reason)
-    if why := title_problem(info.get("title")):  # works with no Actions; override does not lift it
-        reason = f"{why}; expected {expected_title(info)}: edit the PR title, then rerun integrate"
-        print(f"RESULT: refused: {reason}")
-        return back("refused", [reason], [], reason=reason)
-    if why := closes_problem(info):  # #434: override does not lift it either
-        reason = f"{why}, then rerun integrate"
-        print(f"RESULT: refused: {reason}")
-        return back("refused", [reason], [], reason=reason)
-    if override is not None and not override.strip():
-        print("RESULT: refused: --override needs a reason")
-        return done(1, "refused", reason="--override needs a reason")
+    def turned_away(adm: admission.Admission) -> int:
+        """A PR `admission.admit` did not admit: said, sent back through the fix loop when the worker can fix it."""
+        for line in adm.say:
+            print(line)
+        fields = ({"reason": adm.reason} if adm.reason else {}) | adm.fields
+        if adm.send is not None:
+            return back(adm.outcome, adm.send, adm.failing, **fields)
+        return done(adm.code, adm.outcome, **fields)
+
+    if not (adm := admission.admit(pr_number, info, override=override)).admitted:
+        return turned_away(adm)
     contexts, ignore = [], frozenset()
     if local_ci:
         contexts, bound = required_contexts()
@@ -770,50 +767,49 @@ def _integrate(
                 return code
             info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
         waiting.unlink(missing_ok=True)
-    feedback = board.pr_feedback(pr_number)
-    if override is None and not dry_run and only_pending(info, feedback, ignore):
-        # checks still running on the PR's own head: wait for them as for a pushed head, then judge them (#322).
-        # Under --local-ci the required contexts it stands in for are neither waited for nor judged here.
+    head_ref, main_ref = f"refs/devkit/integrate/pr-{pr_number}", f"refs/devkit/integrate/main-{pr_number}"
+
+    def drop_refs() -> None:
+        git("update-ref", "-d", head_ref, check=False)
+        git("update-ref", "-d", main_ref, check=False)
+
+    def fetched() -> admission.At | str:
+        """The PR head and main as origin has them now, with the PR's feedback; or why they cannot be read."""
+        try:
+            git(
+                "fetch",
+                "--no-tags",
+                "origin",
+                f"+refs/pull/{pr_number}/head:{head_ref}",
+                f"+refs/heads/main:{main_ref}",
+            )
+            head, main = git("rev-parse", head_ref), git("rev-parse", main_ref)
+            return admission.At(head, main, board.pr_feedback(pr_number), changed_paths(main, head))
+        except RuntimeError as exc:
+            drop_refs()
+            return str(exc)
+
+    if isinstance(at := fetched(), str):
+        print(f"RESULT: stopped (cannot fetch or diff PR #{pr_number} against main): {at}")
+        return done(1, "stopped", reason=f"cannot fetch or diff: {at}")
+    # checks still running on the PR's own head: wait for them as for a pushed head, then judge them (#322). Under
+    # --local-ci the required contexts it stands in for are neither waited for nor judged here.
+    hold = override is None and not dry_run
+    adm = admission.admit(pr_number, info, override=override, harness_ok=harness_ok, at=at, ignore=ignore,
+                          hold_pending=hold)  # fmt: skip
+    if adm.outcome == "waiting":
         if (code := _wait_on_tip(pr_number, info["headRefOid"], [], {}, ignore, again)) is not None:
+            drop_refs()
             return code
         info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
-        feedback = board.pr_feedback(pr_number)
-    if todo := unfinished(info, feedback, ignore):
-        if override is None:
-            print(f"RESULT: refused: PR #{pr_number} has unfinished feedback:\n  " + "\n  ".join(todo))
-            print(
-                f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, resolve the threads and "
-                "wait for the checks; or rerun with --override '<reason>' (logged on the PR)."
-            )
-            return back("refused", [f"- {t}" for t in todo], failed_check_lines(info), reason="unfinished feedback",
-                        feedback=todo)  # fmt: skip
-        print(f"overriding unfinished feedback ({override}):\n  " + "\n  ".join(todo))
-    head_ref, main_ref = f"refs/devkit/integrate/pr-{pr_number}", f"refs/devkit/integrate/main-{pr_number}"
-    try:
-        git("fetch", "--no-tags", "origin", f"+refs/pull/{pr_number}/head:{head_ref}", f"+refs/heads/main:{main_ref}")
-        head, main = git("rev-parse", head_ref), git("rev-parse", main_ref)
-        touched = changed_paths(main, head)
-    except RuntimeError as exc:
-        print(f"RESULT: stopped (cannot fetch or diff PR #{pr_number} against main): {exc}")
-        return done(1, "stopped", reason=f"cannot fetch or diff: {exc}")
-    if head != info["headRefOid"]:
-        print(f"RESULT: stopped (the PR head moved while fetching: {info['headRefOid'][:10]} -> {head[:10]}); rerun")
-        return done(1, "stopped", reason="the PR head moved while fetching")
-    rules = config.get().required_reviews
-    trusted = {board.gh_user()} - {""} if rules else set()  # asked only when a review can be required
-
-    def ancestor(sha: str) -> bool:
-        return _is_ancestor(sha, head)
-
-    if rules and (why := review_problem(touched, feedback["reviews"], head, trusted, rules, ancestor)):
-        reason = f"{why}, then rerun integrate"  # #391: override does not lift it
-        print(f"RESULT: refused: {reason}")
-        return back("refused", [reason], [], reason=reason)
-    harness = [f for f in touched if is_harness(f)]
-    if harness and not harness_ok:
-        print("PR changes the harness (rules agents are judged by):\n  " + "\n  ".join(harness))
-        print(f"Read that diff yourself (`git diff {main[:10]}...{head[:10]}`), then rerun with --harness-ok.")
-        return done(2, "harness-review", harness=harness)
+        if isinstance(at := fetched(), str):  # main may have moved during the wait: gate what is there now
+            print(f"RESULT: stopped (cannot fetch or diff PR #{pr_number} against main): {at}")
+            return done(1, "stopped", reason=f"cannot fetch or diff: {at}")
+        adm = admission.admit(pr_number, info, override=override, harness_ok=harness_ok, at=at, ignore=ignore)
+    if not adm.admitted:
+        drop_refs()
+        return turned_away(adm)
+    todo, head, main = adm.overridden, at.head, at.main
     tmp = state_dir("integrate") / f"pr-{pr_number}"
     _add_worktree(tmp, head)
     try:
@@ -858,8 +854,7 @@ def _integrate(
             return back("gate-failed", [why], said["gate"], reason="the merged tree fails the gate", **said)
     finally:
         git("worktree", "remove", "--force", str(tmp), check=False)
-        git("update-ref", "-d", head_ref, check=False)
-        git("update-ref", "-d", main_ref, check=False)
+        drop_refs()
     state, now = _pr_state(pr_number, ignore)
     if arrived := [t for t in now if t not in todo]:
         print(f"RESULT: refused: feedback arrived on PR #{pr_number} during the gate:\n  " + "\n  ".join(arrived))
@@ -867,7 +862,7 @@ def _integrate(
         return back("refused", [f"- {t}" for t in arrived], failed_check_lines(state),
                     reason="feedback arrived during the gate", feedback=arrived)  # fmt: skip
     if todo:
-        log = f"`dev integrate --override`: {override}\n\nOverriding:\n" + "\n".join(f"- {t}" for t in todo)
+        log = admission.override_log(override or "", todo)
         if dry_run:
             print(f"would log on PR #{pr_number}:\n{log}")
         else:
@@ -937,6 +932,11 @@ def _integrate(
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):
         git("-C", str(main_checkout()), "pull", "--ff-only", check=False)
     print(handoff.after_integrate())  # the board-derived HANDOFF sections (#394); never fails the merge
+    try:  # #83: the lead labels each reviewer finding; a read that fails only skips the reminder
+        if hint := undisposed_hint(pr_number):
+            print(hint)
+    except (board.BoardError, OSError, ValueError, KeyError, TypeError) as exc:
+        print(f"reviewer findings not read ({exc}): `uv run dev board feedback {pr_number} --dispose` lists them")
     print(f"RESULT: merged PR #{pr_number}" + (f"; {', '.join(moved)}" if moved else ""))
     return done(0, "merged", moved=moved, sent_back=sent, **update)
 
