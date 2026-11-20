@@ -318,9 +318,11 @@ def test_a_local_tag_unlike_origins_is_refused_before_any_release(world, tmp_pat
 def test_the_command_prints_its_steps_and_a_refusal_as_result(world, monkeypatch, capsys):
     monkeypatch.setattr(cli, "root", lambda: world.clone)
     monkeypatch.setattr(board, "repo", lambda: "o/r")
-    assert cli.run(cli.build().parse_args(["release", "publish", "0.1.18"])) == 0
+    published = cli.run(cli.build().parse_args(["release", "publish", "0.1.18"]))
+    assert published == 0
     assert capsys.readouterr().out.splitlines()[-1] == "RESULT: published v0.1.18"
-    assert cli.run(cli.build().parse_args(["release", "prepare", "0.1.19"])) == 1
+    refused = cli.run(cli.build().parse_args(["release", "prepare", "0.1.19"]))
+    assert refused == 1
     assert "RESULT: refused: CHANGELOG.md has no `## v0.1.19" in capsys.readouterr().out
 
 
