@@ -342,7 +342,7 @@ class Claim:
     ident: str  # the arXiv id or DOI
     locator: str
     quote: str
-    context: str  # what decides the claim's kind: its quote, else its own words
+    context: str  # what decides the claim's kind: its quote and its own words
     tags: frozenset[str]
 
     def where(self) -> str:
@@ -435,7 +435,7 @@ def claims(path: Path, text: str) -> list[Claim]:
             quote = inside[0] if inside else outside[-1] if outside else ""
             loc = fulltext.LOCATOR.findall(QUOTED.sub(" ", seg))
             tags = frozenset(t for t in ("abstract-only", "single-source") if t in seg)
-            found.append(Claim(path, line, url, ident, loc[0] if loc else "", quote, quote or before, tags))
+            found.append(Claim(path, line, url, ident, loc[0] if loc else "", quote, f"{quote} {before}", tags))
     return found
 
 
@@ -467,6 +467,8 @@ def check_quotes(
         n["quoted"] += 1
         if not c.locator and "abstract-only" not in c.tags:
             problems.append(f"{c.where()}: the quote has no locator (§3.2, Table 2, p. 7 or abstract)")
+        elif short := fulltext.too_short(c.quote):
+            problems.append(f"{c.where()}: the quote is too short to prove anything ({short}): {c.quote[:80]!r}")
         elif transient:
             (notes if lenient else problems).append(f"{c.where()}: {transient}")
         elif ft is None:
@@ -485,16 +487,22 @@ def check_quotes(
 
 def _placed(c: Claim, ft: fulltext.FullText, notes: list[str]) -> list[str]:
     """Problems with where the quote sits in the full text; notes where only an approximate check was possible."""
-    located = ft.locate("abstract" if c.abstract() else c.locator)
-    if located and fulltext.contains(located[1], c.quote):
+    loc = "abstract" if c.abstract() else c.locator
+    whole = loc != "abstract" and bool(fulltext.SECTIONLESS.match(loc.lstrip("§ ")))  # a table, figure or page
+    located = None if whole else ft.locate(loc)
+    scope = ft.whole() if whole else located[1] if located else None
+    if scope is not None and fulltext.contains(scope, c.quote):
         return []
+    if not whole and located is None:
+        msg = f"{c.where()}: {loc!r} is not in the outline of {ft.url}"
+        if ft.kind != "pdf":  # a made-up or mistyped locator: the cited section cannot be checked
+            return [msg + " (`uv run dev lit read <id>` prints it): cite a section it has"]
+        notes.append(msg + " (PDF headings are approximate); checked against the whole text")
     if not fulltext.contains(ft.whole(), c.quote):
         return [f"{c.where()}: quote not found in the full text ({ft.url}): {c.quote[:80]!r}"]
     if located:
-        msg = f"{c.where()}: the quote is not in {located[0]!r} ({c.locator}) but elsewhere in {ft.url}"
+        msg = f"{c.where()}: the quote is not in {located[0]!r} ({loc}) but elsewhere in {ft.url}"
         if ft.kind != "pdf":
             return [msg]
         notes.append(msg + " (PDF section bounds are approximate)")
-    elif not fulltext.SECTIONLESS.match(c.locator.lstrip("§ ")):
-        notes.append(f"{c.where()}: {c.locator!r} is not in the outline of {ft.url}; the quote is in the text")
     return []

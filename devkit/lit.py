@@ -84,7 +84,7 @@ RATES: dict[str, tuple[float, float]] = {
 SOURCES = tuple(RATES)
 # Full texts (`full_text`) from an open-access host other than arXiv's and Europe PMC's buckets: one per second, shared.
 TEXT_RATES = {"fulltext": (1.0, 2.0)}
-TEXT_CAP = 40_000_000  # bytes of one PDF
+TEXT_CAP = fulltext.PDF_MAX_BYTES + 1  # bytes read of one full text: one more than a PDF may have, to refuse it
 DEFAULT_SOURCES = ("openalex", "s2")
 # Asked in order, after DEFAULT_SOURCES, only while fewer than n papers are in hand (`--source auto`, the CLI default).
 FALLBACK_SOURCES = ("crossref", "europepmc", "arxiv")
@@ -907,7 +907,8 @@ class Client:
             if self.clock() - rec["t"] < CACHE_DAYS * 86400:
                 if "none" in rec:
                     return None, rec["none"]
-                return fulltext.FullText(rec["url"], rec["kind"], [tuple(s) for s in rec["sections"]]), ""
+                sections = [tuple(s) for s in rec["sections"]]
+                return fulltext.FullText(rec["url"], rec["kind"], sections, rec["levels"]), ""
         ft, why = self._read_full_text(ident)
         path.parent.mkdir(parents=True, exist_ok=True)
         rec = {"t": self.clock(), "none": why} if ft is None else {"t": self.clock(), **dataclasses.asdict(ft)}
@@ -919,8 +920,10 @@ class Client:
         ax, oa, tried = m.group(1) if m else _arxiv_from_doi(ident), "", []
         if not ax:
             paper, notes = self.lookup(ident)
-            if paper is None:
-                raise SourceError(f"no record for {ident}" + (f" ({'; '.join(notes)})" if notes else ""))
+            if paper is None and any(re.search(r"tries|rate limited|unreachable", n) for n in notes):
+                raise SourceError(f"no record for {ident} ({'; '.join(notes)})")
+            if paper is None:  # every source answered and none knows it: definite
+                return None, f"no record for {ident}"
             ax, oa = paper.ids.get("arxiv", ""), paper.oa_url
         urls = [("arxiv", f"https://arxiv.org/html/{ax}"), ("arxiv", f"https://arxiv.org/pdf/{ax}")] if ax else []
         if not ax and oa:
@@ -931,6 +934,9 @@ class Client:
                 else ("fulltext", oa)
             )
         for src, url in urls:
+            if why := netsafe.bad_scheme(url):
+                tried.append(f"{url}: {why}")
+                continue
             status, body = self._fetch_bytes(src, url)
             if status != 200:
                 tried.append(f"{url}: HTTP {status}")
@@ -939,9 +945,13 @@ class Client:
                 ft = fulltext.from_pdf(body, url)
             else:
                 ft = fulltext.from_markup(body.decode("utf-8", "replace"), url, "xml" if src == "europepmc" else "html")
-            if ft and ft.words() >= fulltext.MIN_WORDS:
+            if ft is None:
+                tried.append(f"{url}: unreadable PDF (broken, over {fulltext.PDF_MAX_BYTES} bytes or over "
+                             f"{fulltext.PDF_SECONDS:.0f} s to parse)")  # fmt: skip
+            elif ft.words() >= fulltext.MIN_WORDS:
                 return ft, ""
-            tried.append(f"{url}: {ft.words() if ft else 0} words of text, not a full paper")
+            else:
+                tried.append(f"{url}: {ft.words()} words of text, not a full paper")
         return None, "; ".join(tried) or "no open-access copy"
 
     def _fetch_bytes(self, src: str, url: str) -> tuple[int, bytes]:

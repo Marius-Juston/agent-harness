@@ -117,10 +117,34 @@ def test_normalising_forgives_layout_not_wording():
 
 
 def test_ellipses_and_insertions_split_a_quote_into_ordered_pieces():
-    text = "Disuse of automation is commonly caused by alarms that activate falsely."
-    assert fulltext.contains(text, "disuse … is commonly caused by alarms that activate falsely")
-    assert fulltext.contains(text, "[automation] is commonly caused by ... falsely")
-    assert not fulltext.contains(text, "falsely ... Disuse of automation")  # pieces out of order
+    text = "Disuse of automation is commonly caused by alarms that activate falsely, the study found in 2019."
+    assert fulltext.contains(text, "Disuse of automation is … alarms that activate falsely")
+    assert fulltext.contains(text, "[it] is commonly caused by ... alarms that activate falsely")
+    assert not fulltext.contains(text, "alarms that activate falsely ... Disuse of automation is")  # out of order
+
+
+def test_digits_keep_their_hyphens_and_spaces():
+    """#584 review B2: '3-5%' must not match '35%', nor '3 5' match '35'."""
+    text = "We ran it. Accuracy improves by 3-5% across tasks, then by 1 2 points."
+    assert not fulltext.contains(text, "improves by 35% across")
+    assert not fulltext.contains(text, "then by 12 points")
+    assert fulltext.contains(text, "improves by 3–5 % across")  # an en dash and a space are layout
+
+
+@pytest.mark.parametrize(
+    ("quote", "why"),
+    [
+        ("the results", "under 3 words"),
+        ("[our approach clearly dominates all baselines] the", "under 3 words"),  # the insertion is not the source's
+        ("We ... improves ... across", "4 words in each fragment"),
+        ("Accuracy improves by 3-5% ... then", "4 words in each fragment"),
+    ],
+)
+def test_a_quote_too_short_to_prove_anything_never_matches(quote, why):
+    """#584 review B2: each of these matched any text holding its words."""
+    text = "We ran it. Accuracy improves by 3-5% across tasks, then by 1 2 points. The results hold."
+    assert why in fulltext.too_short(quote)
+    assert not fulltext.contains(text, quote)
 
 
 @settings(max_examples=200, deadline=None)
@@ -129,8 +153,8 @@ def test_ellipses_and_insertions_split_a_quote_into_ordered_pieces():
     data=st.data(),
 )
 def test_any_span_of_the_text_matches_under_any_reflow(words, data):
-    lo = data.draw(st.integers(0, len(words) - 1))
-    hi = data.draw(st.integers(lo + 1, len(words)))
+    lo = data.draw(st.integers(0, len(words) - 3))
+    hi = data.draw(st.integers(lo + 3, len(words)))
     seps = data.draw(st.lists(st.sampled_from([" ", "\n", "  ", " \n "]), min_size=len(words), max_size=len(words)))
     text = "".join(w + s for w, s in zip(words, seps, strict=True))
     assert fulltext.contains(text, " ".join(words[lo:hi]))
@@ -278,8 +302,8 @@ def test_cite_check_reports_quote_problems_and_counts_per_note(tmp_path, monkeyp
     note.write_text(NOTE)
     _, problems, notes = citecheck.check_notes([note], texts=lambda ident: (html(), ""))
     assert any("2601.00004" in p and "no verbatim quote" in p for p in problems)
-    assert any("1518" in p and "quote not found" in p for p in problems)  # the fixture paper says no such thing
-    assert "n.md: 3 claims, 2 quoted, 1 abstract-only, 2 in full text (SOURCED paper claims)" in notes
+    assert any("1518" in p and "too short" in p for p in problems)  # "disuse …": a one-word fragment
+    assert "n.md: 3 claims, 2 quoted, 1 abstract-only, 1 in full text (SOURCED paper claims)" in notes
 
 
 # ---- fetching and caching ----
@@ -408,3 +432,66 @@ def test_each_table_row_is_its_own_claim(tmp_path):
     )
     [row] = citecheck.claims(tmp_path / "n.md", text)
     assert row.quote == "" and row.line == 2
+
+
+# ---- review round 1 on #584 ----
+
+
+def test_an_unnumbered_section_holds_its_nested_subsections():
+    """B1: a JATS <sec> inside Results, and an HTML h3 under an h2, belong to the section a locator names."""
+    ft = fulltext.from_markup((PAPERS / "jats.xml").read_text(), "u", "xml")
+    results = ft.locate("Results")
+    assert results and fulltext.contains(results[1], "Experienced operators ignored more alarms")
+    assert "Designers should keep" not in results[1]  # the next sibling <sec> ends it
+    page = "<h2>Results</h2><p>alpha beta gamma.</p><h3>Subgroups</h3><p>delta epsilon zeta eta.</p><h2>Discussion</h2>"
+    flat = fulltext.from_markup(page, "u").locate("§Results")
+    assert flat and "delta epsilon" in flat[1] and "Discussion" not in flat[1]
+
+
+@pytest.mark.parametrize(
+    ("text", "locators"),
+    [
+        ("see §4 for details; §3.2 shows", ["§4", "§3.2"]),
+        ("(§3.1 Resampling and §4.2 Paired analysis)", ["§3.1", "§4.2"]),  # harness-efficiency.md:155
+        ("§Related Work and more", ["§Related Work"]),
+    ],
+)
+def test_a_locator_takes_no_lowercase_words_after_it(text, locators):
+    """B3: under re.I, `[A-Z][a-z]+` took 'for details' and 'Resampling and' into the locator."""
+    assert fulltext.LOCATOR.findall(text) == locators
+
+
+def test_a_locator_missing_from_an_html_paper_fails_and_from_a_pdf_is_a_note():
+    """B3: a made-up §9 used to fall back to a whole-text match with only a note."""
+    problems, _, _ = run(claim("On identical agent outputs the unsupported-citation rate", "§9"), html())
+    assert len(problems) == 1 and "'§9' is not in the outline" in problems[0]
+    ft = fulltext.from_pdf(pdf_bytes(PDF_LINES), "https://example.org/a.pdf")
+    problems, notes, _ = run(claim("Automation that cries wolf is switched off", "§9"), ft)
+    assert problems == [] and "PDF headings are approximate" in notes[0]
+
+
+def test_an_oversized_or_slow_pdf_is_no_full_text():
+    """B4: a PDF is untrusted input: refused over PDF_MAX_BYTES, and a parse past its time limit is killed."""
+    assert fulltext.from_pdf(b"%PDF" + b"0" * fulltext.PDF_MAX_BYTES, "u") is None
+    assert fulltext.from_pdf(pdf_bytes(PDF_LINES), "u", seconds=0.001) is None
+    assert fulltext.from_pdf(pdf_bytes(PDF_LINES), "u") is not None
+
+
+def test_permanent_failures_are_cached_as_no_full_text(tmp_path):
+    """Nit: a DOI no source knows, and an OA link that is not http(s), are definite answers, not transient ones."""
+    unknown = client(tmp_path, Net({}), lambda u, h: (200, {}, json.dumps({"results": []})))
+    assert unknown.full_text("10.1000/nobody") == (None, "no record for 10.1000/nobody")
+    record = {"results": [{"id": "https://openalex.org/W1", "doi": "https://doi.org/10.1000/z", "title": "Z",
+                           "best_oa_location": {"pdf_url": "ftp://example.org/z.pdf"},
+                           "abstract_inverted_index": {"Z.": [0]}}]}  # fmt: skip
+    net = Net({})
+    ft, why = client(tmp_path, net, lambda u, h: (200, {}, json.dumps(record))).full_text("10.1000/z")
+    assert ft is None and "refused URL scheme" in why and net.calls == []
+    assert client(tmp_path, Net({})).full_text("10.1000/z") == (None, why)  # cached
+
+
+def test_the_claims_own_words_decide_its_kind():
+    """Nit: a claim stating a number in its own words rests on that number even if its quote has none."""
+    c = citecheck.Claim(Path("n.md"), 1, "u", "2607.00001", "abstract", "verifiers disagree on which citations",
+                        "verifiers disagree on which citations The rate ranged to 18 %", frozenset())  # fmt: skip
+    assert c.kind() == "numeric"
