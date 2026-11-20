@@ -82,10 +82,12 @@ exclude = [
 
 # Import contracts the gate's arch stage keeps (`uv run dev arch`). Review 1 cut docs -> cli (#140) and PR #417 put
 # the pattern back as checks -> cli, which review 2 cut again (#449): docs/research/architecture-grading.md §4.
-[[tool.devkit.arch.contracts]]
-name = "devkit modules form no import cycle"
-type = "acyclic_siblings"
-ancestors = ["devkit"]
+# The acyclic contract is off until main's two cycles are cut (code -> reuse, integrate <-> workflow; the follow-up
+# issue linked from PR #595); [arch] max_import_cycle = 2 in .devkit/ratchets.toml holds them meanwhile. Uncomment it then.
+# [[tool.devkit.arch.contracts]]
+# name = "devkit modules form no import cycle"
+# type = "acyclic_siblings"
+# ancestors = ["devkit"]
 
 [[tool.devkit.arch.contracts]]
 name = "only the entry point imports the CLI"

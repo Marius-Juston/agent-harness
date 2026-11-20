@@ -54,13 +54,22 @@ def test_gate_fails_on_from_devkit_import_cli_inside_a_function_in_checks(devkit
     ran = arch.check_arch(repo, cfg)
     assert not ran.ok
     broken = [p for p in ran.problems if p.startswith("contract BROKEN")]
-    assert len(broken) == 2 and all("devkit.checks -> devkit.cli" in p for p in broken)
-    assert any("import cycle of" in p for p in ran.problems)  # and the cycle ratchet (0) fails too
+    assert len(broken) == 1 and "devkit.checks -> devkit.cli" in broken[0]
+    assert any("import cycle of" in p for p in ran.problems)  # and the cycle ratchet (2) fails too
 
 
-def test_this_repository_declares_the_two_contracts():
+def test_this_repository_declares_the_cli_contract_and_carries_the_acyclic_one_commented():
     names = [c["name"] for c in config.get().arch["contracts"]]
-    assert names == ["devkit modules form no import cycle", "only the entry point imports the CLI"]
+    assert names == ["only the entry point imports the CLI"]
+    text = (root() / "pyproject.toml").read_text()
+    start = text.index("# [[tool.devkit.arch.contracts]]")
+    block = "\n".join(line.removeprefix("# ") for line in text[start:].split("\n\n", 1)[0].splitlines())
+    (contract,) = config.parse(tomllib.loads(block)["tool"]["devkit"]).arch["contracts"]
+    assert contract == {
+        "name": "devkit modules form no import cycle",
+        "type": "acyclic_siblings",
+        "ancestors": ["devkit"],
+    }
 
 
 def test_gate_passes_on_this_tree():
