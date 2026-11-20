@@ -136,7 +136,7 @@ attention:
   `actions_stranded_s`. (#531, #554)
 - The `--local-ci` check stand-in runs CI's check-job steps, here and in the template. (#544)
 - guard_bash refuses GitHub writes that bypass integrate, credential reads and decoded code; its lexer, GitHub rules
-  and wait bound moved to `scripts/hooklib/`. (#528, #601)
+  and wait bound moved to `plugins/harness-ops/scripts/hooklib/`. (#528, #601)
 - guard_bash bounds commands that can wait forever. (#381)
 - `board brief` wraps text others can write in an untrusted-data envelope. (#56)
 - A wrong option prints the subcommand's usage and the nearest option. (#524)
@@ -147,7 +147,7 @@ attention:
 - The consolidation trigger's dormant smell skips scripts named by CI, a command table or an active decision. (#634)
 - `dev doctor` and `dev lit status` report all four research keys. (#622)
 - This repository keeps `docs/HANDOFF.md` and `docs/questions/OPEN_QUESTIONS.md` as rendered projects do; the
-  finished `scripts/lit_bypass.py` is deleted. (#650, #636)
+  finished #174 re-measure script, `lit_bypass.py`, is deleted. (#650, #636)
 - Research notes: researcher effort and a Sonnet search phase, text-and-data-mining terms, semantic code search,
   architecture grading, gate wall time, measuring the harness, a gap survey and docs that stay current. (#262, #587,
   #495, #496, #520, #502, #498, #497)
