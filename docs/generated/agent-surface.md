@@ -96,6 +96,7 @@
 | `lit read` | a paper's full text (arXiv HTML/PDF, Europe PMC, the open-access copy), cached: its outline, or one section with --section |
 | `lit refs` | citation chasing through OpenAlex: the works it cites (backward), most cited first, compact lines like search |
 | `lit cited-by` | citation chasing through OpenAlex: the works citing it (forward), most cited first, compact lines like search |
+| `lit snowball` | expand accepted papers by references, citations, co-citation, coupling and related works (OpenAlex): one line per candidate, ranked, naming the signals that surfaced it |
 | `reuse` | reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); `"<need>"` searches for more (GitHub, ecosyste.ms, deps.dev; shares dev lit's cache and rate limits) |
 | `research` | research notes: new |
 | `research new` | create <research_dir>/<slug>.md from the house template |

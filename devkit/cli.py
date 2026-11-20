@@ -34,6 +34,7 @@ from devkit import (
     reuse,
     rules,
     setup,
+    snowball,
     stats,
     train,
     workflow,
@@ -344,6 +345,21 @@ def build() -> Parser:
         x.add_argument("-n", type=int, default=lit.DEFAULT_N, help=f"results (max {lit.MAX_N})")
         x.add_argument("--years", default="", help="2019, 2015-, -2020 or 2015-2020")
         x.add_argument("--snippet", type=int, default=lit.SNIPPET, help="abstract characters per paper (0 = none)")
+    x = ls.add_parser(
+        "snowball",
+        help="expand accepted papers by references, citations, co-citation, coupling and related works (OpenAlex): "
+        "one line per candidate, ranked, naming the signals that surfaced it",
+    )
+    x.add_argument("id", nargs="+", help="seed DOIs, arXiv ids or OpenAlex W-ids (excluded from the output)")
+    x.add_argument("-n", type=int, default=snowball.DEFAULT_N, help=f"candidates (max {snowball.MAX_N})")
+    x.add_argument(
+        "--depth",
+        type=int,
+        default=1,
+        help=f"hops, 1 to {snowball.MAX_DEPTH}; stops early when a hop adds nothing to the top n",
+    )
+    x.add_argument("--signals", default=",".join(snowball.SIGNALS), help=f"comma list of {', '.join(snowball.SIGNALS)}")
+    x.add_argument("--keep", type=int, default=snowball.KEEP, help="top candidates of a hop chased in the next")
     x = sub.add_parser(
         "reuse",
         help="reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); "
@@ -776,6 +792,11 @@ def run_lit(a: argparse.Namespace) -> int:
             code, text = lit.read(lit.client(), a.id, a.section)
             print(text)
             return code
+        elif a.sub == "snowball":
+            signals = tuple(s.strip() for s in a.signals.split(",") if s.strip())
+            cands, notes = snowball.snowball(lit.client(), a.id, a.n, a.depth, signals, a.keep)
+            print(snowball.render(cands, notes))
+            return 0 if cands else 1
         elif a.sub in lit.CHASE:
             papers, notes = lit.client().chase(a.id, a.sub, a.n, a.years)
         else:
