@@ -8,7 +8,7 @@ from collections.abc import Callable
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import integrate, train, workflow
+from devkit import config, integrate, train, workflow
 
 # The checks the review of #476 found listed twice: each must sit in `integrate.admit` and in neither caller.
 CHECKS = {"refusal", "session_leaks", "title_problem", "closes_problem", "unfinished", "only_pending",
@@ -56,6 +56,7 @@ def test_without_at_only_the_checks_on_the_pr_itself_run():
 
 
 def test_a_head_that_moved_stops_and_pending_checks_wait_only_when_held(monkeypatch):
+    monkeypatch.setattr(config, "get", config.Config)  # no required review: this repository's own requires one (#501)
     feedback = {"since": "", "comments": [], "reviews": [], "threads": []}
     at = integrate.At("b" * 40, "c" * 40, feedback, ["devkit/x.py"])
     assert integrate.admit(5, info(), at=at, harness_ok=True).outcome == "stopped"

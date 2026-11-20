@@ -35,8 +35,7 @@ def _ours() -> config.Config:
 def test_this_repository_requires_the_reviewer_on_devkit_and_plugins(path, needed):
     why = workflow.review_problem([path], [], "c" * 40, {"lead"}, _ours().required_reviews, lambda sha: False)
     assert (why is not None) == needed, why
-    if needed:
-        assert REVIEWER in why
+    assert why is None or REVIEWER in why
 
 
 def test_integrate_refuses_a_devkit_pr_here_until_the_reviewer_says_merge(fake_integrate, monkeypatch, capsys):  # noqa: F811
