@@ -31,7 +31,7 @@ def pilot(world, monkeypatch):  # noqa: F811 - the imported fixture
                 rows.append({
                     "number": n,
                     "headRefName": pr["branch"],
-                    "headRefOid": out(w["origin"], "git", "rev-parse", f"refs/heads/{pr['branch']}"),
+                    "headRefOid": pr.get("listed") or out(w["origin"], "git", "rev-parse", f"refs/heads/{pr['branch']}"),
                     "baseRefName": "main",
                     "isCrossRepository": False,
                     "isDraft": pr.get("draft", False),
@@ -217,15 +217,21 @@ def push_more(w: dict, n: int) -> str:
     return tip
 
 
-def test_a_trusted_merge_verdict_on_the_current_head_integrates_a_harness_pr(trusting, capsys, monkeypatch):
-    seen = []
-    real = workflow.integrate
-    monkeypatch.setattr(workflow, "integrate", lambda n, ok, *a: seen.append(ok) or real(n, ok, *a))
+def test_a_trusted_merge_verdict_on_the_current_head_integrates_a_harness_pr(trusting, capsys):
     tip = open_pr(trusting, 1, {"devkit/x.py": "x = 1\n"})
     trusting["prs"][1]["reviews"] = [verdict("merge", tip)]
     code, lines = tick(capsys)
     assert code == 0 and lines[1] == "merged #1: #101 -> done" and len(merges(trusting)) == 1
-    assert seen == [tip]  # --harness-ok for that head only, never a bare True
+
+
+def test_a_push_after_autopilot_read_the_verdict_is_not_cleared(trusting, capsys):
+    """The list (autopilot's read) still shows the reviewed head; integrate reads the pushed one: --harness-ok named
+    the reviewed SHA, never a bare True, so nothing merges."""
+    tip = open_pr(trusting, 1, {"devkit/x.py": "x = 1\n"})
+    trusting["prs"][1] |= {"reviews": [verdict("merge", tip)], "listed": tip}
+    push_more(trusting, 1)
+    code, lines = tick(capsys)
+    assert code == 1 and lines[1].startswith("STOP integrate #1 harness-review") and merges(trusting) == []
 
 
 @pytest.mark.parametrize("word", ["send back", "reconsider"])
