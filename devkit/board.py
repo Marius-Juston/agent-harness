@@ -1751,12 +1751,20 @@ class Fenced(NamedTuple):
 
 def fence(f: Fenced, nonce: str) -> list[str]:
     """Spotlighting (docs/research/agent-harness.md §12d): the heading opens `<<<data <nonce>`, every line is quoted
-    with `> ` so none can pass as the brief's own, and `data <nonce>>>>` closes it, the cut count after it. The section
-    stays within SECTION_LINES under its heading."""
-    rows, close = f.lines, f"data {nonce}>>>"
+    with `> ` so none can pass as the brief's own (a row holding a line break is split first), and `data <nonce>>>>`
+    closes it, the cut count after it. With `more`, the section stays within SECTION_LINES under its heading, so a
+    section of exactly SECTION_LINES lines shows one fewer and a "1 more" note; without, its caller capped it (Fix
+    before merge, at FIX_SHOWN)."""
+    rows, close = [ln for r in f.lines for ln in (r.splitlines() or [""])], f"data {nonce}>>>"
     if f.more and len(rows) >= SECTION_LINES:
         rows, close = rows[: SECTION_LINES - 1], f"{close} ... {len(rows) - SECTION_LINES + 1} more: {f.more}"
     return [f"{f.heading} <<<data {nonce}", *(f"> {ln}" for ln in rows), close]
+
+
+def escaped(text: str) -> str:
+    """Text others can name (a title, a file in someone's PR) as one line: each character that is not printable (line
+    breaks, line separators, control and format characters) shown as its Python escape, so it cannot start a line."""
+    return "".join(c if c.isprintable() else repr(c)[1:-1] for c in text)
 
 
 def data_nonce() -> str:
@@ -1773,9 +1781,9 @@ def brief_of(i: Issue, token: Callable[[], str] = data_nonce) -> str:
     """The brief of issue `i`. Text others can write (the issue's sections, comments, PR feedback) comes inside
     envelopes marked with a nonce `token` draws, drawn again while that text contains it."""
     p = i.parts
-    out: list[str | Fenced] = [f"# #{i.number} {i.title}", f"{i.priority} type:{i.kind} status:{i.status}"]
+    out: list[str | Fenced] = [f"# #{i.number} {escaped(i.title)}", f"{i.priority} type:{i.kind} status:{i.status}"]
     if c := i.claim():
-        out.append(f"claimed by {c.agent}@{c.host} on branch {c.branch}")
+        out.append(escaped(f"claimed by {c.agent}@{c.host} on branch {c.branch}"))
     more = f"`gh issue view {i.number}`"
     for name in ("Context", "DONE WHEN", "Owns", "Refs"):
         if p.get(name):
@@ -1798,7 +1806,7 @@ def brief_of(i: Issue, token: Callable[[], str] = data_nonce) -> str:
         out.append(Fenced("\n## Last comments", "\n".join(last).splitlines(), more))
     owns = owns_of(i)
     busy = in_flight_files()
-    hot = sorted(f"{f} ({', '.join(w)})" for f, w in busy.items() if owned(f, owns))
+    hot = sorted(escaped(f"{f} ({', '.join(w)})") for f, w in busy.items() if owned(f, owns))
     if busy:
         out.append("\n## Files other work is changing (hotspots: coordinate, do not edit blindly)")
         rows = [f"- {h}" for h in hot] or [f"- {len(busy)} files in flight elsewhere, none under this item's Owns"]
@@ -1816,7 +1824,7 @@ def brief_of(i: Issue, token: Callable[[], str] = data_nonce) -> str:
                 out += [heading, "- none: no new comments or reviews, no unresolved threads"]
     except BoardError:
         pass
-    quoted = [ln for x in out if isinstance(x, Fenced) for ln in (x.heading, *x.lines)]
+    quoted = [ln for x in out for ln in ((x.heading, *x.lines) if isinstance(x, Fenced) else (x,))]
     nonce = token()
     for _ in range(100):
         if not any(nonce in ln for ln in quoted):
