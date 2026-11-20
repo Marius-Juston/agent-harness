@@ -23,7 +23,8 @@ fell back to weaker sources. Every call here goes through one client:
   authors are missing, and batches several DOIs or W-ids into one OpenAlex call (#30, #174);
 - `refs` and `cited-by`: backward and forward citation chasing (snowballing) through OpenAlex filters (#193);
 - `read`: a paper's full text, cached as sections (devkit.fulltext): the outline, or one section, so an agent reads
-  what a claim rests on, not the abstract or the whole paper (#512);
+  what a claim rests on, not the abstract or the whole paper (#512); a DOI whose record names no readable copy is
+  looked up in Europe PMC (PMC, PubMed's open full texts), Unpaywall (with a contact email) and CORE (#9);
 - `dev lit status`: each source's health from a live probe; OK while at least one default source answers (partial
   names the ones down), DEGRADED and exit 1 only when all are down, so a research round never starts on the weaker
   fallbacks alone without knowing it (#8, #23). `dev lit search` prints the same verdict for the sources it asked
@@ -49,11 +50,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from devkit import backoff, fulltext, netsafe
+from devkit import backoff, config, fulltext, netsafe
 from devkit.paths import state_dir, user_state_dir
 
 UA = "agent-harness-devkit-lit/0.1 (research tooling; mailto:noreply@example.invalid)"
@@ -83,13 +84,25 @@ RATES: dict[str, tuple[float, float]] = {
 }
 SOURCES = tuple(RATES)
 # Full texts (`full_text`) from an open-access host other than arXiv's and Europe PMC's buckets: one per second, shared.
-TEXT_RATES = {"fulltext": (1.0, 2.0)}
+# Open-access locators `full_text` asks for a DOI whose record names no readable copy (#9), each with its own
+# machine-wide bucket. Unpaywall's REST API (api.unpaywall.org/v2/<doi>?email=<contact>) asks for an email on every
+# call and is "limited to 100,000 calls per day" (unpaywall.org/api/v2, as quoted by a web search 2026-11-19; the page
+# renders by script), so 1/s, which cannot reach that in a day. CORE's v3 API (api.core.ac.uk/v3) documents
+# per-window limits, as quoted by the same search: one batch or five single search requests per 10 s
+# (core.ac.uk/documentation/api; the page answered 403 to the fetch tool), so one request per 10 s, the
+# strictest of them; a free key (CORE_API_KEY) goes in an Authorization header. PubMed's open full texts are PMC's,
+# which Europe PMC serves as JATS XML through its own bucket above (europepmc).
+LOCATOR_RATES = {"unpaywall": (1.0, 1.0), "core": (0.1, 1.0)}
+TEXT_RATES = {"fulltext": (1.0, 2.0), **LOCATOR_RATES}
+CONTACT_ENV = "UNPAYWALL_EMAIL"  # else [tool.devkit] contact_email; never a default, so no address ships in the repo
+CORE_KEY_ENV = "CORE_API_KEY"
 TEXT_CAP = fulltext.PDF_MAX_BYTES + 1  # bytes read of one full text: one more than a PDF may have, to refuse it
 DEFAULT_SOURCES = ("openalex", "s2")
 # Asked in order, after DEFAULT_SOURCES, only while fewer than n papers are in hand (`--source auto`, the CLI default).
 FALLBACK_SOURCES = ("crossref", "europepmc", "arxiv")
 THROTTLE_503 = {"europepmc"}  # sources whose 503 means "slow down"
 KEYS = {"openalex": "OPENALEX_API_KEY", "s2": "S2_API_KEY"}  # free keys raise a source above its shared pool
+SECRET_NAMES = (*KEYS.values(), CONTACT_ENV, CORE_KEY_ENV)  # what the secrets file may set
 SECRETS_FILE = "~/.config/api-keys.env"  # DEVKIT_SECRETS_FILE overrides
 
 Get = Callable[[str, dict[str, str]], tuple[int, dict[str, str], str]]  # (url, headers) -> (status, headers, body)
@@ -98,6 +111,9 @@ GetBytes = Callable[[str, dict[str, str]], tuple[int, dict[str, str], bytes]]
 
 class SourceError(Exception):
     pass
+
+
+TRANSIENT = r"tries|rate limited|unreachable"  # a SourceError message that says "ask again later"
 
 
 # request headers that carry a key (authorization: dev reuse's GitHub token)
@@ -430,6 +446,62 @@ PARSE = {
 }
 
 
+# ---- open-access locators (#9): where a DOI's full text can be read ----
+
+PMC_PAGE = re.compile(
+    r"(?:europepmc\.org/(?:abstract/|article/)?PMC/|ncbi\.nlm\.nih\.gov/pmc/articles/|pmc\.ncbi\.nlm\.nih\.gov/articles/)"
+    r"(PMC\d+)",
+    re.I,
+)
+
+
+def unpaywall_url(doi: str) -> str:
+    return f"https://api.unpaywall.org/v2/{urllib.parse.quote(doi, safe='/')}"
+
+
+def core_url(doi: str) -> str:
+    return f"https://api.core.ac.uk/v3/search/works?q={urllib.parse.quote(f'doi:"{doi}"', safe='')}&limit=1"
+
+
+def parse_unpaywall(body: str) -> list[str]:
+    """An Unpaywall record's open-access URLs, best first: the best location's PDF, then its page, then every other
+    location's (oa_locations), deduped."""
+    data = json.loads(body)
+    locs = [data.get("best_oa_location") or {}, *(data.get("oa_locations") or [])]
+    urls = [u for loc in locs if isinstance(loc, dict) for k in ("url_for_pdf", "url") if (u := loc.get(k))]
+    return list(dict.fromkeys(u for u in urls if isinstance(u, str)))
+
+
+def parse_core(body: str) -> list[tuple[str, str]]:
+    """(URL, text) of each copy CORE names: the text it extracted from the PDF it holds (`fullText`, named by the
+    download URL, else the CORE page), else ('<download URL>', '') to fetch. A `fullText` under fulltext.MIN_WORDS is
+    not a paper: without a key CORE answers "Not available for public API users." there (seen 2026-11-19)."""
+    out = []
+    for w in json.loads(body).get("results") or []:
+        text, url = w.get("fullText") or "", w.get("downloadUrl") or ""
+        if not (isinstance(text, str) and isinstance(url, str)):
+            continue
+        if len(text.split()) >= fulltext.MIN_WORDS:
+            out.append((url or f"https://core.ac.uk/works/{w.get('id')}", text))
+        elif url:
+            out.append((url, ""))
+    return out
+
+
+def _europepmc_copies(body: str) -> list[tuple[str, str, str]]:
+    return [(*text_source(p.oa_url), "") for p in parse_europepmc(body) if p.oa_url]
+
+
+def text_source(url: str) -> tuple[str, str]:
+    """(the bucket, the URL to fetch) for an open-access link: a PMC page becomes Europe PMC's JATS XML of it; arXiv
+    keeps arXiv's bucket; any other host shares the `fulltext` one."""
+    if m := PMC_PAGE.search(url):
+        return "europepmc", f"https://www.ebi.ac.uk/europepmc/webservices/rest/{m.group(1).upper()}/fullTextXML"
+    if urllib.parse.urlsplit(url).hostname in ("arxiv.org", "export.arxiv.org"):
+        return "arxiv", url
+    return "fulltext", url
+
+
 # ---- requests ----
 
 
@@ -533,7 +605,7 @@ def batch_url(field_name: str, values: list[str]) -> str:
 
 
 def parse_secrets(text: str) -> dict[str, str]:
-    """KEYS values from `KEY=value` or `export KEY=value` lines, as a shell reads them: a quoted value ends at its
+    """SECRET_NAMES values from `KEY=value` or `export KEY=value` lines, as a shell reads them: a quoted value ends at its
     closing quote, an unquoted one at ` #` (a comment). Every other line is ignored."""
     out = {}
     for line in text.splitlines():
@@ -545,7 +617,7 @@ def parse_secrets(text: str) -> dict[str, str]:
             value = value[1:end] if end > 0 else ""
         else:
             value = re.split(r"\s+#", value, maxsplit=1)[0].strip()
-        if eq and name.strip() in KEYS.values() and value:
+        if eq and name.strip() in SECRET_NAMES and value:
             out[name.strip()] = value
     return out
 
@@ -581,7 +653,7 @@ def read_secrets(path: Path) -> tuple[dict[str, str], str]:
 
 def with_secrets(env: dict[str, str]) -> tuple[dict[str, str], str]:
     """`env` with each unset key filled from the secrets file (read only when a key is unset), and its problem."""
-    if all(env.get(k) for k in KEYS.values()):
+    if all(env.get(k) for k in SECRET_NAMES):
         return dict(env), ""
     found, problem = read_secrets(secrets_path(env))
     return {**env, **{k: v for k, v in found.items() if not env.get(k)}}, problem
@@ -600,6 +672,10 @@ def with_key(source: str, url: str, env: dict[str, str]) -> tuple[str, dict[str,
         return url + ("&" if "?" in url else "?") + "api_key=" + urllib.parse.quote(k), {}
     if source == "s2" and (k := env.get("S2_API_KEY")):
         return url, {"x-api-key": k}
+    if source == "unpaywall" and (k := env.get(CONTACT_ENV)):  # an address is personal: kept out of the cache too
+        return url + ("&" if "?" in url else "?") + "email=" + urllib.parse.quote(k), {}
+    if source == "core" and (k := env.get(CORE_KEY_ENV)):
+        return url, {"authorization": "Bearer " + k}
     return url, {}
 
 
@@ -897,8 +973,8 @@ class Client:
 
     def full_text(self, ident: str) -> tuple[fulltext.FullText | None, str]:
         """(the paper's full text as sections, or None and why there is none) for an arXiv id or a DOI: arXiv's HTML,
-        else its PDF; for another DOI the arXiv copy its record names, else Europe PMC's XML of a PMC article, else
-        the open-access link `get` prints. The parsed text, and a definite 'none' (no open-access copy, 404, 403),
+        else its PDF; for another DOI the arXiv copy its record names, else the open-access link `get` prints (Europe
+        PMC's XML for a PMC article), else the open-access locators' copies (_candidates). The parsed text, and a definite 'none' (no open-access copy, 404, 403),
         is cached CACHE_DAYS beside the responses. Raises SourceError when the answer was transient (retry later)."""
         key = (m.group(1) if (m := ARXIV_ID.match(ident)) else _arxiv_from_doi(ident)) or ident.lower()
         path = self.dir / "fulltext" / (hashlib.sha256(key.encode()).hexdigest()[:32] + ".json")
@@ -918,33 +994,38 @@ class Client:
     def _read_full_text(self, ident: str) -> tuple[fulltext.FullText | None, str]:
         m = ARXIV_ID.match(ident)
         ax, oa, tried = m.group(1) if m else _arxiv_from_doi(ident), "", []
+        doi = (d.group(1) if (d := DOI_ID.match(ident.strip())) else "") if not m else ""
         if not ax:
             paper, notes = self.lookup(ident)
-            if paper is None and any(re.search(r"tries|rate limited|unreachable", n) for n in notes):
+            if paper is None and any(re.search(TRANSIENT, n) for n in notes):
                 raise SourceError(f"no record for {ident} ({'; '.join(notes)})")
             if paper is None:  # every source answered and none knows it: definite
                 return None, f"no record for {ident}"
-            ax, oa = paper.ids.get("arxiv", ""), paper.oa_url
+            ax, oa, doi = paper.ids.get("arxiv", ""), paper.oa_url, doi or paper.ids.get("doi", "")
         urls = [("arxiv", f"https://arxiv.org/html/{ax}"), ("arxiv", f"https://arxiv.org/pdf/{ax}")] if ax else []
         if not ax and oa:
-            pmc = re.search(r"europepmc\.org/article/PMC/(PMC\d+)", oa)
-            urls.append(
-                ("europepmc", f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmc.group(1)}/fullTextXML")
-                if pmc
-                else ("fulltext", oa)
-            )
-        for src, url in urls:
-            if why := netsafe.bad_scheme(url):
-                tried.append(f"{url}: {why}")
+            urls.append(text_source(oa))
+        transient: list[str] = []
+        seen: set[str] = set()
+        for src, url, text in self._candidates(urls, "" if ax else doi, transient):
+            if url in seen:
                 continue
-            status, body = self._fetch_bytes(src, url)
-            if status != 200:
-                tried.append(f"{url}: HTTP {status}")
-                continue
-            if body.startswith(b"%PDF"):
-                ft = fulltext.from_pdf(body, url)
+            seen.add(url)
+            if text:
+                ft: fulltext.FullText | None = fulltext.from_text(text, url)
             else:
-                ft = fulltext.from_markup(body.decode("utf-8", "replace"), url, "xml" if src == "europepmc" else "html")
+                if why := netsafe.bad_scheme(url):
+                    tried.append(f"{url}: {why}")
+                    continue
+                status, body = self._fetch_bytes(src, url)
+                if status != 200:
+                    tried.append(f"{url}: HTTP {status}")
+                    continue
+                if body.startswith(b"%PDF"):
+                    ft = fulltext.from_pdf(body, url)
+                else:
+                    kind = "xml" if src == "europepmc" else "html"
+                    ft = fulltext.from_markup(body.decode("utf-8", "replace"), url, kind)
             if ft is None:
                 tried.append(f"{url}: unreadable PDF (broken, over {fulltext.PDF_MAX_BYTES} bytes or over "
                              f"{fulltext.PDF_SECONDS:.0f} s to parse)")  # fmt: skip
@@ -952,7 +1033,38 @@ class Client:
                 return ft, ""
             else:
                 tried.append(f"{url}: {ft.words()} words of text, not a full paper")
+        if transient:  # a locator that may know a copy did not answer: retry later rather than cache 'none'
+            raise SourceError("; ".join(tried + transient))
         return None, "; ".join(tried) or "no open-access copy"
+
+    def _candidates(
+        self, urls: list[tuple[str, str]], doi: str, transient: list[str]
+    ) -> Iterator[tuple[str, str, str]]:
+        """(bucket, URL, text already in hand or '') to try in turn: `urls`, then for a DOI each open-access locator's,
+        asked only once the ones before it gave no full text: Europe PMC's PMC copy (PubMed's open full texts),
+        Unpaywall's locations (only with a contact email), CORE's repository copies. A locator that failed
+        transiently is named in `transient`; one that answered 'not found' or another 4xx is skipped quietly."""
+        for src, url in urls:
+            yield src, url, ""
+        if not doi:
+            return
+        locators: list[tuple[str, str, Callable[[str], list[tuple[str, str, str]]]]] = [
+            ("europepmc", search_url("europepmc", f'DOI:"{doi}"', 1), _europepmc_copies),
+            ("core", core_url(doi), lambda b: [("fulltext", u, t) for u, t in parse_core(b)]),
+        ]
+        if self.env.get(CONTACT_ENV):
+            locators.insert(1, ("unpaywall", unpaywall_url(doi), lambda b: [(*text_source(u), "") for u in parse_unpaywall(b)]))  # fmt: skip
+        for src, url, parse in locators:
+            try:
+                found = parse(self.fetch(src, url))
+            except SourceError as exc:
+                if re.search(TRANSIENT, str(exc)):
+                    transient.append(str(exc))
+                continue
+            except (ValueError, AttributeError, TypeError) as exc:
+                transient.append(f"{src}: unreadable answer ({type(exc).__name__})")
+                continue
+            yield from found
 
     def _fetch_bytes(self, src: str, url: str) -> tuple[int, bytes]:
         """(status, body) of a definite answer, through the shared bucket; a transient one twice raises SourceError."""
@@ -994,11 +1106,21 @@ def _same_title(a: Paper, b: Paper) -> bool:
     return bool(ta) and ta == tb and (a.year is None or b.year is None or abs(a.year - b.year) <= 1)
 
 
-def client() -> Client:
+def client(settings: Callable[[], config.Config] = config.get) -> Client:
     env, problem = with_secrets(dict(os.environ))
     if problem:
         print(f"dev lit: {problem}", file=sys.stderr)
+    if not env.get(CONTACT_ENV) and (email := contact_email(settings)):
+        env[CONTACT_ENV] = email
     return Client(state_dir("lit"), env=env, rate_dir=user_state_dir("lit"))
+
+
+def contact_email(settings: Callable[[], config.Config] = config.get) -> str:
+    """[tool.devkit] contact_email, or '' when unset or the config does not parse (lit still works without it)."""
+    try:
+        return settings().contact_email
+    except (config.ConfigError, OSError, RuntimeError, ValueError):
+        return ""
 
 
 def read(c: Client, ident: str, section: str = "") -> tuple[int, str]:

@@ -1430,3 +1430,214 @@ def test_dev_lit_refs_and_cited_by_over_a_local_fake_server(tmp_path, monkeypatc
     assert "note: 2 of 9 citing works of W5, most cited first" in cited and "Retrieval practice works." in cited
     assert any("filter=cites:W5,publication_year:2020-&" in p for p in seen)
     assert "note: openalex: not found" in gone
+
+
+# ---- open-access locators for full texts (#9) ----
+
+UPW = "https://api.unpaywall.org/v2/"
+CORE = "https://api.core.ac.uk/v3/"
+EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest/"
+CLOSED = {"results": [{"id": "https://openalex.org/W7", "doi": "https://doi.org/10.1000/c", "title": "Closed",
+                       "abstract_inverted_index": {"Closed.": [0]}}]}  # fmt: skip
+
+
+def paper_html() -> str:
+    return "<html><body><h2>1 Introduction</h2><p>" + "a sentence of the paper body " * 250 + "</p></body></html>"
+
+
+def locator_client(tmp_path, answers: dict, env: dict | None = None):
+    """A Client whose answers, JSON and full-text bytes alike, come from `answers` (url prefix -> (status, body));
+    returns (client, the (url, headers) asked, the clock)."""
+    calls: list[tuple[str, dict]] = []
+
+    def answer(url: str, headers: dict) -> tuple[int, dict, str]:
+        calls.append((url, headers))
+        return next(((s, {}, b) for p, (s, b) in answers.items() if url.startswith(p)), (404, {}, ""))
+
+    def answer_bytes(url: str, headers: dict) -> tuple[int, dict, bytes]:
+        status, hdrs, body = answer(url, headers)
+        return status, hdrs, body.encode()
+
+    clock = Clock()
+    c = lit.Client(tmp_path, get=answer, get_bytes=answer_bytes, clock=clock, sleep=clock.sleep, env=env or {})
+    return c, calls, clock
+
+
+def stored(tmp_path) -> str:
+    return "".join(p.read_text() for p in tmp_path.rglob("*.json"))
+
+
+def test_unpaywall_finds_an_open_access_copy_the_record_does_not_name(tmp_path):
+    upw = {"best_oa_location": {"url_for_pdf": None, "url": "https://repo.example.org/c.html"}, "oa_locations": []}
+    answers = {OA: (200, json.dumps(CLOSED)), UPW: (200, json.dumps(upw)),
+               "https://repo.example.org/c.html": (200, paper_html())}  # fmt: skip
+    c, calls, _ = locator_client(tmp_path, answers, {lit.CONTACT_ENV: "team@example.org"})
+    ft, why = c.full_text("10.1000/c")
+    assert ft and why == "" and ft.url == "https://repo.example.org/c.html" and ft.locate("1")
+    assert [u for u, _ in calls if u.startswith(UPW)] == [UPW + "10.1000/c?email=team%40example.org"]
+    assert "team@example.org" not in stored(tmp_path) and "team%40" not in stored(tmp_path)  # never cached
+
+
+def test_without_a_contact_email_unpaywall_is_never_asked(tmp_path):
+    c, calls, _ = locator_client(tmp_path, {OA: (200, json.dumps(CLOSED))})
+    assert c.full_text("10.1000/c") == (None, "no open-access copy")
+    assert not [u for u, _ in calls if u.startswith(UPW)]
+
+
+def test_europe_pmc_names_a_pmc_copy_after_openalex_answered_without_one(tmp_path):
+    """lookup() stops at the first record with an abstract, so Europe PMC is asked for a PMC copy by DOI here."""
+    epmc = {"resultList": {"result": [{"title": "Closed", "doi": "10.1000/c", "pmcid": "PMC42", "isOpenAccess": "Y"}]}}
+    xml = "<article><body><sec><title>Results</title><p>" + "word " * 1200 + "</p></sec></body></article>"
+    answers = {OA: (200, json.dumps(CLOSED)), EPMC + "search": (200, json.dumps(epmc)),
+               EPMC + "PMC42/fullTextXML": (200, xml)}  # fmt: skip
+    c, calls, _ = locator_client(tmp_path, answers, {lit.CONTACT_ENV: "team@example.org"})
+    ft, _ = c.full_text("10.1000/c")
+    assert ft and ft.kind == "xml" and ft.locate("Results")
+    assert not [u for u, _ in calls if u.startswith((UPW, CORE))]  # a later locator is asked only when needed
+
+
+def test_core_full_text_is_read_as_approximate_sections_with_the_key_in_a_header(tmp_path):
+    from devkit import fulltext
+
+    text = (
+        "Abstract\nShort.\n1 Introduction\n" + "words of the body " * 300 + "\n2 Results\nOperators ignored 41 of 60."
+    )
+    core = {"results": [{"id": 9, "downloadUrl": "https://core.ac.uk/download/9.pdf", "fullText": text}]}
+    c, calls, _ = locator_client(
+        tmp_path, {OA: (200, json.dumps(CLOSED)), CORE: (200, json.dumps(core))}, {lit.CORE_KEY_ENV: "fake-core-1"}
+    )
+    ft, _ = c.full_text("10.1000/c")
+    assert (
+        ft and ft.kind == "text" and ft.kind in fulltext.APPROXIMATE and ft.url == "https://core.ac.uk/download/9.pdf"
+    )
+    assert "41 of 60" in ft.locate("2")[1]
+    (core_call,) = [(u, h) for u, h in calls if u.startswith(CORE)]
+    assert core_call == (
+        CORE + "search/works?q=doi%3A%2210.1000%2Fc%22&limit=1",
+        {"authorization": "Bearer fake-core-1"},
+    )
+    assert "fake-core-1" not in stored(tmp_path)
+
+
+def test_a_core_work_without_text_or_download_is_no_copy():
+    paper = "word " * 1000
+    body = {"results": [{"id": 1}, {"id": 2, "fullText": paper}, {"downloadUrl": "https://x.org/a.pdf"}]}
+    assert lit.parse_core(json.dumps(body)) == [("https://core.ac.uk/works/2", paper), ("https://x.org/a.pdf", "")]
+
+
+def test_cores_placeholder_for_keyless_callers_is_not_a_text_but_its_download_is_fetched(tmp_path):
+    """Regression (measured 2026-11-19): without a key CORE's `fullText` is 'Not available for public API users.',
+    which was read as a 6-word paper instead of fetching the PDF CORE holds."""
+    hidden = {
+        "id": 3,
+        "fullText": "Not available for public API users.",
+        "downloadUrl": "https://core.ac.uk/download/3.pdf",
+    }
+    assert lit.parse_core(json.dumps({"results": [hidden, {**hidden, "downloadUrl": ""}]})) == [
+        (hidden["downloadUrl"], "")
+    ]
+    answers = {OA: (200, json.dumps(CLOSED)), CORE: (200, json.dumps({"results": [hidden]})),
+               hidden["downloadUrl"]: (200, paper_html())}  # fmt: skip
+    c, _, _ = locator_client(tmp_path, answers)
+    ft, why = c.full_text("10.1000/c")
+    assert ft and why == "" and ft.url == hidden["downloadUrl"]
+
+
+def test_a_locator_that_did_not_answer_is_retried_later_not_cached_as_none(tmp_path):
+    c, _, _ = locator_client(tmp_path, {OA: (200, json.dumps(CLOSED)), CORE: (503, "")})
+    with pytest.raises(lit.SourceError, match="core"):
+        c.full_text("10.1000/c")
+    assert not list((tmp_path / "fulltext").glob("*.json"))
+
+
+def test_core_is_asked_at_most_once_per_ten_seconds_machine_wide(tmp_path):
+    c, calls, clock = locator_client(tmp_path, {OA: (200, json.dumps(CLOSED)), CORE: (200, '{"results": []}')})
+    t0 = clock.t
+    c.full_text("10.1000/c")
+    c.full_text("10.1000/d")
+    assert len([u for u, _ in calls if u.startswith(CORE)]) == 2 and clock.t - t0 >= 10.0
+
+
+def test_unpaywall_locations_best_first_and_pmc_pages_read_as_jats():
+    body = {"best_oa_location": {"url_for_pdf": "https://a.org/x.pdf", "url": "https://a.org/x.pdf"},
+            "oa_locations": [{"url_for_pdf": None, "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7"},
+                             {"url": "https://arxiv.org/abs/2601.00001"}]}  # fmt: skip
+    urls = lit.parse_unpaywall(json.dumps(body))
+    assert urls == ["https://a.org/x.pdf", body["oa_locations"][0]["url"], "https://arxiv.org/abs/2601.00001"]
+    assert [lit.text_source(u)[0] for u in urls] == ["fulltext", "europepmc", "arxiv"]
+    assert lit.text_source(urls[1])[1] == EPMC + "PMC7/fullTextXML"
+    assert lit.parse_unpaywall(json.dumps({"best_oa_location": None, "oa_locations": None})) == []
+
+
+def test_the_contact_email_comes_from_the_environment_else_the_project_config(tmp_path, monkeypatch):
+    from devkit import config
+
+    for k in lit.SECRET_NAMES:
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("DEVKIT_SECRETS_FILE", str(tmp_path / "none"))
+    (tmp_path / "state").mkdir()
+    monkeypatch.setattr(lit, "state_dir", lambda *_: tmp_path / "state")
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "user-state"))
+    project = lambda: config.parse({"contact_email": "project@example.org"})  # noqa: E731
+    assert lit.client(project).env[lit.CONTACT_ENV] == "project@example.org"
+    monkeypatch.setenv(lit.CONTACT_ENV, "env@example.org")
+    assert lit.client(project).env[lit.CONTACT_ENV] == "env@example.org"
+    monkeypatch.delenv(lit.CONTACT_ENV)
+    assert lit.CONTACT_ENV not in lit.client(config.Config).env  # no default address ships
+
+
+def test_a_config_that_does_not_parse_leaves_unpaywall_out():
+    from devkit import config
+
+    def broken() -> config.Config:
+        return config.parse({"contact_email": 3})
+
+    assert lit.contact_email(broken) == ""
+
+
+def test_the_secrets_file_may_hold_the_core_key_and_contact_email(tmp_path):
+    env = secrets(tmp_path, "CORE_API_KEY=fake-core\nUNPAYWALL_EMAIL=team@example.org\n")
+    out, problem = lit.with_secrets(env | {"OPENALEX_API_KEY": "a", "S2_API_KEY": "b"})
+    assert problem == "" and out[lit.CORE_KEY_ENV] == "fake-core" and out[lit.CONTACT_ENV] == "team@example.org"
+
+
+def test_unpaywall_through_a_local_http_server(tmp_path):
+    """The chain over real HTTP: OpenAlex names no copy, Unpaywall names a PDF on a host of its own, it is read."""
+    from tests.test_fulltext import PDF_LINES, pdf_bytes
+
+    pdf = pdf_bytes(PDF_LINES[:4] + ["more words of the introduction section here"] * 160 + PDF_LINES[4:])
+    seen: list[str] = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append(self.path)
+            if self.path.startswith("/works/"):
+                body = json.dumps(CLOSED).encode()
+            elif self.path.startswith("/v2/10.1000/c?"):
+                body = json.dumps({"best_oa_location": {"url_for_pdf": base + "c.pdf"}}).encode()
+            else:
+                body = pdf if self.path == "/c.pdf" else b""
+            self.send_response(200 if body else 404)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}/"
+
+    def local(url: str, headers: dict) -> tuple[int, dict, str]:  # every API host is the local server
+        return lit.http_get(base + url.split("://", 1)[1].split("/", 1)[1], headers, timeout=5)
+
+    clock = Clock()
+    env = {lit.CONTACT_ENV: "team@example.org"}
+    c = lit.Client(tmp_path, get=local, get_bytes=lit.http_get_bytes, clock=clock, sleep=clock.sleep, env=env)
+    try:
+        ft, why = c.full_text("10.1000/c")
+    finally:
+        server.shutdown()
+    assert ft and ft.kind == "pdf" and why == "", why
+    assert "/v2/10.1000/c?email=team%40example.org" in seen and "/c.pdf" in seen

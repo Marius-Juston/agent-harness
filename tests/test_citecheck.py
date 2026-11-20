@@ -50,3 +50,20 @@ def test_real_note_next_to_readme_is_still_checked(repo, capsys):
     code, out = cite_check(capsys)
     assert code == 1
     assert "in 1 note(s)" in out
+
+
+def test_extracted_text_sections_are_approximate_like_a_pdfs():
+    """#9: CORE's `fullText` has headings guessed from lines, so a quote outside the cited section is a note."""
+    from pathlib import Path
+
+    from devkit import citecheck, fulltext
+
+    text = "1 Introduction\nAutomation that cries wolf is switched off by the people it should help.\n2 Results\nx"
+    ft = fulltext.from_text(text, "https://core.ac.uk/download/1.pdf")
+    quote = "Automation that cries wolf is switched off"
+    c = citecheck.Claim(Path("n.md"), 1, "u", "10.1000/c", "§2", quote, quote, frozenset())
+    problems, notes, _ = citecheck.check_quotes([c], lambda _id: (ft, ""), False)
+    assert ft.kind == "text" and problems == [] and "approximate" in notes[0]
+    ft.kind = "html"
+    problems, _, _ = citecheck.check_quotes([c], lambda _id: (ft, ""), False)
+    assert problems and "not in '2 Results'" in problems[0]

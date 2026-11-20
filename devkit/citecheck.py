@@ -538,14 +538,14 @@ def _placed(c: Claim, ft: fulltext.FullText, notes: list[str]) -> list[str]:
         return []
     if not whole and located is None:
         msg = f"{c.where()}: {loc!r} is not in the outline of {ft.url}"
-        if ft.kind != "pdf":  # a made-up or mistyped locator: the cited section cannot be checked
+        if ft.kind not in fulltext.APPROXIMATE:  # a made-up or mistyped locator: the cited section cannot be checked
             return [msg + " (`uv run dev lit read <id>` prints it): cite a section it has"]
         notes.append(msg + " (PDF headings are approximate); checked against the whole text")
     if not fulltext.contains(ft.whole(), c.quote):
         return [f"{c.where()}: quote not found in the full text ({ft.url}): {c.quote[:80]!r}"]
     if located:
         msg = f"{c.where()}: the quote is not in {located[0]!r} ({loc}) but elsewhere in {ft.url}"
-        if ft.kind != "pdf":
+        if ft.kind not in fulltext.APPROXIMATE:
             return [msg]
         notes.append(msg + " (PDF section bounds are approximate)")
     return []
