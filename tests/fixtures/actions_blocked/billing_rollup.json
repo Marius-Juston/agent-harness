@@ -1,0 +1,15 @@
+{
+ "headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+ "statusCheckRollup": [
+  {
+   "__typename": "CheckRun",
+   "completedAt": "2026-11-19T22:06:21Z",
+   "conclusion": "FAILURE",
+   "detailsUrl": "https://github.com/o/r/actions/runs/44625354699/job/135917571091",
+   "name": "check",
+   "startedAt": "2026-11-19T22:06:19Z",
+   "status": "COMPLETED",
+   "workflowName": "gate"
+  }
+ ]
+}
