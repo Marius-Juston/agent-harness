@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<article xmlns:xlink="http://www.w3.org/1999/xlink" article-type="research-article">
+<front>
+<article-meta>
+<title-group><article-title>Alarm Fatigue in Automated Monitoring</article-title></title-group>
+<abstract><p>False alarms lead operators to ignore automation.</p></abstract>
+</article-meta>
+</front>
+<body>
+<sec id="s1"><title>Introduction</title>
+<p>Automation that cries wolf is switched off.</p></sec>
+<sec id="s2"><title>Results</title>
+<p>Operators ignored 41 of 60 alarms once the false-alarm rate passed one in two.</p>
+<table-wrap id="t1"><caption><title>Table 1. Alarm responses</title></caption>
+<table><tr><td>ignored</td><td>41</td></tr></table></table-wrap>
+<sec id="s2a"><title>Subgroups</title><p>Experienced operators ignored more alarms.</p></sec>
+</sec>
+<sec id="s3"><title>Discussion</title><p>Designers should keep false alarms rare.</p></sec>
+</body>
+<back><ref-list><title>References</title><ref><mixed-citation>B. Author. 2020.</mixed-citation></ref></ref-list></back>
+</article>
