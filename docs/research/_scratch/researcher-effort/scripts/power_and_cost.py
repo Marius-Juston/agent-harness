@@ -79,6 +79,23 @@ def power_table(sims: int = 400) -> None:
                 )
 
 
+def savings() -> None:
+    """What the vendor's cost ratios would save on the researcher line of the measured window (harness-efficiency.md:
+    researchers $1,157 of $2,314 modelled), if quality and turns held. Ratios: Optimizing for cost and intelligence,
+    footnotes 3 and 8, fetched 2026-11-19."""
+    role, total = 1157, 2314
+    print("\nresearcher line at vendor cost ratios (same tasks, quality not modelled):")
+    for name, ratio in (
+        ("medium vs high, SWE-bench Pro (about 70 % of the cost)", 0.70),
+        ("medium vs high, defect search (15 % less)", 0.85),
+        ("Opus high orchestrator + Sonnet subagents vs Opus medium alone, defect search ($139 vs $200)", 139 / 200),
+        ("Opus high orchestrator + Sonnet subagents vs Opus high alone, defect search ($139 vs $236)", 139 / 236),
+    ):
+        saved = role * (1 - ratio)
+        print(f"  {name}: ratio {ratio:.3f}, saves ${saved:,.0f} ({saved / total:.1%} of all spend)")
+
+
 if __name__ == "__main__":
     cost_table()
     power_table()
+    savings()
