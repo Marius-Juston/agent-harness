@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, ci_status, cli, fixloop, paths, prtext, train, workflow
+from devkit import board, ci_status, cli, fixloop, paths, prtext, train, weaken, workflow
 from tests.test_merge_hygiene import ATTRIBUTES, INDEX, REAL_POPEN, REAL_RUN, commit, index, note, out, sh
 
 
@@ -176,6 +176,29 @@ def test_one_breaking_member_is_isolated_by_bisection_and_only_it_is_sent_back(w
     assert res["members"]["2"]["cycle"] == 1 and "FAIL tests" in res["members"]["2"]["gate"]
     assert main_log(world)[:2] == ["feat(x): pr 3 (#103) (#3)", "feat(x): pr 1 (#101) (#1)"]
     assert closed(world) == [1, 3]
+
+
+def test_each_gate_judges_each_members_commits_against_its_own_issue(world, capsys, monkeypatch):
+    """#251: the train's gate runs in a detached worktree holding several PRs; ISSUE_ENV names each member's issue
+    with the commits it added (main to its merge step, the last to the working tree), chained so none escapes."""
+    three(world, broken=2)
+    main, fake, seen = out(world["clone"], "git", "rev-parse", "HEAD"), subprocess.Popen, []
+
+    def popen(cmd, **kw):
+        if list(cmd[:2]) == ["uv", "run"] and "check" in cmd:
+            seen.append(weaken.spans(kw["env"][weaken.ISSUE_ENV]))
+        return fake(cmd, **kw)
+
+    monkeypatch.setattr(subprocess, "Popen", popen)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
+    gated = [g["members"] for g in last_json(capsys.readouterr().out)["gates_run"]]
+    assert [[n - 100 for n, _, _ in spans] for spans in seen] == gated == [[1, 2, 3], [1], [1, 2], [1, 3]]
+    for spans in seen:
+        assert spans[0][1] == main and spans[-1][2] is None
+        for n, frm, to in spans[:-1]:  # a member's range holds its own note and nothing of another member's
+            changed = out(world["clone"], "git", "diff", "--name-only", frm, to).splitlines()
+            assert f"docs/research/n{n - 100}.md" in changed
+            assert not [p for p in changed if p.startswith("docs/research/n") and p != f"docs/research/n{n - 100}.md"]
 
 
 def test_a_conflicting_member_is_sent_back_before_any_gate(world, capsys):
@@ -442,12 +465,12 @@ def test_a_flaky_full_gate_is_confirmed_once_and_then_lands_every_member(world, 
     three(world)
     real, calls = workflow.run_gate, []
 
-    def run_gate(tree, contexts, log):
+    def run_gate(tree, contexts, log, issue=None):
         calls.append(1)
         if len(calls) == 1:  # the first full gate fails once, for no reason in the tree
             log.write_text("FAIL tests\n  flaky\n")
             return False
-        return real(tree, contexts, log)
+        return real(tree, contexts, log, issue)
 
     monkeypatch.setattr(workflow, "run_gate", run_gate)
     assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
