@@ -72,8 +72,9 @@ Nothing assumes that two machines share a disk.
    accepts only the GitHub Actions app (a posted status would not count; the refusal names the `app_id: -1` change
    for the owner) or has no stand-in. Integrate and a train take this path without the flag when a head shows within
    seconds that Actions cannot run it: a job failed with GitHub's billing annotation, a job is queued for a
-   self-hosted runner while none with its labels is online, or the head has no workflow run (`actions_start_s`,
-   20 s). `ci = "local"` in `[tool.devkit]` makes the path the default. Each head's checks are read once, a required
+   self-hosted runner while none with its labels is online (after `actions_start_s`, 20 s, when the repository's
+   runner list shows such a runner offline; else after `actions_stranded_s`, 300 s), or the head has no workflow run
+   (`actions_start_s`). `ci = "local"` in `[tool.devkit]` makes the path the default. Each head's checks are read once, a required
    check that Actions ran and failed refuses, and the rest are stood in for at once, never waited on. The board needs
    no scheduled job either: `dev orient` and `dev integrate` run
    `board sync`, so the template's `board.yml` is optional.

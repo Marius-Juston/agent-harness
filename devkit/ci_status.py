@@ -236,11 +236,12 @@ def billing_blocked(c: dict, probe: Probe) -> bool:
 
 
 def stranded(c: dict, probe: Probe) -> bool:
-    """A queued CheckRun whose job waits for a self-hosted runner and never starts. A missing runner is never proof
-    alone (an organisation's runner groups and scale-from-zero runners are not in the repository's list): the job
-    must still be queued with no runner assigned `actions_start_s` after it was created, and when the repository's
-    runner list is the whole truth (`_runners`) no online runner may carry all its labels, which GitHub matches
-    case-insensitively. A GitHub-hosted job, or one whose age is unreadable, is not stranded."""
+    """A queued CheckRun whose job waits for a self-hosted runner and never starts: still queued with no runner
+    assigned, and no online runner carries all its labels (GitHub matches them case-insensitively). A missing runner
+    is never proof alone (an organisation's runner groups and scale-from-zero runners are not in the repository's
+    list). When the runner list is the whole truth (`_runners`) and holds a runner with the job's labels, every such
+    runner offline, the job is stranded `actions_start_s` after it was created; otherwise only time decides, after
+    `actions_stranded_s`. A GitHub-hosted job, or one whose age is unreadable, is not stranded."""
     if c.get("__typename") == "StatusContext" or c.get("status") in ("COMPLETED", "IN_PROGRESS"):
         return False
     job = _job(c, probe)[1]
@@ -252,12 +253,13 @@ def stranded(c: dict, probe: Probe) -> bool:
         age = (WALL_CLOCK() - datetime.fromisoformat(job["created_at"])).total_seconds()
     except (KeyError, TypeError, ValueError):
         return False
-    if age < config.get().actions_start_s:
+    matching = [
+        r for r in _runners(probe) or [] if labels <= {str(lab.get("name")).casefold() for lab in r.get("labels") or []}
+    ]
+    if any(r.get("status") == "online" for r in matching):
         return False
-    return (runners := _runners(probe)) is None or not any(
-        r.get("status") == "online" and labels <= {str(lab.get("name")).casefold() for lab in r.get("labels") or []}
-        for r in runners
-    )
+    cfg = config.get()
+    return age >= (cfg.actions_start_s if matching else cfg.actions_stranded_s)
 
 
 STANDING = ("failed", "running", "queued", "never-ran", "passed")  # the first one a context's checks show wins

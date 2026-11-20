@@ -89,6 +89,10 @@ class Config:
     ci: str = "actions"
     # #531: with ci = "actions", a head with no workflow run after this long means Actions cannot run.
     actions_start_s: int = 20
+    # #531: a job queued for a self-hosted runner that the repository's runner list cannot settle (an organisation's
+    # repository, a list unreadable, incomplete or without a runner of its labels) is stranded only after this long:
+    # scale-from-zero runners take minutes to start. With a listed matching runner offline, actions_start_s applies.
+    actions_stranded_s: int = 300
     # `dev integrate --local-ci`: required check context -> the commands (argument lists, run in the merged tree after
     # the gate passed; "{tmpdir}" becomes a fresh empty directory) that stand in for it. [] = the gate alone. A required
     # context without an entry is never posted: integrate refuses instead.

@@ -122,26 +122,40 @@ def test_runner_labels_match_case_insensitively(actions, aged):  # noqa: F811
 
 @pytest.mark.parametrize(
     "case",
-    ["empty list", "unreadable", "incomplete", "organisation"],
+    ["empty list", "no runner with its labels", "unreadable", "incomplete", "organisation"],
 )
 def test_without_the_whole_runner_list_only_the_time_rule_decides(actions, aged, case):  # noqa: F811
     """Reviewer probe (b): repository runners [] (scale-from-zero, or an organisation's runner group the list does not
-    show), an unreadable or a partial list: a young queued job waits, one queued past `actions_start_s` is stranded."""
+    show), none with the job's labels, an unreadable or a partial list: the list settles nothing, so the job is
+    stranded only once queued `actions_stranded_s` (300 s; lead, 2026-11-19), not `actions_start_s`."""
     check = _queued(actions, labels=["self-hosted", "linux"])
     online = recorded("queued_runners.json")
     online["runners"][0]["status"] = "online"
+    gpu = recorded("queued_runners.json")
+    for r in gpu["runners"]:
+        r["labels"] = [{"name": "self-hosted"}, {"name": "gpu"}]
     actions["runners"] = {
         "empty list": {"total_count": 0, "runners": []},
+        "no runner with its labels": gpu,
         "unreadable": None,
         "incomplete": online | {"total_count": 120},  # an online match on page 1 but the list is partial
         "organisation": online,
     }[case]
     if case == "organisation":
         actions["owner"] = "Organization"
-    aged(5)
-    assert _reads(check) == "queued"
-    aged(60)
-    assert _reads(check) == "never-ran"
+    for seconds, reads in ((5, "queued"), (60, "queued"), (299, "queued"), (300, "never-ran")):
+        aged(seconds)
+        assert _reads(check) == reads, seconds
+
+
+def test_a_listed_matching_runner_offline_settles_it_after_actions_start_s(actions, aged):  # noqa: F811
+    """The runner list settles it (whole, user-owned, a runner with the job's labels, every such one offline): the
+    short `actions_start_s` applies, not `actions_stranded_s`."""
+    check = _queued(actions, labels=["self-hosted", "LINUX"])
+    actions["runners"] = recorded("queued_runners.json")
+    for seconds, reads in ((19, "queued"), (20, "never-ran")):
+        aged(seconds)
+        assert _reads(check) == reads, seconds
 
 
 # --- ci = "actions": standing in within seconds ----------------------------------------------------------------------
