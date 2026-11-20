@@ -1,0 +1,87 @@
+# #262, frozen before any run (PROTOCOL.md). Ten primary sub-questions and two spares, each a past round-1
+# researcher sub-question whose note had a research-auditor pass with its fixes committed. `gold` is the round file the
+# original researcher wrote; `hide` is every path removed from the trial clone so the gold cannot be read locally.
+# Inclusion: literature or public-docs evidence only (no sibling-repository or transcript measurement, which a clone
+# cannot reproduce and which is private). Prompts paraphrase the sub-question each gold file states in its header.
+# Do not change a prompt, gold or hide list after the first run; amend PROTOCOL.md with a dated entry instead.
+common_hide:
+  - docs/research/_scratch/researcher-effort/
+template: >-
+  Round mode, a sub-question of a research round (round 1). Sub-question: {prompt} Write only
+  docs/research/_scratch/eval-q/r1-answer.md in this checkout and do not commit. The sandbox has no remote, so board
+  commands fail: that is expected. Hand back the findings in at most 25 lines.
+questions:
+  Q01:
+    gold: docs/research/_scratch/test-suite-design/r1-against.md
+    hide: [docs/research/_scratch/test-suite-design/, docs/research/test-suite-design.md]
+    prompt: >-
+      Argue the case against "a pyramid of many unit tests plus a few end-to-end tests, with coverage floors" as the
+      test-suite design for an agent-run repository: which evidence contradicts it, and which narrower claims survive?
+  Q02:
+    gold: docs/research/_scratch/test-suite-design/r1-theory-shapes.md
+    hide: [docs/research/_scratch/test-suite-design/, docs/research/test-suite-design.md]
+    prompt: >-
+      Test-suite theory and shapes (test pyramid, testing trophy, honeycomb, Google test sizes): what does each
+      prescribe, and which of their claims have outcome data behind them versus practitioner opinion?
+  Q03:
+    gold: docs/research/_scratch/test-suite-design/r1-empirical-by-size.md
+    hide: [docs/research/_scratch/test-suite-design/, docs/research/test-suite-design.md]
+    prompt: >-
+      Empirical statistics on test suites by project size: test counts, test-to-code ratios, the mix of unit and
+      larger tests, and how they change as projects grow, from published studies and large-company reports.
+  Q04:
+    gold: docs/research/_scratch/test-suite-design/r1-llm-tests-tools.md
+    hide: [docs/research/_scratch/test-suite-design/, docs/research/test-suite-design.md]
+    prompt: >-
+      Tests written by LLM coding agents (quality, redundancy, gaming or editing tests to pass), and existing
+      maintained tools a harness could reuse to generate tests or check test quality.
+  Q05:
+    gold: docs/research/_scratch/architecture-consolidation/r1-against-and-safety.md
+    hide: [docs/research/_scratch/architecture-consolidation/, docs/research/architecture-consolidation.md]
+    prompt: >-
+      Argue the case against periodic big re-architecture of an agent-built repository, and state what the evidence
+      says makes a large restructuring safe.
+  Q06:
+    gold: docs/research/_scratch/architecture-consolidation/r1-empirical.md
+    hide: [docs/research/_scratch/architecture-consolidation/, docs/research/architecture-consolidation.md]
+    prompt: >-
+      Empirical evidence on code growth, duplication, churn and architectural erosion, especially in AI- or
+      agent-written code, and measurable signals that a consolidation of a codebase pays off.
+  Q07:
+    gold: docs/research/_scratch/architecture-consolidation/r1-expert-guidance.md
+    hide: [docs/research/_scratch/architecture-consolidation/, docs/research/architecture-consolidation.md]
+    prompt: >-
+      What do recognised experts prescribe for keeping a codebase lean and for carrying out large restructurings,
+      and when does each technique apply?
+  Q08:
+    gold: docs/research/_scratch/architecture-consolidation/r1-tools-prior-art.md
+    hide: [docs/research/_scratch/architecture-consolidation/, docs/research/architecture-consolidation.md]
+    prompt: >-
+      Which maintained free or open-source tools, Claude Code plugins, agents, skills and repositories already do
+      architecture analysis or consolidation of a Python codebase, so a harness can reuse instead of building?
+  Q09:
+    gold: docs/research/_scratch/fix-now-vs-defer/r1-literature.md
+    hide: [docs/research/_scratch/fix-now-vs-defer/, docs/research/fix-now-vs-defer.md]
+    prompt: >-
+      What do research and other agent harnesses say about deferring work (TODO and self-admitted technical debt
+      survival, backlog decay, the cost of fixing later, the boy-scout rule, tangled changes, LLM-agent deferral and
+      scope)? End with a candidate rule for when an agent should fix a small problem now instead of filing it.
+  Q10:
+    gold: docs/research/_scratch/adr-drift/r1-tools-against.md
+    hide: [docs/research/_scratch/adr-drift/, docs/research/_scratch/long-running-drift/, docs/research/decision-records-and-drift.md]
+    prompt: >-
+      Prior art and free tools for keeping documentation consistent with code, and the case against "add
+      architecture decision records" and "add more drift checks" to an agent-run repository.
+spares:
+  Q11:
+    gold: docs/research/_scratch/issue-pr-automation/r1-github-tools.md
+    hide: [docs/research/_scratch/issue-pr-automation/, docs/research/issue-pr-automation.md]
+    prompt: >-
+      Which GitHub-native features, hosted apps and local tools can take over issue and pull-request bookkeeping
+      for an agent-run repository without GitHub Actions?
+  Q12:
+    gold: docs/research/_scratch/adr-drift/r1-adrs.md
+    hide: [docs/research/_scratch/adr-drift/, docs/research/_scratch/long-running-drift/, docs/research/decision-records-and-drift.md]
+    prompt: >-
+      Should an agent-run repository and its project template ship architecture decision records, and if so in
+      what minimal form, with which fields an agent needs?
