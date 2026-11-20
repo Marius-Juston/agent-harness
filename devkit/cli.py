@@ -148,7 +148,7 @@ def build() -> argparse.ArgumentParser:
     s.add_argument("-n", type=int, default=None)
     sub.add_parser("docs", help="regenerate the generated references and the research INDEX.md")
 
-    c = sub.add_parser("code", help="navigate by symbol: outline | show | refs | find (capped output)")
+    c = sub.add_parser("code", help="navigate by symbol: outline | show | refs | find | search (capped output)")
     cs = c.add_subparsers(dest="sub", required=True)
     x = cs.add_parser("outline", help="signatures / headings of a file")
     x.add_argument("path")
@@ -161,6 +161,10 @@ def build() -> argparse.ArgumentParser:
     x = cs.add_parser("find", help="regex search, capped per file")
     x.add_argument("pattern")
     x.add_argument("--notes", action="store_true", help="search docs/ only")
+    x = cs.add_parser("search", help="the functions a task description most likely means (BM25), one line each")
+    x.add_argument("words", nargs="+", help="what the code does, in a few words")
+    x.add_argument("-n", type=int, default=code.SEARCH_N, help="cards to print (default 5)")
+    x.add_argument("--tests", action="store_true", help="rank test and eval code too")
     x.add_argument("-i", action="store_true", dest="ignore_case")
 
     b = sub.add_parser(
@@ -553,6 +557,7 @@ def run(a: argparse.Namespace) -> int:
                     "show": lambda: code.show(a.symbol, a.path, a.full),
                     "refs": lambda: code.refs(a.symbol),
                     "find": lambda: code.find(a.pattern, a.notes, a.ignore_case),
+                    "search": lambda: code.search(" ".join(a.words), a.n, a.tests),
                 }[a.sub]()
             )
         case "board":
