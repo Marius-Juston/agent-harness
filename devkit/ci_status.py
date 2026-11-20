@@ -7,6 +7,7 @@ import itertools
 import json
 import random
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -110,12 +111,20 @@ DEADLINE_EPS_S = 1e-3
 
 
 def await_checks(
-    pr_number: int, tip: str, expected: list[str], timeout_s: float, ignore: frozenset[str] = frozenset()
+    pr_number: int,
+    tip: str,
+    expected: list[str],
+    timeout_s: float,
+    ignore: frozenset[str] = frozenset(),
+    stop: threading.Event | None = None,
 ) -> tuple[str, list[str]]:
     """Poll the PR until every check on `tip` is complete, at most `timeout_s`. Returns ("ready", []), ("moved",
-    [new head]) when the head is no longer `tip`, or ("timeout", the checks still pending)."""
+    [new head]) when the head is no longer `tip`, or ("timeout", the checks still pending). Once `stop` is set (the
+    gate run beside this wait decided first, #541) the next poll returns ("stopped", [])."""
     deadline = CHECKS_CLOCK() + timeout_s
     for attempt in itertools.count():
+        if stop is not None and stop.is_set():
+            return "stopped", []
         info = json.loads(
             board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", "headRefOid,statusCheckRollup")
         )
