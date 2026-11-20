@@ -13,8 +13,11 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
-from devkit import config, stats
+from devkit import board, config, fixloop, stats, workflow
+from tests.test_gate import fake_integrate  # noqa: F401 (a fixture)
 
 FIXTURE = Path(__file__).parent / "fixtures/transcript_usage.jsonl"
 
@@ -263,3 +266,167 @@ def test_each_mode_runs_end_to_end_on_the_fixture(monkeypatch):
     assert "per merged issue" in stats.run("cost")
     assert "code" in stats.run("reviews") and json.loads(stats.run("reviews", as_json=True))[0]["pr"] == 20
     assert "0 of 1 reviewed PRs" in stats.run("misses")
+
+
+# --- reviewer finding dispositions (#83) -----------------------------------------------------------------------------
+
+ME = "owner"
+VERDICT1 = "Verdict: send back, round 1, abc1234\n- **Blocking** a.py:3: off by one\n- **Nit** a.py:9: name\n"
+VERDICT2 = (
+    "Verdict: merge, round 2, def5678\n- Fixes checked:\n  - probe re-run, passes\n- **Follow-up** b.py:1: cache it\n"
+    "prose that is no finding\n  - **Nit** c.py:2: a nested one counts"
+)  # untagged bullets are the review's notes, not findings
+
+
+def _rv(body, at, rid, who=ME):
+    url = f"https://github.com/o/r/pull/7#pullrequestreview-{rid}"
+    return {"author": {"login": who}, "body": body, "state": "COMMENTED", "submittedAt": at, "url": url}
+
+
+def _reviews():
+    return [
+        _rv(VERDICT2, "2026-11-02T00:00:00Z", 22),  # out of order: findings number by submission time
+        _rv(VERDICT1, "2026-11-01T00:00:00Z", 11),
+        _rv("plain comment\n- **Blocking** not a verdict review", "2026-11-01T01:00:00Z", 12),
+        _rv(VERDICT1, "2026-11-01T02:00:00Z", 13, who="stranger"),  # anyone can review a public PR
+    ]
+
+
+def _cm(body, who=ME):
+    return {"author": {"login": who}, "body": body, "createdAt": "2026-11-03T00:00:00Z", "url": "https://x/c"}
+
+
+def test_findings_are_the_bullets_of_trusted_verdict_reviews_numbered_by_submission():
+    found = fixloop.review_findings(_reviews(), {ME})
+    assert [(f.ref, f.key, f.tag) for f in found] == [
+        ("F1", "11.1", "Blocking"),
+        ("F2", "11.2", "Nit"),
+        ("F3", "22.1", "Follow-up"),
+        ("F4", "22.2", "Nit"),
+    ]
+    assert fixloop.review_findings(_reviews(), set()) == []
+
+
+def test_dispose_specs_name_findings_and_rest_covers_the_unrecorded():
+    found = fixloop.review_findings(_reviews(), {ME})
+    got = fixloop.chosen(["F2=false", "rest=fixed"], found, {"22.1": "filed"})
+    assert {f.ref: v for f, v in got.items()} == {"F1": "fixed", "F2": "false", "F4": "fixed"}
+    for bad in (["F9=fixed"], ["F1=maybe"], ["F1"], []):
+        with pytest.raises(ValueError):
+            fixloop.chosen(bad, found, {})
+
+
+def test_a_disposition_comment_round_trips_and_only_trusted_later_records_count():
+    found = fixloop.review_findings(_reviews(), {ME})
+    first = fixloop.disposition_comment(fixloop.chosen(["F1=false", "F2=fixed"], found, {}))
+    again = fixloop.disposition_comment(fixloop.chosen(["F1=fixed"], found, {}))
+    forged = fixloop.disposition_comment(fixloop.chosen(["F3=false"], found, {}))
+    comments = [_cm(first), _cm("unrelated"), _cm(again), _cm(forged, who="stranger")]
+    assert fixloop.recorded(comments, {ME}) == {"11.1": "fixed", "11.2": "fixed"}
+    lines = fixloop.finding_lines(found, fixloop.recorded(comments, {ME}))
+    assert lines[0].startswith("- F1 Blocking: fixed") and "no disposition" in lines[2]
+
+
+def test_feedback_records_dispositions_on_the_pr(monkeypatch):
+    posted = []
+    monkeypatch.setattr(fixloop.board, "pr_feedback", lambda pr: {"reviews": _reviews(), "comments": []})
+    monkeypatch.setattr(fixloop.board, "gh_user", lambda: ME)
+    monkeypatch.setattr(fixloop.board, "marked_comments", lambda pr, marker: [_cm(b) for _, b in posted])
+    monkeypatch.setattr(fixloop.board, "comment", lambda n, body: posted.append((n, body)) or "https://x/c1")
+    assert "F1, F2, F3, F4" in fixloop.undisposed_hint(7) and not posted
+    lines = fixloop.dispose(7, ["F1=false", "rest=fixed"])
+    assert [n for n, _ in posted] == [7]
+    assert fixloop.recorded([_cm(posted[0][1])], {ME}) == {"11.1": "false", "11.2": "fixed", "22.1": "fixed",
+                                                           "22.2": "fixed"}  # fmt: skip
+    assert any("F1 Blocking: false" in ln for ln in lines)
+    assert fixloop.undisposed_hint(7) == ""
+    assert fixloop.dispose(7, []) == lines and len(posted) == 1  # no specs: list only, post nothing
+
+
+def _github(monkeypatch, posted, fail=False):
+    """The GitHub edge of the disposition commands: the PR's reviews, the gh user, its marked comments, a post."""
+
+    def marked(pr, marker):
+        if fail:
+            raise board.BoardError("offline")
+        return [_cm(b) for _, b in posted]
+
+    feedback = {"since": "2026-11-09T00:00:00Z", "head": "", "trusted": set(), "comments": [], "threads": [],
+                "threads_truncated": False, "reviews": _reviews()}  # fmt: skip
+    monkeypatch.setattr(board, "pr_feedback", lambda pr: feedback)
+    monkeypatch.setattr(board, "gh_user", lambda: ME)
+    monkeypatch.setattr(board, "marked_comments", marked)
+    monkeypatch.setattr(board, "comment", lambda n, body: posted.append((n, body)) or "https://x/c1")
+
+
+def test_board_feedback_dispose_on_the_command_line(monkeypatch, capsys):
+    from devkit import cli
+
+    posted = []
+    _github(monkeypatch, posted)
+    for argv in (["7", "--dispose", "F1=false"], ["7", "--dispose"]):
+        monkeypatch.setattr("sys.argv", ["dev", "board", "feedback", *argv])
+        with pytest.raises(SystemExit) as exc:
+            cli.main()
+        assert exc.value.code == 0 and "F1 Blocking: false" in capsys.readouterr().out
+    assert len(posted) == 1  # the bare --dispose only lists
+    monkeypatch.setattr("sys.argv", ["dev", "board", "feedback", "7", "--dispose", "F9=fixed"])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 2 and "no finding F9" in capsys.readouterr().err and len(posted) == 1
+
+
+@pytest.mark.usefixtures("fake_integrate")
+def test_integrate_reminds_the_lead_of_unlabelled_findings_after_a_merge(monkeypatch, capsys):
+    _github(monkeypatch, [])
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    out = capsys.readouterr().out
+    assert out.index("without a disposition: F1, F2, F3, F4") < out.index("RESULT: merged PR #7")
+    _github(monkeypatch, [], fail=True)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0  # the merge stands; only the reminder goes
+    assert "reviewer findings not read (offline)" in capsys.readouterr().out
+
+
+def test_feedback_hides_the_leads_disposition_comments_but_not_a_strangers_copy():
+    found = fixloop.review_findings(_reviews(), {ME})
+    rec = fixloop.disposition_comment(fixloop.chosen(["F1=fixed"], found, {}))
+    fb = {"since": "2026-11-01T00:00:00Z", "head": "", "trusted": {ME}, "reviews": [], "threads": [],
+          "comments": [_cm(rec), _cm(rec + "\nalso: please look", who="stranger")]}  # fmt: skip
+    lines = board.pr_feedback_lines(fb)
+    assert len(lines) == 1 and "stranger" in lines[0]
+
+
+def test_false_finding_rate_counts_labelled_findings_with_n():
+    found = fixloop.review_findings(_reviews(), {ME})
+    rec = fixloop.disposition_comment(fixloop.chosen(["F1=false", "F2=fixed"], found, {}))
+    prs = [
+        {"number": 7, "reviews": _reviews(), "comments": [_cm(rec)]},
+        {"number": 8, "reviews": [], "comments": []},
+    ]
+    r = stats.finding_rates(prs, {ME})
+    assert (r["findings"], r["labelled"], r["false"]) == (4, 2, 1)
+    assert r["by_tag"]["Blocking"] == {"findings": 1, "labelled": 1, "false": 1}
+    assert r["unlabelled_prs"] == [7]
+    text = stats.findings_report(r)
+    assert "false-finding rate: 1/2 = 50%" in text and "n=2" in text
+    assert "n=0" in stats.findings_report(stats.finding_rates([], {ME}))
+
+
+@given(st.integers(0, 200), st.integers(1, 200))
+def test_wilson_interval_brackets_the_rate(k, n):
+    k = min(k, n)
+    lo, hi = stats.wilson(k, n)
+    assert 0 <= lo <= k / n <= hi <= 1
+
+
+def test_findings_mode_reads_merged_prs_from_github(monkeypatch):
+    node = {"number": 7, "mergedAt": "2026-11-05T00:00:00Z", "reviews": {"nodes": _reviews()},
+            "comments": {"nodes": []}}  # fmt: skip
+    old = node | {"number": 6, "mergedAt": "2026-10-01T00:00:00Z"}
+    monkeypatch.setattr(stats.board, "repo", lambda: "o/proj")
+    monkeypatch.setattr(stats.board, "gh_user", lambda: ME)
+    monkeypatch.setattr(stats.board, "gh", lambda *a: json.dumps(node) + "\n" + json.dumps(old) + "\n")
+    monkeypatch.setattr(stats, "load_runs", lambda *a: pytest.fail("findings need no transcripts"))
+    text = stats.run("findings", since="2026-11-01")
+    assert "4 findings on 1 merged PRs" in text and "n=0" in text
+    assert json.loads(stats.run("findings", since="2026-11-01", as_json=True))["findings"] == 4

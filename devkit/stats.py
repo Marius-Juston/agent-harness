@@ -14,10 +14,12 @@ is not a run: one reader (read_run, load_runs) feeds every view, so the scorecar
 
 Three views judge harness changes (docs/research/harness-efficiency.md §2, §4, §9; #255): `--cost` prices each token
 kind per agent type and per merged issue, `--reviews` counts review rounds per (merged PR, reviewer role), `--misses`
-pairs bug-fix PRs with the reviewed PRs whose lines they change (candidates to check).
+pairs bug-fix PRs with the reviewed PRs whose lines they change (candidates to check). `--findings` reads GitHub only:
+the false-finding rate of reviewer findings from the dispositions recorded on merged PRs (#83, devkit/fixloop.py).
 """
 
 import json
+import math
 import re
 import statistics
 from collections import Counter, defaultdict
@@ -25,7 +27,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from devkit import board, config, paths
+from devkit import board, config, fixloop, paths
 from devkit.paths import main_checkout
 
 BIG_RESULT = 8000  # characters
@@ -645,6 +647,59 @@ def misses_report(pairs: list[dict], reviewed: dict[int, dict[str, int]]) -> str
     return "\n".join(out)
 
 
+def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """The Wilson score interval of k successes in n > 0 trials (95 % at the default z)."""
+    p, z2 = k / n, z * z
+    mid, half = (p + z2 / (2 * n)), z * math.sqrt(p * (1 - p) / n + z2 / (4 * n * n))
+    lo, hi = (mid - half) / (1 + z2 / n), (mid + half) / (1 + z2 / n)
+    return max(0.0, min(lo, p)), min(1.0, max(hi, p))  # rounding can put a bound past p at k = 0 or k = n
+
+
+def finding_rates(prs: list[dict], trusted: Iterable[str]) -> dict:
+    """Reviewer findings and their dispositions (#83) over `prs` (each with its `reviews` and `comments`): counts in
+    all and per tag, and the PRs with a finding still unlabelled. Only `trusted` logins' reviews and records count."""
+    by_tag: dict[str, dict[str, int]] = defaultdict(lambda: {"findings": 0, "labelled": 0, "false": 0})
+    by_value: Counter[str] = Counter()
+    unlabelled, with_findings = [], 0
+    for p in prs:
+        found = fixloop.review_findings(p.get("reviews") or [], trusted)
+        done = fixloop.recorded(p.get("comments") or [], trusted)
+        with_findings += bool(found)
+        for f in found:
+            row = by_tag[f.tag]
+            row["findings"] += 1
+            if value := done.get(f.key):
+                row["labelled"] += 1
+                row["false"] += value == "false"
+                by_value[value] += 1
+        if any(f.key not in done for f in found):
+            unlabelled.append(p["number"])
+    total = {k: sum(r[k] for r in by_tag.values()) for k in ("findings", "labelled", "false")}
+    return total | {"prs": with_findings, "by_tag": dict(by_tag), "by_value": dict(by_value),
+                    "unlabelled_prs": unlabelled}  # fmt: skip
+
+
+def findings_report(r: dict) -> str:
+    def rate(false: int, n: int) -> str:
+        if not n:
+            return "no labelled findings (n=0)"
+        lo, hi = wilson(false, n)
+        return f"{false}/{n} = {false / n:.0%} (n={n}; 95% Wilson {lo:.0%}-{hi:.0%})"
+
+    out = [
+        f"Reviewer findings (#83): {r['findings']} findings on {r['prs']} merged PRs, {r['labelled']} with a disposition",
+        f"false-finding rate: {rate(r['false'], r['labelled'])}",
+    ]
+    out += [f"  {tag}: {rate(t['false'], t['labelled'])} of {t['findings']}" for tag, t in sorted(r["by_tag"].items())]
+    if r["by_value"]:
+        out.append("dispositions: " + ", ".join(f"{k} {v}" for k, v in sorted(r["by_value"].items())))
+    if r["unlabelled_prs"]:
+        shown = ", ".join(f"#{n}" for n in r["unlabelled_prs"][:20])
+        out.append(f"findings without a disposition on {len(r['unlabelled_prs'])} PRs: {shown}")
+        out.append("record them: uv run dev board feedback <pr> --dispose F<n>=fixed|filed|declined|false ...")
+    return "\n".join(out)
+
+
 # --- I/O edge: GitHub and the CLI -------------------------------------------------------------------------------
 
 
@@ -672,6 +727,29 @@ def merged_prs(since: str = "", until: str = "") -> list[dict]:
     return prs
 
 
+# Verdict reviews and disposition comments of merged PRs (#83). A PR past its last 50 reviews or 100 comments loses
+# the older ones here; `board feedback --dispose` reads a PR's dispositions page by page.
+FINDINGS_QUERY = """query($owner: String!, $name: String!, $endCursor: String) { repository(owner: $owner, name: $name) {
+  pullRequests(states: MERGED, first: 50, after: $endCursor) { pageInfo { hasNextPage endCursor }
+    nodes { number mergedAt reviews(last: 50) { nodes { author { login } body submittedAt url } }
+      comments(last: 100) { nodes { author { login } body } } } } } }"""
+
+
+def findings_prs(since: str = "", until: str = "") -> list[dict]:
+    """Merged PRs (merged since..until) with their `reviews` and `comments` as lists."""
+    owner, name = board.repo().split("/")
+    out = board.gh(
+        "api", "graphql", "--paginate", "-f", f"query={FINDINGS_QUERY}", "-F", f"owner={owner}", "-F", f"name={name}",
+        "--jq", ".data.repository.pullRequests.nodes[]",
+    )  # fmt: skip
+    prs = []
+    for line in out.splitlines():
+        p = json.loads(line)
+        if since <= (p["mergedAt"] or "")[:10] and (not until or p["mergedAt"][:10] <= until):
+            prs.append(p | {"reviews": p["reviews"]["nodes"], "comments": p["comments"]["nodes"]})
+    return prs
+
+
 def bug_issues() -> dict[int, dict]:
     out = {}
     for label in ("type:bug", "bug"):
@@ -684,6 +762,9 @@ def bug_issues() -> dict[int, dict]:
 
 
 def run(mode: str, since: str = "", until: str = "", as_json: bool = False) -> str:
+    if mode == "findings":  # from GitHub alone: no transcripts
+        r = finding_rates(findings_prs(since, until), {board.gh_user()} - {""})
+        return json.dumps(r, indent=1) if as_json else findings_report(r)
     runs = load_runs(project_dirs(), since, until)
     merged = merged_prs(since, until)
     name = main_checkout().name
