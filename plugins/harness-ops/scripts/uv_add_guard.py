@@ -5,9 +5,9 @@ The gates are `uv run dev reuse check --json` (devkit.reuse.check; docs/research
 from the project's own .venv, so there is one implementation. The owner's split:
 - refuse (exit 2): NOT FOUND on PyPI (G1, a hallucinated name), a malicious-package advisory (G2 FAIL, OSV MAL-), or
   strong or network copyleft (G5 FAIL) unless the owner lists the package in DEVKIT_ALLOW_COPYLEFT (comma-separated,
-  read from the hook's own environment: an assignment inside the command does not reach it). Also refused: names the
-  hook cannot read ($VAR, a command substitution, `xargs ... uv add`, an option line in a -r file), so they cannot
-  slip past the gates;
+  read from the environment Claude Code started in: neither an assignment inside the command nor a settings
+  file's `env` block counts, #191). Also refused: names the hook cannot read ($VAR, a command substitution,
+  `xargs ... uv add`, an option line in a -r file), so they cannot slip past the gates;
 - warn (additionalContext the agent sees, and a systemMessage): every other HOLD, FAIL or flag (G3 new, G4 dormant,
   deprecated or archived, an unknown or Lead licence, weak copyleft, G6 open advisories), and each argument the gates
   do not cover: a path, URL or direct reference, the project's own workspace members and [tool.uv.sources] names, and
@@ -352,7 +352,7 @@ def main() -> int:
     if not isinstance(cmd, str) or not re.search(r"\buv\b", cmd) or "add" not in cmd:
         return 0
     cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
-    allowed = {normalise(x) for x in re.split(r"[,\s]+", os.environ.get(ALLOW_ENV, "")) if x}
+    allowed = {normalise(x) for x in re.split(r"[,\s]+", guard_bash.owner_env(ALLOW_ENV, cwd)) if x}
     refuse: list[str] = []
     warn: list[str] = []
     deadline = clock() + TIMEOUT

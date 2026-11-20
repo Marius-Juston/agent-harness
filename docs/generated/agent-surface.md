@@ -30,7 +30,7 @@
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash/WebFetch | `scripts/guard_bash.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash | `scripts/uv_add_guard.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash/Read | `scripts/read_guard.py` |
-| plugins/harness-ops/hooks/hooks.json | PreToolUse | Edit/Write/NotebookEdit | `scripts/edit_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Edit/Write/MultiEdit/NotebookEdit | `scripts/edit_guard.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Agent/Workflow | `scripts/spawn_guard.sh` |
 | plugins/harness-ops/hooks/hooks.json | SubagentStart | * | `scripts/spawn_guard.sh` |
 | plugins/harness-ops/hooks/hooks.json | SubagentStop | builder$ | `scripts/completion_gate.py` |

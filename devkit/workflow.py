@@ -41,7 +41,7 @@ from devkit.fixloop import (  # re-exported: devkit/train.py reads these through
     send_back,
     send_back_conflicting,
 )
-from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, holders, tree_key
+from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, holders, recorded_pass
 from devkit.merging import (  # re-exported: devkit/train.py reads these through devkit.workflow
     GENERATED_MERGE,  # noqa: F401 - tests read it here
     _add_worktree,
@@ -65,6 +65,7 @@ from devkit.prtext import (  # re-exported: plugin scripts and devkit/train.py r
     title_problem,
 )
 from devkit.suite_audit import orient_lines
+from devkit.weaken import ISSUE_ENV
 
 # Every path is harness (it can change what the gate or an agent does, and the gate that judges a branch is the
 # branch's own code) except plain content under these directories. A PR touching harness needs the lead to read it.
@@ -221,8 +222,8 @@ def orient() -> str:
 
 
 def _gate_passed() -> bool:
-    key = tree_key(checks.merge_base())
-    return key is not None and (state_dir("gate") / f"{key}.json").exists()
+    """A pass the gate itself would reuse for this checkout (gate.recorded_pass: tree key and test selection)."""
+    return recorded_pass(checks.merge_base()) is not None
 
 
 def _summary_body(number: int, summary: str | None) -> str:
@@ -480,11 +481,20 @@ def _kill_group(proc: subprocess.Popen) -> None:
     proc.wait()
 
 
-def run_gate(tree: Path, contexts: list[str], log: Path) -> bool | str:
+def gate_issue(info: dict, since: str) -> str:
+    """weaken.ISSUE_ENV for the gate of PR `info` merged onto `since`: its commits since then are judged against the
+    issue of its `<n>-slug` head branch (`-` when it names none), as CI reads it from GITHUB_HEAD_REF; integrate's
+    detached worktree has no branch to read (#487)."""
+    m = re.match(r"(\d+)-", info.get("headRefName") or "")
+    return f"{m.group(1) if m else '-'}:{since}"
+
+
+def run_gate(tree: Path, contexts: list[str], log: Path, issue: str | None = None) -> bool | str:
     """The gate, then (`--local-ci`) each required context's own stand-in commands, in the merged tree; all output
     goes to `log` (kept for `--why`) and, as it comes, to stdout (`_follow`). True when every one passed, the reason
     when the gate was stopped: it waited past `gate_lock_wait_s` for the machine's gate lock, which it takes ahead of
-    worker gates, or ran past `gate_deadline_s` once it held it (#385)."""
+    worker gates, or ran past `gate_deadline_s` once it held it (#385). `issue` goes to the gate as ISSUE_ENV
+    (`weaken.spans`)."""
     cfg = config.get()
     stop = threading.Event()
     with log.open("w") as out, tempfile.TemporaryDirectory(prefix="gate-held-") as marks:
@@ -494,7 +504,8 @@ def run_gate(tree: Path, contexts: list[str], log: Path) -> bool | str:
             out.write(f"## gate: uv run dev check --no-cache in {tree}\n")
             out.flush()
             held = Path(marks) / "held"
-            env = os.environ | {PRIORITY_ENV: "1", HELD_ENV: str(held)}
+            env = {k: v for k, v in os.environ.items() if k != ISSUE_ENV} | {PRIORITY_ENV: "1", HELD_ENV: str(held)}
+            env |= {ISSUE_ENV: issue} if issue else {}
             kw = {"cwd": tree, "stdout": out, "stderr": subprocess.STDOUT, "env": env}
             code = bounded_run(GATE, cfg.gate_deadline_s, held=held, wait_s=cfg.gate_lock_wait_s, **kw)
             ok: bool | str = code == 0
@@ -833,7 +844,7 @@ def _integrate(
         )
         run_log = state_dir("integrate") / f"pr-{pr_number}-{tip[:12]}.log"
         print(f"gate output (also kept in {run_log}):", flush=True)
-        passed = run_gate(tmp, contexts if local_ci else [], run_log)
+        passed = run_gate(tmp, contexts if local_ci else [], run_log, gate_issue(info, main))
         said = {"gate": failing_lines(run_log.read_text(errors="replace")), "log": str(run_log)}
         if isinstance(passed, str):
             print(
