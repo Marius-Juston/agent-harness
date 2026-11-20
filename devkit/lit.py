@@ -54,7 +54,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from devkit import backoff, config, fulltext, netsafe
+from devkit import backoff, config, fulltext, netsafe, oa
 from devkit.paths import state_dir, user_state_dir
 
 UA = "agent-harness-devkit-lit/0.1 (research tooling; mailto:noreply@example.invalid)"
@@ -84,25 +84,15 @@ RATES: dict[str, tuple[float, float]] = {
 }
 SOURCES = tuple(RATES)
 # Full texts (`full_text`) from an open-access host other than arXiv's and Europe PMC's buckets: one per second, shared.
-# Open-access locators `full_text` asks for a DOI whose record names no readable copy (#9), each with its own
-# machine-wide bucket. Unpaywall's REST API (api.unpaywall.org/v2/<doi>?email=<contact>) asks for an email on every
-# call and is "limited to 100,000 calls per day" (unpaywall.org/api/v2, as quoted by a web search 2026-11-19; the page
-# renders by script), so 1/s, which cannot reach that in a day. CORE's v3 API (api.core.ac.uk/v3) documents
-# per-window limits, as quoted by the same search: one batch or five single search requests per 10 s
-# (core.ac.uk/documentation/api; the page answered 403 to the fetch tool), so one request per 10 s, the
-# strictest of them; a free key (CORE_API_KEY) goes in an Authorization header. PubMed's open full texts are PMC's,
-# which Europe PMC serves as JATS XML through its own bucket above (europepmc).
-LOCATOR_RATES = {"unpaywall": (1.0, 1.0), "core": (0.1, 1.0)}
-TEXT_RATES = {"fulltext": (1.0, 2.0), **LOCATOR_RATES}
-CONTACT_ENV = "UNPAYWALL_EMAIL"  # else [tool.devkit] contact_email; never a default, so no address ships in the repo
-CORE_KEY_ENV = "CORE_API_KEY"
+# Open-access locators (devkit.oa, #9) have their own buckets; their downloads share the ones above.
+TEXT_RATES = {"fulltext": (1.0, 2.0), **oa.LOCATOR_RATES}
 TEXT_CAP = fulltext.PDF_MAX_BYTES + 1  # bytes read of one full text: one more than a PDF may have, to refuse it
 DEFAULT_SOURCES = ("openalex", "s2")
 # Asked in order, after DEFAULT_SOURCES, only while fewer than n papers are in hand (`--source auto`, the CLI default).
 FALLBACK_SOURCES = ("crossref", "europepmc", "arxiv")
 THROTTLE_503 = {"europepmc"}  # sources whose 503 means "slow down"
 KEYS = {"openalex": "OPENALEX_API_KEY", "s2": "S2_API_KEY"}  # free keys raise a source above its shared pool
-SECRET_NAMES = (*KEYS.values(), CONTACT_ENV, CORE_KEY_ENV)  # what the secrets file may set
+SECRET_NAMES = (*KEYS.values(), oa.CONTACT_ENV, oa.CORE_KEY_ENV)  # what the secrets file may set
 SECRETS_FILE = "~/.config/api-keys.env"  # DEVKIT_SECRETS_FILE overrides
 
 Get = Callable[[str, dict[str, str]], tuple[int, dict[str, str], str]]  # (url, headers) -> (status, headers, body)
@@ -446,62 +436,6 @@ PARSE = {
 }
 
 
-# ---- open-access locators (#9): where a DOI's full text can be read ----
-
-PMC_PAGE = re.compile(
-    r"(?:europepmc\.org/(?:abstract/|article/)?PMC/|ncbi\.nlm\.nih\.gov/pmc/articles/|pmc\.ncbi\.nlm\.nih\.gov/articles/)"
-    r"(PMC\d+)",
-    re.I,
-)
-
-
-def unpaywall_url(doi: str) -> str:
-    return f"https://api.unpaywall.org/v2/{urllib.parse.quote(doi, safe='/')}"
-
-
-def core_url(doi: str) -> str:
-    return f"https://api.core.ac.uk/v3/search/works?q={urllib.parse.quote(f'doi:"{doi}"', safe='')}&limit=1"
-
-
-def parse_unpaywall(body: str) -> list[str]:
-    """An Unpaywall record's open-access URLs, best first: the best location's PDF, then its page, then every other
-    location's (oa_locations), deduped."""
-    data = json.loads(body)
-    locs = [data.get("best_oa_location") or {}, *(data.get("oa_locations") or [])]
-    urls = [u for loc in locs if isinstance(loc, dict) for k in ("url_for_pdf", "url") if (u := loc.get(k))]
-    return list(dict.fromkeys(u for u in urls if isinstance(u, str)))
-
-
-def parse_core(body: str) -> list[tuple[str, str]]:
-    """(URL, text) of each copy CORE names: the text it extracted from the PDF it holds (`fullText`, named by the
-    download URL, else the CORE page), else ('<download URL>', '') to fetch. A `fullText` under fulltext.MIN_WORDS is
-    not a paper: without a key CORE answers "Not available for public API users." there (seen 2026-11-19)."""
-    out = []
-    for w in json.loads(body).get("results") or []:
-        text, url = w.get("fullText") or "", w.get("downloadUrl") or ""
-        if not (isinstance(text, str) and isinstance(url, str)):
-            continue
-        if len(text.split()) >= fulltext.MIN_WORDS:
-            out.append((url or f"https://core.ac.uk/works/{w.get('id')}", text))
-        elif url:
-            out.append((url, ""))
-    return out
-
-
-def _europepmc_copies(body: str) -> list[tuple[str, str, str]]:
-    return [(*text_source(p.oa_url), "") for p in parse_europepmc(body) if p.oa_url]
-
-
-def text_source(url: str) -> tuple[str, str]:
-    """(the bucket, the URL to fetch) for an open-access link: a PMC page becomes Europe PMC's JATS XML of it; arXiv
-    keeps arXiv's bucket; any other host shares the `fulltext` one."""
-    if m := PMC_PAGE.search(url):
-        return "europepmc", f"https://www.ebi.ac.uk/europepmc/webservices/rest/{m.group(1).upper()}/fullTextXML"
-    if urllib.parse.urlsplit(url).hostname in ("arxiv.org", "export.arxiv.org"):
-        return "arxiv", url
-    return "fulltext", url
-
-
 # ---- requests ----
 
 
@@ -672,10 +606,7 @@ def with_key(source: str, url: str, env: dict[str, str]) -> tuple[str, dict[str,
         return url + ("&" if "?" in url else "?") + "api_key=" + urllib.parse.quote(k), {}
     if source == "s2" and (k := env.get("S2_API_KEY")):
         return url, {"x-api-key": k}
-    if source == "unpaywall" and (k := env.get(CONTACT_ENV)):  # an address is personal: kept out of the cache too
-        return url + ("&" if "?" in url else "?") + "email=" + urllib.parse.quote(k), {}
-    if source == "core" and (k := env.get(CORE_KEY_ENV)):
-        return url, {"authorization": "Bearer " + k}
+    return oa.auth(source, url, env) or (url, {})
     return url, {}
 
 
@@ -993,7 +924,7 @@ class Client:
 
     def _read_full_text(self, ident: str) -> tuple[fulltext.FullText | None, str]:
         m = ARXIV_ID.match(ident)
-        ax, oa, tried = m.group(1) if m else _arxiv_from_doi(ident), "", []
+        ax, oa_link, tried = m.group(1) if m else _arxiv_from_doi(ident), "", []
         doi = (d.group(1) if (d := DOI_ID.match(ident.strip())) else "") if not m else ""
         if not ax:
             paper, notes = self.lookup(ident)
@@ -1001,10 +932,10 @@ class Client:
                 raise SourceError(f"no record for {ident} ({'; '.join(notes)})")
             if paper is None:  # every source answered and none knows it: definite
                 return None, f"no record for {ident}"
-            ax, oa, doi = paper.ids.get("arxiv", ""), paper.oa_url, doi or paper.ids.get("doi", "")
+            ax, oa_link, doi = paper.ids.get("arxiv", ""), paper.oa_url, doi or paper.ids.get("doi", "")
         urls = [("arxiv", f"https://arxiv.org/html/{ax}"), ("arxiv", f"https://arxiv.org/pdf/{ax}")] if ax else []
-        if not ax and oa:
-            urls.append(text_source(oa))
+        if not ax and oa_link:
+            urls.append(oa.text_source(oa_link))
         transient: list[str] = []
         seen: set[str] = set()
         for src, url, text in self._candidates(urls, "" if ax else doi, transient):
@@ -1048,12 +979,8 @@ class Client:
             yield src, url, ""
         if not doi:
             return
-        locators: list[tuple[str, str, Callable[[str], list[tuple[str, str, str]]]]] = [
-            ("europepmc", search_url("europepmc", f'DOI:"{doi}"', 1), _europepmc_copies),
-            ("core", core_url(doi), lambda b: [("fulltext", u, t) for u, t in parse_core(b)]),
-        ]
-        if self.env.get(CONTACT_ENV):
-            locators.insert(1, ("unpaywall", unpaywall_url(doi), lambda b: [(*text_source(u), "") for u in parse_unpaywall(b)]))  # fmt: skip
+        epmc = search_url("europepmc", f'DOI:"{doi}"', 1)
+        locators = oa.locators(doi, self.env, epmc, lambda b: [p.oa_url for p in parse_europepmc(b) if p.oa_url])
         for src, url, parse in locators:
             try:
                 found = parse(self.fetch(src, url))
@@ -1110,17 +1037,9 @@ def client(settings: Callable[[], config.Config] = config.get) -> Client:
     env, problem = with_secrets(dict(os.environ))
     if problem:
         print(f"dev lit: {problem}", file=sys.stderr)
-    if not env.get(CONTACT_ENV) and (email := contact_email(settings)):
-        env[CONTACT_ENV] = email
+    if not env.get(oa.CONTACT_ENV) and (email := oa.contact_email(settings)):
+        env[oa.CONTACT_ENV] = email
     return Client(state_dir("lit"), env=env, rate_dir=user_state_dir("lit"))
-
-
-def contact_email(settings: Callable[[], config.Config] = config.get) -> str:
-    """[tool.devkit] contact_email, or '' when unset or the config does not parse (lit still works without it)."""
-    try:
-        return settings().contact_email
-    except (config.ConfigError, OSError, RuntimeError, ValueError):
-        return ""
 
 
 def read(c: Client, ident: str, section: str = "") -> tuple[int, str]:

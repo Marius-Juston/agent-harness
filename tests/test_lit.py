@@ -14,7 +14,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from devkit import citecheck, lit, netsafe
+from devkit import citecheck, lit, netsafe, oa
 
 
 class FakeNet:
@@ -1471,7 +1471,7 @@ def test_unpaywall_finds_an_open_access_copy_the_record_does_not_name(tmp_path):
     upw = {"best_oa_location": {"url_for_pdf": None, "url": "https://repo.example.org/c.html"}, "oa_locations": []}
     answers = {OA: (200, json.dumps(CLOSED)), UPW: (200, json.dumps(upw)),
                "https://repo.example.org/c.html": (200, paper_html())}  # fmt: skip
-    c, calls, _ = locator_client(tmp_path, answers, {lit.CONTACT_ENV: "team@example.org"})
+    c, calls, _ = locator_client(tmp_path, answers, {oa.CONTACT_ENV: "team@example.org"})
     ft, why = c.full_text("10.1000/c")
     assert ft and why == "" and ft.url == "https://repo.example.org/c.html" and ft.locate("1")
     assert [u for u, _ in calls if u.startswith(UPW)] == [UPW + "10.1000/c?email=team%40example.org"]
@@ -1490,7 +1490,7 @@ def test_europe_pmc_names_a_pmc_copy_after_openalex_answered_without_one(tmp_pat
     xml = "<article><body><sec><title>Results</title><p>" + "word " * 1200 + "</p></sec></body></article>"
     answers = {OA: (200, json.dumps(CLOSED)), EPMC + "search": (200, json.dumps(epmc)),
                EPMC + "PMC42/fullTextXML": (200, xml)}  # fmt: skip
-    c, calls, _ = locator_client(tmp_path, answers, {lit.CONTACT_ENV: "team@example.org"})
+    c, calls, _ = locator_client(tmp_path, answers, {oa.CONTACT_ENV: "team@example.org"})
     ft, _ = c.full_text("10.1000/c")
     assert ft and ft.kind == "xml" and ft.locate("Results")
     assert not [u for u, _ in calls if u.startswith((UPW, CORE))]  # a later locator is asked only when needed
@@ -1504,7 +1504,7 @@ def test_core_full_text_is_read_as_approximate_sections_with_the_key_in_a_header
     )
     core = {"results": [{"id": 9, "downloadUrl": "https://core.ac.uk/download/9.pdf", "fullText": text}]}
     c, calls, _ = locator_client(
-        tmp_path, {OA: (200, json.dumps(CLOSED)), CORE: (200, json.dumps(core))}, {lit.CORE_KEY_ENV: "fake-core-1"}
+        tmp_path, {OA: (200, json.dumps(CLOSED)), CORE: (200, json.dumps(core))}, {oa.CORE_KEY_ENV: "fake-core-1"}
     )
     ft, _ = c.full_text("10.1000/c")
     assert (
@@ -1522,7 +1522,7 @@ def test_core_full_text_is_read_as_approximate_sections_with_the_key_in_a_header
 def test_a_core_work_without_text_or_download_is_no_copy():
     paper = "word " * 1000
     body = {"results": [{"id": 1}, {"id": 2, "fullText": paper}, {"downloadUrl": "https://x.org/a.pdf"}]}
-    assert lit.parse_core(json.dumps(body)) == [("https://core.ac.uk/works/2", paper), ("https://x.org/a.pdf", "")]
+    assert oa.parse_core(json.dumps(body)) == [("https://core.ac.uk/works/2", paper), ("https://x.org/a.pdf", "")]
 
 
 def test_cores_placeholder_for_keyless_callers_is_not_a_text_but_its_download_is_fetched(tmp_path):
@@ -1533,7 +1533,7 @@ def test_cores_placeholder_for_keyless_callers_is_not_a_text_but_its_download_is
         "fullText": "Not available for public API users.",
         "downloadUrl": "https://core.ac.uk/download/3.pdf",
     }
-    assert lit.parse_core(json.dumps({"results": [hidden, {**hidden, "downloadUrl": ""}]})) == [
+    assert oa.parse_core(json.dumps({"results": [hidden, {**hidden, "downloadUrl": ""}]})) == [
         (hidden["downloadUrl"], "")
     ]
     answers = {OA: (200, json.dumps(CLOSED)), CORE: (200, json.dumps({"results": [hidden]})),
@@ -1562,11 +1562,11 @@ def test_unpaywall_locations_best_first_and_pmc_pages_read_as_jats():
     body = {"best_oa_location": {"url_for_pdf": "https://a.org/x.pdf", "url": "https://a.org/x.pdf"},
             "oa_locations": [{"url_for_pdf": None, "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7"},
                              {"url": "https://arxiv.org/abs/2601.00001"}]}  # fmt: skip
-    urls = lit.parse_unpaywall(json.dumps(body))
+    urls = oa.parse_unpaywall(json.dumps(body))
     assert urls == ["https://a.org/x.pdf", body["oa_locations"][0]["url"], "https://arxiv.org/abs/2601.00001"]
-    assert [lit.text_source(u)[0] for u in urls] == ["fulltext", "europepmc", "arxiv"]
-    assert lit.text_source(urls[1])[1] == EPMC + "PMC7/fullTextXML"
-    assert lit.parse_unpaywall(json.dumps({"best_oa_location": None, "oa_locations": None})) == []
+    assert [oa.text_source(u)[0] for u in urls] == ["fulltext", "europepmc", "arxiv"]
+    assert oa.text_source(urls[1])[1] == EPMC + "PMC7/fullTextXML"
+    assert oa.parse_unpaywall(json.dumps({"best_oa_location": None, "oa_locations": None})) == []
 
 
 def test_the_contact_email_comes_from_the_environment_else_the_project_config(tmp_path, monkeypatch):
@@ -1579,11 +1579,11 @@ def test_the_contact_email_comes_from_the_environment_else_the_project_config(tm
     monkeypatch.setattr(lit, "state_dir", lambda *_: tmp_path / "state")
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "user-state"))
     project = lambda: config.parse({"contact_email": "project@example.org"})  # noqa: E731
-    assert lit.client(project).env[lit.CONTACT_ENV] == "project@example.org"
-    monkeypatch.setenv(lit.CONTACT_ENV, "env@example.org")
-    assert lit.client(project).env[lit.CONTACT_ENV] == "env@example.org"
-    monkeypatch.delenv(lit.CONTACT_ENV)
-    assert lit.CONTACT_ENV not in lit.client(config.Config).env  # no default address ships
+    assert lit.client(project).env[oa.CONTACT_ENV] == "project@example.org"
+    monkeypatch.setenv(oa.CONTACT_ENV, "env@example.org")
+    assert lit.client(project).env[oa.CONTACT_ENV] == "env@example.org"
+    monkeypatch.delenv(oa.CONTACT_ENV)
+    assert oa.CONTACT_ENV not in lit.client(config.Config).env  # no default address ships
 
 
 def test_a_config_that_does_not_parse_leaves_unpaywall_out():
@@ -1592,13 +1592,13 @@ def test_a_config_that_does_not_parse_leaves_unpaywall_out():
     def broken() -> config.Config:
         return config.parse({"contact_email": 3})
 
-    assert lit.contact_email(broken) == ""
+    assert oa.contact_email(broken) == ""
 
 
 def test_the_secrets_file_may_hold_the_core_key_and_contact_email(tmp_path):
     env = secrets(tmp_path, "CORE_API_KEY=fake-core\nUNPAYWALL_EMAIL=team@example.org\n")
     out, problem = lit.with_secrets(env | {"OPENALEX_API_KEY": "a", "S2_API_KEY": "b"})
-    assert problem == "" and out[lit.CORE_KEY_ENV] == "fake-core" and out[lit.CONTACT_ENV] == "team@example.org"
+    assert problem == "" and out[oa.CORE_KEY_ENV] == "fake-core" and out[oa.CONTACT_ENV] == "team@example.org"
 
 
 def test_unpaywall_through_a_local_http_server(tmp_path):
@@ -1633,7 +1633,7 @@ def test_unpaywall_through_a_local_http_server(tmp_path):
         return lit.http_get(base + url.split("://", 1)[1].split("/", 1)[1], headers, timeout=5)
 
     clock = Clock()
-    env = {lit.CONTACT_ENV: "team@example.org"}
+    env = {oa.CONTACT_ENV: "team@example.org"}
     c = lit.Client(tmp_path, get=local, get_bytes=lit.http_get_bytes, clock=clock, sleep=clock.sleep, env=env)
     try:
         ft, why = c.full_text("10.1000/c")
