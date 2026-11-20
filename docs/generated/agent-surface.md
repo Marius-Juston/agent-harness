@@ -19,7 +19,7 @@
 | name | invocation | words | purpose |
 |---|---|---|---|
 | harness-ops:harness | model + /harness-ops:harness | 558 | How to change a project's agent surface safely — CLAUDE.md, .claude/ settings and agents, skills, hooks, the [tool.devkit] config, CI — without drift or bloa... |
-| harness-ops:lead | model + /harness-ops:lead | 719 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
+| harness-ops:lead | model + /harness-ops:lead | 720 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
 | harness-ops:research | model + /harness-ops:research | 650 | Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reve... |
 
 ## Hooks
@@ -98,6 +98,7 @@
 | `release prepare` | on a release branch: write the version into release_files and run uv lock |
 | `release publish` | on main at the merged release commit: tag, push, GitHub Release (rerun-safe) |
 | `integrate` | lead: re-gate a PR merged onto main in a throwaway worktree, then merge it |
+| `autopilot` | lead: one loop tick in code (quota, board sync, integrate ready PRs); prints only what needs a decision |
 | `cite-check` | resolve every source in research notes; flag dead links and title mismatches |
 | `lit` | literature search shared by all agents: rate-limited, cached, compact (OpenAlex, S2, Crossref, Europe PMC, arXiv) |
 | `lit search` | papers for a query: title, year, venue, cites, ids, abstract snippet |
@@ -141,5 +142,5 @@
 | plugins/harness-ops/agents/tester.md | 285 | 600 |
 | plugins/harness-ops/commands/gotcha.md | 177 | 650 |
 | plugins/harness-ops/skills/harness/SKILL.md | 558 | 650 |
-| plugins/harness-ops/skills/lead/SKILL.md | 719 | 720 |
+| plugins/harness-ops/skills/lead/SKILL.md | 720 | 720 |
 | plugins/harness-ops/skills/research/SKILL.md | 650 | 650 |
