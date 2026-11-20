@@ -104,9 +104,9 @@ CHECKS_BASE_S = 10.0  # the first poll's jitter window
 CHECKS_CAP_S = 60.0  # no jitter window grows past this
 CHECKS_RNG = random.Random()  # noqa: S311 - poll jitter, not a secret
 CHECKS_CLOCK = time.monotonic
-# A sleep cut short to meet a deadline never goes below this: a remainder of a few ulps would leave the clock where
-# it was, and the poll would spin without end (#531: seen with a fake clock at 3.6e-15 s from `actions_start_s`).
-POLL_MIN_S = 1.0
+# A deadline this close counts as reached: sleeping a remainder of a few ulps leaves the clock where it was, and the
+# poll would spin without end (#531: seen with a fake clock at 3.6e-15 s from `actions_start_s`).
+DEADLINE_EPS_S = 1e-3
 
 
 def await_checks(
@@ -123,10 +123,10 @@ def await_checks(
             return "moved", [info["headRefOid"]]
         if not (pending := pending_checks(info, expected, ignore)):
             return "ready", []
-        if (left := deadline - CHECKS_CLOCK()) <= 0:
+        if (left := deadline - CHECKS_CLOCK()) <= DEADLINE_EPS_S:
             return "timeout", pending
         wait = backoff.wait(attempt, 0, CHECKS_RNG, CHECKS_BASE_S, CHECKS_CAP_S, CHECKS_FLOOR_S)
-        time.sleep(max(POLL_MIN_S, min(left, wait)))
+        time.sleep(min(left, wait))
     raise AssertionError("unreachable")
 
 
@@ -352,7 +352,7 @@ def await_actions(pr_number: int, tip: str, contexts: list[str]) -> tuple[str, d
         now = standing(info.get("statusCheckRollup") or [], contexts, enabled, probe)
         waited = CHECKS_CLOCK() - start
         queued, gone = "queued" in now.values(), False
-        if queued and not ran and waited >= cfg.actions_start_s:
+        if queued and not ran and waited >= cfg.actions_start_s - DEADLINE_EPS_S:
             gone = no_runs(tip)
             ran = not gone  # once Actions has a run on the head (or it is unreadable), the usual bound decides
         if "running" not in now.values() and (not queued or gone or waited >= cfg.local_ci_wait_s):
@@ -360,8 +360,8 @@ def await_actions(pr_number: int, tip: str, contexts: list[str]) -> tuple[str, d
         if waited >= cfg.checks_wait_s:
             return "timeout", now
         pause = backoff.wait(attempt, 0, CHECKS_RNG, CHECKS_BASE_S, CHECKS_CAP_S, CHECKS_FLOOR_S)
-        if queued and not ran and waited < cfg.actions_start_s:
-            pause = max(POLL_MIN_S, min(pause, cfg.actions_start_s - waited))  # look for the head's runs when due
+        if queued and not ran and waited < cfg.actions_start_s - DEADLINE_EPS_S:
+            pause = min(pause, cfg.actions_start_s - waited)  # look for the head's runs as soon as that is due
         time.sleep(pause)
     raise AssertionError("unreachable")
 

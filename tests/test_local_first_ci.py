@@ -356,15 +356,18 @@ class _Widest:
 
 
 @pytest.mark.timeout(30)
-@pytest.mark.parametrize("start", [33.20078748582624, 1e6 + 0.1, 0.0])
+@pytest.mark.parametrize("start", [8186.968838927999, 2097132.3524050734, 0.0])  # the first two trapped the old cut
 def test_a_wait_cut_to_a_deadline_never_spins_on_a_float_remainder(fake_integrate, actions, clock, monkeypatch, start):  # noqa: F811
     """Regression (#531, a gate hang): cutting a poll's sleep to `actions_start_s - waited` left a remainder of a few
-    ulps that no longer moved the clock, so the poll spun forever. Every poll now sleeps at least POLL_MIN_S."""
+    ulps that no longer moved the clock, so the poll spun forever. A deadline within DEADLINE_EPS_S now counts as
+    reached, and no deadline is overshot."""
     monkeypatch.setattr(ci_status, "CHECKS_RNG", _Widest())
     clock["now"] = start
     fake_integrate["checks"] = []  # `check` never registers; Actions has runs on the head, so the 600 s bound decides
     assert ci_status.await_actions(7, HEAD, ["check"]) == ("ready", {"check": "never-ran"})
-    assert len(clock["sleeps"]) <= 600 / ci_status.POLL_MIN_S and min(clock["sleeps"]) >= ci_status.POLL_MIN_S
+    assert (
+        len(clock["sleeps"]) <= 600 / ci_status.CHECKS_FLOOR_S + 3 and min(clock["sleeps"]) > ci_status.DEADLINE_EPS_S
+    )
     clock["sleeps"].clear()
     assert ci_status.await_checks(7, HEAD, ["ci/check"], 37.3)[0] == "timeout"
-    assert min(clock["sleeps"]) >= ci_status.POLL_MIN_S
+    assert min(clock["sleeps"]) > ci_status.DEADLINE_EPS_S and sum(clock["sleeps"]) == pytest.approx(37.3)
