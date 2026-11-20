@@ -464,8 +464,8 @@ def lower_priority(level: int) -> None:
 
 
 def background() -> Callable[[], None]:
-    """The `preexec_fn` of pytest runs outside the gate (#543): the child drops to `[tool.devkit] background_nice`, so
-    a gate at nice 0 keeps most of a busy machine's CPU. The level is read here, before the fork."""
+    """The `preexec_fn` of pytest runs outside the gate (#543): the forked process drops to `[tool.devkit]
+    background_nice`, so a gate at nice 0 keeps most of a busy machine's CPU. The level is read here, before the fork."""
     return functools.partial(lower_priority, config.get().background_nice)
 
 
