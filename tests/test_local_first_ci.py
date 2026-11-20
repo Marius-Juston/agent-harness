@@ -346,3 +346,25 @@ def test_ci_takes_only_actions_or_local(value):
 def test_the_recorded_payloads_name_no_private_repository():
     text = "".join(p.read_text() for p in RECORDED.glob("*.json"))
     assert "repos/o/r/" in text and HEAD not in text
+
+
+class _Widest:
+    """A poll-jitter source that always draws the top of its window."""
+
+    def uniform(self, lo: float, hi: float) -> float:
+        return hi
+
+
+@pytest.mark.timeout(30)
+@pytest.mark.parametrize("start", [33.20078748582624, 1e6 + 0.1, 0.0])
+def test_a_wait_cut_to_a_deadline_never_spins_on_a_float_remainder(fake_integrate, actions, clock, monkeypatch, start):  # noqa: F811
+    """Regression (#531, a gate hang): cutting a poll's sleep to `actions_start_s - waited` left a remainder of a few
+    ulps that no longer moved the clock, so the poll spun forever. Every poll now sleeps at least POLL_MIN_S."""
+    monkeypatch.setattr(ci_status, "CHECKS_RNG", _Widest())
+    clock["now"] = start
+    fake_integrate["checks"] = []  # `check` never registers; Actions has runs on the head, so the 600 s bound decides
+    assert ci_status.await_actions(7, HEAD, ["check"]) == ("ready", {"check": "never-ran"})
+    assert len(clock["sleeps"]) <= 600 / ci_status.POLL_MIN_S and min(clock["sleeps"]) >= ci_status.POLL_MIN_S
+    clock["sleeps"].clear()
+    assert ci_status.await_checks(7, HEAD, ["ci/check"], 37.3)[0] == "timeout"
+    assert min(clock["sleeps"]) >= ci_status.POLL_MIN_S
