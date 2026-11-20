@@ -2,7 +2,8 @@
 
 Run from the repository root:
 `uv run python -I docs/research/_scratch/researcher-effort/scripts/count_refetch.py <transcripts dir> [arm ...]`
-where `<transcripts dir>/Q06-<arm>/transcript.jsonl` exists (default arm: C). Prints JSON.
+where `<transcripts dir>/Q06-<arm>/transcript.jsonl` exists (default arms: A B C). Prints JSON. Also counts WebSearch
+calls on either thread, which the API bills per search on top of tokens.
 
 A fetch is a source-reading call: an arxiv MCP read (`get_abstract`, `get_paper_outline`, `read_paper_section`,
 `download_paper`, `search_paper_text`, keyed by paper id) or WebFetch (keyed by arXiv id when the URL is an arXiv
@@ -32,7 +33,7 @@ def target(name: str, inp: dict) -> tuple[str, str] | None:
 
 
 def count(transcript: Path) -> dict:
-    main, helper, helper_calls, agent_calls = [], [], 0, 0
+    main, helper, helper_calls, agent_calls, web_searches = [], [], 0, 0, 0
     for line in transcript.read_text(errors="replace").splitlines():
         try:
             ev = json.loads(line)
@@ -46,6 +47,7 @@ def count(transcript: Path) -> dict:
                 continue
             helper_calls += sub
             agent_calls += (not sub) and c.get("name") in ("Agent", "Task")
+            web_searches += c.get("name") == "WebSearch"
             t = target(c.get("name", ""), c.get("input", {}))
             if t:
                 (helper if sub else main).append(t)
@@ -56,6 +58,7 @@ def count(transcript: Path) -> dict:
     repeats = [k for _, k in main if k in helper_keys]
     return {
         "agent_calls": agent_calls,
+        "web_search_calls": web_searches,
         "helper_tool_calls": helper_calls,
         "helper_fetches": len(helper),
         "helper_targets": sorted(helper_keys),
@@ -63,12 +66,14 @@ def count(transcript: Path) -> dict:
         "main_fetches_by_kind": by_kind,
         "main_targets": [k for _, k in main],
         "main_fetches_of_helper_targets": len(repeats),
+        "main_distinct_targets": len({k for _, k in main}),
+        "main_distinct_of_helper_targets": len({k for _, k in main} & helper_keys),
         "main_new_targets": sorted({k for _, k in main} - helper_keys),
     }
 
 
 def main() -> None:
-    tdir, arms = Path(sys.argv[1]), sys.argv[2:] or ["C"]
+    tdir, arms = Path(sys.argv[1]), sys.argv[2:] or ["A", "B", "C"]
     print(json.dumps({arm: count(tdir / f"Q06-{arm}" / "transcript.jsonl") for arm in arms}, indent=1))
 
 

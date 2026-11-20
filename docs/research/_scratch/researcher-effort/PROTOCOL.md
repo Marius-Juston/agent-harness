@@ -83,8 +83,7 @@ point rule decides, and a winner whose bound is below -0.10 ships with a 30-run 
      to the Opus `modelUsage` figures. Cost, `by_model` and gold recall did not change.
   3. Added, not deciding: `scripts/score_pilot.py` (gold-work overlap across arms; share of 25+ character quotes found
      verbatim in a tool result the trial saw) and `scripts/pilot_arith.py` (cost by token kind, ratios, re-priced
-     stage 1, power of budget-sized designs) and `scripts/count_refetch.py` (arm C: helper calls, the Opus thread's
-     fetches and how many a scout had opened). Quote grounding is not §4's accuracy and does not replace the auditor.
+     stage 1, power of budget-sized designs). Quote grounding is not §4's accuracy and does not replace the auditor.
      Each arm's `pilot/<arm>/scripts/` holds the check script that trial wrote (copied from the clone, one blank line
      added by `ruff format` in B's); none of them ran in the trial.
   4. Proposed for stage 1, in force only once the owner approves stage 1: the trial clone carries no history (the
@@ -92,3 +91,12 @@ point rule decides, and a winner whose bound is below -0.10 ships with a 30-run 
      allowlist adds `Bash(uv run python *)` and `Bash(python3 -I *)` (every arm's math-check script was denied) and the
      arxiv tools the researcher called (`search_paper_text`, `download_paper`); per-run caps per §6 are A $2.17,
      B $1.26, C $1.90. Filed as #655.
+- **2026-11-20, after the research-auditor's rounds 1 and 2 on #610 (scoring and tooling only; no change to arms,
+  tasks, metrics or the decision rule).**
+  1. Added `scripts/count_refetch.py`. Per arm, it counts helper calls, the Opus thread's source fetches and how many
+     of them a scout had already opened, and WebSearch calls. Its output is `pilot/refetch.json`.
+  2. `scripts/pilot_arith.py` now also prints cache writes re-priced at 1-hour rates. It also prints the Haiku
+     reported-minus-by-kind gap next to WebSearch calls × $10 per 1,000.
+  3. `scripts/run_pilot.sh` now quotes every variable expansion (CI Semgrep rule
+     `bash.lang.correctness.unquoted-variable-expansion-in-command`). The values contain no spaces or globs, so the
+     commands it runs are unchanged.

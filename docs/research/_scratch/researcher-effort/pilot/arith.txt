@@ -14,6 +14,17 @@ ratios: B/A 0.581  C/A 0.875  C/B 1.505
 Opus-only $: A 1.0227  B 0.5598  C 0.6553 (C's Opus / B's Opus 1.171)
 pilot total $2.6603; remaining of $25.00: $22.34
 
+cache writes re-priced at 1-hour rates (the trials wrote only 5-minute cache; production writes 1-hour):
+  A: $1.0833 -> $1.3101 (+20.9%)
+  B: $0.6295 -> $0.7383 (+17.3%)
+  C: $0.9475 -> $1.1925 (+25.9%)
+  B/A at 1-hour rates 0.564
+
+Haiku reported minus Haiku by kind, against WebSearch calls x $10 per 1,000 (refetch.json):
+  A: gap $0.0300; 3 searches = $0.0300
+  B: gap $0.0500; 5 searches = $0.0500
+  C: gap $0.0600; 6 searches = $0.0600
+
 stage 1 as pre-registered (10 q x 3 trials), re-priced at the pilot's per-run $ (one draw per arm):
   auditor $0.93 (low): arms A, B, C $164; arms A, B $107
   auditor $1.48 (high): arms A, B, C $213; arms A, B $140

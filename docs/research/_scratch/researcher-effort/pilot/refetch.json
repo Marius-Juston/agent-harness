@@ -1,0 +1,125 @@
+{
+ "A": {
+  "agent_calls": 0,
+  "web_search_calls": 3,
+  "helper_tool_calls": 0,
+  "helper_fetches": 0,
+  "helper_targets": [],
+  "main_fetches": 20,
+  "main_fetches_by_kind": {
+   "abstract": 11,
+   "arxiv-read": 3,
+   "page": 6
+  },
+  "main_targets": [
+   "arxiv:2511.04427",
+   "arxiv:2603.28592",
+   "arxiv:2609.04208",
+   "arxiv:2606.13298",
+   "arxiv:2203.04374",
+   "arxiv:2605.02741",
+   "arxiv:2511.04427",
+   "arxiv:2511.04427",
+   "arxiv:2511.04427",
+   "arxiv:2511.04427",
+   "arxiv:2606.13298",
+   "arxiv:1701.05472",
+   "arxiv:2511.04824",
+   "arxiv:2601.13597",
+   "arxiv:2608.25241",
+   "arxiv:1701.05472",
+   "gitclear.com/the_ai_code_quality_maintainability_gap",
+   "gitclear.com/the_ai_code_quality_maintainability_gap",
+   "arxiv:2401.13407",
+   "arxiv:2601.13597"
+  ],
+  "main_fetches_of_helper_targets": 0,
+  "main_distinct_targets": 12,
+  "main_distinct_of_helper_targets": 0,
+  "main_new_targets": [
+   "arxiv:1701.05472",
+   "arxiv:2203.04374",
+   "arxiv:2401.13407",
+   "arxiv:2511.04427",
+   "arxiv:2511.04824",
+   "arxiv:2601.13597",
+   "arxiv:2603.28592",
+   "arxiv:2605.02741",
+   "arxiv:2606.13298",
+   "arxiv:2608.25241",
+   "arxiv:2609.04208",
+   "gitclear.com/the_ai_code_quality_maintainability_gap"
+  ]
+ },
+ "B": {
+  "agent_calls": 0,
+  "web_search_calls": 5,
+  "helper_tool_calls": 0,
+  "helper_fetches": 0,
+  "helper_targets": [],
+  "main_fetches": 8,
+  "main_fetches_by_kind": {
+   "arxiv-read": 2,
+   "abstract": 2,
+   "page": 4
+  },
+  "main_targets": [
+   "arxiv:2511.04427",
+   "arxiv:2203.04374",
+   "arxiv:2511.04427",
+   "arxiv:2203.04374",
+   "arxiv:2511.04427",
+   "gitclear.com/ai_assistant_code_quality_2025_research",
+   "arxiv:2601.13597",
+   "arxiv:2212.12168"
+  ],
+  "main_fetches_of_helper_targets": 0,
+  "main_distinct_targets": 5,
+  "main_distinct_of_helper_targets": 0,
+  "main_new_targets": [
+   "arxiv:2203.04374",
+   "arxiv:2212.12168",
+   "arxiv:2511.04427",
+   "arxiv:2601.13597",
+   "gitclear.com/ai_assistant_code_quality_2025_research"
+  ]
+ },
+ "C": {
+  "agent_calls": 2,
+  "web_search_calls": 6,
+  "helper_tool_calls": 23,
+  "helper_fetches": 9,
+  "helper_targets": [
+   "arxiv:2203.04374",
+   "arxiv:2508.21634",
+   "arxiv:2511.04427",
+   "arxiv:2601.13597",
+   "arxiv:2601.21276",
+   "arxiv:2603.28592",
+   "arxiv:2609.04208",
+   "gitclear.com/ai_assistant_code_quality_2025_research"
+  ],
+  "main_fetches": 9,
+  "main_fetches_by_kind": {
+   "abstract": 7,
+   "page": 2
+  },
+  "main_targets": [
+   "arxiv:2203.04374",
+   "arxiv:2511.04427",
+   "arxiv:2601.13597",
+   "arxiv:2603.28592",
+   "arxiv:2601.21276",
+   "arxiv:2511.04824",
+   "arxiv:2508.21634",
+   "arxiv:2511.04427",
+   "gitclear.com/ai_assistant_code_quality_2025_research"
+  ],
+  "main_fetches_of_helper_targets": 8,
+  "main_distinct_targets": 8,
+  "main_distinct_of_helper_targets": 7,
+  "main_new_targets": [
+   "arxiv:2511.04824"
+  ]
+ }
+}

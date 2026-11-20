@@ -20,6 +20,7 @@ import power_and_cost as pc  # noqa: E402 - sibling script, needs the path above
 
 PILOT = HERE.parent / "pilot"
 BUDGET_TOTAL, SPENT = 25.00, 2.66  # owner, 2026-11-20: $25 for #262 and #590 together
+WEB_SEARCH_USD = 10 / 1000  # Claude API web search, "$10 USD per 1,000 searches" (Pricing page, fetched 2026-11-20)
 AUDIT = (0.93, 1.48)  # $ per research-auditor run (power_and_cost.py AUDITOR, SOURCED there)
 
 
@@ -36,6 +37,7 @@ def by_kind() -> dict:
             rows[model] = {
                 "input": u["input"] * p["input"] / 1e6,
                 "cache_write_5m": u["cache_write"] * p["cache_write_5m"] / 1e6,
+                "extra_if_1h": u["cache_write"] * (p["cache_write_1h"] - p["cache_write_5m"]) / 1e6,
                 "cache_read": u["cache_read"] * p["cache_read"] / 1e6,
                 "output": u["output"] * p["output"] / 1e6,
                 "reported": u["cost_usd_reported"],
@@ -50,7 +52,7 @@ def main() -> None:
     for arm, a in arms.items():
         print(f"  {arm}: ${a['cost']:.4f}  turns {a['turns']}  wall {a['wall_s']} s")
         for m, r in a["models"].items():
-            parts = "  ".join(f"{k} ${v:.4f}" for k, v in r.items())
+            parts = "  ".join(f"{k} ${v:.4f}" for k, v in r.items() if k != "extra_if_1h")
             print(f"     {m}: {parts}")
     a, b, c = (arms[x]["cost"] for x in "ABC")
     print(f"\nratios: B/A {b / a:.3f}  C/A {c / a:.3f}  C/B {c / b:.3f}")
@@ -59,6 +61,25 @@ def main() -> None:
         f"Opus-only $: A {opus['A']:.4f}  B {opus['B']:.4f}  C {opus['C']:.4f} (C's Opus / B's Opus {opus['C'] / opus['B']:.3f})"
     )
     print(f"pilot total ${a + b + c:.4f}; remaining of ${BUDGET_TOTAL:.2f}: ${BUDGET_TOTAL - SPENT:.2f}")
+
+    print("\ncache writes re-priced at 1-hour rates (the trials wrote only 5-minute cache; production writes 1-hour):")
+    one_h = {}
+    for arm, x in arms.items():
+        extra = sum(r["extra_if_1h"] for r in x["models"].values())
+        one_h[arm] = x["cost"] + extra
+        print(f"  {arm}: ${x['cost']:.4f} -> ${one_h[arm]:.4f} (+{extra / x['cost']:.1%})")
+    print(f"  B/A at 1-hour rates {one_h['B'] / one_h['A']:.3f}")
+
+    refetch = PILOT / "refetch.json"
+    if refetch.is_file():
+        searches = {k: v["web_search_calls"] for k, v in json.loads(refetch.read_text()).items()}
+        print("\nHaiku reported minus Haiku by kind, against WebSearch calls x $10 per 1,000 (refetch.json):")
+        for arm, x in arms.items():
+            h = next((r for m, r in x["models"].items() if "haiku" in m), None)
+            if h and arm in searches:
+                gap = h["reported"] - h["input"] - h["cache_write_5m"] - h["cache_read"] - h["output"]
+                fee = searches[arm] * WEB_SEARCH_USD
+                print(f"  {arm}: gap ${gap:.4f}; {searches[arm]} searches = ${fee:.4f}")
 
     print("\nstage 1 as pre-registered (10 q x 3 trials), re-priced at the pilot's per-run $ (one draw per arm):")
     for lo_hi, aud in zip(("low", "high"), AUDIT, strict=True):

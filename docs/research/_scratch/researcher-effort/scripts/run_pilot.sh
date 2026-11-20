@@ -13,9 +13,9 @@ Q=Q06
 CAP=3.80
 LEDGER_CAP=13.00
 OUT=${OUT:-$(mktemp -d -t researcher-effort-XXXX)}
-RES=$HERE/pilot
+RES="$HERE/pilot"
 mkdir -p "$RES"
-LEDGER=$RES/ledger.tsv
+LEDGER="$RES/ledger.tsv"
 [ -f "$LEDGER" ] || printf 'arm\tquestion\tcost_usd\twhen\n' >"$LEDGER"
 echo "transcripts: $OUT"
 
@@ -30,32 +30,32 @@ for ARM in "${ARMS[@]}"; do
   if awk -v s="$spent" -v c="$CAP" -v l="$LEDGER_CAP" 'BEGIN {exit !(s + c + 0.5 > l)}'; then
     echo "stop: ledger \$$spent + cap \$$CAP + 0.50 overshoot would pass \$$LEDGER_CAP" >&2; exit 3
   fi
-  W=$OUT/$Q-$ARM
+  W="$OUT/$Q-$ARM"
   git clone -q --local . "$W/repo"
   git -C "$W/repo" remote remove origin
-  uv run python -I $HERE/scripts/prepare_trial.py $HERE/questions.yaml "$W/repo" $Q >"$W/prompt.txt"
+  uv run python -I "$HERE/scripts/prepare_trial.py" "$HERE/questions.yaml" "$W/repo" "$Q" >"$W/prompt.txt"
   git -C "$W/repo" add -A
   git -C "$W/repo" commit -q -m "hide gold for $Q"
-  case $ARM in
-    A) EFFORT=high; AGENT=(--agent harness-ops:researcher); ALLOW=$TOOLS ;;
-    B) EFFORT=medium; AGENT=(--agent harness-ops:researcher); ALLOW=$TOOLS ;;
+  case "$ARM" in
+    A) EFFORT=high; AGENT=(--agent harness-ops:researcher); ALLOW="$TOOLS" ;;
+    B) EFFORT=medium; AGENT=(--agent harness-ops:researcher); ALLOW="$TOOLS" ;;
     C) EFFORT=medium
-       uv run python -I $HERE/scripts/arm_c_agents.py plugins/harness-ops/agents/researcher.md "$W/agents.json" >&2
+       uv run python -I "$HERE/scripts/arm_c_agents.py" plugins/harness-ops/agents/researcher.md "$W/agents.json" >&2
        AGENT=(--agents "$W/agents.json" --agent researcher-helper); ALLOW="$TOOLS,Agent" ;;
     *) echo "unknown arm $ARM" >&2; exit 2 ;;
   esac
   echo "arm $ARM: effort $EFFORT, cap \$$CAP, ledger \$$spent" >&2
-  (cd "$W/repo" && env -u ANTHROPIC_MODEL -u CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_EFFORT_LEVEL=$EFFORT \
+  (cd "$W/repo" && env -u ANTHROPIC_MODEL -u CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_EFFORT_LEVEL="$EFFORT" \
     timeout 2700 claude -p "$(cat "$W/prompt.txt")" --output-format stream-json --verbose --no-session-persistence \
       --max-turns 150 --permission-mode acceptEdits --plugin-dir "$W/repo/plugins/harness-ops" "${AGENT[@]}" \
-      --allowedTools "$ALLOW" --model opus --effort $EFFORT --max-budget-usd $CAP >"$W/transcript.jsonl" 2>"$W/stderr.txt") || true
-  ANS=$W/repo/docs/research/_scratch/eval-q/r1-answer.md
+      --allowedTools "$ALLOW" --model opus --effort "$EFFORT" --max-budget-usd "$CAP" >"$W/transcript.jsonl" 2>"$W/stderr.txt") || true
+  ANS="$W/repo/docs/research/_scratch/eval-q/r1-answer.md"
   mkdir -p "$RES/$ARM"
   [ -f "$ANS" ] && cp "$ANS" "$RES/$ARM/r1-answer.md"
-  uv run python -I $HERE/scripts/summarize.py "$W/transcript.jsonl" "${ANS}" "$GOLD" "${HIDE[@]}" >"$RES/$ARM/summary.json"
+  uv run python -I "$HERE/scripts/summarize.py" "$W/transcript.jsonl" "${ANS}" "$GOLD" "${HIDE[@]}" >"$RES/$ARM/summary.json"
   [ -f "$ANS" ] && (uv run dev cite-check "$RES/$ARM/r1-answer.md" >"$RES/$ARM/cite-check.txt" 2>&1 || true)
   cost=$(uv run python -I -c "import json,sys; print(json.load(open(sys.argv[1]))['cost_usd'])" "$RES/$ARM/summary.json")
   printf '%s\t%s\t%s\t%s\n' "$ARM" "$Q" "$cost" "$(date -u +%FT%TZ)" >>"$LEDGER"
   echo "arm $ARM: \$$cost" >&2
 done
-awk -F'\t' 'NR>1 {s+=$3} END {printf "pilot total: $%.2f of $%s\n", s, cap}' cap=$LEDGER_CAP "$LEDGER"
+awk -F'\t' 'NR>1 {s+=$3} END {printf "pilot total: $%.2f of $%s\n", s, cap}' cap="$LEDGER_CAP" "$LEDGER"
