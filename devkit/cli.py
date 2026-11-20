@@ -586,16 +586,9 @@ def run_lit(a: argparse.Namespace) -> int:
                 return 1
             return 0 if papers or not notes else 1
         elif a.sub == "read":
-            ft, why = lit.client().full_text(a.id)
-            if ft is None:
-                print(f"no full text for {a.id}: {why}")
-                return 1
-            if not a.section:
-                print(ft.outline())
-                return 0
-            found = ft.locate(a.section)
-            print(found[1] if found else f"{a.section!r} is not in the outline:\n{ft.outline()}")
-            return 0 if found else 1
+            code, text = lit.read(lit.client(), a.id, a.section)
+            print(text)
+            return code
         elif a.sub in lit.CHASE:
             papers, notes = lit.client().chase(a.id, a.sub, a.n, a.years)
         else:

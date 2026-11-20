@@ -364,16 +364,20 @@ def test_a_doi_without_an_open_access_copy_has_no_full_text(tmp_path):
     assert ft is None and why == "no open-access copy"
 
 
-def test_lit_read_prints_the_outline_or_one_section(tmp_path, monkeypatch, capsys):
-    net = Net({"https://arxiv.org/html/2607.00001": (200, long_html())})
-    monkeypatch.setattr(lit, "client", lambda: client(tmp_path, net))
-    assert cli.run(cli.build().parse_args(["lit", "read", "2607.00001"])) == 0
-    out = capsys.readouterr().out
-    assert "3.2 Results (" in out and "0.27" not in out  # the outline only, never the text
-    assert cli.run(cli.build().parse_args(["lit", "read", "2607.00001", "--section", "3.2"])) == 0
-    out = capsys.readouterr().out
-    assert "0.27 to 0.30" in out and "six verifiers" not in out
-    assert cli.run(cli.build().parse_args(["lit", "read", "2607.00001", "--section", "9"])) == 1
+def test_lit_read_prints_the_outline_or_one_section(tmp_path):
+    c = client(tmp_path, Net({"https://arxiv.org/html/2607.00001": (200, long_html())}))
+    code, out = lit.read(c, "2607.00001")
+    assert code == 0 and "3.2 Results (" in out and "0.27" not in out  # the outline only, never the text
+    code, out = lit.read(c, "2607.00001", "3.2")
+    assert code == 0 and "0.27 to 0.30" in out and "six verifiers" not in out
+    code, out = lit.read(c, "2607.00001", "9")
+    assert code == 1 and "not in the outline" in out
+    assert lit.read(client(tmp_path / "x", Net({})), "2601.00009")[0] == 1  # no full text anywhere
+
+
+def test_lit_read_is_a_subcommand():
+    a = cli.build().parse_args(["lit", "read", "10.1000/x", "--section", "Appendix B"])
+    assert (a.sub, a.id, a.section) == ("read", "10.1000/x", "Appendix B")
 
 
 # ---- regressions found running cite-check over docs/research (#512) ----

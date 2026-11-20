@@ -991,6 +991,17 @@ def client() -> Client:
     return Client(state_dir("lit"), env=env, rate_dir=user_state_dir("lit"))
 
 
+def read(c: Client, ident: str, section: str = "") -> tuple[int, str]:
+    """`dev lit read`: (exit code, text): the paper's outline, or the one section `section` locates."""
+    ft, why = c.full_text(ident)
+    if ft is None:
+        return 1, f"no full text for {ident}: {why}"
+    if not section:
+        return 0, ft.outline()
+    found = ft.locate(section)
+    return (0, found[1]) if found else (1, f"{section!r} is not in the outline:\n{ft.outline()}")
+
+
 def render(papers: list[Paper], notes: list[str], snippet: int = SNIPPET) -> str:
     lines = [p.line(snippet) for p in papers] or ["no results"]
     lines += [f"note: {n}" for n in notes]
