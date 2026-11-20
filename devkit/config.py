@@ -20,7 +20,9 @@ CONSOLIDATION: dict[str, float | int | str | list[str]] = {
     "growth_min_loc": 5000,  # ... and by at least this many LOC
     "fp_commits": 100,  # first-parent commits since the last review
     "dormant_k": 30,  # a unit no commit touched in this many first-parent commits is dormant
-    "dormant_share": 0.05,  # orphaned dormant units (dormant, imported by no active unit): share of code LOC
+    # orphaned dormant units (dormant, imported by no active unit), less files a CI workflow, a command table or an
+    # active decision names (#634): share of code LOC
+    "dormant_share": 0.05,
     "churny_loc": 1000,  # a non-test file over this many LOC ...
     "churny_commits": 30,  # ... changed by at least this many non-merge commits
     "lazy_cycle": 10,  # an import cycle of this many modules
@@ -73,6 +75,9 @@ class Config:
     evals_dir: str = "evals/scenarios"
     research_eval_dir: str = "evals/research"  # `dev eval research` (#590): questions.yaml and gold.json
     area_map: str = ".github/labeler.yml"  # path -> area label map, in actions/labeler format
+    # #605: the files `dev release prepare` writes the version into and `publish` requires to agree: a .toml's
+    # [project] version, a .json's top-level version, a .yml's first `default: v<version>` line.
+    release_files: list[str] = field(default_factory=lambda: ["pyproject.toml"])
     # Plain content: a PR touching only these (with CONTENT_SUFFIXES) is not harness and needs no lead read.
     content: list[str] = field(default_factory=lambda: ["docs/research/", "docs/log/", "docs/questions/"])
     # Backticked repository paths in prose under these prefixes are not checked (their markdown links still are).
