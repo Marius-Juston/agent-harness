@@ -94,6 +94,9 @@
 | `board feedback` | a PR's comments and reviews since its last commit, and its unresolved threads |
 | `pr` | worker: push the gated branch, open the PR, move the item to review |
 | `pr-title` | CI: fail unless the PR title is Conventional Commits (title from PR_TITLE) |
+| `release` | lead: prepare (version bumps, uv lock) or publish (tag, GitHub Release) X.Y.Z |
+| `release prepare` | on a release branch: write the version into release_files and run uv lock |
+| `release publish` | on main at the merged release commit: tag, push, GitHub Release (rerun-safe) |
 | `integrate` | lead: re-gate a PR merged onto main in a throwaway worktree, then merge it |
 | `autopilot` | lead: one loop tick in code (quota, board sync, integrate ready PRs); prints only what needs a decision |
 | `cite-check` | resolve every source in research notes; flag dead links and title mismatches |
@@ -106,7 +109,8 @@
 | `lit cited-by` | citation chasing through OpenAlex: the works citing it (forward), most cited first, compact lines like search |
 | `lit snowball` | expand accepted papers by references, citations, co-citation, coupling and related works (OpenAlex): one line per candidate, ranked, naming the signals that surfaced it |
 | `reuse` | reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); `"<need>"` searches for more (GitHub, ecosyste.ms, deps.dev; shares dev lit's cache and rate limits) |
-| `research` | research notes: new |
+| `research` | research notes: new, search |
+| `research search` | what earlier notes, their labelled claims and cached full texts already say (BM25), one line each |
 | `research new` | create <research_dir>/<slug>.md from the house template |
 | `gotcha` | append a one-line lesson to the .claude/rules file scoped to a path |
 | `setup` | once per machine/clone: uv sync, git config, plugin install, then doctor |

@@ -481,6 +481,13 @@ def test_guard_bash_never_crashes(cmd):
     )
 
 
+@pytest.mark.parametrize("cmd", ["git commit -m '--no-veri'", "git commit -m --no-verify", "git commit -F --no-verify"])
+def test_guard_bash_a_commit_message_spelling_no_verify_is_data(cmd):
+    """Hypothesis found `-m '--no-veri'` refused (#605): the value of -m/-F is the message, not an option."""
+    assert GUARD.Checker("/nonexistent").text(cmd) is None
+    assert GUARD.Checker("/nonexistent").text(cmd + " --no-veri") == GUARD.HOOKS
+
+
 @given(st.text(alphabet=st.characters(blacklist_characters="'\x00"), max_size=60))
 def test_guard_bash_single_quoted_text_is_data(body):
     """Any text in single quotes, as an echo argument or a commit message, never trips a rule."""

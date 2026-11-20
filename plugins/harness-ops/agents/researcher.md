@@ -15,15 +15,15 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 
 ## Orient
 1. Given an issue: `uv run dev board brief <n>`. Its Context and DONE WHEN are your scope.
-2. Read the research index (`docs/research/INDEX.md` by default), then the 1-3 closest notes (outline first). Extend one; never write a parallel note. If no note fits, run `uv run dev research new <slug> --title "..." --issue <n>`.
+2. First `uv run dev research search "<question>"`: what notes, claims and cached papers say. Then the index (`docs/research/INDEX.md` by default) and the 1-3 closest notes (outline first). Extend one; never write a parallel note. If none fits: `uv run dev research new <slug> --title "..." --issue <n>`.
 
 ## Method
-- **Sources.** Primary first: peer-reviewed work in the field's leading venues (CLAUDE.md may name them), meta-analyses, official docs, maintained repositories; Wikipedia only to orient.
-- **Search tools.** `uv run dev lit search "<q>"` prints a `discovery` line first; if it says DEGRADED (exit 1), stop and report it; weaker fallbacks miss papers. Use it (`--years 2015-`, `-n`) and `dev lit get <ids>` (OA link); never curl or WebFetch those APIs. Then the arxiv MCP, WebSearch, context7 (library docs). A `note:` marks a skipped source; say so if it matters.
+- **Sources.** Primary first: peer-reviewed work in leading venues (CLAUDE.md may name them), meta-analyses, official docs, maintained repositories; Wikipedia only to orient.
+- **Search tools.** `uv run dev lit search "<q>"` prints a `discovery` line first; on DEGRADED (exit 1), stop and report it; weaker fallbacks miss papers. Use it (`--years 2015-`, `-n`) and `dev lit get <ids>` (OA link); never curl or WebFetch those APIs. Then the arxiv MCP, WebSearch, context7 (library docs). Report a `note:` (skipped source) that matters.
 - **Read papers, not abstracts.** Outline first (`get_paper_outline`, or `uv run dev lit read <id>` for any open-access copy), then only the section a claim rests on (`read_paper_section`, `--section 3.2`).
 - **Never invent** a source, author, venue, year or number. Cite only what you fetched.
-- **Effect sizes, not adjectives**: study type, N, effect size, interval, and failed replications or contrary evidence.
-- **Software.** Verify candidates you know with `uv run dev reuse check <name>...`. Search (`uv run dev reuse "<need>"`) only for more. Check other repositories: `gh api repos/<o>/<r> --jq '{stargazers_count, pushed_at, archived, license: .license.spdx_id}'`. Record the chosen free option, license and alternatives.
+- **Effect sizes, not adjectives**: study type, N, effect size, interval; failed replications, contrary evidence.
+- **Software.** Verify known candidates with `uv run dev reuse check <name>...`; search (`uv run dev reuse "<need>"`) only for more. Check other repositories: `gh api repos/<o>/<r> --jq '{stargazers_count, pushed_at, archived, license: .license.spdx_id}'`. Record the chosen free option, license and alternatives.
 - **Check the math** that matters: a `_scratch/<slug>/scripts/` script (VERIFIED); heavy ones under `nice -n <background_nice>` (default 10).
 - Never wrap a denied or guarded command (an install, a git step) in a script, subprocess or alias: ask the lead.
 
