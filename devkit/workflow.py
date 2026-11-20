@@ -692,7 +692,7 @@ def _wait_on_tip(
 
 def integrate(
     pr_number: int,
-    harness_ok: bool,
+    harness_ok: bool | str,
     dry_run: bool,
     override: str | None = None,
     local_ci: bool = False,
@@ -714,7 +714,7 @@ def integrate(
 
 def _integrate(
     pr_number: int,
-    harness_ok: bool,
+    harness_ok: bool | str,
     dry_run: bool,
     override: str | None = None,
     local_ci: bool = False,
@@ -940,7 +940,7 @@ def _integrate(
             print(branches.drop_branch(name, [tip]))
     try:  # the merge stands whatever this finds: a failure only skips the check
         sent = send_back_conflicting(pr_number)
-    except (board.BoardError, RuntimeError, OSError, ValueError) as exc:
+    except (board.BoardError, RuntimeError, OSError, ValueError, subprocess.SubprocessError) as exc:
         sent = []
         print(f"conflict check of the new main skipped ({exc}): each open PR meets it at its own integrate")
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):

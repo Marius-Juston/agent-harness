@@ -14,6 +14,7 @@ from pathlib import Path
 
 from devkit import (
     arch,
+    autopilot,
     board,
     branches,
     checks,
@@ -288,6 +289,12 @@ def build() -> Parser:
         action="store_true",
         help="only print the PR's last integrate outcome and whether its head moved since: no gate, no merge, no write",
     )
+
+    x = sub.add_parser(
+        "autopilot",
+        help="lead: one loop tick in code (quota, board sync, integrate ready PRs); prints only what needs a decision",
+    )
+    x.add_argument("--dry-run", action="store_true", help="integrate and the train dry-run; no board sync")
 
     x = sub.add_parser(
         "cite-check", help="resolve every source in research notes; flag dead links and title mismatches"
@@ -649,6 +656,8 @@ def run(a: argparse.Namespace) -> int:
                 return 2
             harness_ok = a.harness_ok is not None
             return workflow.integrate(a.pr, harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
+        case "autopilot":
+            return autopilot.run(a.dry_run)
         case "cite-check":
             paths = [Path(p) for p in a.paths] or _changed_notes()
             if not paths:
