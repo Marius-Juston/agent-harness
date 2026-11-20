@@ -94,6 +94,9 @@
 | `board feedback` | a PR's comments and reviews since its last commit, and its unresolved threads |
 | `pr` | worker: push the gated branch, open the PR, move the item to review |
 | `pr-title` | CI: fail unless the PR title is Conventional Commits (title from PR_TITLE) |
+| `release` | lead: prepare (version bumps, uv lock) or publish (tag, GitHub Release) X.Y.Z |
+| `release prepare` | on a release branch: write the version into release_files and run uv lock |
+| `release publish` | on main at the merged release commit: tag, push, GitHub Release (rerun-safe) |
 | `integrate` | lead: re-gate a PR merged onto main in a throwaway worktree, then merge it |
 | `autopilot` | lead: one loop tick in code (quota, board sync, integrate ready PRs); prints only what needs a decision |
 | `cite-check` | resolve every source in research notes; flag dead links and title mismatches |
