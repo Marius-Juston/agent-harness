@@ -55,5 +55,4 @@ max_import_cycle = 2       # modules in the largest import cycle of the non-test
 module_loc_ceiling = 1000  # LOC (non-blank, non-comment) a module may have without a pin below
 
 [arch.module_loc]          # modules over the ceiling, pinned at their LOC: they may only shrink
-"devkit/board.py" = 1525
 "scripts/repo_metrics.py" = 1290

@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, config, docs, fixloop, paths, prtext, setup, workflow
+from devkit import board, board_brief, board_gh, board_state, config, docs, fixloop, paths, prtext, setup, workflow
 
 ROOT = Path(__file__).resolve().parents[1]
 ATTRIBUTES = ROOT / "template/.gitattributes"
@@ -213,13 +213,17 @@ def project(tmp_path, monkeypatch):
     monkeypatch.chdir(clone)
     monkeypatch.setattr(subprocess, "run", run)
     monkeypatch.setattr(subprocess, "Popen", popen)
-    monkeypatch.setattr(board, "gh", gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "pr_feedback", lambda n: {"since": "", "comments": [], "reviews": [], "threads": []})
-    monkeypatch.setattr(board, "get", lambda n: type("I", (), {"claim": lambda self: claim})())
-    monkeypatch.setattr(board, "block", lambda n, reason: world["blocked"].append((n, reason)))
-    monkeypatch.setattr(board, "set_status", lambda n, status: world["status"].append((n, status)))
-    monkeypatch.setattr(board, "merged_pr", lambda *a: world["events"].append(("merged_pr", *a)) or ["#12 -> done"])
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(
+        board_brief, "pr_feedback", lambda n: {"since": "", "comments": [], "reviews": [], "threads": []}
+    )
+    monkeypatch.setattr(board_state, "get", lambda n: type("I", (), {"claim": lambda self: claim})())
+    monkeypatch.setattr(board_state, "block", lambda n, reason: world["blocked"].append((n, reason)))
+    monkeypatch.setattr(board_state, "set_status", lambda n, status: world["status"].append((n, status)))
+    monkeypatch.setattr(
+        board_state, "merged_pr", lambda *a: world["events"].append(("merged_pr", *a)) or ["#12 -> done"]
+    )
     monkeypatch.setattr(workflow, "main_checkout", lambda: clone)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: tmp_path.joinpath("state", *p))
     monkeypatch.setattr(fixloop, "state_dir", lambda *p: tmp_path.joinpath("state", *p))
@@ -436,9 +440,9 @@ LEAK_BODY = f"Closes #12\n\nsummary\n\nClaude-Session: https://{prtext.SESSION_U
 
 def _visibility(monkeypatch, seen: str) -> None:
     """GitHub reports the repository as `seen`; the `project` fixture's gh answers nothing (read as public)."""
-    real = board.gh
+    real = board_gh.gh
     reply = json.dumps({"visibility": seen})
-    monkeypatch.setattr(board, "gh", lambda *a, **k: reply if a[:2] == ("repo", "view") else real(*a, **k))
+    monkeypatch.setattr(board_gh, "gh", lambda *a, **k: reply if a[:2] == ("repo", "view") else real(*a, **k))
 
 
 def _merge_call(world: dict) -> tuple[str, ...]:
@@ -487,9 +491,9 @@ def test_integrate_refuses_a_session_leak_in_a_public_repo_before_the_gate(proje
     if field == "body":
         project["body"] = LEAK_BODY
     else:
-        real = board.gh
+        real = board_gh.gh
         leak = f'"title": "see https://{prtext.SESSION_URL}_1"'
-        monkeypatch.setattr(board, "gh", lambda *a, **k: real(*a, **k).replace('"title": "feat: t (#12)"', leak))
+        monkeypatch.setattr(board_gh, "gh", lambda *a, **k: real(*a, **k).replace('"title": "feat: t (#12)"', leak))
     open_pr(project, note(project["clone"], "c"))
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     res = last_json(capsys.readouterr().out)
@@ -508,8 +512,8 @@ def test_a_private_repo_may_carry_session_trailers(project, capsys, monkeypatch)
 
 def test_a_body_edited_to_leak_during_the_gate_stops_the_merge(monkeypatch):
     calls = []
-    monkeypatch.setattr(board, "gh", lambda *a, **k: calls.append(a) or "")
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", lambda *a, **k: calls.append(a) or "")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     monkeypatch.setattr(workflow, "_remote_shas", lambda n: ("h1", "m1"))
     reason = workflow._merge_if_unchanged(7, "h1", "m1", info={"title": "t", "body": LEAK_BODY})
     assert reason and "public" in reason
@@ -517,15 +521,15 @@ def test_a_body_edited_to_leak_during_the_gate_stops_the_merge(monkeypatch):
 
 
 def test_visibility_fails_closed(monkeypatch):
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     for reply, public in (('{"visibility": "PRIVATE"}', False), ('{"visibility": "PUBLIC"}', True), ("", True)):
-        monkeypatch.setattr(board, "gh", lambda *a, reply=reply, **k: reply)
+        monkeypatch.setattr(board_gh, "gh", lambda *a, reply=reply, **k: reply)
         assert workflow.repo_public() is public
 
     def offline(*a, **k):
         raise board.BoardError("gh: offline")
 
-    monkeypatch.setattr(board, "gh", offline)
+    monkeypatch.setattr(board_gh, "gh", offline)
     assert workflow.repo_public() is True
 
 
@@ -557,8 +561,8 @@ def test_stacked_prs_are_retargeted_to_main_before_the_parent_merges(monkeypatch
             return json.dumps([{"number": 8, "headRefName": "13-stacked"}])
         return ""
 
-    monkeypatch.setattr(board, "gh", gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     monkeypatch.setattr(workflow, "_remote_shas", lambda n: ("h1" * 10, "m1"))
     info = {"title": "feat: parent", "body": "Closes #12", "headRefName": "12-parent"}
     assert workflow._merge_if_unchanged(7, "h1" * 10, "m1", info=info) is None
@@ -574,7 +578,7 @@ def test_stacked_prs_are_retargeted_to_main_before_the_parent_merges(monkeypatch
     assert "would retarget stacked PR #8" in capsys.readouterr().out
 
 
-# Readers of main's history on squash merges, and why the rest need no test here: `board.merged_pr` and the board
+# Readers of main's history on squash merges, and why the rest need no test here: `board_state.merged_pr` and the board
 # lint read the PR's body and branch from GitHub, not commits; the test-weakening check diffs the branch against its
 # merge base; `suite_audit` and `consolidation.due` count first-parent commits, and a squashed main is linear (one
 # commit per PR, as in `test_first_parent_commits_since_the_review_trigger_it`); devkit replays no merges.

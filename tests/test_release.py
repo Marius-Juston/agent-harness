@@ -1,5 +1,5 @@
 """`dev release prepare|publish` (#605). git is real (a bare origin and the lead's clone on main); GitHub is faked at
-subprocess level, so the real board.gh, its retries and its `release create` recheck run."""
+subprocess level, so the real board_gh.gh, its retries and its `release create` recheck run."""
 
 import random
 import subprocess
@@ -9,7 +9,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, cli, config, release
+from devkit import board, board_gh, cli, config, paths, release
 from tests.test_merge_hygiene import REAL_RUN, commit, out, sh
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -87,9 +87,9 @@ def world(tmp_path, monkeypatch):
     sh(clone, "git", "push", "-q", "origin", "main")
     gh = FakeGitHub(origin, clone)
     monkeypatch.setattr(board.subprocess, "run", gh.run)
-    monkeypatch.setattr(board, "root", lambda: clone)
-    monkeypatch.setattr(board, "GH_SLEEP", lambda s: None)
-    monkeypatch.setattr(board, "GH_RNG", random.Random(7))
+    monkeypatch.setattr(paths, "root", lambda: clone)
+    monkeypatch.setattr(board_gh, "GH_SLEEP", lambda s: None)
+    monkeypatch.setattr(board_gh, "GH_RNG", random.Random(7))
     return gh
 
 
@@ -316,7 +316,7 @@ def test_a_local_tag_unlike_origins_is_refused_before_any_release(world, tmp_pat
 
 def test_the_command_prints_its_steps_and_a_refusal_as_result(world, monkeypatch, capsys):
     monkeypatch.setattr(cli, "root", lambda: world.clone)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     published = cli.run(cli.build().parse_args(["release", "publish", "0.1.18"]))
     assert published == 0
     assert capsys.readouterr().out.splitlines()[-1] == "RESULT: published v0.1.18"

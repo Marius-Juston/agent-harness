@@ -6,7 +6,7 @@ Synthetic graphs only; no test calls GitHub.
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board
+from devkit import board, board_state
 
 T0 = "2026-10-11T00:00:00Z"
 
@@ -73,8 +73,8 @@ def test_reason_names_inheritance_and_what_it_opens():
 
 def test_next_prints_a_reason_per_line(monkeypatch):
     issues = [mk(1), mk(2, status="blocked", blockers=[1]), mk(3)]
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: issues)
-    monkeypatch.setattr(board, "resolved", lambda issues: set())
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: issues)
+    monkeypatch.setattr(board_state, "resolved", lambda issues: set())
     lines = board.next_items(None, 5).splitlines()
     assert len(lines) == 2
     assert lines[0].startswith("#1") and "unblocks 1" in lines[0]
@@ -102,11 +102,11 @@ def test_owns_split_on_commas_inside_one_backtick():
 
 def test_wave_command(monkeypatch):
     issues = [mk(1, owns=["a"]), mk(2, owns=["a/b"]), mk(3, owns=["c"])]
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: issues)
-    monkeypatch.setattr(board, "resolved", lambda issues: set())
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: issues)
+    monkeypatch.setattr(board_state, "resolved", lambda issues: set())
     out = board.wave_items(3)
     assert [ln.split()[0] for ln in out.splitlines()] == ["#1", "#3"]
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: [])
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: [])
     assert "nothing startable" in board.wave_items(3)
 
 
