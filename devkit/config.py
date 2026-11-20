@@ -20,7 +20,9 @@ CONSOLIDATION: dict[str, float | int | str | list[str]] = {
     "growth_min_loc": 5000,  # ... and by at least this many LOC
     "fp_commits": 100,  # first-parent commits since the last review
     "dormant_k": 30,  # a unit no commit touched in this many first-parent commits is dormant
-    "dormant_share": 0.05,  # orphaned dormant units (dormant, imported by no active unit): share of code LOC
+    # orphaned dormant units (dormant, imported by no active unit), less files a CI workflow, a command table or an
+    # active decision names (#634): share of code LOC
+    "dormant_share": 0.05,
     "churny_loc": 1000,  # a non-test file over this many LOC ...
     "churny_commits": 30,  # ... changed by at least this many non-merge commits
     "lazy_cycle": 10,  # an import cycle of this many modules
