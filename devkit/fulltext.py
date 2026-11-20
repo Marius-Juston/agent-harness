@@ -2,8 +2,8 @@
 
 `dev cite-check` checks a recommendation-driving claim's quote against the section its locator names, and
 `dev lit read` prints a paper's outline or one section, so an agent reads the part a claim rests on rather than the
-abstract or the whole paper. Formats: arXiv's HTML rendering (LaTeXML) or any HTML page, Europe PMC's JATS XML, and
-PDF (pypdf). Pure: lit.Client.full_text does the fetching and caching.
+abstract or the whole paper. Formats: arXiv's HTML rendering (LaTeXML) or any HTML page, Europe PMC's JATS XML,
+PDF (pypdf), and plain text extracted from a PDF (CORE's `fullText`). Pure: lit.Client.full_text does the fetching and caching.
 """
 
 import io
@@ -15,6 +15,8 @@ import unicodedata
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
+# Kinds whose sections come from heading-looking lines of extracted text, so a section boundary is a guess.
+APPROXIMATE = frozenset({"pdf", "text"})
 MIN_WORDS = 1000  # fewer words is a landing page or an abstract, not a paper
 # A PDF is untrusted input: refused above PDF_MAX_BYTES, parsed in a subprocess limited to PDF_MEMORY and killed
 # after PDF_SECONDS, and only its first MAX_PAGES pages are read. A refusal or a kill counts as no full text.
@@ -82,6 +84,14 @@ class FullText:
         while end < len(heads) and levels[end] > levels[start] and not BACK_MATTER.search(heads[end]):
             end += 1
         return heads[start], "\n".join(f"{h}\n{t}" for h, t in self.sections[start:end])
+
+
+def from_record(rec: dict) -> FullText | None:
+    """The FullText a cache record holds (lit.Client.full_text writes `t` plus the dataclass's fields), None for a
+    cached 'none'. Raises KeyError or TypeError on a record of another shape. Records from before `levels` read."""
+    if "none" in rec:
+        return None
+    return FullText(rec["url"], rec["kind"], [tuple(s) for s in rec["sections"]], rec.get("levels") or [])
 
 
 def _number(heading: str) -> str:
@@ -245,16 +255,21 @@ def from_pdf(data: bytes, url: str, seconds: float = PDF_SECONDS, memory: int = 
         return None
     if out.returncode != 0:
         return None
-    pages = json.loads(out.stdout)
+    return from_text("\n".join(json.loads(out.stdout)), url, "pdf")
+
+
+def from_text(text: str, url: str, kind: str = "text") -> FullText:
+    """Sections of plain text extracted from a PDF (a PDF's pages, or CORE's `fullText`), split at heading-looking
+    lines as from_pdf does: approximate (APPROXIMATE)."""
     sections: list[tuple[str, list[str]]] = [("", [])]
-    for line in "\n".join(pages).splitlines():
+    for line in text.splitlines():
         s = line.strip()
         if PDF_HEAD.match(s) and len(s.split()) <= 12 and not s.endswith((".", ",")):
             sections.append((s, []))
         else:
             sections[-1][1].append(s)
     kept = [(h, " ".join(" ".join(t).split())) for h, t in sections if h or t]
-    return FullText(url, "pdf", kept, [_depth(h) if h else 0 for h, _ in kept])
+    return FullText(url, kind, kept, [_depth(h) if h else 0 for h, _ in kept])
 
 
 def _pdf_pages(data: bytes, max_pages: int) -> list[str]:

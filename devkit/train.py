@@ -85,8 +85,10 @@ def first_breaking(n: int, passes: Callable[[int], bool]) -> tuple[int, int]:
     return hi, gates
 
 
-def harness_cleared(number: int, harness_ok: set[int] | bool) -> bool:
+def harness_cleared(number: int, harness_ok: set[int] | dict[int, str] | bool, head: str = "") -> bool:
     """Whether the lead read the harness diff of PR `number`: `--harness-ok` names the PRs in a train."""
+    if isinstance(harness_ok, dict):  # PR -> SHA (`dev autopilot`'s trusted review, #499): that head only
+        return bool(head) and harness_ok.get(number) == head
     return harness_ok if isinstance(harness_ok, bool) else number in harness_ok
 
 
@@ -131,7 +133,7 @@ def _admit(
     if contexts and (dry_run or override is not None):  # as a single integrate: an override waits for nothing
         if dry_run:
             print(f"would wait for Actions on {m.head[:10]} and stand in for what it never runs: {', '.join(contexts)}")
-        now = ci_status.standing(info.get("statusCheckRollup") or [], contexts, enabled, {})
+        now = ci_status.standing(info.get("statusCheckRollup") or [], contexts, enabled, ci_status.Probe())
         m.stood = sorted(c for c, s in now.items() if s == "never-ran")
         ignore = frozenset(c for c, s in now.items() if s != "failed") if dry_run else frozenset(m.stood)
     elif contexts:
@@ -221,21 +223,21 @@ def _send_back_owns(m: Member, dry_run: bool) -> None:
     m.fields |= workflow.fix_loop(m.number, m.info, "refused", [why, *(f"- {r}" for r in rows)], [], m.head, dry_run)
 
 
-def _post_local_ci(m: Member, log: Path, names: str) -> None:
+def _post_local_ci(m: Member, log: Path, names: str, mode: str = "--local-ci") -> None:
     """`--local-ci` with `--train`, after main was pushed: the gated candidate holding this member passed the gate
     and each stand-in, so post a success status for each required context Actions never ran on the member's head (the
     commit whose checks branch protection reads for the PR), with the log's hash, and say so on the PR."""
     if not m.stood:
         return
     digest = hashlib.sha256(log.read_bytes()).hexdigest()
-    note = f"dev integrate --local-ci --train: passed in train {names}; log sha256 {digest[:16]}"
+    note = f"dev integrate --train ({mode}): passed in train {names}; log sha256 {digest[:16]}"
     for ctx in m.stood:
         board.gh(
             "api", "-X", "POST", f"repos/{board.repo()}/statuses/{m.head}",
             "-f", "state=success", "-f", f"context={ctx}", "-f", f"description={note}",
         )  # fmt: skip
     body = (
-        f"CI ran locally (`dev integrate --local-ci --train`): GitHub Actions did not run {', '.join(m.stood)} on "
+        f"CI ran locally (`dev integrate --train`, {mode}): GitHub Actions did not run {', '.join(m.stood)} on "
         f"{m.head}. The train {names} holding this PR passed `uv run dev check --no-cache` and each required check's "
         f"stand-in. Log sha256 `{digest}`, kept at `{log}` on {os.uname().nodename}. Posted {', '.join(m.stood)} as "
         f"commit statuses on {m.head[:10]}."
@@ -366,7 +368,11 @@ def _close_merged(m: Member, names: str, tip: str) -> None:
 
 
 def train(
-    prs: list[int], harness_ok: set[int] | bool, dry_run: bool, local_ci: bool = False, override: str | None = None
+    prs: list[int],
+    harness_ok: set[int] | dict[int, str] | bool,
+    dry_run: bool,
+    local_ci: bool = False,
+    override: str | None = None,
 ) -> int:
     """`_train`, but every exit ends with the train's RESULT-JSON line, a crash included. `harness_ok`: the PRs whose
     harness diff the lead read (`--harness-ok 12 15`), or a bool for all of them. `override`: a single integrate's
@@ -414,7 +420,7 @@ def _stop_rest(members: list[Member], why: str) -> None:
 def _train(
     members: list[Member],
     gates: list[dict],
-    harness_ok: set[int] | bool,
+    harness_ok: set[int] | dict[int, str] | bool,
     dry_run: bool,
     local_ci: bool,
     override: str | None = None,
@@ -426,16 +432,24 @@ def _train(
         return _result(members, gates, 1, "refused", reason=why)
     contexts: list[str] = []
     enabled = True
-    if local_ci:
+    for m in members:
+        m.info = json.loads(board.gh("pr", "view", str(m.number), "-R", board.repo(), "--json", workflow.PR_FIELDS))
+    # #531: integrate's choice (`stand_in_mode`), made once for the train: the flag, `ci = "local"`, or a member head
+    # Actions cannot run
+    modes = (
+        ci_status.stand_in_mode(local_ci, m.info.get("statusCheckRollup") or [], m.info["headRefOid"]) for m in members
+    )
+    if mode := next((w for w in modes if w), ""):
+        if mode != "--local-ci":
+            print(f"train: running CI locally ({mode}), as --local-ci does", flush=True)
         contexts, bound = ci_status.required_contexts()
         if why := ci_status.local_ci_refusal(contexts, bound):
             for m in members:
-                m.outcome, m.fields = "refused", {"reason": f"--local-ci: {why}"}
-            print(f"RESULT: refused: --local-ci: {why}")
-            return _result(members, gates, 1, "refused", reason=f"--local-ci: {why}")
+                m.outcome, m.fields = "refused", {"reason": f"{mode}: {why}"}
+            print(f"RESULT: refused: {mode}: {why}")
+            return _result(members, gates, 1, "refused", reason=f"{mode}: {why}")
         enabled = ci_status.actions_enabled()
-    for m in members:
-        m.info = json.loads(board.gh("pr", "view", str(m.number), "-R", board.repo(), "--json", workflow.PR_FIELDS))
+    local_ci = bool(mode)
     refs = {m.number: f"refs/devkit/train/pr-{m.number}" for m in members}
     main_ref = "refs/devkit/train/main"
     tree = workflow.state_dir("integrate") / "train"
@@ -449,7 +463,7 @@ def _train(
         admitted = [
             m
             for m in members
-            if _admit(m, main, harness_cleared(m.number, harness_ok), dry_run, contexts, enabled, override)
+            if _admit(m, main, harness_cleared(m.number, harness_ok, m.head), dry_run, contexts, enabled, override)
         ]
         if not admitted:
             print("RESULT: nothing to gate: no member was admitted")
@@ -529,13 +543,13 @@ def _train(
         for m in landing:
             if local_ci and landed.log is not None:
                 try:
-                    _post_local_ci(m, landed.log, names)
+                    _post_local_ci(m, landed.log, names, mode)
                 except (board.BoardError, RuntimeError, OSError) as exc:
                     m.fields["local_ci_error"] = str(exc)
             _close_merged(m, names, tip)
         try:  # the merge stands whatever this finds
             sent = workflow.send_back_conflicting(landing[-1].number)
-        except (board.BoardError, RuntimeError, OSError, ValueError) as exc:
+        except (board.BoardError, RuntimeError, OSError, ValueError, subprocess.SubprocessError) as exc:
             print(f"conflict check of the new main skipped ({exc}): each open PR meets it at its own integrate")
         checkout = workflow.main_checkout()
         if not workflow.git("-C", str(checkout), "status", "--porcelain", "--untracked-files=no"):

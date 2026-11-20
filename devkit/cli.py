@@ -13,6 +13,8 @@ from importlib import metadata
 from pathlib import Path
 
 from devkit import (
+    arch,
+    autopilot,
     board,
     branches,
     checks,
@@ -29,15 +31,17 @@ from devkit import (
     mutants,
     prtext,
     quota,
+    research,
     research_eval,
     reuse,
     rules,
     setup,
+    snowball,
     stats,
     train,
     workflow,
 )
-from devkit.paths import pin_git_output, root
+from devkit.paths import pin_git_output, root, state_dir
 from devkit.suite_audit import due, file_report, last_snapshot, render, report
 
 NOTE_TEMPLATE = """# Research: {title}
@@ -288,6 +292,12 @@ def build() -> Parser:
     )
 
     x = sub.add_parser(
+        "autopilot",
+        help="lead: one loop tick in code (quota, board sync, integrate ready PRs); prints only what needs a decision",
+    )
+    x.add_argument("--dry-run", action="store_true", help="integrate and the train dry-run; no board sync")
+
+    x = sub.add_parser(
         "cite-check", help="resolve every source in research notes; flag dead links and title mismatches"
     )
     x.add_argument("paths", nargs="*", help="notes (default: notes changed vs main)")
@@ -343,6 +353,21 @@ def build() -> Parser:
         x.add_argument("-n", type=int, default=lit.DEFAULT_N, help=f"results (max {lit.MAX_N})")
         x.add_argument("--years", default="", help="2019, 2015-, -2020 or 2015-2020")
         x.add_argument("--snippet", type=int, default=lit.SNIPPET, help="abstract characters per paper (0 = none)")
+    x = ls.add_parser(
+        "snowball",
+        help="expand accepted papers by references, citations, co-citation, coupling and related works (OpenAlex): "
+        "one line per candidate, ranked, naming the signals that surfaced it",
+    )
+    x.add_argument("id", nargs="+", help="seed DOIs, arXiv ids or OpenAlex W-ids (excluded from the output)")
+    x.add_argument("-n", type=int, default=snowball.DEFAULT_N, help=f"candidates (max {snowball.MAX_N})")
+    x.add_argument(
+        "--depth",
+        type=int,
+        default=1,
+        help=f"hops, 1 to {snowball.MAX_DEPTH}; stops early when a hop adds nothing to the top n",
+    )
+    x.add_argument("--signals", default=",".join(snowball.SIGNALS), help=f"comma list of {', '.join(snowball.SIGNALS)}")
+    x.add_argument("--keep", type=int, default=snowball.KEEP, help="top candidates of a hop chased in the next")
     x = sub.add_parser(
         "reuse",
         help="reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); "
@@ -371,8 +396,15 @@ def build() -> Parser:
     x.add_argument("-n", type=int, default=reuse.DEFAULT_N, help=f"candidates (max {reuse.MAX_N})")
     x.add_argument("--json", action="store_true", help="JSON to paste into a research note")
     x.add_argument("--allow-copyleft", action="store_true", help="the owner allows strong copyleft (gate G5)")
-    r = sub.add_parser("research", help="research notes: new")
+    r = sub.add_parser("research", help="research notes: new, search")
     rs = r.add_subparsers(dest="sub", required=True)
+    x = rs.add_parser(
+        "search",
+        help="what earlier notes, their labelled claims and cached full texts already say (BM25), one line each",
+    )
+    x.add_argument("words", nargs="+")
+    x.add_argument("-n", type=int, default=research.DEFAULT_N, help=f"hits (max {research.MAX_N})")
+    x.add_argument("--scratch", action="store_true", help="also search research rounds' _scratch/ files")
     x = rs.add_parser("new", help="create <research_dir>/<slug>.md from the house template")
     x.add_argument("slug")
     x.add_argument("--title", required=True)
@@ -442,6 +474,11 @@ def build() -> Parser:
     )
     y.add_argument("--json", action="store_true")
     y.add_argument("--tools", action="store_true", help="also run pinned pyscn and vulture on a git-archive copy")
+    x = sub.add_parser(
+        "arch", help="architecture in at most 8 lines: import contracts, largest cycle, top 3 hotspots, LOC ceiling"
+    )
+    x.add_argument("--json", action="store_true")
+    x.add_argument("--rev", help="read this commit's git objects instead of the working tree (a replay)")
     x = sub.add_parser("agent-stats", help="scorecard from transcripts: tokens, calls, big-result share per agent type")
     x.add_argument("--json", action="store_true")
     g = x.add_mutually_exclusive_group()
@@ -627,6 +664,8 @@ def run(a: argparse.Namespace) -> int:
                 return 2
             harness_ok = a.harness_ok is not None
             return workflow.integrate(a.pr, harness_ok, a.dry_run, a.override, a.local_ci, a.consolidation_review)
+        case "autopilot":
+            return autopilot.run(a.dry_run)
         case "cite-check":
             paths = [Path(p) for p in a.paths] or _changed_notes()
             if not paths:
@@ -644,6 +683,12 @@ def run(a: argparse.Namespace) -> int:
             return run_lit(a)
         case "reuse":
             return run_reuse(a)
+        case "research" if a.sub == "search":
+            query = " ".join(a.words)
+            papers = lit.cached_full_texts(state_dir("lit"))
+            pool = research.units(root() / config.get().research_dir, papers, root(), scratch=a.scratch)
+            hits = research.search_cached(pool, query, a.n, state_dir("research-search") / "lengths.json")
+            print(research.render(hits, query))
         case "research":
             path = root() / config.get().research_dir / f"{a.slug}.md"
             if path.exists():
@@ -679,6 +724,13 @@ def run(a: argparse.Namespace) -> int:
             print(stats.run(a.mode, a.since, a.until, a.json) if a.mode else stats.report(a.json))
         case "consolidation":
             return run_consolidation(a)
+        case "arch":
+            r = arch.measure(root(), a.rev)
+            print(
+                json.dumps({k: v for k, v in r.items() if k != "loc"}, indent=1)
+                if a.json
+                else "\n".join(arch.render(r))
+            )
         case name if name in config.get().commands:
             return run_project_command(name, a.args)
     return 0
@@ -763,6 +815,11 @@ def run_lit(a: argparse.Namespace) -> int:
             code, text = lit.read(lit.client(), a.id, a.section)
             print(text)
             return code
+        elif a.sub == "snowball":
+            signals = tuple(s.strip() for s in a.signals.split(",") if s.strip())
+            cands, notes = snowball.snowball(lit.client(), a.id, a.n, a.depth, signals, a.keep)
+            print(snowball.render(cands, notes))
+            return 0 if cands else 1
         elif a.sub in lit.CHASE:
             papers, notes = lit.client().chase(a.id, a.sub, a.n, a.years)
         else:

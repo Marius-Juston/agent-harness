@@ -23,6 +23,7 @@ from pathlib import Path, PurePosixPath
 from devkit import board, branches, checks, config, consolidation, handoff, quota
 from devkit import integrate as admission
 from devkit.ci_status import (  # re-exported: devkit/train.py reads these through devkit.workflow
+    Probe,
     actions_enabled,
     await_actions,
     await_checks,
@@ -31,6 +32,7 @@ from devkit.ci_status import (  # re-exported: devkit/train.py reads these throu
     local_ci_refusal,
     only_pending,  # noqa: F401 - devkit/integrate.py and devkit/train.py read it by name
     required_contexts,
+    stand_in_mode,
     standing,
     unfinished,
 )
@@ -554,11 +556,14 @@ def _follow(log: Path, stop: threading.Event) -> None:
             stop.wait(FOLLOW_S)
 
 
-def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: list[str], update: dict) -> int | None:
-    """`--local-ci`, after the local run passed on the merged tree whose commit is `tip`: wait for Actions on `tip`,
-    then post a success status for each required context Actions did not run, with the log's hash, and say so on the
-    PR. None to go on to the merge, else the exit code after the result line."""
-    print(f"waiting for Actions on {tip[:10]} ({', '.join(contexts)}) ...", flush=True)
+def _stand_in(
+    pr_number: int, tip: str, contexts: list[str], log: Path, todo: list[str], update: dict, mode: str = "--local-ci"
+) -> int | None:
+    """`--local-ci` (or what `mode` names: why CI ran locally, kept in the status and the comment), after the local run passed on the merged tree whose commit is `tip`: wait for Actions on `tip`
+    (not with `ci = "local"`), then post a success status for each required context Actions did not run, with the
+    log's hash, and say so on the PR. None to go on to the merge, else the exit code after the result line."""
+    if config.get().ci != "local":
+        print(f"waiting for Actions on {tip[:10]} ({', '.join(contexts)}) ...", flush=True)
     state, now = await_actions(pr_number, tip, contexts)
     if state == "moved":
         print(f"RESULT: stopped (the PR head moved away from {tip[:10]} while waiting for Actions); rerun integrate")
@@ -571,7 +576,7 @@ def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: li
         return result(pr_number, 1, "waiting", judged=tip, pending=running, **({"head": tip} | update))
     if stood := [c for c, s in now.items() if s == "never-ran"]:
         digest = hashlib.sha256(log.read_bytes()).hexdigest()
-        note = f"dev integrate --local-ci: passed on this commit; log sha256 {digest[:16]}"
+        note = f"dev integrate ({mode}): passed on this commit; log sha256 {digest[:16]}"
         for ctx in stood:
             board.gh(
                 "api", "-X", "POST", f"repos/{board.repo()}/statuses/{tip}",
@@ -581,8 +586,13 @@ def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: li
             f"`{c}`: " + (" && ".join(" ".join(a) for a in config.get().local_ci[c]) or "the gate") for c in stood
         )
         body = (
-            f"CI ran locally (`dev integrate --local-ci`): GitHub Actions did not run {', '.join(stood)} on {tip} "
-            "(disabled, billing-blocked, or not queued in time). On that exact merged tree `uv run dev check "
+            f"CI ran locally (`dev integrate`, {mode}): GitHub Actions did not run {', '.join(stood)} on {tip} "
+            + (
+                "(it is not waited on)"
+                if config.get().ci == "local"
+                else "(disabled, billing-blocked, no runner, or not queued in time)"
+            )
+            + ". On that exact merged tree `uv run dev check "
             f"--no-cache` passed, then each check's own stand-in ({ran}). Log sha256 `{digest}`, kept at `{log}` on "
             f"{os.uname().nodename}. Posted {', '.join(stood)} as commit statuses on {tip[:10]}."
         )
@@ -682,7 +692,7 @@ def _wait_on_tip(
 
 def integrate(
     pr_number: int,
-    harness_ok: bool,
+    harness_ok: bool | str,
     dry_run: bool,
     override: str | None = None,
     local_ci: bool = False,
@@ -704,7 +714,7 @@ def integrate(
 
 def _integrate(
     pr_number: int,
-    harness_ok: bool,
+    harness_ok: bool | str,
     dry_run: bool,
     override: str | None = None,
     local_ci: bool = False,
@@ -751,12 +761,16 @@ def _integrate(
     if not (adm := admission.admit(pr_number, info, override=override)).admitted:
         return turned_away(adm)
     contexts, ignore = [], frozenset()
-    if local_ci:
+    # #531: one path for the flag, `ci = "local"` and a head Actions cannot run (billing, offline runners, no run)
+    if mode := stand_in_mode(local_ci, info.get("statusCheckRollup") or [], info["headRefOid"]):
+        local_ci = True
+        if mode != "--local-ci":
+            print(f"running CI locally ({mode}), as --local-ci does", flush=True)
         contexts, bound = required_contexts()
         if why := local_ci_refusal(contexts, bound):
-            print(f"RESULT: refused: --local-ci: {why}")
-            return done(1, "refused", reason=f"--local-ci: {why}")
-        now = standing(info.get("statusCheckRollup") or [], contexts, actions_enabled(), {})
+            print(f"RESULT: refused: {mode}: {why}")
+            return done(1, "refused", reason=f"{mode}: {why}")
+        now = standing(info.get("statusCheckRollup") or [], contexts, actions_enabled(), Probe())
         ignore = frozenset(c for c, s in now.items() if s != "failed")  # judged on the gated head, after the run
     again = False  # the last run timed out waiting on this same head (#305)
     if (waiting := _waiting_file(pr_number)).exists():
@@ -894,7 +908,7 @@ def _integrate(
                             reason="feedback on the pushed head", feedback=arrived, **update)  # fmt: skip
     if local_ci and dry_run:
         print(f"would wait for Actions on {tip[:10]} and post what it does not run as statuses: {', '.join(contexts)}")
-    elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update)) is not None:
+    elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update, mode)) is not None:
         return code
     try:
         reason = _merge_if_unchanged(
@@ -926,7 +940,7 @@ def _integrate(
             print(branches.drop_branch(name, [tip]))
     try:  # the merge stands whatever this finds: a failure only skips the check
         sent = send_back_conflicting(pr_number)
-    except (board.BoardError, RuntimeError, OSError, ValueError) as exc:
+    except (board.BoardError, RuntimeError, OSError, ValueError, subprocess.SubprocessError) as exc:
         sent = []
         print(f"conflict check of the new main skipped ({exc}): each open PR meets it at its own integrate")
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):
