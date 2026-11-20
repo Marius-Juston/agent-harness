@@ -1518,7 +1518,7 @@ def test_no_issue_moves_when_the_merge_does_not_happen(fake_integrate, monkeypat
     [
         ("checks", [_run("check", conclusion="FAILURE")], True, "refused", 1),
         ("gate_code", 1, True, "gate-failed", 1),
-        ("files", ["devkit/x.py"], False, "harness-review", 2),
+        ("files", ["CLAUDE.md"], False, "harness-review", 2),  # devkit/ here needs a review first (#501)
         ("fetched_head", "x" * 40, True, "stopped", 1),
         ("tip", HEAD, True, "merged", 0),
     ],

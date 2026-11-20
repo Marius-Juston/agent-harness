@@ -23,7 +23,7 @@ Then `dev orient` if SessionStart context is old; `dev board list --status revie
 ## 2. Close the loop first
 Each tick: `uv run dev autopilot` merges what integrate takes alone (harness PRs: a current merge verdict by the `autopilot_trust_review` reviewer); act on its lines. Per review item, by priority:
 1. `gh pr diff <pr> --name-only`, `dev board feedback <pr>`.
-2. Spawn a `harness-ops:reviewer` for PRs touching harness files, several Owns, or anything a user sees; a `harness-ops:research-auditor` for decision-driving research.
+2. Spawn `harness-ops:reviewer` for harness, multi-Owns or user-facing PRs, `harness-ops:research-auditor` for decision-driving research; after a feature merge, `harness-ops:tester` on it.
 3. Answer or fix every comment (people, bots; resume the worker for fixes), resolve its thread (outdated ones block too).
 4. Only Blocking or untagged findings return the PR, with at most 3 Nits: send the worker a pointer of at most 200 characters, `PR #<pr> round <N>: <review URL>; uv run dev board feedback <pr>`, and post no review text yourself; the worker posts a fix-to-finding map. Re-review after a Blocking fix only, passing round number, last reviewed SHA and earlier review URLs (no confirmation round; a project's security reviewer, if any, re-reviews any code change). After round 3, take "reconsider the approach" to the owner: never merge with an open Blocking finding.
 5. Pre-existing and Follow-up findings: a fix-now (multi-agent.md §3) or a new-code defect returns to the worker; file the rest as issues.
