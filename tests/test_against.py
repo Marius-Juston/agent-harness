@@ -75,7 +75,7 @@ def test_the_against_query_is_not_taken_for_a_later_claims_quote(tmp_path):
         "  Second (SOURCED, [Other](https://arxiv.org/abs/2601.00009), §2).\n"
     )
     first, second = citecheck.claims(tmp_path / "n.md", text)
-    assert first.quote.startswith("ranged from 3 %") and first.against.startswith('"a long contrary')
+    assert first.quote.startswith("ranged from 3 %") and (first.against or "").startswith('"a long contrary')
     assert second.quote == "" and second.against == first.against
 
 
@@ -96,7 +96,7 @@ def test_a_table_row_records_its_against_search_in_a_cell(tmp_path):
         f'| claim | source | against |\n| rate | {QUOTE} {CITE} | against: "verifier strictness replication" → none |\n'
     )
     [c] = citecheck.claims(tmp_path / "n.md", text)
-    assert c.against.startswith('"verifier strictness') and citecheck.against_problem(c) == ""
+    assert (c.against or "").startswith('"verifier strictness') and citecheck.against_problem(c) == ""
 
 
 def test_an_against_line_inside_a_code_fence_does_not_count(tmp_path):
