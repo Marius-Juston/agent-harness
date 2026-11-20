@@ -795,7 +795,7 @@ class Checker:
         sub, rest = args[i], args[i + 1 :]
         if sub == "config" and any("hookspath" in a.lower() for a in rest) and not config_reads_only(rest):
             return HOOKS
-        if any(long_opt(a, "--no-verify", 9) for a in rest):
+        if sub != "commit" and any(long_opt(a, "--no-verify", 9) for a in rest):  # commit: values are data (#605)
             return HOOKS
         if sub == "commit" and commit_skips_hooks(rest):
             return HOOKS
@@ -910,7 +910,8 @@ def config_reads_only(rest: list[str]) -> bool:
 
 
 def commit_skips_hooks(rest: list[str]) -> bool:
-    """git commit -n is --no-verify; -m, -F, -c, -C and -t take a value, as the rest of the cluster or the next arg."""
+    """git commit -n is --no-verify; -m, -F, -c, -C and -t take a value, as the rest of the cluster or the next arg,
+    so `-m --no-veri` is a message, not the option."""
     skip = False
     for a in rest:
         if skip:
@@ -918,6 +919,8 @@ def commit_skips_hooks(rest: list[str]) -> bool:
             continue
         if a == "--":
             break
+        if long_opt(a, "--no-verify", 9):
+            return True
         if a in COMMIT_VALUE:  # --message -n: "-n" is the message
             skip = True
         elif a.startswith("-") and not a.startswith("--"):
