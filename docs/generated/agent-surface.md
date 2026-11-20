@@ -28,6 +28,13 @@
 |---|---|---|---|
 | plugins/harness-ops/hooks/hooks.json | SessionStart | startup/resume/clear/compact | `scripts/session_brief.sh` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash/WebFetch | `scripts/guard_bash.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Grep | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash | `scripts/uv_add_guard.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash/Read | `scripts/read_guard.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Edit/Write/MultiEdit/NotebookEdit | `scripts/edit_guard.py` |

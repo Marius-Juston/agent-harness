@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """PreToolUse(Bash): refuse commands that break project rules, each with the fix in the message (exit 2).
+PreToolUse(Read|Grep): refuse the same secrets (.env, the research keys file, gh's credential) to the file tools.
 
 The command is tokenized the way bash reads it: quoted strings and heredoc bodies are data (commit messages, issue
 text, file contents), while every simple command is checked, including those inside $(...), `...`, <(...),
@@ -7,19 +8,26 @@ text, file contents), while every simple command is checked, including those ins
 to an interpreter (bash, sh, python) by a heredoc, a here-string or a pipe. Stdlib only. Settings deny rules are
 prefix-only and this hook is best effort; server-side branch protection is the only complete guard for main.
 
+GitHub writes that bypass integrate or widen access (gh pr merge, repository settings, refs, releases, gists) are
+refused to every session; issue housekeeping is the lead's, and PR reviews and `Verdict:` lines belong to the reviewer
+agents (#528), told apart by the input's `agent_type`.
+
 A command allowed through that can wait forever (a poll loop, `tail -f`, `watch`, `wait`, ...) is rewritten
 (updatedInput) to run under `timeout <[tool.devkit] wait_bound_s>`; see bound_waits.
+
+Defense in depth, not a security boundary. Every agent runs as the owner, holding the owner's GitHub token and SSH
+keys, so the GitHub and credential rules (#528, #601) close the common and the obvious paths only: code in a script
+file, an encoding this lexer does not undo, or a tool it does not know still reaches what the owner can. The real
+boundary is credentials scoped per agent, which no hook provides.
 """
 
+import functools
 import itertools
 import json
 import os
 import re
 import shlex
-import subprocess
 import sys
-import tempfile
-from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
 
 # Hooks run as `#!/usr/bin/env python3`, the host's interpreter, not the project's: every script must run on this
@@ -34,6 +42,63 @@ SECRETS = (
     "loads it itself, and `uv run dev doctor` says whether each key is found, never its value."
 )
 SECRETS_NAME = "api-keys.env"
+# #601: gh's credential: its hosts file (under $GH_CONFIG_DIR, $XDG_CONFIG_HOME/gh or ~/.config/gh) and the token
+# variables. gh reads them itself as a program; an agent reading one holds the owner's GitHub token outside every
+# gh rule below (#528).
+GH_CRED = (
+    "the owner's credentials (gh's config directory ~/.config/gh or $GH_CONFIG_DIR, GH_TOKEN and GITHUB_TOKEN, the "
+    "token `gh auth` or git's credential helpers print, SSH private keys) stay out of agent hands: gh, git and ssh "
+    "read them themselves, so run those (`gh auth status` says whether a token is set). A whole-environment read "
+    "(env, printenv, set, export -p, os.environ, process.env) prints them too: read one variable by name, e.g. "
+    "`printenv HOME`."
+)
+SSH_PUBLIC = {"config", "known_hosts", "known_hosts.old", "authorized_keys", "environment"}  # not secrets in ~/.ssh
+CRED_OK = {"ls", "stat", "test", "[", "[[", "cd", "pushd", "echo", "printf", "file", "ssh", "ssh-add", "ssh-keygen"}
+CRED_OK |= {"dirname", "basename", "realpath", "readlink"}  # name a credential path without reading it
+TREE_SEARCHERS = {"ag", "ack", "pt", "sift"}  # search a tree with no -r
+GREP_ABOVE = (
+    "this Grep path is a folder above a credential store (~/.config/gh, ~/.ssh), and Grep searches hidden files, so "
+    "it would read the owner's token. Grep the project or a narrower folder."
+)
+ARCHIVERS = {"tar", "zip", "7z", "7za", "cpio", "rsync", "pax", "ar"}  # read a whole directory tree
+CRED_TEXT = re.compile(r"gh/hosts\.yml|gh/config\.yml|GH_CONFIG_DIR|\.ssh/id_[\w-]+\b(?!\.pub)")
+# Interpreters whose -e / program text this hook reads for environment and credential reads (python has its own path).
+INTERPRETERS = {"node": "js", "nodejs": "js", "deno": "js", "bun": "js", "perl": "pl", "ruby": "rb", "php": "php"}
+INTERPRETERS |= {"awk": "awk", "gawk": "awk", "mawk": "awk", "nawk": "awk"}
+ENV_ANY = {
+    "py": re.compile(r"\benviron\b|\bgetenv\b|\benvirons\b"),
+    "js": re.compile(r"\bprocess\.env\b|\bDeno\.env\b|\bBun\.env\b"),
+    "pl": re.compile(r"%ENV\b|\$ENV\b|\bENV\b"),
+    "rb": re.compile(r"\bENV\b"),
+    "awk": re.compile(r"\bENVIRON\b"),
+    "php": re.compile(r"\bgetenv\b|\$_ENV\b|\$_SERVER\b"),
+}
+# One variable read by its literal name: allowed unless the name is a token's.
+ENV_ONE = re.compile(
+    r"""(?:\bos\.environ\.get\s*\(|\bos\.environ\s*\[|\bos\.getenv\s*\(|\bgetenv\s*\(|\benviron\.get\s*\(|\benviron\s*\["""
+    r"""|\bprocess\.env\s*\[|\bENV\.fetch\s*\(|\bENV\s*\[|\$ENV\s*\{|\bENVIRON\s*\[|\$_ENV\s*\[|\$_SERVER\s*\[)"""
+    r"""\s*(['"]?)([A-Za-z_]\w*)\1\s*[\])},]|\bprocess\.env\.([A-Za-z_]\w*)"""
+)
+PY_OS_IMPORT = re.compile(r"(?m)^\s*(?:from\s+os\s+import[^;\n]*|import\s+os\b[^;\n]*)")
+# Code that runs text it decodes, which no check here can read (#603 pre-existing finding).
+OPAQUE = (
+    'decoded or rewritten text run as code (base64 -d | bash, eval "$(... | rev)", exec(b64decode(...))) cannot be '
+    "checked: run the command itself."
+)
+TRANSFORMERS = {"base64", "base32", "basenc", "xxd", "openssl", "gunzip", "zcat", "gzip", "bzip2", "bzcat", "xz"}
+TRANSFORMERS |= {"xzcat", "unxz", "zstd", "zstdcat", "unzstd", "lzcat", "uudecode", "rev", "tr", "sed", "awk", "gawk"}
+TRANSFORMERS |= {"perl", "ruby", "node", "iconv", "jq", "cut", "paste"}
+CODE_DECODE = re.compile(
+    r"b64decode|b32decode|b16decode|b85decode|a85decode|codecs\.decode|fromhex|decompress|rot_?13|atob\s*\("
+    r"|Buffer\.from\s*\([^)]*['\"](?:base64|hex)|\[::-1\]"
+)
+CODE_RUN = re.compile(r"\b(?:exec|eval|compile|system|popen|subprocess|spawn|execSync|child_process|Function)\b")
+VAR_REF = re.compile(r"\$\{([A-Za-z_]\w*)\}|\$([A-Za-z_]\w*)")
+DECLARERS = {"export", "declare", "typeset", "local", "readonly"}
+TOKEN_NAMES = {"GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"}
+EXPANDS = re.compile(r"\$\{?[#!]?([A-Za-z_]\w*)")  # a variable a word expands (single-quoted text removed first)
+SINGLE_QUOTED = re.compile(r"\$?'[^']*'")
+DUMPERS = {"export", "declare", "typeset"}  # with no names (or only -p / -x) they print every exported variable
 MAIN = "Never push to main: push your issue branch and open a PR (`uv run dev pr <issue>`); the lead integrates."
 FORCE = "Force-push rewrites shared history. Use --force-with-lease on your own issue branch only, never on main."
 HOOKS = "--no-verify, -n, SKIP= and core.hooksPath skip the checks every agent is held to. Fix what the hook reports instead."
@@ -145,21 +210,134 @@ CONFIG_READ_FLAGS |= {"--no-includes", "-z", "--null", "--name-only", "--all", "
 CONFIG_READ_FLAGS |= {"--bool", "--int", "--bool-or-int", "--path", "--expiry-date", "--no-type"}
 CONFIG_VALUE_OPTS = {"-f", "--file", "--blob", "--type", "--default", "--url", "--value"}  # their value is not a name
 
+# #528: GitHub writes that bypass integrate or widen access. Every agent acts as the owner's gh user, so an injected
+# instruction acts through exactly these. dev integrate calls gh from Python, which this hook never sees.
+GH_MERGE = (
+    "`gh pr merge` (and a merge through `gh api`) skips integrate's re-gate of the merged tree. Open the PR with "
+    "`uv run dev pr <issue>`; the lead merges it with `uv run dev integrate <pr>`."
+)
+GH_ADMIN = (
+    "repository settings, branch protection, rulesets, collaborators, webhooks, keys, secrets, variables, releases, "
+    "gists, gh aliases and the gh token are the owner's: no agent changes or reads them. Push your branch and open the "
+    'PR with `uv run dev pr <issue>`; for anything else, `uv run dev board block <issue> --reason "<what the owner '
+    'must do>"`.'
+)
+REF_DELETE = (
+    "deleting or moving a remote ref can drop another worker's branch. `uv run dev worktree prune` deletes only a "
+    "branch whose merged PR head contains its tip."
+)
+ISSUE_WRITE = (
+    "closing, editing, deleting or moving an issue is the lead's. Comment on it (`gh issue comment`) or block it "
+    '(`uv run dev board block <issue> --reason "..."`) and say so in your hand-back.'
+)
+REVIEW = (
+    "only harness-ops:reviewer and harness-ops:research-auditor post PR reviews or `Verdict:` lines, each naming only "
+    "itself: a verdict is what integrate trusts, and every agent posts as the owner. Hand back; the lead dispatches "
+    "the reviewer."
+)
+OWNER_MARK = (
+    "`weakening-ok:` lines are the owner's approval and `<!-- devkit:` markers are devkit's own records: an agent "
+    'never writes them. Ask the owner with `uv run dev board block <issue> --reason "..."`.'
+)
+REVIEWERS = {"reviewer", "research-auditor"}  # agent types (plugin prefix dropped) that post verdict reviews
+VERDICT_LINE = re.compile(r"(?im)^[\s>*_#`-]*verdict:[\s*_]*(merge|send back|reconsider)")  # looser than board.VERDICT
+WEAKENING_OK = re.compile(r"^\s*weakening-ok:\s*\S", re.M)  # devkit/weaken.py MARKER: must agree (a test checks)
+DEVKIT_MARK = re.compile(r"<!--\s*devkit:")
+AGENT_NAMED = re.compile(r"harness-ops:([\w-]+)")
+GH_OWNER_CMDS = {
+    "repo": {"edit", "delete", "archive", "unarchive", "rename", "create", "deploy-key", "sync", "fork"},
+    "gist": {"create", "edit", "delete"},
+    "release": {"create", "delete", "edit", "upload", "delete-asset"},
+    "secret": {"set", "delete", "remove"},
+    "variable": {"set", "delete"},
+    "alias": {"set", "import"},  # an alias could name `pr merge`
+    "config": {"set"},  # owner settings, aliases among them
+    "auth": {"refresh", "login", "logout", "setup-git", "switch"},
+    "ruleset": {"create", "edit", "delete"},
+    "ssh-key": {"add", "delete"},
+    "gpg-key": {"add", "delete"},
+    "label": {"delete"},
+    "workflow": {"enable", "disable"},
+    "extension": {"install", "upgrade", "remove", "create"},
+    "extensions": {"install", "upgrade", "remove", "create"},
+    "ext": {"install", "upgrade", "remove", "create"},
+}
+# gh's own command groups (2.x) and its built-in `co` alias. A first word outside them is an alias or an extension,
+# which can name any command: refused to subagents, whose aliases this hook cannot resolve.
+GH_GROUPS = {"agent-task", "alias", "api", "attestation", "auth", "browse", "cache", "co", "codespace", "completion"}
+GH_GROUPS |= {"config", "copilot", "extension", "extensions", "ext", "gist", "gpg-key", "help", "issue", "label"}
+GH_GROUPS |= {"org", "pr", "preview", "project", "release", "repo", "ruleset", "rs", "run", "search", "secret"}
+GH_GROUPS |= {"ssh-key", "status", "variable", "workflow", "version", "accessibility", "licenses"}
+GH_GLOBAL_VALUE = {"-R", "--repo", "--hostname"}  # flags gh takes anywhere, before the command words too
+GH_UNKNOWN = (
+    "this gh command is not one of gh's own, so it is an alias or an extension, which can run any gh command. Run the "
+    "gh command itself; extensions and aliases are the owner's."
+)
+COMMIT_API = (
+    "a commit made through the GitHub API (contents, git data, createCommitOnBranch, merge-upstream) lands on a "
+    "branch without integrate. Commit locally, push your issue branch and open the PR with `uv run dev pr <issue>`."
+)
+GH_DIRECT = (
+    "a GitHub API write outside gh (curl, wget, httpie, requests, fetch) skips every gh rule. Use the gh command, "
+    "whose writes this hook checks, or a `uv run dev` command; plain GET reads stay allowed."
+)
+GITHUB_API = re.compile(r"\b(?:api|uploads)\.github\.com\b|/api/v3/|/api/graphql\b")
+CODE_WRITE = re.compile(
+    r"\.(?:post|put|patch|delete)\s*\(|method\s*[=:]\s*['\"](?:POST|PUT|PATCH|DELETE)|\bdata\s*=|\bjson\s*=|\bbody\s*:",
+    re.I,
+)
+CURL_DATA = {"--data", "--data-raw", "--data-binary", "--data-urlencode", "--data-ascii", "--form", "--form-string"}
+CURL_DATA |= {"--upload-file", "--json", "-d", "-F", "-T"}
+WGET_WRITE = ("--post-data", "--post-file", "--body-data", "--body-file")
+HTTPIE = {"http", "https", "xh", "xhs"}
+WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+GH_ISSUE_OWN = {"close", "edit", "delete", "transfer"}  # gh issue <sub>: the lead's, refused to subagents
+# REST endpoints no agent writes: the repository itself and its access, refs, merges, releases; gists; new repositories.
+GH_OWNER_API = re.compile(
+    r"^(?:repos/[^/]+/[^/]+/?$|repos/[^/]+/[^/]+/(?:branches/[^/]+/protection|rulesets|collaborators|hooks|keys|"
+    r"actions/|environments|transfer|invitations|releases|dispatches|pages|forks)|gists|user/(?:repos|keys|gpg_keys)|"
+    r"orgs/[^/]+/(?:repos|rulesets|hooks|members|secrets|variables))"
+)
+GH_REF_API = re.compile(r"^repos/[^/]+/[^/]+/(?:git/refs|branches/[^/]+/rename)")
+GH_COMMIT_API = re.compile(r"^repos/[^/]+/[^/]+/(?:contents/|git/(?:commits|trees|blobs|tags)|merge-upstream)")
+GH_MERGE_API = re.compile(r"^repos/[^/]+/[^/]+/(?:pulls/\d+/merge|merges)")
+GH_REVIEW_API = re.compile(r"^repos/[^/]+/[^/]+/pulls/\d+/reviews")
+GH_ISSUE_API = re.compile(r"^repos/[^/]+/[^/]+/issues/(?:\d+/?$|comments/\d+)")
+GQL_MERGE = re.compile(r"\b(?:mergePullRequest|enablePullRequestAutoMerge|mergeBranch)\b")
+GQL_COMMIT = re.compile(r"\bcreateCommitOnBranch\b")
+GQL_REF = re.compile(r"\b(?:deleteRef|updateRef|updateRefs|createRef)\b")
+GQL_OWNER = re.compile(
+    r"\b(?:(?:create|update|delete)BranchProtectionRule|"
+    r"(?:create|update|delete)RepositoryRuleset|updateRepository|archiveRepository|unarchiveRepository|"
+    r"deleteRepository|createRepository|transferRepository|cloneTemplateRepository|addCollaborator)\b"
+)
+GQL_REVIEW = re.compile(r"\b(?:addPullRequestReview|submitPullRequestReview|dismissPullRequestReview)\b")
+GQL_ISSUE = re.compile(r"\b(?:closeIssue|updateIssue|deleteIssue|transferIssue|updateIssueComment)\b")
+GH_API_VALUE = {"-H", "--header", "-q", "--jq", "-t", "--template", "--hostname", "-p", "--preview", "--cache"}
+GH_API_VALUE |= {"-R", "--repo"}
+GH_API_FIELD = {"-f", "-F", "--field", "--raw-field", "--input"}
+BODY_FILE = {"--body-file", "-F", "--input"}  # their value is a file the text is read from; "-" is stdin
 
-@dataclass
-class Word:
-    value: str
-    glob: bool = False  # an unquoted * ? or [ that bash would expand
-    quoted: bool = False
-    brace: bool = False  # an unquoted {, so maybe a brace expansion
+
+class Word:  # plain classes, not dataclasses: importing dataclasses costs every Bash call 5 ms
+    __slots__ = ("brace", "glob", "quoted", "value")
+
+    def __init__(self, value: str, glob: bool = False, quoted: bool = False, brace: bool = False):
+        self.value = value
+        self.glob = glob  # an unquoted * ? or [ that bash would expand
+        self.quoted = quoted
+        self.brace = brace  # an unquoted {, so maybe a brace expansion
 
 
-@dataclass
 class Simple:
-    words: list[Word] = field(default_factory=list)
-    stdin: list[tuple[str, bool]] = field(default_factory=list)  # heredoc / here-string text, and "is a heredoc"
-    reads: list[str] = field(default_factory=list)  # input redirection targets
-    writes: list[str] = field(default_factory=list)  # output redirection targets
+    __slots__ = ("expands", "reads", "stdin", "words", "writes")
+
+    def __init__(self, words: list[Word] | None = None):
+        self.words: list[Word] = words if words is not None else []
+        self.stdin: list[tuple[str, bool]] = []  # heredoc / here-string text, and "is a heredoc"
+        self.reads: list[str] = []  # input redirection targets
+        self.writes: list[str] = []  # output redirection targets
+        self.expands: list[str] = []  # the variables its words and unquoted heredocs expand
 
 
 class Lexer:
@@ -257,11 +435,18 @@ class Lexer:
             body = "\n".join(lines)
             owner.stdin.append((body, True))
             if not quoted:
+                owner.expands += EXPANDS.findall(body)
                 scan_substitutions(body, self.out)  # an unquoted heredoc still runs $(...) and `...`
         self.pending = []
         return i
 
     def word(self, i: int) -> tuple[Word, int]:
+        w, j = self.word_at(i)
+        if "$" in self.s[i:j]:
+            self.pipe[-1].expands += EXPANDS.findall(SINGLE_QUOTED.sub("", self.s[i:j]))
+        return w, j
+
+    def word_at(self, i: int) -> tuple[Word, int]:
         s, buf, glob, quoted, brace = self.s, [], False, False, False
         while i < self.n:
             c = s[i]
@@ -405,6 +590,8 @@ def settings_files(cwd: str) -> list[str]:
         starts.append(pwd.getpwuid(os.getuid()).pw_dir)
     except (ImportError, KeyError, AttributeError):
         pass
+    import subprocess  # here, not at the top: most calls never spawn anything, and the import costs every call
+
     try:
         out = subprocess.run(
             ["git", "-C", cwd, "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
@@ -603,7 +790,14 @@ def unwrap(argv: list[str], assigns: list[str]) -> list[str]:
 
 
 class Checker:
-    def __init__(self, cwd: str, read_only: str = ""):
+    def __init__(self, cwd: str, read_only: str = "", agent: str | None = None):
+        # #528: the subagent's type, plugin prefix dropped; None in the main (lead) session. VERIFIED on a real
+        # PreToolUse input: a subagent's carries agent_type "<plugin>:<name>", the main session's has none.
+        self.agent = agent
+        self.fed: list[str] = []  # the text earlier stages of the current pipeline write to this command's stdin
+        self.later: list[str] = []  # the command names of the current pipeline's later stages
+        self.vars: dict[str, str] = {}  # literal values the command assigns, expanded where words use them
+        self.transforms = False  # some stage rewrites text (base64 -d, rev, sed, ...): code built from it is opaque
         self.read_only = read_only  # a read-only agent's own `dev` report (READ_ONLY_AGENTS); "": not read-only
         self.cwd = cwd
         self.start = cwd  # the session's worktree; a `cd ..` inside the command does not move it
@@ -617,18 +811,36 @@ class Checker:
             return DEEP
         pipes = lex(text)
         self.lit_vars |= lit_vars(pipes)
+        self.vars.update(assigned(pipes))
+        if TOKEN_NAMES & set(self.vars.values()):  # x=GH_TOKEN; echo ${!x}
+            return GH_CRED
+        names = [[base(a[0]) for a in [unwrap([w.value for w in c.words], [])] if a] for p in pipes for c in p]
+        self.transforms = self.transforms or any(n and n[0] in TRANSFORMERS for n in names)
         for pipe in pipes:
             cmds = [c for c in pipe if c.words or c.stdin or c.reads or c.writes]
             for k, c in enumerate(cmds):
+                self.fed = [t for p in cmds[:k] for t in [b for b, _ in p.stdin] + [w.value for w in p.words]]
+                self.later = [base(p.words[0].value) for p in cmds[k + 1 :] if p.words]
+                if k and c.words and base(c.words[0].value) == "xargs" and self.feeds_cred_paths(c, cmds[:k]):
+                    return GH_CRED
                 if why := self.simple(c, depth):
                     return why
-                if self.stdin_lang(c) and k:  # earlier stages of the pipeline feed this interpreter
-                    lang = self.stdin_lang(c)
+                if (lang := self.stdin_lang(c)) and k:  # earlier stages of the pipeline feed this interpreter
+                    if any(base(w.value) in TRANSFORMERS for prev in cmds[:k] for w in prev.words[:1]):
+                        return OPAQUE
                     for prev in cmds[:k]:
                         for chunk in [b for b, _ in prev.stdin] + [w.value for w in prev.words[1:]]:
                             if why := self.code(chunk, lang, depth):
                                 return why
         return None
+
+    def feeds_cred_paths(self, c: Simple, earlier: list[Simple]) -> bool:
+        """`du -a ~ | xargs grep x`: xargs runs a reader on paths listed from a directory holding a credential store."""
+        inner = unwrap([w.value for w in c.words], [])
+        if inner and base(inner[0]) in CRED_OK:
+            return False
+        roots = [w.value for p in earlier for w in p.words[1:] if not w.value.startswith("-")]
+        return any(holds_cred(r, self.cwd) for r in roots)
 
     def code(self, chunk: str, lang: str, depth: int) -> str | None:
         if lang == "sh":
@@ -642,6 +854,8 @@ class Checker:
         for group in re.findall(r"\[([^\]]*)\]", src):  # list-form argv: ["pip", "install", "x"]
             parts = re.findall(r"'((?:[^'\\\n]|\\.)*)'|\"((?:[^\"\\\n]|\\.)*)\"", group)
             strings.append(" ".join(a or b for a, b in parts))
+        if why := self.code_reaches(src, "py"):
+            return why
         self.in_python += 1
         try:
             for s in strings:
@@ -649,6 +863,8 @@ class Checker:
                     return ENV
                 if is_secrets(Word(s)):
                     return SECRETS
+                if s in TOKEN_NAMES or cred_path(s, self.cwd):  # os.environ["GH_TOKEN"], open(".../hosts.yml")
+                    return GH_CRED
                 if why := self.text(s, depth + 1):
                     return why
             return None
@@ -676,6 +892,9 @@ class Checker:
         return None
 
     def simple(self, c: Simple, depth: int) -> str | None:
+        fed, self.fed = self.fed, []
+        if self.vars and any("$" in w.value for w in c.words):  # b=main; git push origin $b
+            c = self.expanded(c)
         assigns: list[str] = []
         argv = unwrap([w.value for w in c.words], assigns)
         name = base(argv[0]) if argv else ""
@@ -690,6 +909,8 @@ class Checker:
             return ENV
         if (any(is_secrets(w) for w in paths) and not env_ok) or any(is_secrets(Word(r)) for r in c.reads):
             return SECRETS
+        if why := self.gh_cred(c, argv, paths, name in CRED_OK) or self.reaches(c, argv, fed):
+            return why
         exported = argv[1:] if name in ("export", "declare", "typeset", "local", "readonly") else []
         if any(HOOK_VAR.match(a) or "hookspath" in a.lower() for a in exported + (assigns if not argv else [])):
             return HOOKS
@@ -752,11 +973,213 @@ class Checker:
                     return LIT
         if name == "pkill" and any(a == "--full" or (re.match(r"-[^-]", a) and "f" in a) for a in args):
             return PKILL
+        if name == "gh":
+            return self.gh(args, [b for b, _ in c.stdin] + fed)
+        if name in ("dev", "devkit.cli") and args[:1] in (["board"], ["pr"]):
+            return self.forged(args + [b for b, _ in c.stdin] + fed)
         if name == "git":
             return self.git(args, assigns)
         if name == "rm":
             return self.rm(args)
         return None
+
+    def gh_cred(self, c: Simple, argv: list[str], paths: list[Word], path_ok: bool) -> str | None:
+        """#601: GH_CRED when the command reads or writes a credential store, reads a token variable, or dumps the
+        environment."""
+        if TOKEN_NAMES & set(c.expands):
+            return GH_CRED
+        if not path_ok and any(cred_path(w.value, self.cwd, w.glob) for w in paths):
+            return GH_CRED
+        if any(cred_path(r, self.cwd) or "/environ" in r for r in c.reads + c.writes):
+            return GH_CRED
+        if any("/environ" in w.value and "/proc/" in w.value for w in c.words):
+            return GH_CRED
+        name, args = (base(argv[0]), argv[1:]) if argv else ("", [])
+        if TOKEN_NAMES & set(args) and name in ("printenv", "declare", "typeset", "export"):
+            return GH_CRED
+        if name == "printenv" and not [a for a in args if not a.startswith("-")]:
+            return GH_CRED
+        if name == "set" and not args:
+            return GH_CRED
+        if name in DUMPERS and all(re.fullmatch(r"-[px]+", a) for a in args):
+            return GH_CRED
+        words = [w.value for w in c.words if not ASSIGN.match(w.value)]
+        if not argv and words and base(words[0]) == "env":  # bare `env [-0] [NAME=v]`: prints every variable
+            return GH_CRED
+        return GH_CRED if self.sweeps_creds(name, args) else None
+
+    def sweeps_creds(self, name: str, args: list[str]) -> bool:
+        """A recursive or archiving read (grep -r, rg, find -exec, cp -r, tar, rsync, ...) of a directory that holds a
+        credential store, such as ~ or ~/.config."""
+        if name in GREPS and name != "rg":
+            if not short_flag(args, "rR", ("--recursive", "--dereference-recursive")):
+                return False
+        elif name in TREE_SEARCHERS:  # recursive by default, and some read hidden files: counted as reading them
+            pass
+        elif name == "find":
+            runs = {"-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0", "-fprintf"} & set(args)
+            if not runs and "xargs" not in self.later:
+                return False
+        elif name in ("cp", "scp"):
+            if not short_flag(args, "rRa", ("--recursive", "--archive")):
+                return False
+        elif name not in ARCHIVERS and name != "rg":
+            return False
+        hidden = name != "rg" or any(
+            a in ("--hidden", "-uu", "-uuu") or re.fullmatch(r"-[a-zA-Z]*\.[a-zA-Z]*", a) for a in args
+        )
+        roots = [a for a in args if not a.startswith("-")] or ["."]
+        return any(holds_cred(root, self.cwd, hidden) for root in roots)
+
+    def reaches(self, c: Simple, argv: list[str], fed: list[str]) -> str | None:
+        """What interpreter code and raw HTTP clients reach: the environment, credential files, GitHub API writes
+        (subagents), and code decoded at run time."""
+        name, args = (base(argv[0]), argv[1:]) if argv else ("", [])
+        if (
+            self.transforms
+            and any("\0" in a for a in argv)
+            and (name in SHELLS or PY.match(name) or name in ("eval", "source", ".", *INTERPRETERS) or "\0" in argv[0])
+        ):
+            return OPAQUE  # eval "$(... | base64 -d)", bash <(... | rev), $(... | tr ...)
+        if name in INTERPRETERS:
+            code = "\n".join(args + [b for b, _ in c.stdin] + fed)
+            if why := self.code_reaches(code, INTERPRETERS[name]):
+                return why
+        if self.agent is not None and api_write(name, args):
+            return GH_DIRECT
+        return None
+
+    def code_reaches(self, code: str, lang: str) -> str | None:
+        if env_read(code, lang) or CRED_TEXT.search(code):
+            return GH_CRED
+        if self.agent is not None and GITHUB_API.search(code) and CODE_WRITE.search(code):
+            return GH_DIRECT
+        if CODE_DECODE.search(code) and CODE_RUN.search(code):
+            return OPAQUE
+        return None
+
+    def expanded(self, c: Simple) -> Simple:
+        """c with the variables this command assigned literal values to expanded; unquoted ones split into words."""
+        words: list[Word] = []
+        for w in c.words:
+            v = VAR_REF.sub(lambda m: self.vars.get(m.group(1) or m.group(2), m.group(0)), w.value)
+            if v != w.value and not w.quoted:
+                words += [Word(x) for x in v.split()]
+            else:
+                words.append(Word(v, w.glob, w.quoted, w.brace))
+        new = Simple(words)
+        new.stdin, new.reads, new.writes, new.expands = c.stdin, c.reads, c.writes, c.expands
+        return new
+
+    def gh(self, args: list[str], stdin: list[str]) -> str | None:
+        """#528: refuse gh writes that bypass integrate, widen access or forge a record devkit trusts."""
+        pos, k = [], 0  # the indexes of gh's two command words; global flags such as -R <repo> may come first
+        while k < len(args) and len(pos) < 2:
+            if args[k] in GH_GLOBAL_VALUE:
+                k += 2
+                continue
+            if not args[k].startswith("-"):
+                pos.append(k)
+            k += 1
+        group, sub = args[pos[0]] if pos else "", args[pos[1]] if len(pos) > 1 else ""
+        rest = args[pos[0] + 1 :] if pos else []
+        if group and group not in GH_GROUPS and self.agent is not None:
+            return GH_UNKNOWN
+        if group in ("extension", "extensions", "ext") and sub == "exec" and self.agent is not None:
+            return GH_UNKNOWN
+        if group == "pr" and sub == "merge":
+            return GH_MERGE
+        if group == "auth" and (sub in ("token", "git-credential") or (sub == "status" and shows_token(rest))):
+            return GH_CRED
+        if sub in GH_OWNER_CMDS.get(group, ()):
+            return GH_ADMIN
+        if group == "issue" and sub in GH_ISSUE_OWN and self.agent is not None:
+            return ISSUE_WRITE
+        texts = self.gh_texts(rest, stdin)
+        if group == "api" and (why := self.gh_api(rest, texts)):
+            return why
+        if group == "pr" and sub == "review" and self.agent not in REVIEWERS:
+            return REVIEW
+        if group in ("pr", "issue", "api"):
+            return self.forged(texts, verdicts=True)
+        return None
+
+    def gh_api(self, args: list[str], texts: list[str]) -> str | None:
+        method, endpoint, fields, k = "", "", False, 0
+        while k < len(args):
+            a = args[k]
+            if a in ("-X", "--method") and k + 1 < len(args):
+                method, k = args[k + 1], k + 1
+            elif a.startswith("--method=") or (a.startswith("-X") and len(a) > 2):
+                method = a.split("=", 1)[1] if a.startswith("--") else a[2:]
+            elif a in GH_API_FIELD:
+                fields, k = True, k + 1
+            elif a.split("=", 1)[0] in GH_API_FIELD:
+                fields = True
+            elif a in GH_API_VALUE:
+                k += 1
+            elif not a.startswith("-") and not endpoint:
+                endpoint = a
+            k += 1
+        method = (method or ("POST" if fields else "GET")).upper()
+        endpoint = re.sub(r"^(?:https?://[^/]+/(?:api/v3/)?)?/*", "", endpoint).split("?", 1)[0]
+        if endpoint == "graphql":
+            text = "\n".join(texts)
+            if GQL_MERGE.search(text):
+                return GH_MERGE
+            if GQL_COMMIT.search(text):
+                return COMMIT_API
+            if GQL_REF.search(text):
+                return REF_DELETE
+            if GQL_OWNER.search(text):
+                return GH_ADMIN
+            if GQL_REVIEW.search(text) and self.agent not in REVIEWERS:
+                return REVIEW
+            return ISSUE_WRITE if GQL_ISSUE.search(text) and self.agent is not None else None
+        if method in ("GET", "HEAD"):
+            return None
+        if GH_MERGE_API.match(endpoint):
+            return GH_MERGE
+        if GH_COMMIT_API.match(endpoint):
+            return COMMIT_API
+        if GH_REF_API.match(endpoint):
+            return REF_DELETE
+        if GH_OWNER_API.match(endpoint):
+            return GH_ADMIN
+        if GH_REVIEW_API.match(endpoint) and self.agent not in REVIEWERS:
+            return REVIEW
+        return ISSUE_WRITE if GH_ISSUE_API.match(endpoint) and self.agent is not None else None
+
+    def gh_texts(self, args: list[str], stdin: list[str]) -> list[str]:
+        """Every text a gh command may post: its arguments, and the files or stdin its body options read."""
+        texts = list(args)
+        for k, a in enumerate(args):
+            path = None
+            if a in BODY_FILE and k + 1 < len(args):
+                path = args[k + 1]
+            elif a.startswith(("--body-file=", "--input=")):
+                path = a.split("=", 1)[1]
+            elif "=@" in a:
+                path = a.split("=@", 1)[1]
+            if path == "-":
+                texts += stdin
+            elif path:
+                try:
+                    with open(os.path.join(self.cwd, os.path.expanduser(path)), encoding="utf-8") as f:
+                        texts.append(f.read(1 << 20))
+                except (OSError, UnicodeDecodeError):
+                    pass
+        return texts
+
+    def forged(self, texts: list[str], verdicts: bool = False) -> str | None:
+        """OWNER_MARK or REVIEW when the text carries a record devkit trusts because the owner's gh user posted it."""
+        text = "\n".join(texts)
+        if WEAKENING_OK.search(text) or DEVKIT_MARK.search(text):
+            return OWNER_MARK
+        if not (verdicts and VERDICT_LINE.search(text)):
+            return None
+        others = set(AGENT_NAMED.findall(text)) & REVIEWERS - {self.agent}  # a reviewer passing as the other one
+        return REVIEW if self.agent not in REVIEWERS or others else None
 
     def owner_setting(self, argv: list[str], writes: list[str], paths: list[Word]) -> str | None:
         """The denial when the command sets one of OWNER_SETTINGS: `dev quota-cap <pct>|--clear` (or gate-slots), or
@@ -793,6 +1216,11 @@ class Checker:
         if i >= len(args):
             return None
         sub, rest = args[i], args[i + 1 :]
+        if sub == "credential" or sub.startswith("credential-"):  # `git credential fill` prints the stored token
+            return GH_CRED
+        no_index = sub == "grep" and "--no-index" in rest  # searches any directory, hidden files included
+        if no_index and any(holds_cred(a, where) for a in rest if not a.startswith("-")):
+            return GH_CRED
         if sub == "config" and any("hookspath" in a.lower() for a in rest) and not config_reads_only(rest):
             return HOOKS
         if any(long_opt(a, "--no-verify", 9) for a in rest):
@@ -816,6 +1244,8 @@ class Checker:
         shorts, longs, pos = parse_opts(args)
         if not ({"r", "R"} & shorts or any(long_opt(o, "--recursive", 3) for o in longs)):
             return None
+        import tempfile
+
         root = worktree_root(self.start)
         temp = os.path.realpath(tempfile.gettempdir())
         for t in pos:
@@ -843,6 +1273,8 @@ class Checker:
                 opt = a.split("=", 1)[0]
                 if opt == "--force":
                     return FORCE
+                if long_opt(opt, "--delete", 4) or opt == "--prune":
+                    return REF_DELETE
                 if long_opt(opt, "--mirror", 4) or long_opt(opt, "--all", 4) or long_opt(opt, "--branches", 4):
                     return MAIN
                 tags_only = tags_only or opt == "--tags"
@@ -850,6 +1282,8 @@ class Checker:
             elif a.startswith("-") and len(a) > 1:
                 if "f" in a.split("o", 1)[0]:
                     return FORCE
+                if "d" in a.split("o", 1)[0]:
+                    return REF_DELETE
                 skip = a.endswith("o")
             else:
                 pos.append(a)
@@ -857,6 +1291,8 @@ class Checker:
         for r in refspecs:
             if r.startswith("+"):
                 return FORCE
+            if r.startswith(":"):  # an empty source deletes the destination
+                return REF_DELETE
             dst = r.split(":")[-1].removeprefix("refs/").removeprefix("heads/")
             if dst in ("HEAD", "@"):
                 dst = current_branch(where) or ""
@@ -985,12 +1421,122 @@ def destructive_git(sub: str, rest: list[str], where: str) -> str | None:
     return None
 
 
+@functools.lru_cache(maxsize=1)
+def cred_dirs() -> tuple[str, ...]:
+    """Credential stores: gh's config directories ($GH_CONFIG_DIR, $XDG_CONFIG_HOME/gh, ~/.config/gh) and ~/.ssh."""
+    home = os.path.expanduser("~")
+    dirs = [os.environ.get("GH_CONFIG_DIR", ""), os.path.join(os.environ.get("XDG_CONFIG_HOME") or "", "gh")]
+    dirs += [os.path.join(home, ".config", "gh"), os.path.join(home, ".ssh")]
+    return tuple(dict.fromkeys(os.path.normpath(d) for d in dirs if os.path.isabs(d)))
+
+
+def cred_path(value: str, cwd: str, glob: bool = False) -> bool:
+    """A path into a credential store (any file of gh's config directory, an SSH private key) or a glob reaching one.
+    gh's config.yml counts: its aliases can rename `pr merge`."""
+    if any(ch.isspace() for ch in value):  # prose, not a path
+        return False
+    if re.search(r"\$\{?(?:GH_CONFIG_DIR|XDG_CONFIG_HOME)\b", value):
+        return True
+    path = re.split(r"[=:]", value)[-1]
+    dirs = cred_dirs()
+    if not path or not (glob or "/" in path or path[0] in "~$." or any(within(cwd, d) for d in dirs)):
+        return False  # a bare name outside a credential store: the common case, decided without touching the path
+    full = os.path.normpath(os.path.join(cwd, os.path.expanduser(os.path.expandvars(path))))
+    ssh = os.path.join(os.path.expanduser("~"), ".ssh")
+    for d in dirs:
+        if d == ssh:
+            secret = within(full, d) and (full == d or not (base(full) in SSH_PUBLIC or full.endswith(".pub")))
+            if secret or (glob and any(fnmatchcase(os.path.join(d, k), full) for k in ("id_rsa", "id_ed25519"))):
+                return True
+        elif within(full, d) or (glob and any(fnmatchcase(x, full) for x in (d, f"{d}/hosts.yml", f"{d}/config.yml"))):
+            return True
+    return full.endswith(("/gh/hosts.yml", "/gh/config.yml"))
+
+
+def holds_cred(root: str, cwd: str, hidden: bool = True) -> bool:
+    """`root` is a directory at or above a credential store (~, ~/.config, /home, /), so a recursive read of it reaches
+    the store; with `hidden` False the store counts only when no hidden directory lies between them."""
+    if not root or any(ch.isspace() for ch in root):
+        return False
+    full = os.path.normpath(os.path.join(cwd, os.path.expanduser(os.path.expandvars(root))))
+    for d in cred_dirs():
+        if within(d, full) and (hidden or not any(x.startswith(".") for x in os.path.relpath(d, full).split(os.sep))):
+            return True
+        if any(ch in root for ch in "*?["):  # ~/.config/* lists the store itself; ~/.c*/* a folder above it
+            ups = [d]
+            while os.path.dirname(ups[-1]) != ups[-1]:
+                ups.append(os.path.dirname(ups[-1]))
+            if any(fnmatchcase(u, full) for u in ups):
+                return True
+    return False
+
+
+def shows_token(args: list[str]) -> bool:
+    """`gh auth status -t` / `--show-token[=...]`: it prints the token."""
+    return any(a.startswith("--show-token") or re.fullmatch(r"-[a-zA-Z]*t[a-zA-Z]*", a) for a in args)
+
+
+def env_read(code: str, lang: str) -> bool:
+    """Interpreter code that reads a token variable, or the environment other than one variable by literal name."""
+    if not ENV_ANY[lang].search(code):
+        return False
+    if any((m.group(2) or m.group(3)) in TOKEN_NAMES for m in ENV_ONE.finditer(code)):
+        return True
+    rest = ENV_ONE.sub("", PY_OS_IMPORT.sub("", code) if lang == "py" else code)
+    return bool(ENV_ANY[lang].search(rest))
+
+
+def api_write(name: str, args: list[str]) -> bool:
+    """A curl, wget or httpie call that writes to the GitHub API (any method but GET and HEAD)."""
+    if name not in ("curl", "wget", *HTTPIE) or not any(GITHUB_API.search(a) for a in args):
+        return False
+    if name == "curl":
+        method = ""
+        for k, a in enumerate(args):
+            if a in ("-X", "--request") and k + 1 < len(args):
+                method = args[k + 1]
+            elif a.startswith("--request="):
+                method = a.split("=", 1)[1]
+            elif a.startswith("-X") and len(a) > 2:
+                method = a[2:]
+        if method:
+            return method.upper() not in ("GET", "HEAD")
+        if "-G" in args or "--get" in args:
+            return False
+        short = [a for a in args if a.startswith("-") and not a.startswith("--")]
+        return any(a.split("=", 1)[0] in CURL_DATA for a in args) or any(set(a[1:]) & {"d", "F", "T"} for a in short)
+    if name == "wget":
+        method = next((a.split("=", 1)[1] for a in args if a.startswith("--method=")), "")
+        return method.upper() not in ("", "GET", "HEAD") or any(a.startswith(WGET_WRITE) for a in args)
+    items = [a for a in args if not a.startswith("-") and not GITHUB_API.search(a)]
+    return any(a.upper() in WRITE_METHODS for a in items) or any(re.match(r"^[\w.-]+(?::=|=|@)", a) for a in items)
+
+
+def assigned(pipes: list[list[Simple]]) -> dict[str, str]:
+    """NAME -> value for each literal assignment in the command (b=main, export M=-X): what `$b` expands to."""
+    out: dict[str, str] = {}
+    for pipe in pipes:
+        for c in pipe:
+            ws = [w.value for w in c.words]
+            if ws[:1] and ws[0] in DECLARERS:
+                ws = [w for w in ws[1:] if not w.startswith("-")]
+            for w in ws:
+                m = re.match(r"([A-Za-z_]\w*)=(.*)\Z", w, re.S)
+                if not m:
+                    break
+                if not re.search(r"[$\0`]", m.group(2)):
+                    out[m.group(1)] = m.group(2)
+    return out
+
+
 def within(path: str, top: str) -> bool:
     return path == top or path.startswith(top.rstrip(os.sep) + os.sep)
 
 
 def worktree_root(cwd: str) -> str:
     """The top of the worktree holding cwd, or cwd itself outside a repository."""
+    import subprocess
+
     try:
         out = subprocess.run(
             ["git", "-C", cwd, "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=5, check=False
@@ -1001,6 +1547,8 @@ def worktree_root(cwd: str) -> str:
 
 
 def current_branch(where: str) -> str | None:
+    import subprocess
+
     try:
         out = subprocess.run(
             ["git", "-C", where, "symbolic-ref", "--short", "-q", "HEAD"],
@@ -1284,9 +1832,10 @@ def bound_waits(cmd: str, cwd: str) -> tuple[str, str] | None:
     return new, note + (" " + PGREP_F if pgrep_f else "")
 
 
-def main() -> int:
+def main(raw: str | None = None) -> int:
+    """`raw`: the hook input file_guard.py already read from stdin."""
     try:
-        data = json.load(sys.stdin)
+        data = json.loads(raw) if raw is not None else json.load(sys.stdin)
         cmd = (data.get("tool_input") or {}).get("command", "")
         url = (data.get("tool_input") or {}).get("url", "") if data.get("tool_name") == "WebFetch" else ""
     except (json.JSONDecodeError, AttributeError):
@@ -1295,11 +1844,29 @@ def main() -> int:
     if isinstance(url, str) and LIT_API.match(url.strip()) and owner_env(LIT_RAW, cwd) != "1":
         print(f"Blocked by project rule: {LIT}", file=sys.stderr)
         return 2
+    if data.get("tool_name") in ("Read", "Grep"):  # #601: the file tools reach the same secrets
+        inp = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+        path = inp.get("file_path") or inp.get("path") or ""
+        why = None
+        if isinstance(path, str) and path:
+            w = Word(path, glob=any(ch in path for ch in "*?["))
+            why = ENV if is_env(w) else SECRETS if is_secrets(w) else GH_CRED if cred_path(path, cwd) else None
+        glob = inp.get("glob")
+        hint = glob if isinstance(glob, str) else ""
+        if not why and (cred_path(hint, cwd, glob=True) or "hosts.yml" in hint or ".ssh/" in hint):
+            why = GH_CRED
+        if not why and data.get("tool_name") == "Grep" and holds_cred(path or cwd, cwd):
+            why = GREP_ABOVE  # Grep searches hidden files: a folder above the store reaches it
+        if why:
+            print(f"Blocked by project rule: {why}", file=sys.stderr)
+            return 2
+        return 0
     if not isinstance(cmd, str):
         return 0
     agent = data.get("agent_type") if isinstance(data.get("agent_type"), str) else ""  # set inside a subagent
     try:
-        why = Checker(cwd, read_only=READ_ONLY_AGENTS.get(agent.rsplit(":", 1)[-1], "")).text(cmd)
+        kind = agent.rsplit(":", 1)[-1]
+        why = Checker(cwd, read_only=READ_ONLY_AGENTS.get(kind, ""), agent=kind if agent else None).text(cmd)
     except RecursionError:  # hundreds of nested substitutions: nobody writes that by hand
         why = DEEP
     if why:

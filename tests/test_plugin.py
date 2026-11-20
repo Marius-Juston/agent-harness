@@ -73,6 +73,8 @@ HOOK_PAYLOADS = {
     "guard_bash.py": {"tool_name": "Bash", "tool_input": {"command": "ls"}},
     "uv_add_guard.py": {"tool_name": "Bash", "tool_input": {"command": "ls"}},
     "read_guard.py": {"tool_name": "Read", "tool_input": {"file_path": "a.py"}},
+    # a path with a secret hint, so file_guard imports guard_bash under the minimum Python too
+    "file_guard.py": {"tool_name": "Read", "tool_input": {"file_path": "/x/.config/uv/uv.toml"}},
     "edit_guard.py": {"tool_name": "Edit", "tool_input": {"file_path": "a.py", "old_string": "x", "new_string": "y"}},
     "lint_after_edit.py": {"tool_name": "Edit", "tool_input": {"file_path": "a.py"}},
     "completion_gate.py": {"hook_event_name": "SubagentStop", "agent_type": "harness-ops:builder"},
