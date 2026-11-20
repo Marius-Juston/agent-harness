@@ -12,6 +12,7 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import yaml
@@ -1700,7 +1701,7 @@ def actions(fake_integrate, monkeypatch, clock):
     payload, over steps), notes (check run id -> annotations), runners (self-hosted runners; None when unreadable),
     owner (the repository owner's type), runs (workflow runs on a head), ci and start_s (config ci, actions_start_s; #531), commands (config local_ci);
     statuses records each status posted."""
-    knobs = {
+    knobs: dict[str, Any] = {
         "protection": {"contexts": ["check"], "checks": [{"context": "check", "app_id": None}]},
         "enabled": True,
         "steps": {},
