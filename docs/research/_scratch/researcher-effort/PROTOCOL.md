@@ -84,6 +84,8 @@ point rule decides, and a winner whose bound is below -0.10 ships with a 30-run 
   3. Added, not deciding: `scripts/score_pilot.py` (gold-work overlap across arms; share of 25+ character quotes found
      verbatim in a tool result the trial saw) and `scripts/pilot_arith.py` (cost by token kind, ratios, re-priced
      stage 1, power of budget-sized designs). Quote grounding is not §4's accuracy and does not replace the auditor.
+     Each arm's `pilot/<arm>/scripts/` holds the check script that trial wrote (copied from the clone, one blank line
+     added by `ruff format` in B's); none of them ran in the trial.
   4. Proposed for stage 1, in force only once the owner approves stage 1: the trial clone carries no history (the
      default allowlist has `git log*` and `git show*`, so `git show HEAD~1:<hidden path>` would read the gold); the
      allowlist adds `Bash(uv run python *)` and `Bash(python3 -I *)` (every arm's math-check script was denied) and the
