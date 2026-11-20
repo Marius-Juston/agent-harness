@@ -364,12 +364,9 @@ def test_a_doi_without_an_open_access_copy_has_no_full_text(tmp_path):
     assert ft is None and why == "no open-access copy"
 
 
-def test_lit_read_prints_the_outline_or_one_section(monkeypatch, capsys):
-    class Fake:
-        def full_text(self, ident):
-            return html(), ""
-
-    monkeypatch.setattr(lit, "client", Fake)
+def test_lit_read_prints_the_outline_or_one_section(tmp_path, monkeypatch, capsys):
+    net = Net({"https://arxiv.org/html/2607.00001": (200, long_html())})
+    monkeypatch.setattr(lit, "client", lambda: client(tmp_path, net))
     assert cli.run(cli.build().parse_args(["lit", "read", "2607.00001"])) == 0
     out = capsys.readouterr().out
     assert "3.2 Results (" in out and "0.27" not in out  # the outline only, never the text
