@@ -86,6 +86,14 @@ class FullText:
         return heads[start], "\n".join(f"{h}\n{t}" for h, t in self.sections[start:end])
 
 
+def from_record(rec: dict) -> FullText | None:
+    """The FullText a cache record holds (lit.Client.full_text writes `t` plus the dataclass's fields), None for a
+    cached 'none'. Raises KeyError or TypeError on a record of another shape. Records from before `levels` read."""
+    if "none" in rec:
+        return None
+    return FullText(rec["url"], rec["kind"], [tuple(s) for s in rec["sections"]], rec.get("levels") or [])
+
+
 def _number(heading: str) -> str:
     """'3.2' of '3.2 Results', 'A.1' of 'A.1 Proofs' or of 'Appendix A.1 Proofs'; '' when unnumbered."""
     m = NUMBER.match(re.sub(r"(?i)^\s*appendix\s+", "", heading))
