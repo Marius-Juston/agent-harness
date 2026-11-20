@@ -934,10 +934,7 @@ class Client:
         with contextlib.suppress(FileNotFoundError, json.JSONDecodeError, KeyError):
             rec = json.loads(path.read_text())
             if self.clock() - rec["t"] < CACHE_DAYS * 86400:
-                if "none" in rec:
-                    return None, rec["none"]
-                sections = [tuple(s) for s in rec["sections"]]
-                return fulltext.FullText(rec["url"], rec["kind"], sections, rec.get("levels") or []), ""
+                return fulltext.from_record(rec), rec.get("none", "")
         ft, why = self._read_full_text(ident)
         path.parent.mkdir(parents=True, exist_ok=True)
         rec = {"t": self.clock(), "none": why} if ft is None else {"t": self.clock(), **dataclasses.asdict(ft)}
@@ -1062,6 +1059,17 @@ def client(settings: Callable[[], config.Config] = config.get) -> Client:
     if not env.get(oa.CONTACT_ENV) and (email := oa.contact_email(settings)):
         env[oa.CONTACT_ENV] = email
     return Client(state_dir("lit"), env=env, rate_dir=user_state_dir("lit"))
+
+
+def cached_full_texts(lit_dir: Path) -> list[fulltext.FullText]:
+    """Every full text `Client.full_text` has cached under `lit_dir` (the client's dir), whatever its age, for
+    `dev research search`: a cached 'none' or an unreadable record is skipped."""
+    found = []
+    for path in sorted((lit_dir / "fulltext").glob("*.json")):
+        with contextlib.suppress(OSError, ValueError, KeyError, TypeError, AttributeError):
+            if ft := fulltext.from_record(json.loads(path.read_text(encoding="utf-8"))):
+                found.append(ft)
+    return found
 
 
 def read(c: Client, ident: str, section: str = "") -> tuple[int, str]:

@@ -10,6 +10,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 from hypothesis import given
@@ -573,6 +574,10 @@ def _gated(ev: list) -> int:
     return _index(ev, lambda e: e[0] == "run" and "check" in e)
 
 
+def _gate_runs(ev: list) -> int:
+    return sum(e[0] == "run" and "check" in e for e in ev)
+
+
 @pytest.mark.parametrize(
     "running",
     [
@@ -644,7 +649,8 @@ def test_checks_running_at_the_deadline_end_in_waiting_then_resume(fake_integrat
     res = _last_json(printed)
     assert (res["outcome"], res["head"], res["pending"]) == ("waiting", HEAD, ["ci/check"])
     assert "RESULT: waiting" in printed and sum(clock["sleeps"]) == pytest.approx(120)
-    assert not any(e[0] == "run" for e in fake_integrate["events"]) and not _merged(fake_integrate["events"])
+    # #541: the merged tree was gated once during the wait; the wait still decides, and nothing merges
+    assert _gate_runs(fake_integrate["events"]) == 1 and not _merged(fake_integrate["events"])
 
     fake_integrate["checks"] = [_run("check")]
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
@@ -711,7 +717,179 @@ def test_waiting_twice_on_one_head_points_past_a_rerun(fake_integrate, actions, 
     line = printed.splitlines()[-2]
     assert line.startswith("RESULT: waiting") and "again" in line and not line.endswith("rerun")
     assert "--local-ci" in line and "owner" in line
-    assert not any(e[0] == "run" for e in fake_integrate["events"]) and not _merged(fake_integrate["events"])
+    # #541: each wait on the head's own checks gates beside it (a rerun on a pushed head resumes its wait first)
+    assert _gate_runs(fake_integrate["events"]) == (2 if local_ci else 1)
+    assert actions["statuses"] == [] and not _merged(fake_integrate["events"])
+
+
+# --- integrate: the merged tree is gated while Actions runs on its head, not one after the other (#541) -------------
+
+REAL_SLEEP = time.sleep  # fake_integrate makes time.sleep a no-op; these tests time real waits
+REAL_KILL_GROUP = workflow._kill_group
+
+
+class SlowGate(FinishedGate):
+    """The gate's Popen, exiting with `code` `secs` (real time) after it started; `kill` ends it at once."""
+
+    def __init__(self, code, secs):
+        super().__init__(code)
+        self.end, self.killed = time.monotonic() + secs, False
+
+    def wait(self, timeout=None):
+        left = self.end - time.monotonic()
+        if timeout is not None and left > timeout:
+            REAL_SLEEP(timeout)
+            raise subprocess.TimeoutExpired("gate", timeout)
+        REAL_SLEEP(max(left, 0))
+        return -9 if self.killed else self.code
+
+    def kill(self):
+        self.end, self.killed = time.monotonic(), True
+
+
+def _timed(world: dict, monkeypatch) -> dict:
+    """Real-time fakes over fake_integrate: Actions takes `actions_s` on the head integrate judges (the PR's own head,
+    or with `behind` the merged tree it pushes, timed from the push) and concludes `verdict`; the gate takes `gate_s`
+    and exits `gate_code`. Returns the knobs; `_integrate_wall` runs integrate with some of them changed."""
+    knobs: dict[str, Any] = {"behind": False, "actions_s": 0.0, "gate_s": 0.0, "gate_code": 0, "verdict": "SUCCESS"}
+    knobs |= {"start": None, "gates": []}
+    monkeypatch.setattr(workflow.time, "sleep", REAL_SLEEP)
+    for name, value in (("CHECKS_FLOOR_S", 0.01), ("CHECKS_BASE_S", 0.02), ("CHECKS_CAP_S", 0.02)):
+        monkeypatch.setattr(ci_status, name, value)
+    git, gh = workflow.git, board.gh
+
+    def timed_git(*args, **kw):
+        if args[0] == "push":
+            knobs["start"] = time.monotonic()
+        return git(*args, **kw)
+
+    def timed_gh(*args, **kw):
+        if args[:2] == ("pr", "view") and "statusCheckRollup" in args[-1]:
+            start = knobs["start"]
+            if start is not None and time.monotonic() - start >= knobs["actions_s"]:
+                rollup = [_run("check", conclusion=knobs["verdict"])]
+            else:
+                rollup = [_run("check", status="IN_PROGRESS", conclusion="")]
+            if knobs["behind"]:
+                world["after_push"] = [rollup]
+            else:
+                world["checks"] = rollup
+        return gh(*args, **kw)
+
+    def popen(cmd, **kw):
+        knobs["gates"].append(SlowGate(knobs["gate_code"], knobs["gate_s"]))
+        return knobs["gates"][-1]
+
+    monkeypatch.setattr(workflow, "git", timed_git)
+    monkeypatch.setattr(board, "gh", timed_gh)
+    monkeypatch.setattr(workflow.subprocess, "Popen", popen)
+    monkeypatch.setattr(workflow, "_kill_group", lambda proc: proc.kill())
+    return knobs
+
+
+def _integrate_wall(world: dict, knobs: dict, **over) -> tuple[int, float]:
+    """integrate's exit code and wall time (s) with `over` set on the knobs, from a PR head GitHub shows as fetched."""
+    knobs.update(over)
+    world.update(remote_head=HEAD, tip="t" * 40 if knobs["behind"] else HEAD, checks=[_run("check")], after_push=[])
+    world["events"].clear()
+    knobs["start"] = None if knobs["behind"] else time.monotonic()
+    t0 = time.monotonic()
+    code = workflow.integrate(7, harness_ok=True, dry_run=False)
+    return code, time.monotonic() - t0
+
+
+@pytest.mark.parametrize("behind", [False, True], ids=["contains-main", "pushed"])
+@pytest.mark.parametrize(("actions_s", "gate_s"), [(1.0, 0.6), (0.6, 1.0)], ids=["actions-longer", "gate-longer"])
+def test_integrate_wall_is_the_longer_of_gate_and_actions_not_their_sum(
+    fake_integrate,  # noqa: F811
+    monkeypatch,
+    capsys,
+    behind,
+    actions_s,
+    gate_s,
+):
+    """#541 DONE WHEN: with checks taking T_a and the gate T_g, integrate's wall is within 10 % of max(T_a, T_g) plus
+    the overhead measured with both instant, for a PR already containing main (checks on its own head) and for one
+    integrate must push (checks on the pushed merged tree)."""
+    knobs = _timed(fake_integrate, monkeypatch)
+    code, overhead = _integrate_wall(fake_integrate, knobs, behind=behind)
+    assert code == 0, capsys.readouterr().out
+    code, wall = _integrate_wall(fake_integrate, knobs, actions_s=actions_s, gate_s=gate_s)
+    res = _last_json(capsys.readouterr().out)
+    assert code == 0 and res["outcome"] == "merged" and res["updated"] is behind
+    assert wall <= 1.1 * max(actions_s, gate_s) + overhead, (wall, overhead)
+    if behind:  # the merged tree went up before the gate: Actions ran on it while the gate did
+        ev = fake_integrate["events"]
+        assert _index(ev, lambda e: e[:2] == ("git", "push")) < _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
+
+
+@pytest.mark.parametrize(
+    ("behind", "gate_code", "verdict", "outcome"),
+    [
+        (False, 1, "SUCCESS", "gate-failed"),
+        (False, 1, "FAILURE", "refused"),  # the head's own checks are judged before the gate, as before #541
+        (False, 0, "FAILURE", "refused"),
+        (True, 1, "SUCCESS", "gate-failed"),
+        (True, 1, "FAILURE", "gate-failed"),  # the pushed tree's checks are judged after the gate, as before
+        (True, 0, "FAILURE", "refused"),
+    ],
+)
+def test_a_failing_gate_or_check_still_refuses_the_merge(
+    fake_integrate,  # noqa: F811
+    monkeypatch,
+    capsys,
+    behind,
+    gate_code,
+    verdict,
+    outcome,
+):
+    """#541 DONE WHEN: run side by side, a failing gate or check refuses exactly as when they ran one after the other,
+    with the same precedence and the same result fields."""
+    knobs = _timed(fake_integrate, monkeypatch)
+    code, _ = _integrate_wall(fake_integrate, knobs, behind=behind, actions_s=0.3, gate_s=0.1, gate_code=gate_code,
+                              verdict=verdict)  # fmt: skip
+    res = _last_json(capsys.readouterr().out)
+    assert code == 1 and res["outcome"] == outcome and not _merged(fake_integrate["events"])
+    if outcome == "refused":
+        assert res["feedback"] == ["check check: failing (FAILURE)"]
+    else:
+        assert res["reason"] == "the merged tree fails the gate" and res["cycle"] == 1
+    assert _record()["judged"] == ("t" * 40 if behind else HEAD)  # the head the worker now has
+
+
+def test_a_check_failing_on_the_head_kills_the_gate_running_beside_it(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    """#541: the head's own checks decide before the gate; once one fails the gate is killed, not waited out."""
+    knobs = _timed(fake_integrate, monkeypatch)
+    code, wall = _integrate_wall(fake_integrate, knobs, actions_s=0.2, gate_s=60, verdict="FAILURE")
+    res = _last_json(capsys.readouterr().out)
+    assert code == 1 and res["outcome"] == "refused" and res["feedback"] == ["check check: failing (FAILURE)"]
+    assert wall < 10 and [g.killed for g in knobs["gates"]] == [True] and not _merged(fake_integrate["events"])
+
+
+def test_a_real_gate_process_is_killed_when_the_checks_beside_it_fail(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    """#541: the kill reaches the gate's whole process group, as a timeout's does."""
+    knobs = _timed(fake_integrate, monkeypatch)
+    monkeypatch.setattr(workflow, "_kill_group", REAL_KILL_GROUP)
+    procs = []
+
+    def popen(cmd, **kw):
+        procs.append(REAL_POPEN([sys.executable, "-c", "import time; time.sleep(60)"], **kw))
+        return procs[-1]
+
+    monkeypatch.setattr(workflow.subprocess, "Popen", popen)
+    code, wall = _integrate_wall(fake_integrate, knobs, actions_s=0.2, verdict="FAILURE")
+    assert code == 1 and _last_json(capsys.readouterr().out)["outcome"] == "refused"
+    assert wall < 10 and len(procs) == 1 and procs[0].returncode == -9
+
+
+def test_a_failing_gate_stops_the_wait_on_the_pushed_tree(fake_integrate, monkeypatch, capsys):  # noqa: F811
+    """#541: the pushed tree's checks are judged only after the gate, so a failing gate ends integrate at once: it
+    does not wait out `checks_wait_s` for checks whose verdict no longer matters."""
+    knobs = _timed(fake_integrate, monkeypatch)
+    threads = set(threading.enumerate())
+    code, wall = _integrate_wall(fake_integrate, knobs, behind=True, actions_s=3600, gate_s=0.1, gate_code=1)
+    assert code == 1 and _last_json(capsys.readouterr().out)["outcome"] == "gate-failed"
+    assert wall < 5 and not [t for t in set(threading.enumerate()) - threads if t.name.startswith("checks-")]
 
 
 def test_a_retargeted_stacked_pr_gets_the_cherry_pick_route_not_a_force_push(monkeypatch, capsys):
