@@ -4,6 +4,171 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.18 (2026-11-20)
+
+The gate gains three stages: a ty type check held to a diagnostics ratchet, an architecture check (import contracts,
+an import-cycle ratchet and a module LOC ceiling) and an advisory copy-of-existing-code warning. It prints each
+stage's seconds and the 10 slowest tests. Integrate stands in for Actions on its own when a head shows within seconds
+that Actions cannot run it (or always, with `ci = "local"`), and it gates the merged tree while Actions run instead of
+after. The Bash guard refuses GitHub writes that bypass integrate or widen access, protects gh's credentials, and
+bounds commands that can wait forever. New commands: `dev arch`, `dev autopilot`, `dev release`, `dev mutants`,
+`dev code search`, `dev research search`, `dev lit snowball`, `dev lit read`, `dev gate-slots`, `dev eval research`,
+and a project's own commands under `dev`. cite-check now checks claim quotes against the paper's full text.
+
+### Upgrading a project
+Run `uvx copier update`, then `uv sync && uv run dev setup && uv run dev docs && uv run dev check`. These can need
+attention:
+- **The arch stage runs in every project, with or without an `[arch]` table.** Its defaults are no import cycle
+  (`max_import_cycle = 0`) and a 1,000-LOC module ceiling, so a project with an import cycle or a module over 1,000
+  LOC fails its first gate after the upgrade. Run `uv run dev arch`, then in the update PR set `[arch]
+  max_import_cycle` in `.devkit/ratchets.toml` to the cycle it reports and pin each module over the ceiling under
+  `[arch.module_loc]` at its LOC. The table the update adds or changes needs no `[[raise]]`; once it is on main its
+  values only go down, and raising one (or a new pin) needs an owner-approved `[[raise]]` with key `arch.<key>` or
+  `arch.module_loc.<path>`. Import contracts are opt-in: `pyproject.toml` gets two commented-out
+  `[[tool.devkit.arch.contracts]]` (no cycle among the package's modules; only the entry point imports the CLI).
+  (#527, #529)
+- **ty type check stage.** devkit now depends on `ty==0.0.107` (pinned exactly while ty is pre-1.0), so every
+  project's gate runs `ty check` and counts its diagnostics. The update adds `[types] max_diagnostics = 0` to
+  `.devkit/ratchets.toml`: a project with diagnostics fails until it fixes them or sets the budget to the count the
+  gate reports (adopting the table needs no `[[raise]]`; delete `[types]` to have the stage only report the count).
+  The budget only falls: raising it needs a `[[raise]]` on `types.max_diagnostics`, as will a later harness release
+  that bumps ty. Diagnostics that depend on which packages are installed (`import-not-found` and two others) are
+  shown but not counted. Exclude generated or frozen code under `[tool.ty.src] exclude`. (#59)
+- **Local-first CI.** Integrate and the train now take the `--local-ci` stand-in path without the flag when a head
+  shows Actions cannot run it: a job failed with GitHub's billing annotation, a job queued for a self-hosted runner
+  none of which is online (after `actions_start_s`, 20 s, when the runner list settles it, else
+  `actions_stranded_s`, 300 s), or no workflow run after `actions_start_s`. New `[tool.devkit] ci = "actions" |
+  "local"` (default `"actions"`); `"local"` reads each head's checks once, refuses a required check Actions ran and
+  failed, and stands in for the rest at once. A check Actions ran and failed still refuses in every mode. (#531, #554)
+- **The `--local-ci` stand-in now runs the gate workflow's other steps.** The template's `[tool.devkit.local_ci]
+  check` runs, after the gate, each `run:` step of `gate.yml`'s check job the gate does not cover: cite-check,
+  gitleaks over history, `uv audit`, Semgrep and the SBOM export (about 25-40 s per stand-in). A project that kept
+  its own `local_ci` table resolves the update's merge there; keep the list equal to `gate.yml`'s steps. (#544)
+- **Semgrep CE in the gate workflow's security steps** (`uvx semgrep@1.186.0`, rules pinned to one semgrep-rules
+  commit and downloaded per run) over shell scripts, workflow `run:` blocks and Dockerfiles. A finding fails CI;
+  silence a false positive with `# nosemgrep: <rule-id>` and the reason beside it. (#50)
+- **Guard changes refuse previously allowed actions.** For every session, the lead included: `gh pr merge` (CLI,
+  REST or GraphQL), repo, gist, release, secret, variable and ruleset writes, non-GET `gh api` on settings,
+  protection, rulesets, refs, collaborators, hooks and keys, ref deletes, commits made through the API, `gh repo
+  fork|sync`, gh extension installs, `gh config set`, `gh alias set`, and `weakening-ok:` lines or devkit markers in
+  gh, `dev board` or `dev pr` text. For subagents also: `gh issue close|edit|delete|transfer`, gh aliases and
+  extensions, and non-GET curl, wget, python or node requests to `api.github.com`. PR reviews and `Verdict:` lines
+  come only from the reviewer and research-auditor agents, each naming itself. gh's hosts file, `GH_TOKEN`,
+  `GITHUB_TOKEN`, SSH private keys and whole-environment dumps (a bare `env` included) are refused to Bash, Read and
+  Grep, and so is a Grep at or above `~/.config/gh` or `~/.ssh`. Merges go through `dev integrate`, releases through
+  `dev release publish`, and owner approvals are posted by the owner. (#528, #601)
+- **Guard overrides set in `.claude/settings*.json` `env` are ignored**, since that env reaches the hooks: set
+  `DEVKIT_ALLOW_COPYLEFT` or `DEVKIT_LIT_RAW` in the launching shell instead. edit_guard refuses an agent edit that
+  adds one to a settings file, and now also covers MultiEdit. (#191)
+- **Commands that can wait forever are bounded.** guard_bash rewrites an until/while poll loop, `tail -f`, `watch`,
+  `wait`, a long `sleep`, `gh run watch`, `gh pr checks --watch` and the like to `timeout <wait_bound_s> bash -c
+  '...'`; exit 124 means the bound ran out. New `[tool.devkit] wait_bound_s` (default 3600, 0 turns it off). Inside
+  the wrapper a `cd` does not carry to the next call. (#381)
+- **New `[tool.devkit] background_nice`** (default 10, 0-19): `dev test` and the suite audit run pytest at that nice
+  level, and the builder and researcher run heavy scripts under `nice -n <background_nice>`; gate stages keep the
+  caller's priority. (#543)
+- **New `[tool.devkit] commands`**: a project's own subcommands, `commands = { coverage = ["python", "-m",
+  "study.coverage"] }` makes `dev coverage <args>` run that list in the project root. A name that is a built-in is a
+  config error, so a later devkit adding that built-in asks you to rename yours. (#492)
+- **Other new `[tool.devkit]` keys, all opt-in:** `autopilot_trust_review` (default "", a reviewer agent whose merge
+  verdict on the current head lets `dev autopilot` integrate a harness PR) (#499); `release_files` (default
+  `["pyproject.toml"]`, the files `dev release prepare` writes the version into) (#605); `contact_email` (default
+  "", Unpaywall's contact address for `dev lit`; `UNPAYWALL_EMAIL` in the secrets file wins) (#9);
+  `research_eval_dir` (default `evals/research`) (#590); `[tool.devkit.arch]` `contracts` and
+  `type_checking_imports` (#527).
+- **`required_reviews` can now be met by the reviewer.** Its posted review ends `Reviewed by harness-ops:reviewer.`,
+  which the rule matches; before, following the template could never satisfy `required_reviews = { "<path>" =
+  "harness-ops:reviewer" }`. This repository now requires that review on `devkit/` and `plugins/`. (#501)
+- **cite-check is stricter on research notes.** Each SOURCED claim on a paper, on lines a branch adds or changes,
+  needs a verbatim quote and a locator found in the paper's full text (numeric, method and limitation claims cannot
+  rest on the abstract when the full text is reachable; no reachable full text needs `abstract-only`), and an
+  `against: "<query>" → <result>` line recording one search for contrary evidence. Untouched claims report notes;
+  `uv run dev cite-check --all` makes every claim strict. (#512, #592)
+- **Research API keys.** `CORE_API_KEY` and `UNPAYWALL_EMAIL` join the two search keys in `~/.config/api-keys.env`
+  (docs/SETUP.md); `dev doctor` reports all four and what each missing one costs. (#9, #622)
+- **Output changes for scripts that parse them:** each gate stage line carries its seconds (`ok      1.5s ruff
+  lint: ...`) and a slowest-tests list follows the tests stage; the gate's test-history record gains `stages`; `dev
+  status --json` gains `gate_slots` and `gate_slots_source`; `board brief` quotes every section others can write
+  inside a `<<<data <nonce>` envelope; a usage error prints the subcommand's usage and the nearest option. (#521,
+  #523, #56, #524)
+- **`devkit.board` is now a namespace over six modules** (`board_gh`, `board_issue`, `board_related`, `board_state`,
+  `board_lint`, `board_brief`). `board.X` reads and monkeypatches still work; code that patches a part directly
+  does not reach the others. (#625)
+- **`dev mutants` needs the `agent-harness[mutants]` extra** (cosmic-ray), which rendered projects do not install
+  yet: without it the command exits 2 with an install hint. (#134)
+
+### Added
+- Gate: a ty stage with a `[types] max_diagnostics` ratchet. (#59)
+- Gate: an arch stage and `dev arch [--json] [--rev REV]`, a report of at most 8 lines (contracts, largest cycle, top
+  3 hotspots, LOC ceiling). (#527, #529)
+- Gate: an advisory warning when a change adds a type-1/2 copy of existing code (pyscn), never failing. (#123)
+- Gate: each stage's wall time and the 10 slowest tests, also recorded in the test history. (#521)
+- `dev gate-slots [n] [--clear]`: a machine-local gate-slot count that wins over `gate_slots`, owner-only. (#523)
+- `dev autopilot [--dry-run]`: one deterministic lead iteration (sync, integrate green PRs, a wave to dispatch) in at
+  most 15 lines; the lead skill runs it each loop tick. (#499)
+- `dev release prepare|publish <version>`: bumps `release_files` and relocks after checking the CHANGELOG section,
+  then tags, pushes and publishes the GitHub Release, rerun-safe. (#605)
+- `dev mutants [--base REF] [--rev REV] [--all]`: advisory diff-scoped mutation testing; the reviewer runs it once
+  per review. (#134)
+- `dev code search "<words>"`: BM25-ranked functions as one-line cards; the builder's navigation line names it.
+  (#545)
+- `dev research search "<words>"`: BM25 over notes, their claims and cached full texts; the researcher's orient step
+  starts with it. (#589)
+- `dev lit read <id> [--section <loc>]`, the paper's full text by section, and cite-check's quote verification
+  against it; the research-auditor checks quote, locator and two sources or `single-source`. (#512, #413)
+- `dev lit snowball <ids>`: references and citations of accepted papers ranked by co-citation; the research skill's
+  gap pass uses it. (#591, #618)
+- Unpaywall, CORE and Europe PMC by DOI as open-access full-text locators. (#9)
+- `against:` lines for decision-driving claims, checked by cite-check. (#592)
+- `dev eval research`: a known-answer evaluation of the research skill (recall, claim support, tokens), with a
+  held-out snowball arm. (#590, #619)
+- `board feedback <pr> --dispose F<n>=fixed|filed|declined|false` and `agent-stats --findings`, the reviewer's
+  false-finding rate. (#83)
+- `[tool.devkit] commands`: project subcommands under `dev`. (#492)
+- Semgrep CE in CI's and the template's security steps. (#50)
+- `file_guard.py`: the Read and Grep guard for credential stores. (#601)
+
+### Changed
+- Integrate gates the merged tree while Actions run on it, killing the gate when a check fails. (#541)
+- Integrate and the train admit a PR through one function, `devkit/integrate.py` `admit`; `--train` accepts
+  `--override`, and the train reads branch protection and rulesets before admitting anything. (#473, #486)
+- Integrate stands in for Actions automatically when they cannot run; `ci` and `actions_start_s` /
+  `actions_stranded_s`. (#531, #554)
+- The `--local-ci` check stand-in runs CI's check-job steps, here and in the template. (#544)
+- guard_bash refuses GitHub writes that bypass integrate, credential reads and decoded code; its lexer, GitHub rules
+  and wait bound moved to `plugins/harness-ops/scripts/hooklib/`. (#528, #601)
+- guard_bash bounds commands that can wait forever. (#381)
+- `board brief` wraps text others can write in an untrusted-data envelope. (#56)
+- A wrong option prints the subcommand's usage and the nearest option. (#524)
+- `dev test` and the suite audit run at `background_nice`. (#543)
+- `devkit/board.py` split into six modules under the LOC ceiling. (#625)
+- This repository requires a harness-ops:reviewer verdict on `devkit/` and `plugins/`, and the lead dispatches a
+  tester after each feature merge. (#501)
+- The consolidation trigger's dormant smell skips scripts named by CI, a command table or an active decision. (#634)
+- `dev doctor` and `dev lit status` report all four research keys. (#622)
+- This repository keeps `docs/HANDOFF.md` and `docs/questions/OPEN_QUESTIONS.md` as rendered projects do; the
+  finished #174 re-measure script, `lit_bypass.py`, is deleted. (#650, #636)
+- Research notes: researcher effort and a Sonnet search phase, text-and-data-mining terms, semantic code search,
+  architecture grading, gate wall time, measuring the harness, a gap survey and docs that stay current. (#262, #587,
+  #495, #496, #520, #502, #498, #497)
+
+### Fixed
+- The first `dev check` in a fresh worktree recorded a pass `dev pr` could never match when a stage wrote an ignored
+  `.py` file; `dev pr` and the gate cache now share one pass lookup. (#485, #469)
+- Integrate's gate ignored an owner's `weakening-ok:` line: the detached tree could not find the PR's issue. (#487,
+  #251)
+- The suite audit's reruns took one gate slot while other gates ran beside them under `gate_slots > 1`. (#475)
+- gh calls failed on a transient network error (TLS timeout, reset, 502/503/504); reads now retry, and writes retry
+  only after re-reading GitHub, so nothing is posted twice. (#538)
+- The reviewer's review template did not name the reviewer, so `required_reviews` could never be met. (#501)
+- `dev cite-check` crashed on a response body cut short. (#56)
+- guard_bash refused a commit message containing `--no-veri` as a hooks bypass. (#605)
+- An integrate wait could spin forever on a float remainder at its deadline. (#531)
+- cite-check's claim line numbers shifted after a code fence. (#592)
+- A failed subprocess in the post-merge conflict check crashed a train that had already landed. (#499)
+- `dev lit snowball`'s coupling call varied with the hash seed and missed the cache. (#591)
+- A cite-check title mismatch in `docs/research/agent-harness.md` §12d. (#616)
+
 ## v0.1.17 (2026-11-01)
 
 Several gates can run on one machine at once (`gate_slots`), integrate can land several ready PRs behind one gate
