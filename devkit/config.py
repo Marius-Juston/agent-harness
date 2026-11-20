@@ -57,6 +57,7 @@ class Config:
     generated_dir: str = "docs/generated"
     handoff: str = "docs/HANDOFF.md"
     evals_dir: str = "evals/scenarios"
+    research_eval_dir: str = "evals/research"  # `dev eval research` (#590): questions.yaml and gold.json
     area_map: str = ".github/labeler.yml"  # path -> area label map, in actions/labeler format
     # Plain content: a PR touching only these (with CONTENT_SUFFIXES) is not harness and needs no lead read.
     content: list[str] = field(default_factory=lambda: ["docs/research/", "docs/log/", "docs/questions/"])
