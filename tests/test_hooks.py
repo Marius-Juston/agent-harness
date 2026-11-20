@@ -1589,27 +1589,17 @@ def test_guard_bash_rewrite_carries_any_text_through(text):
     assert _sh(new, "/").stdout == _sh(cmd, "/").stdout
 
 
-def _proc_state(pid: int) -> str:
-    try:
-        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
-    except (OSError, IndexError):
-        return "gone"
-
-
-@pytest.mark.skipif(not Path("/proc/self/stat").exists(), reason="reads /proc")
 def test_the_bound_stops_the_wait_and_its_children(hook, tmp_path):
-    """The bound ends the loop with exit 124 and kills what it started (timeout signals its process group)."""
+    """The bound ends the loop with exit 124 and kills what it started (timeout signals its process group).
+
+    The background sleep holds the captured stdout open, so the run returns early only once the sleep is dead too."""
     _project(tmp_path, 1)
     cmd = "sleep 60 & echo $! > bg.pid; until test -f never; do sleep 0.1; done"
     new = _bounded(hook, cmd, tmp_path)["updatedInput"]["command"]
     t0 = time.monotonic()
     res = _sh(new, tmp_path)
     assert res.returncode == 124 and time.monotonic() - t0 < 10
-    pid = int((tmp_path / "bg.pid").read_text())
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline and _proc_state(pid) not in ("gone", "Z"):
-        time.sleep(0.05)
-    assert _proc_state(pid) in ("gone", "Z")
+    assert (tmp_path / "bg.pid").read_text().strip().isdigit()
 
 
 def _timed(fn, *args) -> float:
