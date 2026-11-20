@@ -335,7 +335,7 @@ def measure(repo: Path, rev: str | None = None, cfg: config.Config | None = None
     try:
         rat = ratchet((repo / cfg.ratchets).read_text()) if rev is None else _rev_ratchet(repo, rev, cfg.ratchets)
     except (OSError, RuntimeError, ValueError, tomllib.TOMLDecodeError):  # none or unreadable: the defaults
-        rat = {**RATCHET_DEFAULTS, "module_loc": {}}
+        rat = ratchet_table({})
     ceiling = rat["module_loc_ceiling"]
     return {
         "rev": rev or "working tree",

@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tomllib
 from pathlib import Path
+from typing import cast
 
 import jinja2
 import pytest
@@ -30,6 +31,10 @@ def write(path: Path, files: dict[str, str]) -> None:
 
 def lines(n: int) -> str:
     return "".join(f"x{k} = {k}\n" for k in range(n))
+
+
+def contracts_of(cfg: config.Config) -> list[dict]:
+    return cast(list[dict], cfg.arch["contracts"])
 
 
 @pytest.fixture
@@ -59,12 +64,12 @@ def test_gate_fails_on_from_devkit_import_cli_inside_a_function_in_checks(devkit
 
 
 def test_this_repository_declares_the_cli_contract_and_carries_the_acyclic_one_commented():
-    names = [c["name"] for c in config.get().arch["contracts"]]
+    names = [c["name"] for c in contracts_of(config.get())]
     assert names == ["only the entry point imports the CLI"]
     text = (root() / "pyproject.toml").read_text()
     start = text.index("# [[tool.devkit.arch.contracts]]")
     block = "\n".join(line.removeprefix("# ") for line in text[start:].split("\n\n", 1)[0].splitlines())
-    (contract,) = config.parse(tomllib.loads(block)["tool"]["devkit"]).arch["contracts"]
+    (contract,) = contracts_of(config.parse(tomllib.loads(block)["tool"]["devkit"]))
     assert contract == {
         "name": "devkit modules form no import cycle",
         "type": "acyclic_siblings",
@@ -189,7 +194,7 @@ def test_the_template_carries_the_contracts_commented_with_the_package_name():
     block, rest = rendered[start:].split("\n\n", 1)
     uncommented = rendered[:start] + "\n".join(line.removeprefix("#").strip() for line in block.splitlines())
     uncommented += "\n\n" + rest
-    contracts = config.parse(tomllib.loads(uncommented)["tool"]["devkit"]).arch["contracts"]
+    contracts = contracts_of(config.parse(tomllib.loads(uncommented)["tool"]["devkit"]))
     assert [c["type"] for c in contracts] == ["acyclic_siblings", "forbidden"]
     assert contracts[0]["ancestors"] == ["demo_project"] and contracts[1]["forbidden_modules"] == ["demo_project.cli"]
 
