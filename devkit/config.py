@@ -83,6 +83,10 @@ class Config:
     # cores and memory idle; integrate's gate still takes the next free slot ahead of queued worker gates. A gate uses
     # every slot file it finds, so lowering it takes effect once the extra `gate.lock.<n>` files are deleted.
     gate_slots: int = 1
+    # #381: the bound the guard_bash hook puts on an agent's Bash command that waits without one (an until/while poll
+    # loop, `tail -f`, `watch`, `wait`, `gh run watch`, ...): it runs as `timeout <wait_bound_s> bash -c '<command>'`.
+    # The hook reads this key itself (it cannot import devkit); 0 turns the rewrite off.
+    wait_bound_s: int = 3600
     # `dev integrate --local-ci` (#76): a required check that has not queued after this long means Actions cannot run.
     local_ci_wait_s: int = 600
     # `dev integrate --local-ci`: required check context -> the commands (argument lists, run in the merged tree after
@@ -139,6 +143,8 @@ def parse(data: dict) -> Config:
             raise ConfigError(f"[tool.devkit] {key} = {value!r}: expected {want}")
     if data.get("gate_slots", 1) < 1:
         raise ConfigError(f"[tool.devkit] gate_slots = {data['gate_slots']!r}: expected a whole number of at least 1")
+    if data.get("wait_bound_s", 0) < 0:
+        raise ConfigError(f"[tool.devkit] wait_bound_s = {data['wait_bound_s']!r}: expected seconds, or 0 for no bound")
     for match, tools in data.get("mcp_prereqs", {}).items():
         if not (isinstance(tools, list) and all(isinstance(t, str) and t for t in tools)):
             raise ConfigError(f"[tool.devkit.mcp_prereqs] {match} = {tools!r}: expected a list of binary names")

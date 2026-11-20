@@ -1465,3 +1465,184 @@ def test_skew_line_follows_the_memory_warning_of_a_held_agent(hook, tmp_path):
     code, out, _ = hook("spawn_guard.sh", SKEW_EVENTS[2][1], env=env)
     first, second = json.loads(out)["systemMessage"].splitlines()
     assert code == 0 and first.startswith("spawn_guard: held builder") and second.startswith("harness-ops skew:")
+
+
+# #381: a command that can wait forever is rewritten to run under `timeout <wait_bound_s>`, never refused.
+WAITS = [
+    "until grep -q RESULT out.log; do sleep 10; done",
+    "until ! pgrep -f 'dev check'; do sleep 5; done",
+    "while pgrep -x pytest >/dev/null; do sleep 2; done",
+    "while kill -0 $pid 2>/dev/null; do sleep 1; done",
+    "while true; do date; sleep 60; done",
+    "while :; do sleep 1; done",
+    "if true; then while [ ! -f done.txt ]; do sleep 1; done; fi",
+    "wait 4242",
+    "wait",
+    "make & wait",
+    "inotifywait -m -e create .",
+    "inotifywait -e create .",
+    "flock /tmp/lock make",
+    "gh run watch 123",
+    "gh pr checks 9 --watch",
+    "docker logs -f web",
+    "docker compose logs --follow web",
+    "kubectl logs -f pod/x",
+    "journalctl -fu ssh",
+    "tail -f build.log",
+    "tail -n 100 -F build.log | grep ERROR",
+    "nohup tail -fn0 x.log",
+    "watch -n 5 ls",
+    "sleep infinity",
+    "sleep 2h",
+    "cd sub && until test -s out; do sleep 1; done && cat out",
+    "x=$(tail -f log)",
+    "bash -c 'until test -f x; do sleep 1; done'",
+    "bash <<'EOF'\nwhile true; do sleep 1; done\nEOF",
+    "env FOO=1 nice -n 5 tail -f log",
+]
+NOT_WAITS = [
+    "timeout 600 bash -c 'until grep -q X f; do sleep 5; done'",
+    "timeout 60 tail -f log",
+    "nohup timeout -k 5 60 tail -f log",
+    "cat f | while read -r l; do echo $l; done",
+    "while IFS= read -r l; do echo $l; done < f",
+    "for i in 1 2 3; do sleep 1; done",
+    "sleep 5",
+    "tail -n 50 log",
+    "inotifywait -t 30 -e create .",
+    "flock -w 10 /tmp/lock make",
+    "flock -n /tmp/lock make",
+    "gh run view 123",
+    "gh pr checks 9",
+    "docker logs web",
+    "journalctl -u ssh",
+    "git commit -m 'wait until the loop is done; tail -f'",
+    "echo while until watch",
+    "grep -rn 'sleep infinity' docs/",
+    "pgrep -f pytest",
+]
+
+
+def _payload(cmd: str, cwd, **inp) -> dict:
+    return {"tool_name": "Bash", "cwd": str(cwd), "tool_input": {"command": cmd, **inp}}
+
+
+def _bounded(hook, cmd: str, cwd) -> dict | None:
+    code, out, err = hook("guard_bash.py", _payload(cmd, cwd), env={**os.environ, "CLAUDE_PROJECT_DIR": str(cwd)})
+    assert code == 0, err
+    return json.loads(out)["hookSpecificOutput"] if out.strip() else None
+
+
+@pytest.mark.parametrize("cmd", WAITS)
+def test_guard_bash_bounds_a_command_that_can_wait_forever(hook, tmp_path, cmd):
+    out = _bounded(hook, cmd, tmp_path)
+    assert out is not None, cmd
+    assert out["updatedInput"]["command"] == f"timeout 3600 bash -c {shlex.quote(cmd)}"
+    assert "timeout 3600" in out["additionalContext"] and "wait_bound_s" in out["additionalContext"]
+
+
+@pytest.mark.parametrize("cmd", NOT_WAITS)
+def test_guard_bash_leaves_bounded_and_finite_commands_unchanged(hook, tmp_path, cmd):
+    assert _bounded(hook, cmd, tmp_path) is None, cmd
+
+
+def test_guard_bash_bound_keeps_the_other_tool_input_and_a_trailing_background(hook, tmp_path):
+    payload = _payload("until test -f x; do sleep 1; done &", tmp_path, run_in_background=True, description="poll")
+    _, out, _ = hook("guard_bash.py", payload, env={**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)})
+    inp = json.loads(out)["hookSpecificOutput"]["updatedInput"]
+    assert inp == {
+        "command": "timeout 3600 bash -c 'until test -f x; do sleep 1; done' &",
+        "run_in_background": True,
+        "description": "poll",
+    }
+
+
+def test_guard_bash_pgrep_f_poll_gets_the_self_match_note(hook, tmp_path):
+    note = _bounded(hook, "until ! pgrep -f 'uv run dev check'; do sleep 5; done", tmp_path)["additionalContext"]
+    assert "pgrep -x" in note and "own command line" in note
+    assert "pgrep" not in _bounded(hook, "while kill -0 $pid; do sleep 1; done", tmp_path)["additionalContext"]
+
+
+def test_guard_bash_still_refuses_a_blocked_command_inside_a_wait(hook, tmp_path):
+    code, out, err = hook("guard_bash.py", _payload("until pip install x; do sleep 1; done", tmp_path))
+    assert code == 2 and "uv only" in err and not out.strip()
+
+
+def _project(tmp_path, bound: int) -> None:
+    (tmp_path / "pyproject.toml").write_text(f'[project]\nname = "p"\n\n[tool.devkit]\nwait_bound_s = {bound}\n')
+
+
+def test_guard_bash_reads_the_bound_from_tool_devkit_and_zero_turns_it_off(hook, tmp_path):
+    (tmp_path / "sub").mkdir()
+    _project(tmp_path, 120)
+    assert _bounded(hook, "tail -f x", tmp_path / "sub")["updatedInput"]["command"] == "timeout 120 bash -c 'tail -f x'"
+    assert _bounded(hook, "sleep 1000", tmp_path)["updatedInput"]["command"].startswith("timeout 120 ")
+    _project(tmp_path, 0)
+    assert _bounded(hook, "tail -f x", tmp_path) is None
+
+
+@pytest.mark.parametrize("value", [-1, True, "3600", 1.5])
+def test_wait_bound_must_be_whole_seconds(value):
+    from devkit import config
+
+    with pytest.raises(config.ConfigError, match="wait_bound_s"):
+        config.parse({"wait_bound_s": value})
+    assert config.Config().wait_bound_s == GUARD.WAIT_BOUND == 3600
+
+
+# Commands that end, with every kind of quoting the rewrite must carry through intact.
+FINITE_WAITS = [
+    """n=0; until [ $n -ge 3 ]; do n=$((n+1)); echo "it's $n" '"q"' \\$HOME; done""",
+    'i=0; while [ $i -lt 2 ]; do echo "$(echo sub $i)" `echo tick`; i=$((i+1)); done | tr a-z A-Z',
+    "until true; do :; done; cat <<'EOF'\n$HOME 'single' \"double\" `x`\nEOF",
+    "until true; do :; done; cat <<EOF\nexpanded ${USER:-u} $(echo cmd)\nEOF",
+    "while false; do :; done; printf '%s\\n' 'a b' \"c'd\" | sort -r",
+    "until true; do :; done; echo end # a comment with 'quotes",
+    "bash -c 'until true; do :; done; echo inner \"$0\"' zero",
+]
+
+
+def _sh(cmd: str, cwd) -> subprocess.CompletedProcess:
+    return subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, cwd=cwd, timeout=30, check=False)
+
+
+@pytest.mark.parametrize("cmd", FINITE_WAITS)
+def test_guard_bash_rewrite_runs_the_command_unchanged(hook, tmp_path, cmd):
+    new = _bounded(hook, cmd, tmp_path)["updatedInput"]["command"]
+    before, after = _sh(cmd, tmp_path), _sh(new, tmp_path)
+    assert (after.stdout, after.returncode) == (before.stdout, before.returncode) and before.stdout
+
+
+@settings(max_examples=40, deadline=None)
+@given(st.text(alphabet=st.characters(blacklist_characters="\x00", blacklist_categories=("Cs",)), max_size=40))
+def test_guard_bash_rewrite_carries_any_text_through(text):
+    cmd = f"until true; do :; done; printf %s {shlex.quote(text)}"
+    new, _ = GUARD.bound_waits(cmd, "/nonexistent")
+    assert re.match(r"timeout \d+ bash -c ", new)
+    assert _sh(new, "/").stdout == _sh(cmd, "/").stdout
+
+
+def test_the_bound_stops_the_wait_and_its_children(hook, tmp_path):
+    """The bound ends the loop with exit 124 and kills what it started (timeout signals its process group).
+
+    The background sleep holds the captured stdout open, so the run returns early only once the sleep is dead too."""
+    _project(tmp_path, 1)
+    cmd = "sleep 60 & echo $! > bg.pid; until test -f never; do sleep 0.1; done"
+    new = _bounded(hook, cmd, tmp_path)["updatedInput"]["command"]
+    t0 = time.monotonic()
+    res = _sh(new, tmp_path)
+    assert res.returncode == 124 and time.monotonic() - t0 < 10
+    assert (tmp_path / "bg.pid").read_text().strip().isdigit()
+
+
+def _timed(fn, *args) -> float:
+    t0 = time.perf_counter()
+    fn(*args)
+    return time.perf_counter() - t0
+
+
+def test_guard_bash_wait_check_adds_under_a_millisecond_to_other_commands():
+    """The hook's added cost for a command that does not wait: best of 20 runs per command, under 1 ms."""
+    for cmd in [c for c in ALLOWED if isinstance(c, str)] + NOT_WAITS:
+        best = min(_timed(GUARD.bound_waits, cmd, "/nonexistent") for _ in range(20))
+        assert best < 1e-3, (cmd, best)
