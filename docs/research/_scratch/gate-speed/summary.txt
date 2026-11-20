@@ -1,0 +1,66 @@
+## integrate calls that merged (Oct 22, Nov 1), full phase data
+wall_s     n=37 median=217 mean=230 p10=167 p90=346 max=447
+pre_s      n=37 median=125 mean=97 p10=6 p90=154 max=178
+lock_s     n=37 median=0 mean=0 p10=0 p90=1 max=8
+gate_s     n=37 median=26 mean=26 p10=23 p90=28 max=37
+standin_s  n=37 median=20 mean=16 p10=0 p90=21 max=22
+post_s     n=37 median=33 mean=100 p10=21 p90=215 max=396
+tail_s     n=37 median=1 mean=1 p10=0 p90=1 max=11
+share of summed wall: {'pre_s': 42.0, 'lock_s': 0.2, 'gate_s': 11.2, 'standin_s': 6.9, 'post_s': 43.3, 'tail_s': 0.5}
+baseline pre (no check wait) 10 s; baseline post (no pushed tip) 24.5 s
+Actions wait = pre + post - baselines: n=37 median=147.5 mean=163 p10=101.5 p90=256.5 max=387.5
+Actions wait share of summed wall: 70.5%
+updated=True: n=15 pre n=15 median=16 mean=52 p10=6 p90=137 max=170; post n=15 median=197 mean=208 p10=154 p90=217 max=396; wall n=15 median=264 mean=293 p10=191 p90=390 max=447
+updated=False: n=22 pre n=22 median=139.5 mean=127 p10=102 p90=154 max=178; post n=22 median=24.5 mean=26 p10=21 p90=33 max=36; wall n=22 median=197.5 mean=188 p10=157 p90=218 max=250
+gate + stand-ins: n=37 median=46 mean=42 p10=24 p90=48 max=59
+pipelining saving per integrate = min(gate + stand-ins, Actions wait): n=37 median=45 mean=40 p10=23 p90=48 max=59
+merged tree == PR head (updated False): 22/37 = 59%
+
+## worker gates (`dev check` calls with a RESULT line)
+2026-10-20..11-01: wall n=118 median=28 mean=31 p10=25 p90=44 max=75
+                  stage n=118 median=25 mean=24 p10=22 p90=28 max=37
+                  wall-stage (slot wait + fixed costs) n=118 median=2 mean=7 p10=1 p90=21 max=49
+                  failed 26/118
+2026-11-19: wall n=10 median=261.5 mean=510 p10=66 p90=1326 max=1587
+                  stage n=10 median=90.5 mean=116 p10=65 p90=156 max=330
+                  wall-stage (slot wait + fixed costs) n=10 median=162.5 mean=394 p10=1 p90=1257 max=1261
+                  failed 5/10
+
+## GitHub Actions ci runs (2026-11-01 .. 2026-11-19)
+run wall (created -> last job done) n=40 median=158 mean=242 p10=121 p90=177 max=3761
+job check: queue n=40 median=2 mean=2 p10=2 p90=3 max=3; run n=40 median=155.5 mean=240 p10=119 p90=174 max=3759
+job template: queue n=40 median=2 mean=2 p10=2 p90=3 max=3; run n=40 median=15.5 mean=16 p10=12 p90=18 max=30
+job plugin: queue n=40 median=2 mean=2 p10=2 p90=3 max=3; run n=40 median=11.5 mean=12 p10=9 p90=16 max=18
+  check step 'Run actions/checkout@3d3c42e5aac5ba805825da76410c1': n=40 median=2 mean=2 p10=1 p90=2 max=3
+  check step 'Run astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43': n=40 median=3 mean=3 p10=2 p90=3 max=4
+  check step 'Run uv sync --locked': n=40 median=2 mean=2 p10=2 p90=3 max=3
+  check step 'gate (same command agents run)': n=40 median=101 mean=98 p10=75 p90=114 max=117
+  check step 'secrets in history (gitleaks, pinned in .pre-commi': n=40 median=36.5 mean=35 p10=27 p90=40 max=42
+  check step 'the security steps still fail on a fake secret and': n=40 median=2 mean=2 p10=2 p90=3 max=5
+
+## gate pass records (stage seconds of passing gates, worker and integrate)
+2026-10-19: n=88 median=21 mean=21 p10=18 p90=23 max=25
+2026-10-20: n=31 median=25 mean=24 p10=21 p90=26 max=28
+2026-10-21: n=13 median=26 mean=26 p10=24 p90=28 max=29
+2026-10-31: n=40 median=24 mean=25 p10=22 p90=28 max=37
+2026-11-01: n=63 median=26 mean=26 p10=24 p90=28 max=32
+2026-11-17: n=1 median=43 mean=43 p10=43 p90=43 max=43
+2026-11-19: n=7 median=82 mean=199 p10=54 p90=102 max=918
+2026-10-20..11-01 pooled: n=147 median=25 mean=25 p10=22 p90=28 max=37
+
+## per-test history
+2026-11-01: runs=37 tests 2371-2431; summed test seconds per run n=37 median=121.205 mean=122 p10=113.664 p90=131.005 max=137.774
+   slowest test median 3.58 s; tests over 1 s: 21; top 10 = 20% and top 50 = 45% of summed test seconds
+     3.58 s tests.test_gate::test_integrate_whose_gate_waits_for_the_lock_longer_than_its_deadline_is_not_stopped
+     3.01 s tests.test_gate::test_bounded_run_kills_the_whole_process_group_at_its_deadline
+     2.47 s tests.test_template::test_copier_update_gives_a_project_without_settings_local_the_default_cap
+     2.37 s tests.test_evals::test_compare_bounds_are_seeded_and_identical_arms_keep_their_spread
+     2.33 s tests.test_template::test_copier_update_never_conflicts_on_project_owned_files
+2026-11-17: runs=1 tests 2439-2439; summed test seconds per run n=1 median=186.605 mean=187 p10=186.605 p90=186.605 max=186.605
+2026-11-19: runs=12 tests 2432-2448; summed test seconds per run n=12 median=194.473 mean=210 p10=151.354 p90=244.749 max=326.866
+   slowest test median 3.95 s; tests over 1 s: 28; top 10 = 19% and top 50 = 43% of summed test seconds
+     3.95 s tests.test_template::test_copier_update_keeps_the_owners_subagent_cap[unpinned]
+     3.89 s tests.test_template::test_copier_update_keeps_the_owners_subagent_cap[previous-release]
+     3.85 s tests.test_evals::test_compare_bounds_are_seeded_and_identical_arms_keep_their_spread
+     3.84 s tests.test_template::test_copier_update_gives_a_project_without_settings_local_the_default_cap
+     3.67 s tests.test_template::test_copier_update_never_conflicts_on_project_owned_files

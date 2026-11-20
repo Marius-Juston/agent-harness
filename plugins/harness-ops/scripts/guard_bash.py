@@ -85,7 +85,12 @@ OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE")
 # override, so owner_env ignores every override while one is set, and edit_guard refuses adding them as well.
 LOCATORS = ("HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_PROJECT_DIR")
 FETCHERS = {"curl", "wget"}
-CAP_FILE = "devkit/quota_cap"  # under the git common dir: `dev quota-cap`'s machine-local override
+SLOTS = (
+    "the gate slot count is the owner's: agents never change it. `uv run dev gate-slots` prints it; ask the owner to "
+    "run `! uv run dev gate-slots <n>` (or to change [tool.devkit] gate_slots)."
+)
+# The owner's machine-local overrides under the git common dir: the `dev` command that sets each, its file, the denial.
+OWNER_SETTINGS = (("quota-cap", "devkit/quota_cap", QUOTA), ("gate-slots", "devkit/gate_slots", SLOTS))
 CAP_READERS = {"cat", "head", "tail", "ls", "stat", "wc", "test", "[", "[[", "file"}
 WHOLE_TREE = {".", "./", ":", ":/", ":/*", "*"}  # pathspecs that name every file
 HOOK_VAR = re.compile(r"^(SKIP|PRE_COMMIT\w*|GIT_CONFIG\w*)(=|$)")
@@ -696,7 +701,7 @@ class Checker:
             for body, _ in c.stdin:
                 if why := self.code(body, lang, depth):
                     return why
-        if why := self.quota_cap(argv, c.writes, paths):
+        if why := self.owner_setting(argv, c.writes, paths):
             return why
         if self.read_only and (why := read_only(argv, c.writes, self.read_only, tuple(assigns))):
             return why
@@ -748,20 +753,22 @@ class Checker:
             return self.rm(args)
         return None
 
-    def quota_cap(self, argv: list[str], writes: list[str], paths: list[Word]) -> str | None:
-        """QUOTA when the command sets the owner's cap: `dev quota-cap <pct>|--clear`, or touches its file other
-        than to read it (a `cd` earlier in the command counts, so `cd .git/devkit && echo 99 > quota_cap` too)."""
+    def owner_setting(self, argv: list[str], writes: list[str], paths: list[Word]) -> str | None:
+        """The denial when the command sets one of OWNER_SETTINGS: `dev quota-cap <pct>|--clear` (or gate-slots), or
+        touches its file other than to read it (a `cd` earlier in the command counts, so `cd .git/devkit && echo 99 >
+        quota_cap` too)."""
         name, args = (base(argv[0]), argv[1:]) if argv else ("", [])
-        if name in ("dev", "devkit.cli") and args[:1] == ["quota-cap"] and not set(args[1:]) <= {"-h", "--help"}:
-            return QUOTA
+        for command, path, why in OWNER_SETTINGS:
+            if name in ("dev", "devkit.cli") and args[:1] == [command] and not set(args[1:]) <= {"-h", "--help"}:
+                return why
 
-        def cap_file(v: str) -> bool:
-            return CAP_FILE in v or os.path.normpath(os.path.join(self.cwd, v)).endswith("/" + CAP_FILE)
+            def owned(v: str, path: str = path) -> bool:
+                return path in v or os.path.normpath(os.path.join(self.cwd, v)).endswith("/" + path)
 
-        if any(cap_file(w) for w in writes):
-            return QUOTA
-        if name not in CAP_READERS and any(cap_file(w.value) for w in paths):
-            return QUOTA
+            if any(owned(w) for w in writes):
+                return why
+            if name not in CAP_READERS and any(owned(w.value) for w in paths):
+                return why
         return None
 
     def git(self, args: list[str], assigns: list[str]) -> str | None:
