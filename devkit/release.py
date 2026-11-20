@@ -5,7 +5,7 @@ into every `[tool.devkit] release_files` entry and run `uv lock`; the branch the
 `dev integrate` like any other. publish (on main at the merged release commit): annotated tag, push it, GitHub Release
 with the CHANGELOG section as notes, marked latest. Every publish step first looks whether it already happened, so a
 rerun after a partial failure (a dropped connection, a refused push) finishes only the missing steps; gh goes
-through board.gh, whose recheck for `release create` (#571) never creates a second release.
+through board.gh with this module's recheck for `release create` (#571), so it never creates a second release.
 """
 
 import json
@@ -127,6 +127,18 @@ def _release_url(repo: str, tag: str) -> str | None:
         if "HTTP 404" in str(e):
             return None
         raise
+
+
+def _recheck(args: tuple[str, ...], input: str | None) -> Callable[[float], str | tuple[str, ...]] | None:
+    """board.gh's recheck for `gh release create <tag> -R <repo>` (#571): after a dropped connection, the tag's
+    release (one per tag, whenever it was made) means the call landed; none means send it again."""
+    repo = board._flag(args, "-R", "--repo")
+    if repo is None or len(args) < 3 or args[2].startswith("-"):
+        return None
+    return lambda since: (url + "\n") if (url := _release_url(repo, args[2])) else args
+
+
+board.RECHECKS["release", "create"] = _recheck
 
 
 def _ensure_tag(top: Path, tag: str, head: str) -> str:
