@@ -1533,6 +1533,13 @@ def _bounded(hook, cmd: str, cwd) -> dict | None:
     return json.loads(out)["hookSpecificOutput"] if out.strip() else None
 
 
+def _rewritten(hook, cmd: str, cwd) -> dict:
+    """_bounded, for a command the hook must rewrite."""
+    out = _bounded(hook, cmd, cwd)
+    assert out is not None, cmd
+    return out
+
+
 @pytest.mark.parametrize("cmd", WAITS)
 def test_guard_bash_bounds_a_command_that_can_wait_forever(hook, tmp_path, cmd):
     out = _bounded(hook, cmd, tmp_path)
@@ -1558,9 +1565,9 @@ def test_guard_bash_bound_keeps_the_other_tool_input_and_a_trailing_background(h
 
 
 def test_guard_bash_pgrep_f_poll_gets_the_self_match_note(hook, tmp_path):
-    note = _bounded(hook, "until ! pgrep -f 'uv run dev check'; do sleep 5; done", tmp_path)["additionalContext"]
+    note = _rewritten(hook, "until ! pgrep -f 'uv run dev check'; do sleep 5; done", tmp_path)["additionalContext"]
     assert "pgrep -x" in note and "own command line" in note
-    assert "pgrep" not in _bounded(hook, "while kill -0 $pid; do sleep 1; done", tmp_path)["additionalContext"]
+    assert "pgrep" not in _rewritten(hook, "while kill -0 $pid; do sleep 1; done", tmp_path)["additionalContext"]
 
 
 def test_guard_bash_still_refuses_a_blocked_command_inside_a_wait(hook, tmp_path):
@@ -1575,8 +1582,10 @@ def _project(tmp_path, bound: int) -> None:
 def test_guard_bash_reads_the_bound_from_tool_devkit_and_zero_turns_it_off(hook, tmp_path):
     (tmp_path / "sub").mkdir()
     _project(tmp_path, 120)
-    assert _bounded(hook, "tail -f x", tmp_path / "sub")["updatedInput"]["command"] == "timeout 120 bash -c 'tail -f x'"
-    assert _bounded(hook, "sleep 1000", tmp_path)["updatedInput"]["command"].startswith("timeout 120 ")
+    assert (
+        _rewritten(hook, "tail -f x", tmp_path / "sub")["updatedInput"]["command"] == "timeout 120 bash -c 'tail -f x'"
+    )
+    assert _rewritten(hook, "sleep 1000", tmp_path)["updatedInput"]["command"].startswith("timeout 120 ")
     _project(tmp_path, 0)
     assert _bounded(hook, "tail -f x", tmp_path) is None
 
@@ -1608,7 +1617,7 @@ def _sh(cmd: str, cwd) -> subprocess.CompletedProcess:
 
 @pytest.mark.parametrize("cmd", FINITE_WAITS)
 def test_guard_bash_rewrite_runs_the_command_unchanged(hook, tmp_path, cmd):
-    new = _bounded(hook, cmd, tmp_path)["updatedInput"]["command"]
+    new = _rewritten(hook, cmd, tmp_path)["updatedInput"]["command"]
     before, after = _sh(cmd, tmp_path), _sh(new, tmp_path)
     assert (after.stdout, after.returncode) == (before.stdout, before.returncode) and before.stdout
 
@@ -1628,7 +1637,7 @@ def test_the_bound_stops_the_wait_and_its_children(hook, tmp_path):
     The background sleep holds the captured stdout open, so the run returns early only once the sleep is dead too."""
     _project(tmp_path, 1)
     cmd = "sleep 60 & echo $! > bg.pid; until test -f never; do sleep 0.1; done"
-    new = _bounded(hook, cmd, tmp_path)["updatedInput"]["command"]
+    new = _rewritten(hook, cmd, tmp_path)["updatedInput"]["command"]
     t0 = time.monotonic()
     res = _sh(new, tmp_path)
     assert res.returncode == 124 and time.monotonic() - t0 < 10

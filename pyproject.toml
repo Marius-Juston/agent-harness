@@ -21,6 +21,7 @@ dependencies = [
     "diff-cover>=11.0.0",
     "pytest-timeout>=2.4",
     "pathspec>=1.1",
+    "ty==0.0.107",  # pre-1.0: pinned exactly, so a bump is a deliberate PR whose gate shows the new count
 ]
 
 [project.urls]
@@ -82,8 +83,8 @@ exclude = [
 
 # Import contracts the gate's arch stage keeps (`uv run dev arch`). Review 1 cut docs -> cli (#140) and PR #417 put
 # the pattern back as checks -> cli, which review 2 cut again (#449): docs/research/architecture-grading.md §4.
-# The acyclic contract is off until main's two cycles are cut (code -> reuse, integrate <-> workflow; the follow-up
-# issue linked from PR #595); [arch] max_import_cycle = 2 in .devkit/ratchets.toml holds them meanwhile. Uncomment it then.
+# The acyclic contract is off until #615 cuts main's two cycles (code -> reuse, integrate <-> workflow); [arch]
+# max_import_cycle = 2 in .devkit/ratchets.toml holds them meanwhile. Uncomment it then.
 # [[tool.devkit.arch.contracts]]
 # name = "devkit modules form no import cycle"
 # type = "acyclic_siblings"
@@ -135,6 +136,11 @@ ignore = ["E501", "RUF001", "RUF002", "RUF003", "S603", "S607"]
 [tool.ruff.lint.per-file-ignores]
 # pytest asserts; fake tokens and seeded random generators are test fixtures, not secrets
 "**/tests/**" = ["S101", "S105", "S311"]
+
+# The gate's ty stage counts diagnostics against [types] max_diagnostics of .devkit/ratchets.toml. Research scratch is
+# frozen evidence, not code (#451): it is not type checked.
+[tool.ty.src]
+exclude = ["docs/research/_scratch/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

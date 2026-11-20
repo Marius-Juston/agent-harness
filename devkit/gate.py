@@ -11,6 +11,8 @@
 - A pytest run that passed nothing fails (nothing collected, everything skipped or deselected): it is not a pass.
 - The [tests] floors of ratchets.toml hold the run to a passed-test count and a line coverage; diff coverage is
   printed, never gated (docs/research/test-floors-and-coverage.md).
+- The [types] max_diagnostics of ratchets.toml caps ty's diagnostics count and only goes down; without it the ty
+  stage only reports the count.
 - Each gate's test run appends per-test outcome and duration to a bounded history in the machine's state dir (CI
   uploads it as the test-history artifact), so an audit can find flaky and slow tests across runs; the gate adds its
   stages' seconds to that record and prints the 10 slowest tests after the test stage (#521).
@@ -30,7 +32,8 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Iterator, Mapping, MutableMapping, Sequence
+import tomllib
+from collections.abc import Callable, Generator, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import IO
@@ -341,6 +344,125 @@ def zizmor(cwd: Path | None = None) -> Ran:
     return _tool_stage("zizmor", "zizmor", args, cwd, checked=len(files))
 
 
+TYPE_KEY = "types.max_diagnostics"  # the [[raise]] key that loosens the ty budget
+TYPE_SHOWN = 10  # diagnostics listed when the count is over the budget
+# Rules whose result depends on which packages (extras, optional tools) the environment has installed: kept out of the
+# budgeted count, so the count is the same in every venv of one tree, and only reported.
+TYPE_ENV_RULES = frozenset({"import-not-found", "missing-module-member", "possibly-missing-submodule"})
+
+
+def type_budget(text: str) -> int | None:
+    """[types] max_diagnostics of a ratchets.toml: the most ty diagnostics the gate allows, or None (no ratchet).
+    ValueError if bad."""
+    types = tomllib.loads(text).get("types", {})
+    for key in types:
+        if key != "max_diagnostics":
+            raise ValueError(f"[types] {key}: unknown key; known: ['max_diagnostics']")
+    budget = types.get("max_diagnostics")
+    if budget is not None and (isinstance(budget, bool) or not isinstance(budget, int) or budget < 0):
+        raise ValueError(f"[types] max_diagnostics = {budget!r}: expected an integer from 0")
+    return budget
+
+
+def type_problems(count: int, budget: int) -> tuple[list[str], list[str]]:
+    """(problems, notes) of the ty budget: above it fails; below it, a notice to lower it (the ratchet only tightens)."""
+    where = config.get().ratchets
+    if count > budget:
+        return [f"{count} ty diagnostics, above the budget max_diagnostics = {budget} ({where}): fix the new ones"], []
+    if count < budget:
+        return [], [f"lower max_diagnostics to {count} ({count} ty diagnostics, budget {budget})"]
+    return [], []
+
+
+def type_raises(cur: str, old: str) -> list[str]:
+    """The ty budget only tightens: one above main's, or removed, needs a [[raise]] new since main on TYPE_KEY whose
+    `to` covers it. The ratchets stage checks that every new [[raise]] is approved by the repository owner."""
+    before = type_budget(old) if old else None
+    if before is None:
+        return []
+    value = type_budget(cur)
+    if value is not None and value <= before:
+        return []
+    known = {(r.get("key"), r.get("to")) for r in tomllib.loads(old).get("raise", [])}
+    tos = [
+        r.get("to")
+        for r in tomllib.loads(cur).get("raise", [])
+        if r.get("key") == TYPE_KEY and (r.get("key"), r.get("to")) not in known and isinstance(r.get("to"), int)
+    ]
+    if value is None:
+        return [] if tos else [f"ratchets.toml: {TYPE_KEY} removed (was {before}) without an owner-approved [[raise]]"]
+    if not tos:
+        return [f"ratchets.toml: {TYPE_KEY} raised {before} -> {value} without an owner-approved [[raise]]"]
+    if value > max(tos):
+        return [f"ratchets.toml: {TYPE_KEY} raised to {value}, above its [[raise]] to = {max(tos)}"]
+    return []
+
+
+def type_check(base: str | None, cwd: Path | None = None) -> Ran:
+    """ty's diagnostics held to [types] max_diagnostics of ratchets.toml, a ceiling that only goes down (type_raises
+    against main). Without one the stage only reports the count (and is off when ty is not installed), so a project
+    turns the ratchet on by setting the budget to that count. ty reads its own [tool.ty] config for what to check."""
+    ran = Ran("ty (type diagnostics)", allow_empty=True)
+    where = config.get().ratchets
+    try:
+        text = ((cwd or root()) / where).read_text()
+    except OSError:
+        text = ""
+    try:
+        budget = type_budget(text)
+    except ValueError as e:  # TOMLDecodeError is a ValueError
+        ran.problems.append(f"{where}: {e}")
+        return ran
+    if base:  # a main without a readable ratchets.toml has no budget to compare with
+        with contextlib.suppress(RuntimeError, ValueError):
+            ran.problems += type_raises(text, git("show", f"{base}:{where}"))
+    binary = tool("ty")
+    if binary is None:
+        if budget is None:
+            ran.notes.append("off: ty not installed and no [types] max_diagnostics")
+        else:
+            notice = "ty not found (run `uv sync`); ty skipped"
+            (ran.problems if os.environ.get("CI") else ran.warnings).append(notice)
+        return ran
+    # --exit-zero: diagnostics are counted, not judged by ty's exit code; a bad config or a crash still exits 2/101
+    cmd = [binary, "check", "--output-format", "gitlab", "--exit-zero", "--no-progress", "--python", sys.prefix]
+    out = subprocess.run(cmd, cwd=cwd or root(), capture_output=True, text=True, check=False)
+    try:
+        found = json.loads(out.stdout)
+    except ValueError:
+        found = None
+    if out.returncode != 0 or not isinstance(found, list):
+        ran.problems += (out.stdout + out.stderr).strip().splitlines()[-FAIL_LINES:] or [f"ty exited {out.returncode}"]
+        return ran
+    ran.checked = len(checks.tracked("*.py")) if cwd is None else len(list(cwd.rglob("*.py")))
+    env = [d for d in found if d.get("check_name") in TYPE_ENV_RULES]
+    found = [d for d in found if d.get("check_name") not in TYPE_ENV_RULES]
+    if env:
+        ran.notes.append(
+            f"{len(env)} more depend on installed packages ({', '.join(sorted(TYPE_ENV_RULES))}): not counted"
+        )
+    if budget is None:
+        ran.notes.insert(
+            0,
+            f"{len(found)} ty diagnostics (report-only: set [types] max_diagnostics = {len(found)} in {where} "
+            "to ratchet them)",
+        )
+        return ran
+    problems, notes = type_problems(len(found), budget)
+    ran.notes[:0] = notes
+    if problems:  # the change's own files first: that is where the new diagnostics most likely are
+        changed = set(git("diff", "--name-only", base).splitlines()) if base else set()
+        found.sort(key=lambda d: d["location"]["path"] not in changed)
+        shown = [
+            f"{d['location']['path']}:{d['location']['positions']['begin']['line']}: {d['description']}" for d in found
+        ]
+        problems += shown[:TYPE_SHOWN] + (
+            [f"(+{len(shown) - TYPE_SHOWN} more: `ty check`)"] if len(shown) > TYPE_SHOWN else []
+        )
+    ran.problems += problems
+    return ran
+
+
 def pytest_cmd(paths: list[str], slow: bool = False, n: int | None = None) -> list[str]:
     n = workers() if n is None else n
     cmd = [sys.executable, "-m", "pytest", *paths]
@@ -563,7 +685,7 @@ def gate_lock(
     priority: bool = False,
     held: Path | None = None,
     slots: int = 1,
-) -> Iterator[None]:
+) -> Generator[None]:
     """At most `slots` gates per machine (effective_slots: more when slot files on disk show more), one per lock file
     of slot_paths (#461). Opened with "a+" (never truncating) so a waiting gate does not erase a holder's pid.
     A gate tries every slot without blocking. Worker gates that find none free queue on `<path>.wait` (plain flock, so
@@ -620,7 +742,7 @@ def _try(f: IO[str]) -> bool:
     return True
 
 
-def _any_free(locks: list[IO[str]]) -> bool:
+def _any_free(locks: Sequence[IO[str]]) -> bool:
     for f in locks:
         if _try(f):
             fcntl.flock(f, fcntl.LOCK_UN)
@@ -628,7 +750,7 @@ def _any_free(locks: list[IO[str]]) -> bool:
     return False
 
 
-def _wait_slot(locks: list[IO[str]]) -> IO[str]:
+def _wait_slot(locks: Sequence[IO[str]]) -> IO[str]:
     """Block until a slot is held: on the lock itself when there is one, else by trying them all every SLOT_POLL_S
     (flock cannot wait on several files at once)."""
     if len(locks) == 1:
@@ -676,6 +798,7 @@ def stages(
         lambda: checks.check_generated(docs.render(help_rows)),
         lambda: _run("ruff lint", ["ruff", "check", "--quiet", "--output-format", "concise", "."]),
         lambda: _run("ruff format", ["ruff", "format", "--check", "--quiet", "--output-format", "concise", "."]),
+        lambda: type_check(base),
         lock_check,
         actionlint,
         zizmor,

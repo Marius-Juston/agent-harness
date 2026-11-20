@@ -21,6 +21,7 @@ import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from devkit import board, branches, ci_status, handoff, integrate, workflow
 
@@ -673,7 +674,7 @@ def main_push_refusal() -> str | None:
     fast-forward that lands nothing when refused."""
     repo = board.repo()
 
-    def read(path: str) -> object:
+    def read(path: str) -> Any:
         return json.loads(board.gh("api", path))
 
     def unread(what: str, why: object) -> None:
@@ -706,7 +707,7 @@ def main_push_refusal() -> str | None:
                   "main decides")  # fmt: skip
     if not protection and not [r for r in rules if r.get("type") in PUSH_RULES]:
         return None
-    bypass: dict[int, str] = {}
+    bypass: dict[Any, str] = {}  # keyed by ruleset_id as GitHub sends it
     for rid in {r.get("ruleset_id") for r in rules if r.get("type") in PUSH_RULES}:
         try:
             bypass[rid] = str(read(f"repos/{repo}/rulesets/{rid}").get("current_user_can_bypass") or "never")  # type: ignore[union-attr]

@@ -1190,7 +1190,9 @@ ATTACK = "\n".join(
 
 def _fenced(out: str) -> tuple[str, list[list[str]]]:
     """(the brief's nonce, the lines inside each envelope); the nonce is the one the preamble names."""
-    nonce = re.search(r"<<<data ([0-9a-f]+)`", out)[1]
+    found = re.search(r"<<<data ([0-9a-f]+)`", out)
+    assert found, out
+    nonce = found[1]
     blocks, inside = [], None
     for ln in out.splitlines():
         if ln.endswith(f"<<<data {nonce}") and ln.startswith("## "):
