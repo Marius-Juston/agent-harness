@@ -1,6 +1,6 @@
 # Research: free text-and-data-mining APIs for paywalled papers: publisher terms and the controls they require
 
-Status: v0.1 (2026-11-19), partial: DONE WHEN 1 of #587 (policy and API survey). DONE WHEN 2 (how many of #584's abstract-only claims stay paywalled after open-access sources) waits for #9. Issue: #587
+Status: v0.2 (2026-11-20): DONE WHEN 1 of #587 (policy and API survey), and DONE WHEN 2 measured in section 7 (#622): 21 of 134 SOURCED paper claims, 12 of them abstract-only, still reach no open-access full text. Issue: #587
 Labels: SOURCED = cited and fetched; VERIFIED = measured in this repo (script or command named); BELIEVED = judgment; ASSUMED = unchecked premise.
 Search coverage: discovery 2026-11-20: OK (openalex, s2 answered). Two `dev lit search` queries on TDM licensing and LLM copyright found legal commentary but no study of publisher terms for AI agents; the question is contractual, so the sources are the publishers' own terms pages. Wiley's TDM page, Wiley's click-through licence, ACM's policy pages and Taylor & Francis's website terms answered HTTP 403 or 522 to the fetch tool, so those publishers are covered only in part (section 2.3, 2.5, 2.6).
 Companions: [lit-search-quality.md](lit-search-quality.md) (the `dev lit` tooling an institutional source would sit beside); #584 / #512 (full-text quote checks that produced the 43 abstract-only claims).
@@ -136,8 +136,27 @@ Owner, please ask the library these and record the answers (not the licence text
 2. **If built, build the local-only design** (C1-C10): owner-run downloads (C2); strictest common rate of 1 request/s and at most 60 per 10 minutes per publisher (C3); local cache outside every repository with a purge (C5); a matcher that returns 0 characters of paywalled text to the agent (C6); quotes ≤ 200 characters with a DOI link, written by the owner (C7). Publisher order by fit: Elsevier first, since it has the clearest agent terms and an unlimited TDM key quota. Then Springer Nature (if Q1 is yes). Then Wiley (after F1 and Q8). IEEE last (Q6), and Taylor & Francis only by email agreement. ACM, if fully open access, belongs under #9.
 3. **Never, under any answer:** scrape a publisher's site, share or commit a key or cached text, let a consumer-plan session with training on near paywalled text, or treat a Crossref TDM link as permission.
 
-## 7. Pending: DONE WHEN 2
-#9 is open on 2026-11-19, so the paywalled share is not measured. When #9 merges, run cite-check over `docs/research/*.md` and tabulate the 43 abstract-only claims of #584 by publisher (from the DOI prefix): reachable OA full text vs still paywalled. Then apply the threshold in section 6.1.
+## 7. How many claims open access reaches (DONE WHEN 2)
+Measured on 2026-11-20 (#622) after #9 merged, with [`_scratch/oa-remeasure/measure.py`](_scratch/oa-remeasure/measure.py). The script takes every claim labelled sourced that rests on a paper in `docs/research/*.md` (cite-check's own parser) and asks `dev lit`'s full-text reader for each paper. It runs two arms over one fresh cache: one without the open-access locator keys (`UNPAYWALL_EMAIL`, `CORE_API_KEY`, the setting of #623's count) and one with both set. The publisher is Crossref's `publisher` field for the DOI. Every request went through `dev lit`'s shared rate buckets at `nice -n 19`, and no paper-arm stayed transient. "Abstract-only" counts the claims tagged `abstract-only` or located at "abstract". The notes have grown since #584 counted 43 such claims: there are now 62 (VERIFIED, script output).
+
+Cells give claims (papers) without a full text, then [abstract-only claims among them]:
+
+| publisher (Crossref) | claims [abstract-only] | without, keys unset | without, keys set | claims reached by the keys |
+|---|---|---|---|---|
+| IEEE | 15 [9] | 12 (11) [8] | 10 (9) [6] | 2 |
+| ACM | 8 [5] | 8 (8) [5] | 6 (6) [3] | 2 |
+| SAGE Publications | 2 [1] | 2 (2) [1] | 2 (2) [1] | 0 |
+| Elsevier BV | 1 [1] | 1 (1) [1] | 1 (1) [1] | 0 |
+| Institute of Mathematical Statistics | 1 [1] | 1 (1) [1] | 1 (1) [1] | 0 |
+| Wiley | 1 [0] | 1 (1) [0] | 1 (1) [0] | 0 |
+| arXiv | 104 [45] | 0 | 0 | 0 |
+| PeerJ | 1 [0] | 0 | 0 | 0 |
+| Springer Science and Business Media LLC | 1 [0] | 0 | 0 | 0 |
+| **total** | 134 [62] | 25 (24) [16] | 21 (20) [12] | 4 |
+
+- The keyless arm reproduces #623's count of 25 claims, with the same publishers (VERIFIED). Setting the two keys reaches 4 more claims. CORE's own copies supply two IEEE papers (10.1109/saner50967.2021.00077, 10.1109/wcre.2007.21). Unpaywall names arXiv copies of two ACM papers (10.1145/3476042, 10.1145/3715754) that the record did not link (VERIFIED).
+- **21 claims on 20 papers still have no full text: IEEE 10, ACM 6, SAGE 2, Elsevier 1, IMS 1, Wiley 1. Of these, 12 are abstract-only claims** (VERIFIED). For 13 papers no locator knows any open copy. The other 7 have a copy that a script cannot read: `dl.acm.org/doi/pdf` answers 403 (2 papers), a repository or SSRN download answers 403 (3, one of them CORE's own download even with a key), and a repository landing page holds 323-354 words, not the paper (2).
+- Against section 6.1: condition (a) is met by count, since 12 abstract-only claims stay paywalled and the bar was at least 10. As a share it is 12 of 62 (19 %), under the 23 % the bar was set at when the total was 43. Condition (b), the library's written yes to Q1-Q3, is still open (F2). By the rule in section 6.1, no build issue is filed until the library answers. Nine of the 20 papers are IEEE's, and IEEE's terms forbid use "as a source" for an AI system without consent (section 2.4). Even a library yes would therefore reach at most the 11 non-IEEE papers (BELIEVED, follows from the counts and section 2.4).
 
 ## Sources
 - [Text and data mining](https://www.elsevier.com/about/open-science/research-data/text-and-data-mining), Elsevier, undated, fetched 2026-11-19.
@@ -164,4 +183,4 @@ Owner, please ask the library these and record the answers (not the licence text
 ## Follow-ups
 - [ ] F1 (#600): a person reads the Wiley TDM page and click-through agreement, ACM's DL usage policy and open-access status, and T&F's website terms in a browser, and spot-checks five quotes of section 2 against the live pages. DONE WHEN sections 2.3, 2.5 and 2.6 carry cited verbatim quotes for who, purpose, rate, storage, output and AI, and the spot-check result is recorded here.
 - [ ] F2: the owner asks the library Q1-Q9 (section 5). DONE WHEN each question has a recorded yes / no / conditional answer in the project's private notes, and this note's recommendation is updated (without licence text).
-- [ ] F3 (#587 DONE WHEN 2, after #9): count #584's 43 abstract-only claims by publisher, reachable OA vs paywalled. DONE WHEN the table is in section 7 and the section 6.1 threshold decides whether a build issue is filed.
+- [x] F3 (#587 DONE WHEN 2, after #9; done in #622): count the abstract-only claims by publisher, reachable OA vs paywalled. The table is in section 7. Threshold (a) is met by count; (b) waits for F2, so no build issue yet.

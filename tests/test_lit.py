@@ -885,7 +885,8 @@ def test_a_refused_secrets_file_is_reported_without_its_contents(tmp_path, monke
 def test_key_report_names_origins_never_values(tmp_path):
     env = secrets(tmp_path, "S2_API_KEY=fake-s2\n") | {"OPENALEX_API_KEY": "fake-oa"}
     where, problem = lit.key_report(env)
-    assert where == {"OPENALEX_API_KEY": "environment", "S2_API_KEY": "secrets file"} and problem == ""
+    assert where == {"OPENALEX_API_KEY": "environment", "S2_API_KEY": "secrets file",
+                     "UNPAYWALL_EMAIL": "missing", "CORE_API_KEY": "missing"} and problem == ""  # fmt: skip
     assert "fake" not in repr(where)
     where, _ = lit.key_report({"DEVKIT_SECRETS_FILE": str(tmp_path / "none")})
     assert set(where.values()) == {"missing"}
@@ -1641,3 +1642,55 @@ def test_unpaywall_through_a_local_http_server(tmp_path):
         server.shutdown()
     assert ft and ft.kind == "pdf" and why == "", why
     assert "/v2/10.1000/c?email=team%40example.org" in seen and "/c.pdf" in seen
+
+
+# ---- which keys are set, and who sets a missing one (#622) ----
+
+
+def test_key_report_covers_every_secret_and_the_contact_email_from_the_project_config(tmp_path):
+    env = secrets(tmp_path, "CORE_API_KEY=fake-core\n") | {"OPENALEX_API_KEY": "fake-oa"}
+    where, problem = lit.key_report(env)
+    assert problem == "" and list(where) == list(lit.SECRET_NAMES)
+    assert where == {"OPENALEX_API_KEY": "environment", "S2_API_KEY": "missing",
+                     "UNPAYWALL_EMAIL": "missing", "CORE_API_KEY": "secrets file"}  # fmt: skip
+    where, _ = lit.key_report(env, contact="team@example.org")
+    assert where["UNPAYWALL_EMAIL"] == "project config" and "fake" not in repr(where) and "team" not in repr(where)
+
+
+def test_status_names_each_keyed_source_and_who_sets_a_missing_key_never_a_value(tmp_path):
+    env = {"S2_API_KEY": "fake-s2", oa.CORE_KEY_ENV: "fake-core"}
+    out = lit.render_status(make(tmp_path, FakeNet(healthy()), env=env).status(), env)
+    keys = next(line for line in out.splitlines() if line.startswith("keys:"))
+    assert "s2 keyed" in keys and "core keyed" in keys and "openalex not keyed" in keys
+    assert "unpaywall not keyed" in keys and "UNPAYWALL_EMAIL" in keys and "OPENALEX_API_KEY" in keys
+    assert "docs/SETUP.md#research-api-keys" in keys and "lead" in keys and "fake" not in out
+    assert out.splitlines()[-1].startswith("discovery: OK")  # the verdict stays the last line
+    full = lit.keys_line({k: "fake" for k in lit.SECRET_NAMES})
+    assert "not keyed" not in full and "SETUP" not in full and "fake" not in full
+
+
+def test_dev_lit_read_without_a_copy_names_the_locator_keys_that_were_missing(tmp_path):
+    c, _, _ = locator_client(tmp_path, {OA: (200, json.dumps(CLOSED))})
+    code, text = lit.read(c, "10.1000/c")
+    assert code == 1 and "UNPAYWALL_EMAIL" in text and "CORE_API_KEY" in text
+    assert "docs/SETUP.md#research-api-keys" in text and "lead" in text
+    (tmp_path / "k").mkdir()
+    keyed, _, _ = locator_client(
+        tmp_path / "k", {OA: (200, json.dumps(CLOSED))}, {oa.CONTACT_ENV: "a@example.org", oa.CORE_KEY_ENV: "fake"}
+    )
+    code, text = lit.read(keyed, "10.1000/c")
+    assert code == 1 and "SETUP" not in text
+
+
+def test_a_none_cached_without_a_locator_key_is_asked_again_once_the_key_is_set(tmp_path):
+    """Regression: the owner sets CORE_API_KEY, but `dev lit read` kept the keyless 'none' (and CORE's keyless
+    placeholder answer) for CACHE_DAYS."""
+    hidden = {"id": 3, "fullText": "Not available for public API users.", "downloadUrl": ""}
+    text = "1 Introduction\n" + "words of the body " * 300
+    c, _, _ = locator_client(tmp_path, {OA: (200, json.dumps(CLOSED)), CORE: (200, json.dumps({"results": [hidden]}))})
+    assert c.full_text("10.1000/c")[0] is None
+    answers = {OA: (200, json.dumps(CLOSED)), CORE: (200, json.dumps({"results": [{**hidden, "fullText": text}]}))}
+    keyed, calls, _ = locator_client(tmp_path, answers, {oa.CORE_KEY_ENV: "fake-core"})
+    ft, _ = keyed.full_text("10.1000/c")
+    assert ft and [u for u, _ in calls if u.startswith(CORE)]
+    assert "fake-core" not in stored(tmp_path)

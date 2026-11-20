@@ -134,6 +134,18 @@ def test_the_project_carries_the_research_api_keys_setup(rendered):
     assert "docs/SETUP.md#research-api-keys" in (ROOT / "README.md").read_text()
 
 
+def test_the_setup_page_gives_every_secret_dev_lit_reads_a_recipe():
+    """#622: each name the secrets file may hold has its own `read -rsp ... printf` line, never an echo or export."""
+    from devkit import lit
+
+    text = (ROOT / "docs/SETUP.md").read_text()
+    section = text.split("## Research API keys", 1)[1].split("\n## ", 1)[0]
+    for name in lit.SECRET_NAMES:
+        recipe = f"printf '{name}=%s\\n' \"$k\" >> ~/.config/api-keys.env; unset k"
+        assert f"| `{name}` |" in section and recipe in section, name
+    assert "core.ac.uk/services/api" in section and "never paste" in section.lower()
+
+
 def test_copier_update_brings_the_research_api_keys_setup_to_an_existing_project(tmp_path):
     """A project made from v0.1.2 (before docs/SETUP.md existed) gets it through `copier update`."""
     dest = tmp_path / "old"

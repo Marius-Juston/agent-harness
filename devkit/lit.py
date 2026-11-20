@@ -92,8 +92,17 @@ DEFAULT_SOURCES = ("openalex", "s2")
 FALLBACK_SOURCES = ("crossref", "europepmc", "arxiv")
 THROTTLE_503 = {"europepmc"}  # sources whose 503 means "slow down"
 KEYS = {"openalex": "OPENALEX_API_KEY", "s2": "S2_API_KEY"}  # free keys raise a source above its shared pool
-SECRET_NAMES = (*KEYS.values(), oa.CONTACT_ENV, oa.CORE_KEY_ENV)  # what the secrets file may set
+KEYED = {**KEYS, "unpaywall": oa.CONTACT_ENV, "core": oa.CORE_KEY_ENV}  # every source a secret enables or raises
+SECRET_NAMES = tuple(KEYED.values())  # what the secrets file may set
+WITHOUT = {  # what dev lit loses without each one (dev doctor, dev lit status)
+    "OPENALEX_API_KEY": "dev lit searches OpenAlex's shared, rate-limited pool",
+    "S2_API_KEY": "dev lit searches Semantic Scholar's shared, rate-limited pool",
+    oa.CONTACT_ENV: "dev lit read never asks Unpaywall for an open-access copy",
+    oa.CORE_KEY_ENV: "dev lit read gets no full text from CORE",
+}
 SECRETS_FILE = "~/.config/api-keys.env"  # DEVKIT_SECRETS_FILE overrides
+KEYS_DOC = "docs/SETUP.md#research-api-keys"
+WHO_SETS = f"the owner sets it ({KEYS_DOC}); an agent reports it to the lead, never asks for a key"
 
 Get = Callable[[str, dict[str, str]], tuple[int, dict[str, str], str]]  # (url, headers) -> (status, headers, body)
 GetBytes = Callable[[str, dict[str, str]], tuple[int, dict[str, str], bytes]]
@@ -593,11 +602,21 @@ def with_secrets(env: dict[str, str]) -> tuple[dict[str, str], str]:
     return {**env, **{k: v for k, v in found.items() if not env.get(k)}}, problem
 
 
-def key_report(env: dict[str, str]) -> tuple[dict[str, str], str]:
-    """For `dev doctor`: each key's origin ("environment", "secrets file" or "missing"), never its value; a problem."""
-    found, problem = ({}, "") if all(env.get(k) for k in KEYS.values()) else read_secrets(secrets_path(env))
-    where = {k: "environment" if env.get(k) else "secrets file" if found.get(k) else "missing" for k in KEYS.values()}
+def key_report(env: dict[str, str], contact: str = "") -> tuple[dict[str, str], str]:
+    """For `dev doctor`: each secret's origin ("environment", "secrets file", "project config" for a contact email
+    from [tool.devkit], or "missing"), never its value; a problem."""
+    found, problem = ({}, "") if all(env.get(k) for k in SECRET_NAMES) else read_secrets(secrets_path(env))
+    where = {k: "environment" if env.get(k) else "secrets file" if found.get(k) else "missing" for k in SECRET_NAMES}
+    if contact and where[oa.CONTACT_ENV] == "missing":
+        where[oa.CONTACT_ENV] = "project config"
     return where, problem
+
+
+def keys_line(env: dict[str, str]) -> str:
+    """`dev lit status`'s keys line: each keyed source keyed or not (never a value), and who sets a missing key."""
+    missing = [name for name in SECRET_NAMES if not env.get(name)]
+    line = "keys: " + ", ".join(f"{src} {'not ' * (name in missing)}keyed" for src, name in KEYED.items())
+    return line + (f" ({', '.join(missing)} missing: {WHO_SETS})" if missing else "")
 
 
 def with_key(source: str, url: str, env: dict[str, str]) -> tuple[str, dict[str, str]]:
@@ -607,7 +626,6 @@ def with_key(source: str, url: str, env: dict[str, str]) -> tuple[str, dict[str,
     if source == "s2" and (k := env.get("S2_API_KEY")):
         return url, {"x-api-key": k}
     return oa.auth(source, url, env) or (url, {})
-    return url, {}
 
 
 def limit_403(status: int, headers: dict[str, str]) -> bool:
@@ -672,10 +690,12 @@ class Client:
     ) -> str:
         """Body of a 200 answer for `url`, from the shared cache when younger than `max_age` seconds (never when
         `live`). Raises SourceError otherwise."""
-        path = self._cache_path(url)
-        if not live and (body := self._cached(url, max_age)) is not None:
-            return body
         send, headers = self.auth(source, url, self.env)
+        # a locator answers a keyed caller differently (CORE's keyless fullText is a placeholder): cached apart
+        url_id = url + "#keyed" if source in oa.LOCATOR_RATES and (send, headers) != (url, {}) else url
+        path = self._cache_path(url_id)
+        if not live and (body := self._cached(url_id, max_age)) is not None:
+            return body
         keyed = self.keyed(source)
         status, body = 0, ""
         for attempt in range(tries):
@@ -906,8 +926,10 @@ class Client:
         """(the paper's full text as sections, or None and why there is none) for an arXiv id or a DOI: arXiv's HTML,
         else its PDF; for another DOI the arXiv copy its record names, else the open-access link `get` prints (Europe
         PMC's XML for a PMC article), else the open-access locators' copies (_candidates). The parsed text, and a definite 'none' (no open-access copy, 404, 403),
-        is cached CACHE_DAYS beside the responses. Raises SourceError when the answer was transient (retry later)."""
+        is cached CACHE_DAYS beside the responses, apart for each set of locator keys (a 'none' found without one is
+        asked again once it is set). Raises SourceError when the answer was transient (retry later)."""
         key = (m.group(1) if (m := ARXIV_ID.match(ident)) else _arxiv_from_doi(ident)) or ident.lower()
+        key += "".join(f"|{name}" for name in (oa.CONTACT_ENV, oa.CORE_KEY_ENV) if self.env.get(name))
         path = self.dir / "fulltext" / (hashlib.sha256(key.encode()).hexdigest()[:32] + ".json")
         with contextlib.suppress(FileNotFoundError, json.JSONDecodeError, KeyError):
             rec = json.loads(path.read_text())
@@ -1054,7 +1076,9 @@ def read(c: Client, ident: str, section: str = "") -> tuple[int, str]:
     """`dev lit read`: (exit code, text): the paper's outline, or the one section `section` locates."""
     ft, why = c.full_text(ident)
     if ft is None:
-        return 1, f"no full text for {ident}: {why}"
+        unasked = [name for name in (oa.CONTACT_ENV, oa.CORE_KEY_ENV) if not c.env.get(name)]
+        hint = f"\n{', '.join(unasked)} missing, so fewer open-access copies were asked: {WHO_SETS}" if unasked else ""
+        return 1, f"no full text for {ident}: {why}{hint}"
     if not section:
         return 0, ft.outline()
     found = ft.locate(section)
@@ -1108,9 +1132,9 @@ def discovery(health: list[Health]) -> str:
     return f"OK ({answered} answered)"
 
 
-def render_status(health: list[Health]) -> str:
+def render_status(health: list[Health], env: dict[str, str] | None = None) -> str:
     lines = [f"{h.source:<10} {'ok  ' if h.ok else 'DOWN'}  {h.detail}" for h in health]
-    return "\n".join([*lines, "discovery: " + discovery(health)])
+    return "\n".join([*lines, *([keys_line(env)] if env is not None else []), "discovery: " + discovery(health)])
 
 
 def coverage_line(health: list[Health], now: float) -> str:
