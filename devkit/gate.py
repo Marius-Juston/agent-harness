@@ -588,9 +588,10 @@ def stages(
     base: str | None,
     help_rows: Sequence[tuple[str, str]] = (),
     parser: Callable[[], argparse.ArgumentParser] | None = None,
+    issue: str | None = None,
 ) -> list[Callable[[], Ran]]:
     """The gate's stages in order. `parser` builds a fresh `dev` parser (cli passes `cli.build`) for the dev-command
-    check; it is passed in so this module never imports cli."""
+    check; it is passed in so this module never imports cli. `issue` is integrate's weaken.ISSUE_ENV."""
     return [
         checks.check_surface,
         checks.check_settings,
@@ -601,7 +602,7 @@ def stages(
         lambda: rules.check_rules(base),
         board.check_board,
         lambda: checks.check_ratchets(base),
-        lambda: weaken.check_weakening(base),
+        lambda: weaken.check_weakening(base, issue),
         lambda: checks.check_installs(base),
         lambda: checks.check_clones(base),
         lambda: checks.check_generated(docs.render(help_rows)),
@@ -679,6 +680,7 @@ def check(
             cmd = [sys.executable, "-c", "from devkit.cli import main; main()", *sys.argv[1:]]
             return subprocess.run(cmd, cwd=root(), env=env, check=False).returncode
     role = take_lock_role(os.environ)  # the re-run above kept them, the stages below must not see them
+    issue = os.environ.pop(weaken.ISSUE_ENV, None)  # likewise: a test's nested check must not inherit integrate's
     for line in identity():
         print(line, flush=True)
     base = checks.merge_base()
@@ -693,7 +695,7 @@ def check(
     with gate_lock(state_dir() / "gate.lock", on_wait=waiting, slots=gate_slots(), **role):
         start = time.time()
         failed = 0
-        for stage in stages(full, commands, base, help_rows, parser):
+        for stage in stages(full, commands, base, help_rows, parser, issue):
             ran = stage()
             print(ran.line(), flush=True)
             for p in ran.problems[:FAIL_LINES]:
