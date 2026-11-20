@@ -56,5 +56,4 @@ module_loc_ceiling = 1000  # LOC (non-blank, non-comment) a module may have with
 
 [arch.module_loc]          # modules over the ceiling, pinned at their LOC: they may only shrink
 "devkit/board.py" = 1525
-"plugins/harness-ops/scripts/guard_bash.py" = 1169
 "scripts/repo_metrics.py" = 1290
