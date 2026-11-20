@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from datetime import date
 from importlib import metadata
 from pathlib import Path
@@ -383,6 +384,13 @@ def build() -> argparse.ArgumentParser:
     )
     x.add_argument("pct", nargs="?", help="new cap percent, 0-100")
     x.add_argument("--clear", action="store_true", help="drop the override: back to [tool.devkit] quota_cap")
+    x = sub.add_parser(
+        "gate-slots",
+        help="how many gates run at once here, and the source; owner only: `! uv run dev gate-slots <n>` sets a "
+        "machine-local override (never committed), --clear drops it",
+    )
+    x.add_argument("n", nargs="?", help="gates at once on this machine, 1-256")
+    x.add_argument("--clear", action="store_true", help="drop the override: back to [tool.devkit] gate_slots")
     x = sub.add_parser("eval", help="micro-scenario evals of the agent surface via claude -p in a remote-less clone")
     x.add_argument("names", nargs="*", help="scenario names (default: all in the evals dir)")
     x.add_argument("--trials", type=int, default=3)
@@ -615,6 +623,8 @@ def run(a: argparse.Namespace) -> int:
             return quota.usage_poll(once=a.once)
         case "quota-cap":
             return run_quota_cap(a)
+        case "gate-slots":
+            return run_gate_slots(a)
         case "suite-audit":
             return run_suite_audit(a)
         case "mutants":
@@ -633,19 +643,44 @@ def run(a: argparse.Namespace) -> int:
 
 
 def run_quota_cap(a: argparse.Namespace) -> int:
-    if a.pct is not None and a.clear:
-        print("error: give a percent or --clear, not both", file=sys.stderr)
+    return run_override(
+        a.pct, a.clear, "a percent", config.parse_cap, quota.set_quota_cap, quota.quota_cap, quota.CAP_SOURCES,
+        "quota cap {}%",
+    )  # fmt: skip
+
+
+def run_gate_slots(a: argparse.Namespace) -> int:
+    return run_override(
+        a.n, a.clear, "a slot count", config.parse_slots, gate.set_gate_slots, gate.slots_setting, gate.SLOTS_SOURCES,
+        "gate slots {}",
+    )  # fmt: skip
+
+
+def run_override(
+    value: str | None,
+    clear: bool,
+    what: str,
+    parse: Callable[[str], int],
+    write: Callable[[int | None], Path],
+    read: Callable[[], tuple[int, str]],
+    sources: dict[str, str],
+    shown: str,
+) -> int:
+    """An owner-only machine-local override (`dev quota-cap`, `dev gate-slots`): set it to `value`, drop it with
+    `clear`, then print the effective value (`shown`) and its source."""
+    if value is not None and clear:
+        print(f"error: give {what} or --clear, not both", file=sys.stderr)
         return 1
-    if a.pct is not None:
+    if value is not None:
         try:
-            quota.set_quota_cap(config.parse_cap(a.pct))
+            write(parse(value))
         except ValueError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
-    elif a.clear:
-        quota.set_quota_cap(None)
-    cap, source = quota.quota_cap()
-    print(f"quota cap {cap}% ({quota.CAP_SOURCES[source]})")
+    elif clear:
+        write(None)
+    n, source = read()
+    print(f"{shown.format(n)} ({sources[source]})")
     return 0
 
 

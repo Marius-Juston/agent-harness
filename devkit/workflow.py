@@ -43,7 +43,7 @@ from devkit.fixloop import (  # re-exported: devkit/train.py reads these through
     send_back_conflicting,
     undisposed_hint,
 )
-from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, holders, recorded_pass
+from devkit.gate import HELD_ENV, PRIORITY_ENV, effective_slots, free_gb, holders, recorded_pass, slots_setting
 from devkit.merging import (  # re-exported: devkit/train.py reads these through devkit.workflow
     GENERATED_MERGE,  # noqa: F401 - tests read it here
     _add_worktree,
@@ -164,8 +164,12 @@ def status(as_json: bool = False, resume: bool = False) -> str:
         return json.dumps(rows, indent=1) if as_json else resume_text(rows)
     wts = branches.worktrees()
     pct, cap = quota.quota_reading()
+    setting, source = slots_setting()
+    slots = effective_slots(state_dir() / "gate.lock", setting)  # slot files a larger setting left count too
     data = {
         "gate": gate_holder(),
+        "gate_slots": slots,
+        "gate_slots_source": source if slots == setting else "slot files on disk",
         "mem_gb": round(free_gb(), 1),
         "worktrees": wts,
         "quota": quota.quota(),
@@ -174,7 +178,8 @@ def status(as_json: bool = False, resume: bool = False) -> str:
     }
     if as_json:
         return json.dumps(data, indent=1)
-    out = [f"gate {data['gate']} . {data['mem_gb']} GB free . {data['quota']}"]
+    slots = f"{data['gate_slots']} gate slots ({data['gate_slots_source']})"
+    out = [f"gate {data['gate']} . {slots} . {data['mem_gb']} GB free . {data['quota']}"]
     for w in wts:
         out.append(
             f"  {w['branch']:<40} +{w['ahead']} {'*' + str(w['dirty']) if w['dirty'] else ''}  {w['last']}  {w['path']}"
