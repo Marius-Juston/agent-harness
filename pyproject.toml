@@ -67,6 +67,8 @@ surface = ["plugins/harness-ops"]
 path_check_skip = ["plugins/", "template/"]
 # Dependabot bumps ci.yml only; `dev docs` (and so integrate) moves the template's copies of those pins with it (#431).
 action_pins = { ".github/workflows/ci.yml" = ["template/.github/workflows/*.yml"] }
+# A release states its version in all three (tests/test_version_sync.py); `dev release` writes and checks them (#605).
+release_files = ["pyproject.toml", "plugins/harness-ops/.claude-plugin/plugin.json", "copier.yml"]
 # Owner decision (#499): a harness-ops:reviewer merge verdict on the current head suffices; autopilot integrates it.
 autopilot_trust_review = "harness-ops:reviewer"
 
