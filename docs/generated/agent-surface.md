@@ -7,7 +7,7 @@
 | name | model | effort | tools | words | use when |
 |---|---|---|---|---|---|
 | harness-ops:architect | opus | high | Read, Grep, Glob, Bash | 426 | Read-only consolidation review of the whole repository, run when `uv run dev orient` says a review is due or the owner asks for one. |
-| harness-ops:builder | opus | medium | all | 619 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
+| harness-ops:builder | opus | medium | all | 633 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
 | harness-ops:research-auditor | opus | high | Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers | 600 | Adversarial, read-only audit of one research note. |
 | harness-ops:researcher | opus | high | all | 600 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
 | harness-ops:reviewer | opus | medium | Read, Grep, Glob, Bash | 597 | Read-only pre-merge review of one PR against its issue's DONE WHEN, the research it cites and the project rules. |
@@ -62,11 +62,12 @@
 | `check` | the gate: drift checks, budgets, lint, tests (one per machine; cached per tree) |
 | `test` | pytest with workers scaled to free memory; --affected runs the change's tests |
 | `docs` | regenerate the generated references and the research INDEX.md |
-| `code` | navigate by symbol: outline / show / refs / find (capped output) |
+| `code` | navigate by symbol: outline / show / refs / find / search (capped output) |
 | `code outline` | signatures / headings of a file |
 | `code show` | body of a function, class or Class.method |
 | `code refs` | who mentions a symbol, grouped by file, tests last |
 | `code find` | regex search, capped per file |
+| `code search` | the functions a task description most likely means (BM25), one line each |
 | `board` | work items (GitHub issues): list, next, new, claim, beat, block, release, sync, sweep, event, brief |
 | `board init` | create the status/priority/type/area/stale labels in the GitHub repo |
 | `board list` | open items, one line each (STALE = in progress, no update for 6 h) |
@@ -117,7 +118,7 @@
 |---|---|---|
 | CLAUDE.md | 277 | 600 |
 | plugins/harness-ops/agents/architect.md | 426 | 600 |
-| plugins/harness-ops/agents/builder.md | 619 | 650 |
+| plugins/harness-ops/agents/builder.md | 633 | 650 |
 | plugins/harness-ops/agents/research-auditor.md | 600 | 600 |
 | plugins/harness-ops/agents/researcher.md | 600 | 600 |
 | plugins/harness-ops/agents/reviewer.md | 597 | 600 |
