@@ -20,7 +20,7 @@ import warnings
 from collections.abc import Callable
 from pathlib import Path
 
-from devkit import config, frontmatter
+from devkit import arch, config, frontmatter
 from devkit.diffparse import parse
 from devkit.paths import git, root
 from devkit.ran import Ran
@@ -564,6 +564,7 @@ def _load_ratchets(text: str) -> dict:
         "defaults": data.get("defaults", {}),
         "raise": data.get("raise", []),
         "tests": data.get("tests", {}),
+        "arch": data.get("arch"),  # None when absent: the arch ratchets are not adopted there yet
     }
 
 
@@ -656,6 +657,16 @@ def ratchet_raises(cur: dict, old: dict, files: list[str], owner: str | None) ->
         before, _ = effective_budget(old, rel)
         if value is not None and (before is None or value > before) and key not in raised:
             raised[key] = (before, value, f"{rel} (via {key})")
+    # [arch] values are ceilings too, once main has the table: a pin new since main is a module crossing the ceiling.
+    if old.get("arch") is not None:
+        try:
+            now, then = (arch.ratchet_keys(arch.ratchet_table(r.get("arch") or {})) for r in (cur, old))
+        except ValueError as e:
+            problems.append(f"ratchets.toml: {e}")
+            now, then = {}, {}
+        for key, value in now.items():
+            if (before := then.get(key)) is None or value > before:
+                raised[key] = (before, value, key)
     for key, (before, value, what) in raised.items():
         to = allowed.get(key)
         if to is None:
@@ -666,8 +677,8 @@ def ratchet_raises(cur: dict, old: dict, files: list[str], owner: str | None) ->
 
 
 def check_ratchets(base: str | None, owner: str | None = None) -> Ran:
-    """Word budgets of the always-loaded and agent files may only go down, and [tests] floors only up. Loosening
-    either needs an owner-signed [[raise]]."""
+    """Word budgets of the always-loaded and agent files and the [arch] ceilings (arch.py) may only go down, and
+    [tests] floors only up. Loosening any of them needs an owner-signed [[raise]]."""
     ran = Ran("ratchets (budgets only tighten)")
     ratchets = config.get().ratchets
     text = (root() / ratchets).read_text()

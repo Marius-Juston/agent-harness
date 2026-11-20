@@ -21,6 +21,7 @@ dependencies = [
     "diff-cover>=11.0.0",
     "pytest-timeout>=2.4",
     "pathspec>=1.1",
+    "pypdf>=7.1",
     "ty==0.0.107",  # pre-1.0: pinned exactly, so a bump is a deliberate PR whose gate shows the new count
 ]
 
@@ -68,6 +69,8 @@ path_check_skip = ["plugins/", "template/"]
 action_pins = { ".github/workflows/ci.yml" = ["template/.github/workflows/*.yml"] }
 # Every project pins this code: integrate refuses a PR touching it until a reviewer verdict says merge (#501).
 required_reviews = { "devkit/" = "harness-ops:reviewer", "plugins/" = "harness-ops:reviewer" }
+# Owner decision (#499): a harness-ops:reviewer merge verdict on the current head suffices; autopilot integrates it.
+autopilot_trust_review = "harness-ops:reviewer"
 
 # The review trigger's code count leaves out research evidence (experiment scripts never imported) and the trees
 # reached only by path: eval fixtures from evals/scenarios/*.yaml, test fixtures, and the Copier template (#451).
@@ -82,6 +85,21 @@ exclude = [
     "tests/fixtures/*",
     "template/*",
 ]
+
+# Import contracts the gate's arch stage keeps (`uv run dev arch`). Review 1 cut docs -> cli (#140) and PR #417 put
+# the pattern back as checks -> cli, which review 2 cut again (#449): docs/research/architecture-grading.md §4.
+# The acyclic contract is off until #615 cuts main's two cycles (code -> reuse, integrate <-> workflow); [arch]
+# max_import_cycle = 2 in .devkit/ratchets.toml holds them meanwhile. Uncomment it then.
+# [[tool.devkit.arch.contracts]]
+# name = "devkit modules form no import cycle"
+# type = "acyclic_siblings"
+# ancestors = ["devkit"]
+
+[[tool.devkit.arch.contracts]]
+name = "only the entry point imports the CLI"
+type = "forbidden"
+source_modules = ["devkit.*"]
+forbidden_modules = ["devkit.cli"]
 
 # `dev integrate --local-ci`: what stands in for each required CI job when Actions cannot run (ci.yml's commands).
 # `check` runs, after the gate, each other `run:` step of ci.yml's check job, the same text in the same order

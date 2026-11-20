@@ -1,4 +1,4 @@
-"""Literature search shared by every agent on this machine (`uv run dev lit search|get|refs|cited-by`).
+"""Literature search shared by every agent on this machine (`uv run dev lit search|get|read|refs|cited-by`).
 
 Parallel researchers on one IP got 429s from OpenAlex and Semantic Scholar and spent OpenAlex's daily budget, then
 fell back to weaker sources. Every call here goes through one client:
@@ -22,6 +22,9 @@ fell back to weaker sources. Every call here goes through one client:
   adds authors, an open-access link and the full abstract, asks the next source only while the abstract or
   authors are missing, and batches several DOIs or W-ids into one OpenAlex call (#30, #174);
 - `refs` and `cited-by`: backward and forward citation chasing (snowballing) through OpenAlex filters (#193);
+- `read`: a paper's full text, cached as sections (devkit.fulltext): the outline, or one section, so an agent reads
+  what a claim rests on, not the abstract or the whole paper (#512); a DOI whose record names no readable copy is
+  looked up in Europe PMC (PMC, PubMed's open full texts), Unpaywall (with a contact email) and CORE (#9);
 - `dev lit status`: each source's health from a live probe; OK while at least one default source answers (partial
   names the ones down), DEGRADED and exit 1 only when all are down, so a research round never starts on the weaker
   fallbacks alone without knowing it (#8, #23). `dev lit search` prints the same verdict for the sources it asked
@@ -32,6 +35,7 @@ or a cache across processes, the part that failed.
 """
 
 import contextlib
+import dataclasses
 import fcntl
 import hashlib
 import html
@@ -46,11 +50,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from devkit import backoff, netsafe
+from devkit import backoff, config, fulltext, netsafe, oa
 from devkit.paths import state_dir, user_state_dir
 
 UA = "agent-harness-devkit-lit/0.1 (research tooling; mailto:noreply@example.invalid)"
@@ -79,18 +83,27 @@ RATES: dict[str, tuple[float, float]] = {
     "arxiv": (1 / 3, 1.0),
 }
 SOURCES = tuple(RATES)
+# Full texts (`full_text`) from an open-access host other than arXiv's and Europe PMC's buckets: one per second, shared.
+# Open-access locators (devkit.oa, #9) have their own buckets; their downloads share the ones above.
+TEXT_RATES = {"fulltext": (1.0, 2.0), **oa.LOCATOR_RATES}
+TEXT_CAP = fulltext.PDF_MAX_BYTES + 1  # bytes read of one full text: one more than a PDF may have, to refuse it
 DEFAULT_SOURCES = ("openalex", "s2")
 # Asked in order, after DEFAULT_SOURCES, only while fewer than n papers are in hand (`--source auto`, the CLI default).
 FALLBACK_SOURCES = ("crossref", "europepmc", "arxiv")
 THROTTLE_503 = {"europepmc"}  # sources whose 503 means "slow down"
 KEYS = {"openalex": "OPENALEX_API_KEY", "s2": "S2_API_KEY"}  # free keys raise a source above its shared pool
+SECRET_NAMES = (*KEYS.values(), oa.CONTACT_ENV, oa.CORE_KEY_ENV)  # what the secrets file may set
 SECRETS_FILE = "~/.config/api-keys.env"  # DEVKIT_SECRETS_FILE overrides
 
 Get = Callable[[str, dict[str, str]], tuple[int, dict[str, str], str]]  # (url, headers) -> (status, headers, body)
+GetBytes = Callable[[str, dict[str, str]], tuple[int, dict[str, str], bytes]]
 
 
 class SourceError(Exception):
     pass
+
+
+TRANSIENT = r"tries|rate limited|unreachable"  # a SourceError message that says "ask again later"
 
 
 # request headers that carry a key (authorization: dev reuse's GitHub token)
@@ -117,6 +130,10 @@ def http_get(url: str, headers: dict[str, str], timeout: int = 30) -> tuple[int,
         return netsafe.http_get(url, ua=UA, headers=headers, timeout=timeout, cap=2_000_000, opener=OPENER)
     except (ValueError, UnicodeEncodeError):  # a header or url urllib cannot send; its message may quote the key
         raise SourceError("key contains non-ASCII characters (or a control character); fix the secrets file") from None
+
+
+def http_get_bytes(url: str, headers: dict[str, str], timeout: int = 60) -> tuple[int, dict[str, str], bytes]:
+    return netsafe.http_get_bytes(url, ua=UA, headers=headers, timeout=timeout, cap=TEXT_CAP, opener=OPENER)
 
 
 # ---- rate limit: token bucket shared through a locked file ----
@@ -522,7 +539,7 @@ def batch_url(field_name: str, values: list[str]) -> str:
 
 
 def parse_secrets(text: str) -> dict[str, str]:
-    """KEYS values from `KEY=value` or `export KEY=value` lines, as a shell reads them: a quoted value ends at its
+    """SECRET_NAMES values from `KEY=value` or `export KEY=value` lines, as a shell reads them: a quoted value ends at its
     closing quote, an unquoted one at ` #` (a comment). Every other line is ignored."""
     out = {}
     for line in text.splitlines():
@@ -534,7 +551,7 @@ def parse_secrets(text: str) -> dict[str, str]:
             value = value[1:end] if end > 0 else ""
         else:
             value = re.split(r"\s+#", value, maxsplit=1)[0].strip()
-        if eq and name.strip() in KEYS.values() and value:
+        if eq and name.strip() in SECRET_NAMES and value:
             out[name.strip()] = value
     return out
 
@@ -570,7 +587,7 @@ def read_secrets(path: Path) -> tuple[dict[str, str], str]:
 
 def with_secrets(env: dict[str, str]) -> tuple[dict[str, str], str]:
     """`env` with each unset key filled from the secrets file (read only when a key is unset), and its problem."""
-    if all(env.get(k) for k in KEYS.values()):
+    if all(env.get(k) for k in SECRET_NAMES):
         return dict(env), ""
     found, problem = read_secrets(secrets_path(env))
     return {**env, **{k: v for k, v in found.items() if not env.get(k)}}, problem
@@ -589,6 +606,7 @@ def with_key(source: str, url: str, env: dict[str, str]) -> tuple[str, dict[str,
         return url + ("&" if "?" in url else "?") + "api_key=" + urllib.parse.quote(k), {}
     if source == "s2" and (k := env.get("S2_API_KEY")):
         return url, {"x-api-key": k}
+    return oa.auth(source, url, env) or (url, {})
     return url, {}
 
 
@@ -630,6 +648,7 @@ def chase_target(ident: str) -> str:
 class Client:
     dir: Path
     get: Get = http_get
+    get_bytes: GetBytes = http_get_bytes
     clock: Callable[[], float] = time.time
     sleep: Callable[[float], None] = time.sleep
     env: dict[str, str] = field(default_factory=lambda: dict(os.environ))
@@ -642,7 +661,8 @@ class Client:
 
     def __post_init__(self) -> None:
         (self.dir / "cache").mkdir(parents=True, exist_ok=True)
-        self.bucket = Bucket(self.rate_dir or self.dir, self.clock, self.sleep, self.rng, self.rates)
+        rates = TEXT_RATES | self.rates
+        self.bucket = Bucket(self.rate_dir or self.dir, self.clock, self.sleep, self.rng, rates)
 
     def _cache_path(self, url: str) -> Path:
         return self.dir / "cache" / (hashlib.sha256(url.encode()).hexdigest()[:32] + ".json")
@@ -882,6 +902,109 @@ class Client:
             return [], []
         return papers, [f"{len(papers)} of {count} {CHASE[direction][1]} of {target}, most cited first"]
 
+    def full_text(self, ident: str) -> tuple[fulltext.FullText | None, str]:
+        """(the paper's full text as sections, or None and why there is none) for an arXiv id or a DOI: arXiv's HTML,
+        else its PDF; for another DOI the arXiv copy its record names, else the open-access link `get` prints (Europe
+        PMC's XML for a PMC article), else the open-access locators' copies (_candidates). The parsed text, and a definite 'none' (no open-access copy, 404, 403),
+        is cached CACHE_DAYS beside the responses. Raises SourceError when the answer was transient (retry later)."""
+        key = (m.group(1) if (m := ARXIV_ID.match(ident)) else _arxiv_from_doi(ident)) or ident.lower()
+        path = self.dir / "fulltext" / (hashlib.sha256(key.encode()).hexdigest()[:32] + ".json")
+        with contextlib.suppress(FileNotFoundError, json.JSONDecodeError, KeyError):
+            rec = json.loads(path.read_text())
+            if self.clock() - rec["t"] < CACHE_DAYS * 86400:
+                if "none" in rec:
+                    return None, rec["none"]
+                sections = [tuple(s) for s in rec["sections"]]
+                return fulltext.FullText(rec["url"], rec["kind"], sections, rec.get("levels") or []), ""
+        ft, why = self._read_full_text(ident)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        rec = {"t": self.clock(), "none": why} if ft is None else {"t": self.clock(), **dataclasses.asdict(ft)}
+        netsafe.atomic_write(path, json.dumps(rec))
+        return ft, why
+
+    def _read_full_text(self, ident: str) -> tuple[fulltext.FullText | None, str]:
+        m = ARXIV_ID.match(ident)
+        ax, oa_link, tried = m.group(1) if m else _arxiv_from_doi(ident), "", []
+        doi = (d.group(1) if (d := DOI_ID.match(ident.strip())) else "") if not m else ""
+        if not ax:
+            paper, notes = self.lookup(ident)
+            if paper is None and any(re.search(TRANSIENT, n) for n in notes):
+                raise SourceError(f"no record for {ident} ({'; '.join(notes)})")
+            if paper is None:  # every source answered and none knows it: definite
+                return None, f"no record for {ident}"
+            ax, oa_link, doi = paper.ids.get("arxiv", ""), paper.oa_url, doi or paper.ids.get("doi", "")
+        urls = [("arxiv", f"https://arxiv.org/html/{ax}"), ("arxiv", f"https://arxiv.org/pdf/{ax}")] if ax else []
+        if not ax and oa_link:
+            urls.append(oa.text_source(oa_link))
+        transient: list[str] = []
+        seen: set[str] = set()
+        for src, url, text in self._candidates(urls, "" if ax else doi, transient):
+            if url in seen:
+                continue
+            seen.add(url)
+            if text:
+                ft: fulltext.FullText | None = fulltext.from_text(text, url)
+            else:
+                if why := netsafe.bad_scheme(url):
+                    tried.append(f"{url}: {why}")
+                    continue
+                status, body = self._fetch_bytes(src, url)
+                if status != 200:
+                    tried.append(f"{url}: HTTP {status}")
+                    continue
+                if body.startswith(b"%PDF"):
+                    ft = fulltext.from_pdf(body, url)
+                else:
+                    kind = "xml" if src == "europepmc" else "html"
+                    ft = fulltext.from_markup(body.decode("utf-8", "replace"), url, kind)
+            if ft is None:
+                tried.append(f"{url}: unreadable PDF (broken, over {fulltext.PDF_MAX_BYTES} bytes or over "
+                             f"{fulltext.PDF_SECONDS:.0f} s to parse)")  # fmt: skip
+            elif ft.words() >= fulltext.MIN_WORDS:
+                return ft, ""
+            else:
+                tried.append(f"{url}: {ft.words()} words of text, not a full paper")
+        if transient:  # a locator that may know a copy did not answer: retry later rather than cache 'none'
+            raise SourceError("; ".join(tried + transient))
+        return None, "; ".join(tried) or "no open-access copy"
+
+    def _candidates(
+        self, urls: list[tuple[str, str]], doi: str, transient: list[str]
+    ) -> Iterator[tuple[str, str, str]]:
+        """(bucket, URL, text already in hand or '') to try in turn: `urls`, then for a DOI each open-access locator's,
+        asked only once the ones before it gave no full text: Europe PMC's PMC copy (PubMed's open full texts),
+        Unpaywall's locations (only with a contact email), CORE's repository copies. A locator that failed
+        transiently is named in `transient`; one that answered 'not found' or another 4xx is skipped quietly."""
+        for src, url in urls:
+            yield src, url, ""
+        if not doi:
+            return
+        epmc = search_url("europepmc", f'DOI:"{doi}"', 1)
+        locators = oa.locators(doi, self.env, epmc, lambda b: [p.oa_url for p in parse_europepmc(b) if p.oa_url])
+        for src, url, parse in locators:
+            try:
+                found = parse(self.fetch(src, url))
+            except SourceError as exc:
+                if re.search(TRANSIENT, str(exc)):
+                    transient.append(str(exc))
+                continue
+            except (ValueError, AttributeError, TypeError) as exc:
+                transient.append(f"{src}: unreadable answer ({type(exc).__name__})")
+                continue
+            yield from found
+
+    def _fetch_bytes(self, src: str, url: str) -> tuple[int, bytes]:
+        """(status, body) of a definite answer, through the shared bucket; a transient one twice raises SourceError."""
+        status = 0
+        for attempt in range(2):
+            self.bucket.acquire(src)
+            status, headers, body = self.get_bytes(url, {})
+            if not (status == 0 or status == 429 or status >= 500):
+                return status, body
+            if attempt == 0:
+                self.sleep(backoff.wait(0, backoff.hinted(headers, self.clock()), self.rng, cap=MAX_WAIT))
+        raise SourceError(f"{url}: {'HTTP ' + str(status) if status else 'unreachable'} after 2 tries")
+
 
 def _merge(merged: dict[str, Paper], p: Paper) -> None:
     """Same paper from two sources: keep one record with the union of ids, the higher citation count, any abstract."""
@@ -910,11 +1033,24 @@ def _same_title(a: Paper, b: Paper) -> bool:
     return bool(ta) and ta == tb and (a.year is None or b.year is None or abs(a.year - b.year) <= 1)
 
 
-def client() -> Client:
+def client(settings: Callable[[], config.Config] = config.get) -> Client:
     env, problem = with_secrets(dict(os.environ))
     if problem:
         print(f"dev lit: {problem}", file=sys.stderr)
+    if not env.get(oa.CONTACT_ENV) and (email := oa.contact_email(settings)):
+        env[oa.CONTACT_ENV] = email
     return Client(state_dir("lit"), env=env, rate_dir=user_state_dir("lit"))
+
+
+def read(c: Client, ident: str, section: str = "") -> tuple[int, str]:
+    """`dev lit read`: (exit code, text): the paper's outline, or the one section `section` locates."""
+    ft, why = c.full_text(ident)
+    if ft is None:
+        return 1, f"no full text for {ident}: {why}"
+    if not section:
+        return 0, ft.outline()
+    found = ft.locate(section)
+    return (0, found[1]) if found else (1, f"{section!r} is not in the outline:\n{ft.outline()}")
 
 
 def render(papers: list[Paper], notes: list[str], snippet: int = SNIPPET) -> str:

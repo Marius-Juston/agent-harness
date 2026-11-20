@@ -476,6 +476,8 @@ def test_guard_bash_never_crashes(cmd):
         GUARD.MAIN,
         GUARD.FORCE,
         GUARD.HOOKS,
+        GUARD.GH_CRED,  # #601: `env` alone dumps the environment
+        GUARD.OPAQUE,
     )
 
 
@@ -510,14 +512,14 @@ def _on_failure_outcome(code: int, on_failure: str) -> str:
 def test_a_crashing_guard_blocks_the_call(hook, tmp_path, name):
     """#46: a guard that cannot run (here: an import that raises) refuses the call instead of allowing it."""
     data = json.loads((HOOKS.parent / "hooks/hooks.json").read_text())
-    [entry] = [h for g in data["hooks"]["PreToolUse"] for h in g["hooks"] if h["command"].endswith(f"/{name}")]
+    entries = [h for g in data["hooks"]["PreToolUse"] for h in g["hooks"] if h["command"].endswith(f"/{name}")]
     (tmp_path / "json.py").write_text("raise RuntimeError('broken guard')\n")
     env = {**os.environ, "PYTHONPATH": str(tmp_path)}
     payload = {"tool_input": {"command": "git push origin main", "file_path": "uv.lock"}}
     code, _, err = hook(name, payload, env)
     assert code not in (0, 2) and "broken guard" in err
-    assert entry.get("onFailure") == "block"
-    assert _on_failure_outcome(code, entry["onFailure"]) == "block"
+    assert entries and all(entry.get("onFailure") == "block" for entry in entries)  # every handler, Read's too
+    assert all(_on_failure_outcome(code, entry["onFailure"]) == "block" for entry in entries)
     assert _on_failure_outcome(code, "continue") == "allow"  # the default this replaces
 
 
@@ -1655,3 +1657,594 @@ def test_guard_bash_wait_check_adds_under_a_millisecond_to_other_commands():
     for cmd in [c for c in ALLOWED if isinstance(c, str)] + NOT_WAITS:
         best = min(_timed(GUARD.bound_waits, cmd, "/nonexistent") for _ in range(20))
         assert best < 1e-3, (cmd, best)
+
+
+# #528: GitHub writes that bypass integrate, widen access or forge a trusted record. The payload shape is the one a
+# real subagent's PreToolUse input had (Claude Code 2.1.329, a plugin agent `pp:probe`): agent_id and agent_type
+# "<plugin>:<name>" inside a subagent, neither in the main session.
+LEAD, BUILDER = None, "harness-ops:builder"
+
+
+def _gh(hook, cmd: str, agent: str | None, cwd=None) -> tuple[int, str]:
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": cmd},
+        "cwd": str(cwd or os.getcwd()),
+        "session_id": "s",
+        "permission_mode": "default",
+        "tool_use_id": "t",
+    }
+    if agent:
+        payload |= {"agent_type": agent, "agent_id": "a37ef09f55cef54ff"}
+    code, _, err = hook("guard_bash.py", payload)
+    return code, err
+
+
+# docs/research/_scratch/gap-survey/scripts/probe_write_caps.py (#498): each must be refused to a builder.
+PROBE_WRITE_CAPS = [
+    "gh pr merge 12 --squash",
+    "gh pr merge 12 --admin --squash",
+    "gh issue close 7",
+    "gh issue edit 7 --body 'weakening-ok: owner'",
+    "gh gist create notes.txt --public",
+    "gh api -X DELETE repos/o/r/git/refs/heads/feature",
+    "gh api -X PUT repos/o/r/branches/main/protection -f x=y",
+    "gh release create v9.9.9",
+    "gh repo edit --visibility public",
+    "git push origin HEAD:main",
+    "git push --force origin feature",
+]
+
+
+@pytest.mark.parametrize("cmd", PROBE_WRITE_CAPS)
+def test_guard_bash_refuses_the_probe_write_capabilities_to_a_builder(hook, cmd):
+    assert _gh(hook, cmd, BUILDER)[0] == 2, cmd
+
+
+# Refused to every session, the lead's included (dev integrate calls gh from Python, unseen by this hook).
+GH_ALWAYS = [
+    ("gh pr merge 12 --squash", "GH_MERGE"),
+    ("gh pr merge --admin --squash 12", "GH_MERGE"),
+    ("bash -c 'gh pr merge 12'", "GH_MERGE"),
+    ("echo 12 | xargs gh pr merge", "GH_MERGE"),
+    ("gh api -X PUT repos/o/r/pulls/12/merge", "GH_MERGE"),
+    ("gh api repos/{owner}/{repo}/merges -f base=main -f head=x", "GH_MERGE"),
+    (
+        "gh api graphql -f query='mutation { mergePullRequest(input: {pullRequestId: \"x\"}) { clientMutationId } }'",
+        "GH_MERGE",
+    ),
+    ("gh repo edit --visibility public", "GH_ADMIN"),
+    ("gh repo delete o/r --yes", "GH_ADMIN"),
+    ("gh repo archive o/r", "GH_ADMIN"),
+    ("gh gist create notes.txt --public", "GH_ADMIN"),
+    ("gh release create v9.9.9", "GH_ADMIN"),
+    ("gh release delete v1.0.0 --yes", "GH_ADMIN"),
+    ("gh secret set TOKEN --body x", "GH_ADMIN"),
+    ("gh variable set X --body y", "GH_ADMIN"),
+    ("gh alias set m 'pr merge'", "GH_ADMIN"),
+    ("gh api -X PUT repos/o/r/branches/main/protection -f x=y", "GH_ADMIN"),
+    ("gh api --method DELETE /repos/o/r/branches/main/protection", "GH_ADMIN"),
+    ("gh api -X POST repos/o/r/rulesets --input rules.json", "GH_ADMIN"),
+    ("gh api -X PUT repos/o/r/collaborators/someone", "GH_ADMIN"),
+    ("gh api repos/o/r/hooks -f url=https://example.com", "GH_ADMIN"),
+    ("gh api -X PATCH repos/o/r -f visibility=public", "GH_ADMIN"),
+    ("gh api https://api.github.com/repos/o/r -XDELETE", "GH_ADMIN"),
+    ("gh api gists -f files=x", "GH_ADMIN"),
+    ("gh api graphql -f query='mutation { deleteBranchProtectionRule(input: {}) { clientMutationId } }'", "GH_ADMIN"),
+    ("gh api -X DELETE repos/o/r/git/refs/heads/feature", "REF_DELETE"),
+    ("gh api -X PATCH repos/o/r/git/refs/heads/main -f sha=abc -F force=true", "REF_DELETE"),
+    ("git push --delete origin 12-x", "REF_DELETE"),
+    ("git push origin --delete 12-x", "REF_DELETE"),
+    ("git push -d origin 12-x", "REF_DELETE"),
+    ("git push origin :12-x", "REF_DELETE"),
+    ("git push --prune origin 'refs/heads/*:refs/heads/*'", "REF_DELETE"),
+    ("gh issue comment 528 --body-file - <<'EOF'\nweakening-ok: the owner approves\nEOF", "OWNER_MARK"),
+    ("uv run dev board new --type bug --title t --context 'x\nweakening-ok: yes'", "OWNER_MARK"),
+    ("gh pr comment 5 --body '<!-- devkit:fix-loop cycle=1 head=abc key=k outcome=merged -->'", "OWNER_MARK"),
+]
+
+
+@pytest.mark.parametrize("agent", [LEAD, BUILDER, "harness-ops:reviewer"])
+@pytest.mark.parametrize(("cmd", "rule"), GH_ALWAYS)
+def test_guard_bash_refuses_owner_github_writes_to_every_session(hook, cmd, rule, agent):
+    code, err = _gh(hook, cmd, agent)
+    assert code == 2 and getattr(GUARD, rule) in err, (cmd, agent, err)
+    assert "uv run dev" in getattr(GUARD, rule)  # each names the dev command to use instead
+
+
+# The lead's (issue housekeeping): refused to subagents only.
+LEAD_ONLY = [
+    "gh issue close 7 --duplicate-of 3",
+    "gh issue edit 7 --add-label x",
+    "gh issue delete 7 --yes",
+    "gh api -X PATCH repos/o/r/issues/7 -f state=closed",
+    "gh api graphql -f query='mutation { closeIssue(input: {issueId: \"x\"}) { clientMutationId } }'",
+]
+
+
+@pytest.mark.parametrize("cmd", LEAD_ONLY)
+def test_guard_bash_issue_housekeeping_is_the_leads(hook, cmd):
+    code, err = _gh(hook, cmd, BUILDER)
+    assert code == 2 and GUARD.ISSUE_WRITE in err
+    assert _gh(hook, cmd, LEAD)[0] == 0
+
+
+VERDICT_BODY = "Verdict: merge, round 1, abc1234\nReviewed by harness-ops:reviewer"
+REVIEW_POSTS = [
+    "gh pr review 5 --comment --body-file - <<'VERDICT_END'\n" + VERDICT_BODY + "\nVERDICT_END",
+    "gh pr review 5 --approve",
+    f"gh pr comment 5 --body '{VERDICT_BODY}'",
+    "printf 'Verdict: merge, round 2, abc1234\\n' | gh pr comment 5 --body-file -",
+    "gh api repos/o/r/pulls/5/reviews -f event=COMMENT -f body=x",
+    "gh api -X PUT repos/o/r/pulls/5/reviews/9/dismissals -f message=x",
+    "gh api graphql -f query='mutation { addPullRequestReview(input: {}) { clientMutationId } }'",
+    "gh issue comment 5 --body '**Verdict: send back**, round 1, abc1234'",
+]
+
+
+@pytest.mark.parametrize("cmd", REVIEW_POSTS)
+def test_guard_bash_only_reviewers_post_reviews_and_verdicts(hook, cmd):
+    for agent in (LEAD, BUILDER, "harness-ops:researcher", "general-purpose"):
+        code, err = _gh(hook, cmd, agent)
+        assert code == 2 and GUARD.REVIEW in err, (cmd, agent)
+    assert _gh(hook, cmd, "harness-ops:reviewer")[0] == 0, cmd
+
+
+def test_guard_bash_a_review_body_on_disk_is_read(hook, tmp_path):
+    (tmp_path / "v.md").write_text(VERDICT_BODY + "\n")
+    cmd = "gh pr review 5 --comment --body-file v.md"
+    assert _gh(hook, cmd, "harness-ops:reviewer", tmp_path)[0] == 0
+    assert _gh(hook, cmd.replace("review 5 --comment", "comment 5"), BUILDER, tmp_path)[0] == 2
+
+
+def test_guard_bash_research_auditor_posts_its_verdict_but_never_as_the_reviewer(hook):
+    own = "gh pr review 5 --comment --body-file - <<'E'\nVerdict: merge, round 1, abc1234\nharness-ops:research-auditor\nE"
+    assert _gh(hook, own, "harness-ops:research-auditor")[0] == 0
+    code, err = _gh(hook, REVIEW_POSTS[0], "harness-ops:research-auditor")  # names harness-ops:reviewer
+    assert code == 2 and GUARD.REVIEW in err
+
+
+STILL_ALLOWED = [
+    "gh issue comment 528 --body 'fixed in #586'",
+    "gh pr comment 5 --body-file - <<'EOF'\nAnswered each finding; the verdict is the reviewer's.\nEOF",
+    "gh issue create --title t --body 'a `weakening-ok: <reason>` line is the owner approval'",
+    "gh pr create --title t --body b",
+    "gh pr view 5 --json headRefOid",
+    "gh pr checks 5",
+    "gh issue view 528",
+    "gh api repos/o/r/pulls/5/reviews",
+    "gh api -X GET repos/o/r/branches/main/protection",
+    'gh api graphql -f query=\'{ repository(owner: "o", name: "r") { pullRequest(number: 5) { title } } }\'',
+    "gh api repos/o/r/issues/5/comments -f body='looks good'",
+    "gh release view v1",
+    "gh repo view",
+    "git push -u origin 528-worker-gh-writes",
+    "uv run dev board new --type bug --title t --done 'x' --context 'see weakening-ok: in weaken.py'",
+    "uv run dev pr 528 --summary - <<'EOF'\nVerdict per DONE WHEN item: met\nEOF",
+]
+
+
+@pytest.mark.parametrize("cmd", STILL_ALLOWED)
+def test_guard_bash_keeps_ordinary_github_work(hook, cmd):
+    for agent in (LEAD, BUILDER):
+        code, err = _gh(hook, cmd, agent)
+        assert code == 0, (cmd, agent, err)
+
+
+def test_guard_bash_forgery_patterns_agree_with_what_devkit_trusts():
+    from devkit import board, weaken
+
+    assert GUARD.WEAKENING_OK.pattern == weaken.MARKER.pattern and GUARD.WEAKENING_OK.flags == weaken.MARKER.flags
+    for line in (
+        "Verdict: merge, round 1, abc1234",
+        "Verdict: send back, round 12, 0123456789abcdef",
+        "Verdict: reconsider, round 3, ABCDEF0",
+    ):
+        assert board.verdict_of(line) and GUARD.VERDICT_LINE.search(line)
+
+
+# #601: gh's credential (its hosts file and the token variables) is a protected secret; gh still reads it itself.
+GH_CRED_READS = [
+    "gh auth token",  # #528 listed these under GH_ADMIN; #603 round 1 moved token readers to GH_CRED
+    "gh auth status --show-token",
+    "cat ~/.config/gh/hosts.yml",
+    "cp ~/.config/gh/hosts.yml /tmp/x",
+    "grep oauth_token ~/.config/gh/hosts.yml",
+    "cat $HOME/.config/gh/hosts.yml",
+    "cat < ~/.config/gh/hosts.yml",
+    "cat $GH_CONFIG_DIR/hosts.yml",
+    "base64 ${GH_CONFIG_DIR}/hosts.yml",
+    "cd ~/.config/gh && cat hosts.yml",
+    "tar czf /tmp/x.tgz ~/.config/gh",
+    "cat ~/.config/g*/hosts.yml",
+    "head ~/.config/gh/*",
+    "python3 -c \"print(open('/root/.config/gh/hosts.yml').read())\"",
+    "echo $GH_TOKEN",
+    'echo "$GITHUB_TOKEN" > /tmp/t',
+    'curl -H "Authorization: token $GH_TOKEN" https://api.github.com/user',
+    "cat <<EOF > /tmp/t\n$GH_TOKEN\nEOF",
+    "printenv GH_TOKEN",
+    "printenv",
+    "env",
+    "env | grep TOKEN",
+    "set",
+    "export -p",
+    "declare -p GITHUB_TOKEN",
+    "cat /proc/self/environ",
+    "python3 -c 'import os; print(os.environ[\"GH_TOKEN\"])'",
+    "bash -c 'echo $GH_TOKEN'",
+]
+GH_CRED_OK = [
+    "gh auth status",
+    "gh pr view 5",
+    "ls ~/.config/gh",
+    "echo '$GH_TOKEN is read by gh itself'",
+    "cat <<'EOF'\n$GH_TOKEN stays literal in a quoted heredoc\nEOF",
+    "printenv PATH",
+    "env FOO=1 make test",
+    "set -euo pipefail",
+    "export X=1",
+    "cat hosts.yml",
+    "cat docs/gh/notes.md",
+]
+
+
+@pytest.mark.parametrize("agent", [LEAD, BUILDER])
+@pytest.mark.parametrize("cmd", GH_CRED_READS)
+def test_guard_bash_refuses_reading_the_gh_credential(hook, cmd, tmp_path, agent):
+    code, err = _gh(hook, cmd, agent, tmp_path)
+    assert code == 2 and GUARD.GH_CRED in err, (cmd, agent, err)
+
+
+@pytest.mark.parametrize("cmd", GH_CRED_OK)
+def test_guard_bash_allows_gh_and_harmless_mentions_of_its_credential(hook, cmd, tmp_path):
+    code, err = _gh(hook, cmd, BUILDER, tmp_path)
+    assert code == 0, (cmd, err)
+
+
+def _file_tool(hook, tool: str, path: str, env: dict | None = None) -> tuple[int, str]:
+    key = "file_path" if tool == "Read" else "path"
+    inp = {key: path, **({"pattern": "token"} if tool == "Grep" else {})}
+    code, _, err = hook("file_guard.py", {"tool_name": tool, "tool_input": inp, "cwd": os.getcwd()}, env=env)
+    return code, err
+
+
+@pytest.mark.parametrize("tool", ["Read", "Grep"])
+def test_file_tools_may_not_read_the_gh_credential_or_other_secrets(hook, tool, tmp_path):
+    home = os.path.expanduser("~")
+    for path, rule in [
+        (f"{home}/.config/gh/hosts.yml", "GH_CRED"),
+        (f"{home}/.config/gh", "GH_CRED"),
+        (f"{home}/.config/api-keys.env", "SECRETS"),
+        ("/repo/.env", "ENV"),
+    ]:
+        code, err = _file_tool(hook, tool, path)
+        assert code == 2 and getattr(GUARD, rule) in err, (tool, path)
+    custom = tmp_path / "ghc"
+    env = {**os.environ, "GH_CONFIG_DIR": str(custom)}
+    assert _file_tool(hook, tool, str(custom / "hosts.yml"), env)[0] == 2  # $GH_CONFIG_DIR moves the file
+    for path in ("/repo/src/app.py", "/repo/.env.example", f"{home}/.config/other/x.yml"):
+        assert _file_tool(hook, tool, path)[0] == 0, (tool, path)
+
+
+def _guard_entries(script: str) -> list[tuple[set[str], str | None]]:
+    """(tools matched, `if` filter) of each PreToolUse handler that runs `script`."""
+    return [
+        (set(m["matcher"].split("|")), h.get("if"))
+        for m in json.loads((HOOKS.parent / "hooks/hooks.json").read_text())["hooks"]["PreToolUse"]
+        for h in m["hooks"]
+        if h["command"].endswith(f"/{script}")
+    ]
+
+
+def test_guard_bash_runs_for_the_file_tools():
+    """Bash and Grep always reach the hook (an `if` filter never fires for Grep: VERIFIED, Claude Code 2.1.329).
+    Read reaches it only for secret-shaped paths (`if` filters, VERIFIED to fire for `~/` and `**/` patterns), so an
+    ordinary Read starts no process."""
+    assert any("Bash" in tools and cond is None for tools, cond in _guard_entries("guard_bash.py"))
+    entries = _guard_entries("file_guard.py")
+    assert any("Grep" in tools and cond is None for tools, cond in entries)
+    reads = {cond for tools, cond in entries if "Read" in tools}
+    assert None not in reads  # never unfiltered
+    need = {"~/.config/**", "~/.ssh/**", "**/.env", "**/.env.*", "**/hosts.yml", f"**/{GUARD.SECRETS_NAME}"}
+    assert reads == {f"Read({x})" for x in need}
+
+
+def test_an_ordinary_grep_exits_before_the_imports(tmp_path):
+    """#603: a Grep that names no secret-shaped path pays Python's start-up and json (to resolve its path against the
+    credential stores, round 2) only: guard_bash is never loaded."""
+    payload = json.dumps({"tool_name": "Grep", "tool_input": {"pattern": "x", "path": "src"}, "cwd": str(tmp_path)})
+    cmd = [sys.executable, "-X", "importtime", str(HOOKS / "file_guard.py")]
+    out = subprocess.run(cmd, input=payload, capture_output=True, text=True, timeout=30, check=False)
+    imported = {line.split("|")[-1].strip() for line in out.stderr.splitlines() if "|" in line}
+    assert out.returncode == 0 and not imported & {"guard_bash", "shlex", "fnmatch"}, imported & {"guard_bash"}
+    secret = payload.replace('"src"', json.dumps(os.path.expanduser("~/.config/gh")))
+    assert subprocess.run(cmd, input=secret, capture_output=True, text=True, timeout=30, check=False).returncode == 2
+
+
+# #603 round 1: gh's command resolution. Each refused case again with a global -R / --repo before the command words.
+GH_REPO_FLAG = [
+    (cmd.replace("gh ", f"gh {flag} ", 1), rule)
+    for cmd, rule in GH_ALWAYS
+    if cmd.startswith("gh ")
+    for flag in ("-R o/r", "--repo=o/r")
+]
+
+
+@pytest.mark.parametrize(("cmd", "rule"), GH_REPO_FLAG)
+def test_guard_bash_resolves_gh_global_flags(hook, cmd, rule):
+    code, err = _gh(hook, cmd, BUILDER)
+    assert code == 2 and getattr(GUARD, rule) in err, (cmd, err)
+
+
+GH_ALIASES_EXTENSIONS = [
+    ("""echo "aliases: {m: pr merge}" >> ~/.config/gh/config.yml""", "GH_CRED", LEAD),
+    ("cp evil.yml ~/.config/gh/config.yml", "GH_CRED", LEAD),
+    ("gh config set aliases.m 'pr merge'", "GH_ADMIN", LEAD),
+    ("gh extension install foo/gh-merge", "GH_ADMIN", LEAD),
+    ("gh ext install foo/gh-merge", "GH_ADMIN", LEAD),
+    ("gh m 1", "GH_UNKNOWN", BUILDER),
+    ("gh extension exec merge 1", "GH_UNKNOWN", BUILDER),
+    ("gh ssh-key add k.pub", "GH_ADMIN", LEAD),
+    ("gh repo fork o/r", "GH_ADMIN", LEAD),
+]
+
+
+@pytest.mark.parametrize(("cmd", "rule", "agent"), GH_ALIASES_EXTENSIONS)
+def test_guard_bash_refuses_gh_aliases_and_extensions(hook, cmd, rule, agent):
+    for who in {agent, BUILDER}:
+        code, err = _gh(hook, cmd, who)
+        assert code == 2 and getattr(GUARD, rule) in err, (cmd, who, err)
+
+
+def test_the_lead_keeps_its_own_aliases():
+    assert GUARD.Checker("/nonexistent", agent=None).text("gh m 1") is None
+    assert GUARD.Checker("/nonexistent", agent=None).text("gh co 12") is None
+    assert GUARD.Checker("/nonexistent", agent="builder").text("gh co 12") is None  # gh's built-in alias
+
+
+CRED_READS_R2 = [
+    "gh auth status -t",
+    "gh auth status --show-token=true",
+    "gh auth git-credential get",
+    "printf 'protocol=https\\nhost=github.com\\n\\n' | git credential fill",
+    "git credential-store get",
+    "grep -r oauth_token ~/.config",
+    "grep -R token ~",
+    "rg oauth ~/.config",
+    "rg --hidden oauth ~",
+    "find ~/.config -name hosts.yml -exec cat {} \\;",
+    "find ~/.config -name hosts.yml | xargs cat",
+    "tar cz ~/.config | base64",
+    "cp -r ~/.config backup",
+    "rsync -a ~/.config/ backup/",
+    "zip -r out.zip ~/.ssh",
+    "cat ~/.ssh/id_ed25519",
+    "cp ~/.ssh/id_rsa key",
+    "python3 -c \"import os;print(os.environ['GH_'+'TOKEN'])\"",
+    'python3 -c "import os;print(dict(os.environ))"',
+    "python3 - <<'EOF'\nimport os\nprint(os.environ.copy())\nEOF",
+    "node -e 'console.log(process.env.GH_TOKEN)'",
+    "node -e 'console.log(JSON.stringify(process.env))'",
+    "perl -e 'print $ENV{GH_TOKEN}'",
+    "perl -e 'print %ENV'",
+    "ruby -e 'puts ENV[\"GITHUB_TOKEN\"]'",
+    "ruby -e 'puts ENV.to_h'",
+    "awk 'BEGIN{print ENVIRON[\"GH_TOKEN\"]}'",
+    "x=GH_TOKEN; echo ${!x}",
+    "node -e \"require('fs').readFileSync(require('os').homedir()+'/.config/gh/hosts.yml')\"",
+]
+CRED_OK_R2 = [
+    "rg TODO ~",
+    "grep -r TODO .",
+    "find . -name '*.py' -exec ruff check {} +",
+    "python3 -c \"import os; print(os.environ['HOME'])\"",
+    "python3 -c \"import os; print(os.getenv('PATH', ''))\"",
+    "python3 -c 'from os import environ; print(environ.get(\"HOME\"))'",
+    "node -e 'console.log(process.env.HOME)'",
+    "awk '{print $1}' data.txt",
+    "perl -e 'print $ENV{HOME}'",
+    "ssh -i ~/.ssh/id_ed25519 host true",
+    "cat ~/.ssh/id_ed25519.pub",
+    "cat ~/.ssh/known_hosts",
+    "cp -r src backup",
+    "tar czf out.tgz src",
+    "gh auth status",
+]
+
+
+@pytest.mark.parametrize("cmd", CRED_READS_R2)
+def test_guard_bash_refuses_every_route_to_the_credentials(hook, cmd, tmp_path):
+    code, err = _gh(hook, cmd, BUILDER, tmp_path)
+    assert code == 2 and GUARD.GH_CRED in err, (cmd, err)
+
+
+@pytest.mark.parametrize("cmd", CRED_OK_R2)
+def test_guard_bash_keeps_ordinary_reads_near_the_credentials(hook, cmd, tmp_path):
+    code, err = _gh(hook, cmd, BUILDER, tmp_path)
+    assert code == 0, (cmd, err)
+
+
+# #601 DONE WHEN: raw GitHub API writes (curl, wget, httpie, python requests) are refused to subagents.
+API_WRITES = [
+    'curl -X PUT -H "Authorization: token x" https://api.github.com/repos/o/r/pulls/1/merge',
+    "curl -sS -XDELETE https://api.github.com/repos/o/r/git/refs/heads/x",
+    "curl -d '{}' https://api.github.com/repos/o/r/issues",
+    "curl -T asset.zip https://uploads.github.com/repos/o/r/releases/1/assets",
+    "wget --method=DELETE https://api.github.com/repos/o/r/git/refs/heads/x",
+    "wget --post-data='{}' https://api.github.com/repos/o/r/issues",
+    "http PUT api.github.com/repos/o/r/pulls/1/merge",
+    "http api.github.com/repos/o/r/issues title=x",
+    "python3 -c \"import requests; requests.put('https://api.github.com/repos/o/r/pulls/1/merge')\"",
+    "node -e \"fetch('https://api.github.com/repos/o/r/pulls/1/merge', {method: 'PUT'})\"",
+]
+API_READS = [
+    "curl -s https://api.github.com/repos/o/r",
+    "curl -sSL -H 'Accept: application/vnd.github+json' https://api.github.com/repos/o/r/pulls",
+    "wget -qO- https://api.github.com/repos/o/r",
+    "http api.github.com/repos/o/r",
+    "curl -X POST -d x https://example.com/hook",
+]
+
+
+@pytest.mark.parametrize("cmd", API_WRITES)
+def test_guard_bash_refuses_raw_github_api_writes_to_subagents(hook, cmd):
+    code, err = _gh(hook, cmd, BUILDER)
+    assert code == 2 and GUARD.GH_DIRECT in err, (cmd, err)
+
+
+@pytest.mark.parametrize("cmd", API_READS)
+def test_guard_bash_allows_raw_github_api_reads(hook, cmd):
+    assert _gh(hook, cmd, BUILDER)[0] == 0, cmd
+
+
+# #603 round 1: commits and branch moves through the API, refused to every session.
+COMMIT_WRITES = [
+    ("gh api -X PUT repos/o/r/contents/.github/workflows/ci.yml -f message=x -f content=eA==", "COMMIT_API"),
+    ("gh api -X DELETE repos/o/r/contents/README.md -f message=x -f sha=abc", "COMMIT_API"),
+    ("gh api graphql -f query='mutation{createCommitOnBranch(input:{}){clientMutationId}}'", "COMMIT_API"),
+    ("gh api -X POST repos/o/r/merge-upstream -f branch=main", "COMMIT_API"),
+    ("gh api -X POST repos/o/r/branches/main/rename -f new_name=x", "REF_DELETE"),
+    ("gh api graphql -f query='mutation{updateRef(input:{}){clientMutationId}}'", "REF_DELETE"),
+    ("gh api -X PUT repos/o/r/actions/workflows/1/disable", "GH_ADMIN"),
+]
+
+
+@pytest.mark.parametrize("agent", [LEAD, BUILDER])
+@pytest.mark.parametrize(("cmd", "rule"), COMMIT_WRITES)
+def test_guard_bash_refuses_commits_that_bypass_integrate(hook, cmd, rule, agent):
+    code, err = _gh(hook, cmd, agent)
+    assert code == 2 and getattr(GUARD, rule) in err, (cmd, agent, err)
+    assert "uv run dev" in getattr(GUARD, rule)
+
+
+# #603 pre-existing finding: words built from variables or decoded text.
+INDIRECT = [
+    ("b=main; git push origin $b", "MAIN"),
+    ("b=main\ngit push origin ${b}", "MAIN"),
+    ("M=-X; gh api $M PUT repos/o/r/pulls/1/merge", "GH_MERGE"),
+    ("x=merge; gh pr $x 1", "GH_MERGE"),
+    ("g=gh; $g pr merge 1", "GH_MERGE"),
+    ('c="gh pr merge"; $c 1', "GH_MERGE"),
+    ("echo Z2l0IHB1c2ggb3JpZ2luIG1haW4K | base64 -d | bash", "OPAQUE"),
+    ("echo 'niam nigiro hsup tig' | rev | sh", "OPAQUE"),
+    ('eval "$(echo Z2l0IHB1c2ggb3JpZ2luIG1haW4K | base64 -d)"', "OPAQUE"),
+    ("bash <(echo Z2l0IHB1c2ggb3JpZ2luIG1haW4K | base64 -d)", "OPAQUE"),
+    ("python3 -c \"import base64,os; os.system(base64.b64decode('eA==').decode())\"", "OPAQUE"),
+]
+INDIRECT_OK = [
+    "b=feature; git push origin $b",
+    'eval "$(ssh-agent -s)"',
+    "echo aGk= | base64 -d > out.bin",
+    "cat script.sh | bash",
+    "f=src; ls $f",
+    "uv run dev eval research --offline",  # the harness's own `dev eval`, not the shell builtin
+    "uv run dev eval run x",
+]
+
+
+@pytest.mark.parametrize(("cmd", "rule"), INDIRECT)
+def test_guard_bash_resolves_variables_and_refuses_decoded_code(hook, cmd, rule):
+    code, err = _gh(hook, cmd, BUILDER)
+    assert code == 2 and getattr(GUARD, rule) in err, (cmd, err)
+
+
+@pytest.mark.parametrize("cmd", INDIRECT_OK)
+def test_guard_bash_keeps_ordinary_variables_and_pipes(hook, cmd):
+    code, err = _gh(hook, cmd, BUILDER)
+    assert code == 0, (cmd, err)
+
+
+# #603 round 2: a search of a folder above the credential store reaches it (Grep searches hidden files).
+HOME = os.path.expanduser("~")
+
+
+@pytest.mark.parametrize("path", ["~", HOME, f"{HOME}/.config", os.path.dirname(HOME), "/", f"{HOME}/.config/../"])
+def test_grep_above_a_credential_store_is_refused(hook, path):
+    code, err = _file_tool(hook, "Grep", path)
+    assert code == 2 and GUARD.GREP_ABOVE in err, (path, err)
+
+
+def test_grep_without_a_path_is_judged_by_its_cwd(hook, tmp_path):
+    def grep(cwd) -> int:
+        payload = {"tool_name": "Grep", "tool_input": {"pattern": "token"}, "cwd": str(cwd)}
+        return hook("file_guard.py", payload)[0]
+
+    assert grep(HOME) == 2
+    assert grep(tmp_path) == 0
+
+
+@pytest.mark.parametrize("path", [os.getcwd(), "src", f"{HOME}/.config/uv"])
+def test_grep_of_an_ordinary_folder_stays_allowed(hook, path):
+    assert _file_tool(hook, "Grep", path)[0] == 0, path
+
+
+SEARCH_ABOVE = [
+    "ag token ~",
+    "ag oauth ~/.config",
+    "ack token ~/.config",
+    "git grep --no-index oauth_token ~/.config",
+    "du -a ~/.config | xargs grep token",
+    "ls -d ~/.config/* | xargs cat",
+]
+SEARCH_OK = [
+    "git grep token",
+    "ag TODO src",
+    "ls src | xargs wc -l",
+    "find . -name '*.py' | xargs echo",
+    "du -sh ~/.config | sort",
+]
+
+
+@pytest.mark.parametrize("cmd", SEARCH_ABOVE)
+def test_guard_bash_refuses_searches_above_a_credential_store(hook, cmd, tmp_path):
+    code, err = _gh(hook, cmd, BUILDER, tmp_path)
+    assert code == 2 and GUARD.GH_CRED in err, (cmd, err)
+
+
+@pytest.mark.parametrize("cmd", SEARCH_OK)
+def test_guard_bash_keeps_ordinary_searches(hook, cmd, tmp_path):
+    code, err = _gh(hook, cmd, BUILDER, tmp_path)
+    assert code == 0, (cmd, err)
+
+
+def test_file_guard_protects_the_stores_guard_bash_does(monkeypatch, tmp_path):
+    spec = importlib.util.spec_from_file_location("file_guard", HOOKS / "file_guard.py")
+    assert spec is not None and spec.loader is not None
+    fg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fg)
+    monkeypatch.setenv("GH_CONFIG_DIR", str(tmp_path / "ghc"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    GUARD.cred_dirs.cache_clear()
+    try:
+        assert set(fg.stores()) == set(GUARD.cred_dirs())
+    finally:
+        GUARD.cred_dirs.cache_clear()
+
+
+def test_every_file_guard_handler_fails_closed():
+    handlers = [
+        h
+        for m in json.loads((HOOKS.parent / "hooks/hooks.json").read_text())["hooks"]["PreToolUse"]
+        for h in m["hooks"]
+        if h["command"].endswith("/file_guard.py")
+    ]
+    assert len(handlers) == 7 and all(h.get("onFailure") == "block" for h in handlers)
+
+
+@pytest.mark.parametrize(
+    ("tool", "path", "rule"),
+    [
+        ("Read", "/repo/.env", "ENV"),
+        ("Read", f"{HOME}/.config/{GUARD.SECRETS_NAME}", "KEYS_FILE"),
+        ("Read", f"{HOME}/.config/gh/hosts.yml", "GH_CRED"),
+        ("Grep", HOME, "GREP_ABOVE"),
+    ],
+)
+def test_a_file_tool_refusal_prints_exactly_its_fixed_message(hook, tool, path, rule):
+    """#603 CodeQL: the refusal printed is one fixed message chosen by file_tool_rule, never text built from the input."""
+    code, err = _file_tool(hook, tool, path)
+    assert code == 2 and err == f"Blocked by project rule: {getattr(GUARD, rule)}\n", err
+    assert GUARD.SECRETS is GUARD.KEYS_FILE  # the older name still names the same message
+    assert "uv run dev lit" in GUARD.KEYS_FILE

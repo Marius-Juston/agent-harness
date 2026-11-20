@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """PreToolUse(Bash): refuse commands that break project rules, each with the fix in the message (exit 2).
+PreToolUse(Read|Grep): refuse the same secrets (.env, the research keys file, gh's credential) to the file tools.
 
 The command is tokenized the way bash reads it: quoted strings and heredoc bodies are data (commit messages, issue
 text, file contents), while every simple command is checked, including those inside $(...), `...`, <(...),
@@ -7,20 +8,70 @@ text, file contents), while every simple command is checked, including those ins
 to an interpreter (bash, sh, python) by a heredoc, a here-string or a pipe. Stdlib only. Settings deny rules are
 prefix-only and this hook is best effort; server-side branch protection is the only complete guard for main.
 
+GitHub writes that bypass integrate or widen access (gh pr merge, repository settings, refs, releases, gists) are
+refused to every session; issue housekeeping is the lead's, and PR reviews and `Verdict:` lines belong to the reviewer
+agents (#528), told apart by the input's `agent_type`.
+
 A command allowed through that can wait forever (a poll loop, `tail -f`, `watch`, `wait`, ...) is rewritten
 (updatedInput) to run under `timeout <[tool.devkit] wait_bound_s>`; see bound_waits.
+
+Defense in depth, not a security boundary. Every agent runs as the owner, holding the owner's GitHub token and SSH
+keys, so the GitHub and credential rules (#528, #601) close the common and the obvious paths only: code in a script
+file, an encoding this lexer does not undo, or a tool it does not know still reaches what the owner can. The real
+boundary is credentials scoped per agent, which no hook provides.
 """
 
 import itertools
 import json
 import os
 import re
-import shlex
-import subprocess
 import sys
-import tempfile
-from dataclasses import dataclass, field
 from fnmatch import fnmatchcase
+
+# The shared modules live beside this script; a test or another hook may load it by path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Read through guard_bash by the tests and by uv_add_guard.
+from hooklib.github import COMMIT_API as COMMIT_API
+from hooklib.github import (
+    CRED_OK,
+    GH_CRED,
+    GREP_ABOVE,
+    OPAQUE,
+    REF_DELETE,
+    TOKEN_NAMES,
+    TRANSFORMERS,
+    GitHubRules,
+    assigned,
+    cred_path,
+    holds_cred,
+)
+from hooklib.github import GH_ADMIN as GH_ADMIN
+from hooklib.github import GH_DIRECT as GH_DIRECT
+from hooklib.github import GH_MERGE as GH_MERGE
+from hooklib.github import GH_UNKNOWN as GH_UNKNOWN
+from hooklib.github import ISSUE_WRITE as ISSUE_WRITE
+from hooklib.github import OWNER_MARK as OWNER_MARK
+from hooklib.github import REVIEW as REVIEW
+from hooklib.github import VERDICT_LINE as VERDICT_LINE
+from hooklib.github import WEAKENING_OK as WEAKENING_OK
+from hooklib.github import cred_dirs as cred_dirs
+from hooklib.shell import (
+    ASSIGN,
+    GREPS,
+    KEYWORDS,
+    MAX_DEPTH,
+    PY,
+    SHELLS,
+    Simple,
+    Word,
+    base,
+    lex,
+    long_opt,
+    unwrap,
+    within,
+)
+from hooklib.waits import WAIT_BOUND as WAIT_BOUND
+from hooklib.waits import bound_waits
 
 # Hooks run as `#!/usr/bin/env python3`, the host's interpreter, not the project's: every script must run on this
 # (Ubuntu 22.04 LTS ships 3.10). tests/test_plugin.py runs each one under it; devkit.setup.HOOK_PYTHON must agree.
@@ -29,10 +80,13 @@ MIN_PYTHON = (3, 10)
 PIP = "Python is managed with uv only: `uv add <pkg>` (or `uv add --dev`), `uv run ...`. Never pip."
 PKILL = '`pkill -f` matches the shell running it. Collect PIDs with `pgrep -f "[p]attern"` in one call, kill them in another.'
 ENV = "Never read secrets: .env stays unread. Commands that need it load it themselves."
-SECRETS = (
+KEYS_FILE = (
     "Never read the research API keys file (~/.config/api-keys.env or $DEVKIT_SECRETS_FILE): `uv run dev lit` "
     "loads it itself, and `uv run dev doctor` says whether each key is found, never its value."
 )
+# The older name. Code returns and prints KEYS_FILE: CodeQL treats a value read from a variable named like a
+# secret as one (py/clear-text-logging-sensitive-data on #603), though this is a fixed refusal message.
+SECRETS = KEYS_FILE
 SECRETS_NAME = "api-keys.env"
 MAIN = "Never push to main: push your issue branch and open a PR (`uv run dev pr <issue>`); the lead integrates."
 FORCE = "Force-push rewrites shared history. Use --force-with-lease on your own issue branch only, never on main."
@@ -99,298 +153,17 @@ CAP_READERS = {"cat", "head", "tail", "ls", "stat", "wc", "test", "[", "[[", "fi
 WHOLE_TREE = {".", "./", ":", ":/", ":/*", "*"}  # pathspecs that name every file
 HOOK_VAR = re.compile(r"^(SKIP|PRE_COMMIT\w*|GIT_CONFIG\w*)(=|$)")
 C_RUNNERS = {"flock", "su", "runuser", "script"}  # their -c / --command value is a shell command
-GREPS = {"grep", "egrep", "fgrep", "rg"}
 GREP_VALUE = {"-m", "-A", "-B", "-C", "-d", "-D", "--max-count", "--context", "-g", "--glob", "-t", "--type"}
 
-OPS = sorted(
-    [
-        "&&",
-        "||",
-        ";;&",
-        ";;",
-        ";&",
-        ";",
-        "|&",
-        "|",
-        "&>>",
-        "&>",
-        "&",
-        "<<<",
-        "<<-",
-        "<<",
-        "<>",
-        "<&",
-        "<",
-        ">>",
-        ">&",
-        ">|",
-        ">",
-    ],
-    key=len,
-    reverse=True,
-)
-BREAK = set(" \t\n;&|<>()")
-ASSIGN = re.compile(r"^[A-Za-z_]\w*\+?=")
-PY = re.compile(r"^python[0-9.]*$")
-SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "mksh", "busybox"}
-KEYWORDS = {"if", "then", "else", "elif", "fi", "do", "done", "while", "until", "!", "{", "}", "time", "case", "esac"}
 ENV_SAFE = {".env.example", ".env.sample", ".env.template", ".env.dist"}
 ENV_OK_CMDS = {"ls", "stat", "test", "[", "[[", "echo", "printf", "touch", "rm"}
 MESSAGE_OPTS = {"-m", "--message", "--title", "--body", "-b", "-t", "--subject"}  # their values are text, not paths
-MAX_DEPTH = 8
 # `git config` options that only read; any other flag (--add, --unset, -e, ...) makes the call a possible write
 CONFIG_READ_ACTIONS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "-l", "--list"}
 CONFIG_READ_FLAGS = {"--global", "--system", "--local", "--worktree", "--show-origin", "--show-scope", "--includes"}
 CONFIG_READ_FLAGS |= {"--no-includes", "-z", "--null", "--name-only", "--all", "--regexp", "--fixed-value"}
 CONFIG_READ_FLAGS |= {"--bool", "--int", "--bool-or-int", "--path", "--expiry-date", "--no-type"}
 CONFIG_VALUE_OPTS = {"-f", "--file", "--blob", "--type", "--default", "--url", "--value"}  # their value is not a name
-
-
-@dataclass
-class Word:
-    value: str
-    glob: bool = False  # an unquoted * ? or [ that bash would expand
-    quoted: bool = False
-    brace: bool = False  # an unquoted {, so maybe a brace expansion
-
-
-@dataclass
-class Simple:
-    words: list[Word] = field(default_factory=list)
-    stdin: list[tuple[str, bool]] = field(default_factory=list)  # heredoc / here-string text, and "is a heredoc"
-    reads: list[str] = field(default_factory=list)  # input redirection targets
-    writes: list[str] = field(default_factory=list)  # output redirection targets
-
-
-class Lexer:
-    """A small bash lexer: pipelines of simple commands; substitutions become pipelines of their own."""
-
-    def __init__(self, s: str, out: list[list[Simple]]):
-        self.s, self.n, self.out = s, len(s), out
-        self.pipe: list[Simple] = [Simple()]
-        self.out.append(self.pipe)
-        self.pending: list[tuple[str, bool, bool, Simple]] = []
-
-    def end_pipeline(self) -> None:
-        if any(c.words or c.stdin or c.reads or c.writes for c in self.pipe):
-            self.pipe = [Simple()]
-            self.out.append(self.pipe)
-
-    def sub(self, i: int, stop: str) -> int:
-        """Lex a substitution starting at i into its own pipelines; return the index after its end."""
-        return Lexer(self.s, self.out).run(i, stop)
-
-    def run(self, i: int = 0, stop: str = "") -> int:
-        s, depth = self.s, 0
-        while i < self.n:
-            c = s[i]
-            if c in " \t":
-                i += 1
-            elif c == "\\" and s.startswith("\n", i + 1):
-                i += 2
-            elif c == "\n":
-                i = self.heredocs(i + 1)
-                self.end_pipeline()
-            elif c == "#":
-                j = s.find("\n", i)
-                i = self.n if j < 0 else j
-            elif c == ")":
-                i += 1
-                if stop == ")" and depth == 0:
-                    return i
-                depth = max(depth - 1, 0)
-                self.end_pipeline()
-            elif c == "(":
-                depth += 1
-                i += 1
-                self.end_pipeline()
-            elif c in "<>" and s.startswith("(", i + 1):
-                i = self.word_into(i)
-            else:
-                op = next((o for o in OPS if s.startswith(o, i)), None)
-                i = self.word_into(i) if op is None else self.operator(op, i + len(op))
-        return i
-
-    def word_into(self, i: int) -> int:
-        w, i = self.word(i)
-        cur = self.pipe[-1]
-        if w.value.isdigit() and not w.quoted and i < self.n and self.s[i] in "<>":
-            return i  # a file descriptor number in front of a redirection
-        if w.brace:  # p{i,}p {pip,x}: check every word bash would produce
-            cur.words += [Word(v, w.glob, w.quoted) for v in expand_braces(w.value)]
-        else:
-            cur.words.append(w)
-        return i
-
-    def operator(self, op: str, i: int) -> int:
-        if op in ("|", "|&"):
-            self.pipe.append(Simple())
-            return i
-        if op in ("&&", "||", ";;&", ";;", ";&", ";", "&"):
-            self.end_pipeline()
-            return i
-        while i < self.n and self.s[i] in " \t":
-            i += 1
-        target, i = self.word(i)
-        cur = self.pipe[-1]
-        if op in ("<<", "<<-"):
-            self.pending.append((target.value, op == "<<-", target.quoted, cur))
-        elif op == "<<<":
-            cur.stdin.append((target.value, False))
-        elif op in ("<", "<>", "<&"):
-            cur.reads.append(target.value)
-        if op in (">", ">>", ">|", ">&", "&>", "&>>", "<>"):
-            cur.writes.append(target.value)
-        return i
-
-    def heredocs(self, i: int) -> int:
-        """At a newline: read the bodies of the heredocs opened on the line just ended."""
-        for delim, _tabs, quoted, owner in self.pending:
-            lines, s = [], self.s
-            while i < self.n:
-                j = s.find("\n", i)
-                line = s[i : self.n if j < 0 else j]
-                i = self.n if j < 0 else j + 1
-                if line.strip() == delim:  # looser than bash, so a body never swallows the commands after it
-                    break
-                lines.append(line)
-            body = "\n".join(lines)
-            owner.stdin.append((body, True))
-            if not quoted:
-                scan_substitutions(body, self.out)  # an unquoted heredoc still runs $(...) and `...`
-        self.pending = []
-        return i
-
-    def word(self, i: int) -> tuple[Word, int]:
-        s, buf, glob, quoted, brace = self.s, [], False, False, False
-        while i < self.n:
-            c = s[i]
-            if c in BREAK and not (c in "<>" and s.startswith("(", i + 1) and not buf):
-                break
-            if c in "<>":  # <(...) or >(...) process substitution
-                i = self.sub(i + 2, ")")
-                buf.append("\0")
-            elif c == "\\":
-                if s.startswith("\n", i + 1):
-                    i += 2
-                    continue
-                buf.append(s[i + 1 : i + 2])
-                quoted, i = True, i + 2
-            elif c == "'":
-                j = s.find("'", i + 1)
-                j = self.n if j < 0 else j
-                buf.append(s[i + 1 : j])
-                quoted, i = True, j + 1
-            elif c == "$" and s.startswith("'", i + 1):
-                j = i + 2
-                while j < self.n and s[j] != "'":
-                    j += 2 if s[j] == "\\" else 1
-                buf.append(ansi_c(s[i + 2 : j]))
-                quoted, i = True, j + 1
-            elif c == '"' or (c == "$" and s.startswith('"', i + 1)):
-                i = i + 1 if c == '"' else i + 2
-                while i < self.n and s[i] != '"':
-                    if s[i] == "\\" and i + 1 < self.n:
-                        buf.append(s[i + 1] if s[i + 1] in '$`"\\\n' else s[i : i + 2])
-                        i += 2
-                    elif s.startswith("$(", i):
-                        i = self.sub(i + 2, ")")
-                        buf.append("\0")
-                    elif s[i] == "`":
-                        i = self.backtick(i)
-                        buf.append("\0")
-                    else:
-                        buf.append(s[i])
-                        i += 1
-                quoted, i = True, i + 1
-            elif s.startswith("$(", i):
-                i = self.sub(i + 2, ")")
-                buf.append("\0")
-            elif c == "`":
-                i = self.backtick(i)
-                buf.append("\0")
-            elif s.startswith("${", i):
-                j = s.find("}", i)
-                j = self.n if j < 0 else j + 1
-                buf.append(s[i:j])
-                i = j
-            else:
-                glob = glob or c in "*?["
-                brace = brace or c == "{"
-                buf.append(c)
-                i += 1
-        return Word("".join(buf), glob, quoted, brace), i
-
-    def backtick(self, i: int) -> int:
-        j = i + 1
-        while j < self.n and self.s[j] != "`":
-            j += 2 if self.s[j] == "\\" else 1
-        inner = re.sub(r"\\([`$\\])", r"\1", self.s[i + 1 : j])
-        Lexer(inner, self.out).run()
-        return j + 1
-
-
-def expand_braces(word: str, cap: int = 256) -> list[str]:
-    """Bash brace expansion of {a,b,...} (nested too; no {1..3} ranges), at most cap words."""
-    depth, start, commas = 0, -1, []
-    for i, ch in enumerate(word):
-        if ch == "{":
-            depth += 1
-            if depth == 1:
-                start, commas = i, []
-        elif ch == "," and depth == 1:
-            commas.append(i)
-        elif ch == "}" and depth:
-            depth -= 1
-            if depth == 0 and commas:
-                cuts = [start, *commas, i]
-                pre, post = word[:start], word[i + 1 :]
-                out: list[str] = []
-                for a, b in itertools.pairwise(cuts):
-                    for tail in expand_braces(post, cap):
-                        out += expand_braces(pre + word[a + 1 : b] + tail, cap)
-                        if len(out) >= cap:
-                            return out[:cap]
-                return out
-    return [word]
-
-
-ANSI_C = {"n": "\n", "t": "\t", "r": "\r", "a": "\a", "b": "\b", "e": "\x1b", "f": "\f", "v": "\v"}
-
-
-def ansi_c(s: str) -> str:
-    """Decode the body of a $'...' string: \\n, \\t, \\xHH, \\NNN (octal), \\uHHHH; anything else stands for itself."""
-
-    def one(m: re.Match) -> str:
-        e = m.group(1)
-        if e[0] in "xuU":
-            return chr(min(int(e[1:], 16), 0x10FFFF)) if len(e) > 1 else e
-        if e[0] in "01234567":
-            return chr(int(e, 8))
-        return ANSI_C.get(e, e)
-
-    return re.sub(r"\\(x[0-9a-fA-F]{0,2}|u[0-9a-fA-F]{0,4}|U[0-9a-fA-F]{0,8}|[0-7]{1,3}|.)", one, s, flags=re.S)
-
-
-def scan_substitutions(text: str, out: list[list[Simple]]) -> None:
-    lx, i = Lexer(text, out), 0
-    while i < len(text):
-        if text[i] == "\\":
-            i += 2
-        elif text.startswith("$(", i):
-            i = lx.sub(i + 2, ")")
-        elif text[i] == "`":
-            i = lx.backtick(i)
-        else:
-            i += 1
-
-
-def lex(text: str) -> list[list[Simple]]:
-    out: list[list[Simple]] = []
-    lx = Lexer(text, out)
-    lx.run()
-    lx.heredocs(lx.n)
-    return out
 
 
 def settings_files(cwd: str) -> list[str]:
@@ -405,6 +178,8 @@ def settings_files(cwd: str) -> list[str]:
         starts.append(pwd.getpwuid(os.getuid()).pw_dir)
     except (ImportError, KeyError, AttributeError):
         pass
+    import subprocess  # here, not at the top: most calls never spawn anything, and the import costs every call
+
     try:
         out = subprocess.run(
             ["git", "-C", cwd, "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
@@ -472,10 +247,6 @@ def owner_env(name: str, cwd: str) -> str:
     return value
 
 
-def base(word: str) -> str:
-    return word.rsplit("/", 1)[-1]
-
-
 def lit_vars(pipes: list[list[Simple]]) -> set[str]:
     """Names assigned a literature-API URL by a command: `u=<url>`, `export u=<url>`, `for u in ... <url> ...`."""
     names = set()
@@ -492,12 +263,6 @@ def lit_vars(pipes: list[list[Simple]]) -> set[str]:
             if value and LIT_API.match(value):
                 names.add(name.rstrip("+"))
     return names
-
-
-def long_opt(arg: str, name: str, shortest: int) -> bool:
-    """git accepts any unambiguous prefix of a long option."""
-    arg = arg.split("=", 1)[0]
-    return len(arg) >= shortest and name.startswith(arg)
 
 
 def is_env(w: Word, code: bool = False) -> bool:
@@ -529,81 +294,15 @@ def is_secrets(w: Word) -> bool:
     return name == SECRETS_NAME or (bool(custom) and ((name == base(custom) and name != "") or path == custom))
 
 
-SKIP_VALUE = {
-    "sudo": {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "-T", "--user", "--group"},
-    "doas": {"-u", "-C"},
-    "nice": {"-n", "--adjustment"},
-    "ionice": {"-c", "-n", "-p", "-t"},
-    "timeout": {"-k", "-s", "--kill-after", "--signal"},
-    "xargs": {"-I", "-n", "-P", "-L", "-d", "-a", "-E", "-s", "-i", "--max-args", "--max-procs", "--delimiter"},
-    "stdbuf": {"-i", "-o", "-e"},
-    "flock": {"-w", "-E", "--timeout"},
-    "env": {"-u", "--unset", "-C", "--chdir"},  # strip_starters only: unwrap handles env itself
-}
-WRAPPERS = {"sudo", "doas", "nice", "ionice", "timeout", "xargs", "stdbuf", "nohup", "exec", "command", "builtin"}
-WRAPPERS |= {"setsid", "chronic", "unbuffer", "flock", "time"}
-UV_RUN_VALUE = {"--with", "-w", "--python", "-p", "--package", "--env-file", "--directory", "--project", "--extra"}
-UV_RUN_VALUE |= {"--group", "--index", "--with-requirements", "--with-editable", "--only-group", "--no-group"}
-
-
-def unwrap(argv: list[str], assigns: list[str]) -> list[str]:
-    """Strip assignments and wrappers (sudo, env, time, timeout, xargs, uv run, python -m ...) to the real command."""
-    argv = list(argv)
-    while argv:
-        while argv and ASSIGN.match(argv[0]):
-            assigns.append(argv.pop(0))
-        if not argv:
-            break
-        name = base(argv[0])
-        if name in KEYWORDS:
-            argv.pop(0)
-        elif name == "env":
-            argv.pop(0)
-            while argv and (argv[0].startswith("-") or ASSIGN.match(argv[0])):
-                a = argv.pop(0)
-                if ASSIGN.match(a):
-                    assigns.append(a)
-                elif a in ("-S", "--split-string") and argv:
-                    argv = argv.pop(0).split() + argv
-                elif a in ("-u", "--unset", "-C", "--chdir") and argv:
-                    argv.pop(0)
-        elif name in WRAPPERS:
-            argv.pop(0)
-            while argv and argv[0].startswith("-"):
-                a = argv.pop(0)
-                if a == "--":
-                    break
-                if a in SKIP_VALUE.get(name, ()) and argv:
-                    argv.pop(0)
-            if name == "timeout" and argv:
-                argv.pop(0)  # the duration
-            if name == "flock" and argv:
-                argv.pop(0)  # the lock file
-        elif name == "uv" and "run" in argv[1:3]:
-            argv = argv[argv.index("run") + 1 :]
-            while argv and argv[0].startswith("-"):
-                a = argv.pop(0)
-                if a == "--":
-                    break
-                if a in UV_RUN_VALUE and argv:
-                    argv.pop(0)
-        elif PY.match(name):
-            i = 1
-            while i < len(argv) and argv[i].startswith("-") and argv[i] not in ("-", "-c") and argv[i][:2] != "-m":
-                i += 2 if argv[i] in ("-X", "-W") else 1
-            if i < len(argv) and argv[i] == "-m" and i + 1 < len(argv):
-                argv = argv[i + 1 :]
-            elif i < len(argv) and argv[i].startswith("-m") and len(argv[i]) > 2:
-                argv = [argv[i][2:], *argv[i + 1 :]]
-            else:
-                break
-        else:
-            break
-    return argv
-
-
-class Checker:
-    def __init__(self, cwd: str, read_only: str = ""):
+class Checker(GitHubRules):
+    def __init__(self, cwd: str, read_only: str = "", agent: str | None = None):
+        # #528: the subagent's type, plugin prefix dropped; None in the main (lead) session. VERIFIED on a real
+        # PreToolUse input: a subagent's carries agent_type "<plugin>:<name>", the main session's has none.
+        self.agent = agent
+        self.fed: list[str] = []  # the text earlier stages of the current pipeline write to this command's stdin
+        self.later: list[str] = []  # the command names of the current pipeline's later stages
+        self.vars: dict[str, str] = {}  # literal values the command assigns, expanded where words use them
+        self.transforms = False  # some stage rewrites text (base64 -d, rev, sed, ...): code built from it is opaque
         self.read_only = read_only  # a read-only agent's own `dev` report (READ_ONLY_AGENTS); "": not read-only
         self.cwd = cwd
         self.start = cwd  # the session's worktree; a `cd ..` inside the command does not move it
@@ -617,13 +316,23 @@ class Checker:
             return DEEP
         pipes = lex(text)
         self.lit_vars |= lit_vars(pipes)
+        self.vars.update(assigned(pipes))
+        if TOKEN_NAMES & set(self.vars.values()):  # x=GH_TOKEN; echo ${!x}
+            return GH_CRED
+        names = [[base(a[0]) for a in [unwrap([w.value for w in c.words], [])] if a] for p in pipes for c in p]
+        self.transforms = self.transforms or any(n and n[0] in TRANSFORMERS for n in names)
         for pipe in pipes:
             cmds = [c for c in pipe if c.words or c.stdin or c.reads or c.writes]
             for k, c in enumerate(cmds):
+                self.fed = [t for p in cmds[:k] for t in [b for b, _ in p.stdin] + [w.value for w in p.words]]
+                self.later = [base(p.words[0].value) for p in cmds[k + 1 :] if p.words]
+                if k and c.words and base(c.words[0].value) == "xargs" and self.feeds_cred_paths(c, cmds[:k]):
+                    return GH_CRED
                 if why := self.simple(c, depth):
                     return why
-                if self.stdin_lang(c) and k:  # earlier stages of the pipeline feed this interpreter
-                    lang = self.stdin_lang(c)
+                if (lang := self.stdin_lang(c)) and k:  # earlier stages of the pipeline feed this interpreter
+                    if any(base(w.value) in TRANSFORMERS for prev in cmds[:k] for w in prev.words[:1]):
+                        return OPAQUE
                     for prev in cmds[:k]:
                         for chunk in [b for b, _ in prev.stdin] + [w.value for w in prev.words[1:]]:
                             if why := self.code(chunk, lang, depth):
@@ -642,13 +351,17 @@ class Checker:
         for group in re.findall(r"\[([^\]]*)\]", src):  # list-form argv: ["pip", "install", "x"]
             parts = re.findall(r"'((?:[^'\\\n]|\\.)*)'|\"((?:[^\"\\\n]|\\.)*)\"", group)
             strings.append(" ".join(a or b for a, b in parts))
+        if why := self.code_reaches(src, "py"):
+            return why
         self.in_python += 1
         try:
             for s in strings:
                 if is_env(Word(s)):
                     return ENV
                 if is_secrets(Word(s)):
-                    return SECRETS
+                    return KEYS_FILE
+                if s in TOKEN_NAMES or cred_path(s, self.cwd):  # os.environ["GH_TOKEN"], open(".../hosts.yml")
+                    return GH_CRED
                 if why := self.text(s, depth + 1):
                     return why
             return None
@@ -676,6 +389,9 @@ class Checker:
         return None
 
     def simple(self, c: Simple, depth: int) -> str | None:
+        fed, self.fed = self.fed, []
+        if self.vars and any("$" in w.value for w in c.words):  # b=main; git push origin $b
+            c = self.expanded(c)
         assigns: list[str] = []
         argv = unwrap([w.value for w in c.words], assigns)
         name = base(argv[0]) if argv else ""
@@ -689,7 +405,9 @@ class Checker:
         if (any(is_env(w, in_py) for w in paths) and not env_ok) or any(is_env(Word(r), in_py) for r in c.reads):
             return ENV
         if (any(is_secrets(w) for w in paths) and not env_ok) or any(is_secrets(Word(r)) for r in c.reads):
-            return SECRETS
+            return KEYS_FILE
+        if why := self.gh_cred(c, argv, paths, name in CRED_OK) or self.reaches(c, argv, fed):
+            return why
         exported = argv[1:] if name in ("export", "declare", "typeset", "local", "readonly") else []
         if any(HOOK_VAR.match(a) or "hookspath" in a.lower() for a in exported + (assigns if not argv else [])):
             return HOOKS
@@ -752,6 +470,10 @@ class Checker:
                     return LIT
         if name == "pkill" and any(a == "--full" or (re.match(r"-[^-]", a) and "f" in a) for a in args):
             return PKILL
+        if name == "gh":
+            return self.gh(args, [b for b, _ in c.stdin] + fed)
+        if name in ("dev", "devkit.cli") and args[:1] in (["board"], ["pr"]):
+            return self.forged(args + [b for b, _ in c.stdin] + fed)
         if name == "git":
             return self.git(args, assigns)
         if name == "rm":
@@ -793,6 +515,11 @@ class Checker:
         if i >= len(args):
             return None
         sub, rest = args[i], args[i + 1 :]
+        if sub == "credential" or sub.startswith("credential-"):  # `git credential fill` prints the stored token
+            return GH_CRED
+        no_index = sub == "grep" and "--no-index" in rest  # searches any directory, hidden files included
+        if no_index and any(holds_cred(a, where) for a in rest if not a.startswith("-")):
+            return GH_CRED
         if sub == "config" and any("hookspath" in a.lower() for a in rest) and not config_reads_only(rest):
             return HOOKS
         if any(long_opt(a, "--no-verify", 9) for a in rest):
@@ -816,6 +543,8 @@ class Checker:
         shorts, longs, pos = parse_opts(args)
         if not ({"r", "R"} & shorts or any(long_opt(o, "--recursive", 3) for o in longs)):
             return None
+        import tempfile
+
         root = worktree_root(self.start)
         temp = os.path.realpath(tempfile.gettempdir())
         for t in pos:
@@ -843,6 +572,8 @@ class Checker:
                 opt = a.split("=", 1)[0]
                 if opt == "--force":
                     return FORCE
+                if long_opt(opt, "--delete", 4) or opt == "--prune":
+                    return REF_DELETE
                 if long_opt(opt, "--mirror", 4) or long_opt(opt, "--all", 4) or long_opt(opt, "--branches", 4):
                     return MAIN
                 tags_only = tags_only or opt == "--tags"
@@ -850,6 +581,8 @@ class Checker:
             elif a.startswith("-") and len(a) > 1:
                 if "f" in a.split("o", 1)[0]:
                     return FORCE
+                if "d" in a.split("o", 1)[0]:
+                    return REF_DELETE
                 skip = a.endswith("o")
             else:
                 pos.append(a)
@@ -857,6 +590,8 @@ class Checker:
         for r in refspecs:
             if r.startswith("+"):
                 return FORCE
+            if r.startswith(":"):  # an empty source deletes the destination
+                return REF_DELETE
             dst = r.split(":")[-1].removeprefix("refs/").removeprefix("heads/")
             if dst in ("HEAD", "@"):
                 dst = current_branch(where) or ""
@@ -985,12 +720,10 @@ def destructive_git(sub: str, rest: list[str], where: str) -> str | None:
     return None
 
 
-def within(path: str, top: str) -> bool:
-    return path == top or path.startswith(top.rstrip(os.sep) + os.sep)
-
-
 def worktree_root(cwd: str) -> str:
     """The top of the worktree holding cwd, or cwd itself outside a repository."""
+    import subprocess
+
     try:
         out = subprocess.run(
             ["git", "-C", cwd, "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=5, check=False
@@ -1001,6 +734,8 @@ def worktree_root(cwd: str) -> str:
 
 
 def current_branch(where: str) -> str | None:
+    import subprocess
+
     try:
         out = subprocess.run(
             ["git", "-C", where, "symbolic-ref", "--short", "-q", "HEAD"],
@@ -1128,165 +863,37 @@ def read_only(argv: list[str], writes: list[str], report: str = "", assigns: tup
     return READ_ONLY
 
 
-# #381: commands that can wait forever. An agent's poll loop whose file is never written, or whose `pgrep -f` matches
-# its own shell, otherwise outlives the agent as a stale shell. Such a command is rewritten, not refused, to run under
-# `timeout <wait_bound_s>`. WAIT_HINT is the cheap test every command takes; only a hit is lexed.
-WAIT_HINT = re.compile(r"\b(?:while|until|tail|watch|sleep|wait|inotifywait|flock|follow|journalctl|logs)\b")
-WAIT_BOUND = 3600  # [tool.devkit] wait_bound_s; devkit/config.py documents it
-BOUND_KEY = re.compile(r"(?m)^\s*wait_bound_s\s*=\s*(\d+)")
-FOLLOWERS = {"docker", "podman", "kubectl", "oc", "nerdctl"}  # `<tool> [compose] logs -f`
-STARTERS = {"nohup", "nice", "ionice", "setsid", "stdbuf", "exec", "command", "builtin", "time", "sudo", "doas", "env"}
-SLEEP_ARG = re.compile(r"^(\d+(?:\.\d*)?|\.\d+)([smhd]?)$")
-UNIT = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
-PGREP_F = "`pgrep -f` may match this shell's own command line, so the loop never ends; prefer `pgrep -x` or a pid."
+FILE_RULES = {"env": ENV, "keys": KEYS_FILE, "cred": GH_CRED, "above": GREP_ABOVE}  # file_tool_rule -> message
 
 
-def short_flag(args: list[str], letters: str, longs: tuple[str, ...]) -> bool:
-    """A flag given as one of `letters` (alone or in a cluster such as -fn) or one of the long options."""
-    for a in args:
-        if a == "--":
-            return False
-        if a.startswith("--"):
-            if a.split("=", 1)[0] in longs:
-                return True
-        elif a.startswith("-") and any(ch in letters for ch in a[1:]):
-            return True
-    return False
+def file_tool_rule(data: dict, cwd: str) -> str:
+    """Which FILE_RULES refusal a Read or Grep call gets, or "": by its path, its Grep glob, or a Grep of a folder
+    above a credential store."""
+    given = data.get("tool_input")
+    inp: dict = given if isinstance(given, dict) else {}
+    path = inp.get("file_path") or inp.get("path") or ""
+    path = path if isinstance(path, str) else ""
+    if path:
+        w = Word(path, glob=any(ch in path for ch in "*?["))
+        if is_env(w):
+            return "env"
+        if is_secrets(w):
+            return "keys"
+        if cred_path(path, cwd):
+            return "cred"
+    glob = inp.get("glob")
+    hint = glob if isinstance(glob, str) else ""
+    if cred_path(hint, cwd, glob=True) or "hosts.yml" in hint or ".ssh/" in hint:
+        return "cred"
+    if data.get("tool_name") == "Grep" and holds_cred(path or cwd, cwd):
+        return "above"  # Grep searches hidden files: a folder above the store reaches it
+    return ""
 
 
-def sleep_s(args: list[str]) -> float | None:
-    total = 0.0
-    for a in args:
-        if a.startswith("inf"):
-            return float("inf")
-        m = SLEEP_ARG.match(a)
-        if not m:
-            return None  # $N, $((...)): not knowable here
-        total += float(m.group(1)) * UNIT[m.group(2)]
-    return total
-
-
-def waits_forever(argv: list[str], bound: int) -> str | None:
-    """What makes this one command (wrappers already stripped) wait without end, or None."""
-    name, args = base(argv[0]), argv[1:]
-    if name == "tail" and short_flag(args, "fF", ("--follow", "--retry")):
-        return "tail -f"
-    if name == "watch":
-        return "watch"
-    if name == "sleep" and (s := sleep_s(args)) is not None and s > bound:
-        return f"sleep {' '.join(args)}"
-    if name == "wait":
-        return "wait"
-    if name == "inotifywait" and (short_flag(args, "m", ("--monitor",)) or not short_flag(args, "t", ("--timeout",))):
-        return "inotifywait without -t"
-    if name == "flock" and not short_flag(args, "wnu", ("--wait", "--timeout", "--nonblock", "--unlock")):
-        return "flock without -w"
-    if name == "gh" and (args[:2] == ["run", "watch"] or (args[:2] == ["pr", "checks"] and "--watch" in args)):
-        return f"gh {' '.join(args[:2])}"
-    if name in FOLLOWERS and "logs" in args[:3] and short_flag(args, "f", ("--follow",)):
-        return f"{name} logs -f"
-    if name == "journalctl" and short_flag(args, "f", ("--follow",)):
-        return "journalctl -f"
-    return None
-
-
-def strip_starters(argv: list[str]) -> list[str]:
-    """Drop assignments and the wrappers that run a command without bounding it (nohup, nice, env, sudo ...)."""
-    while argv and (base(argv[0]) in STARTERS or ASSIGN.match(argv[0])):
-        name, argv = base(argv[0]), argv[1:]
-        while name in STARTERS and argv and argv[0].startswith("-"):
-            a, argv = argv[0], argv[1:]
-            if a == "--":
-                break
-            if a in SKIP_VALUE.get(name, ()) and argv:
-                argv = argv[1:]
-    return argv
-
-
-def unbounded(text: str, bound: int, depth: int = 0) -> tuple[list[str], bool]:
-    """The waits in a shell command that nothing bounds, and whether it polls with `pgrep -f`.
-
-    A wait under `timeout` is bounded. A `while read` loop ends with its input. Shell code passed with -c (or flock -c)
-    or fed to a shell by a heredoc is searched too, unless a timeout wraps that shell."""
-    found: list[str] = []
-    pgrep_f = False
-    if depth > MAX_DEPTH or not WAIT_HINT.search(text):
-        return found, pgrep_f
-    for pipe in lex(text):
-        for c in pipe:
-            words = list(c.words)
-            loop = False
-            while words and ((not words[0].quoted and words[0].value in KEYWORDS) or ASSIGN.match(words[0].value)):
-                loop = loop or (words[0].value in ("while", "until") and not words[0].quoted)
-                words.pop(0)
-            argv = [w.value for w in words]
-            argv = strip_starters(argv)
-            if argv and base(argv[0]) == "pgrep" and short_flag(argv[1:], "f", ("--full",)):
-                pgrep_f = True
-            if loop and not (argv and base(argv[0]) == "read"):
-                found.append("until/while loop")
-            if not argv or base(argv[0]) == "timeout":
-                continue
-            if why := waits_forever(argv, bound):
-                found.append(why)
-            if base(argv[0]) not in SHELLS | {"flock"}:
-                continue
-            code = [body for body, _ in c.stdin] if base(argv[0]) in SHELLS else []  # bash <<'EOF' ... EOF
-            for k, a in enumerate(argv[1:-1], 1):
-                if a in ("-c", "--command") or (a.startswith("-") and not a.startswith("--") and "c" in a):
-                    code = [argv[k + 1]]
-                    break
-            for chunk in code:
-                more, pf = unbounded(chunk, bound, depth + 1)
-                found += more
-                pgrep_f = pgrep_f or pf
-    return found, pgrep_f
-
-
-def wait_bound(cwd: str) -> int:
-    """[tool.devkit] wait_bound_s from the nearest pyproject.toml with a [tool.devkit] table above cwd (the worktree's
-    own config), else above $CLAUDE_PROJECT_DIR, else the default.
-
-    Read only for a command WAIT_HINT matches. A plain scan, not tomllib: hooks run on the host's python3 (3.10)."""
-    for start in (cwd, os.environ.get("CLAUDE_PROJECT_DIR", "")):
-        d = os.path.abspath(start) if start else ""
-        while d:
-            try:
-                with open(os.path.join(d, "pyproject.toml"), encoding="utf-8") as f:
-                    text = f.read()
-            except (OSError, UnicodeDecodeError):
-                text = ""
-            if (at := text.find("[tool.devkit]")) >= 0:
-                table = re.split(r"(?m)^\s*\[", text[at + len("[tool.devkit]") :], maxsplit=1)[0]
-                m = BOUND_KEY.search(table)
-                return int(m.group(1)) if m else WAIT_BOUND
-            d = "" if os.path.dirname(d) == d else os.path.dirname(d)
-    return WAIT_BOUND
-
-
-def bound_waits(cmd: str, cwd: str) -> tuple[str, str] | None:
-    """(the rewritten command, the note for the agent) when the command waits without a bound, else None."""
-    if not WAIT_HINT.search(cmd) or (bound := wait_bound(cwd)) <= 0:
-        return None
-    found, pgrep_f = unbounded(cmd, bound)
-    if not found:
-        return None
-    body, tail = cmd.strip(), ""
-    if body.endswith("&") and not body.endswith(("&&", "\\&", ">&", "<&")):
-        body, tail = body[:-1].rstrip(), " &"  # a backgrounded wait: bound it in the background
-    new = f"timeout {bound} bash -c {shlex.quote(body)}{tail}"
-    what = ", ".join(dict.fromkeys(found))
-    note = (
-        f"guard-bash: this command can wait forever ({what}), so it runs as `timeout {bound} bash -c '...'` "
-        f"([tool.devkit] wait_bound_s). Exit 124 means the bound ran out. Put a shorter `timeout <s>` in front "
-        f"yourself to choose the bound."
-    )
-    return new, note + (" " + PGREP_F if pgrep_f else "")
-
-
-def main() -> int:
+def main(raw: str | None = None) -> int:
+    """`raw`: the hook input file_guard.py already read from stdin."""
     try:
-        data = json.load(sys.stdin)
+        data = json.loads(raw) if raw is not None else json.load(sys.stdin)
         cmd = (data.get("tool_input") or {}).get("command", "")
         url = (data.get("tool_input") or {}).get("url", "") if data.get("tool_name") == "WebFetch" else ""
     except (json.JSONDecodeError, AttributeError):
@@ -1295,11 +902,18 @@ def main() -> int:
     if isinstance(url, str) and LIT_API.match(url.strip()) and owner_env(LIT_RAW, cwd) != "1":
         print(f"Blocked by project rule: {LIT}", file=sys.stderr)
         return 2
+    if data.get("tool_name") in ("Read", "Grep"):  # #601: the file tools reach the same secrets
+        rule = file_tool_rule(data, cwd)
+        if rule:
+            print("Blocked by project rule: " + FILE_RULES[rule], file=sys.stderr)
+            return 2
+        return 0
     if not isinstance(cmd, str):
         return 0
     agent = data.get("agent_type") if isinstance(data.get("agent_type"), str) else ""  # set inside a subagent
     try:
-        why = Checker(cwd, read_only=READ_ONLY_AGENTS.get(agent.rsplit(":", 1)[-1], "")).text(cmd)
+        kind = agent.rsplit(":", 1)[-1]
+        why = Checker(cwd, read_only=READ_ONLY_AGENTS.get(kind, ""), agent=kind if agent else None).text(cmd)
     except RecursionError:  # hundreds of nested substitutions: nobody writes that by hand
         why = DEEP
     if why:
