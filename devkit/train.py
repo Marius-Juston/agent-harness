@@ -53,6 +53,16 @@ class Built:
     failing: list[str] = field(default_factory=list)  # its gate's failing lines, when it failed
 
 
+def gate_issue(built: Built, main: str) -> str:
+    """weaken.ISSUE_ENV for a candidate: each member's own commits (from main or the step before it to its step)
+    under its issue, the last to the working tree so the regenerated files are judged too (#251)."""
+    bounds = [main, *built.steps]
+    return " ".join(
+        workflow.gate_issue(m.info, bounds[i]) + (f"..{bounds[i + 1]}" if i < len(built.members) - 1 else "")
+        for i, m in enumerate(built.members)
+    )
+
+
 def bisect_bound(n: int) -> int:
     """The most gates the bisection may run after the full candidate failed: ceil(log2 n) to find the first breaking
     member among n, and one more, either to gate the members after it without it or, when the culprit is the last
@@ -449,7 +459,7 @@ def _train(
             nums = [m.number for m in built.members]
             log = workflow.state_dir("integrate") / f"train-{built.tip[:12]}-{len(gates)}.log"
             print(f"train: gating {label} {nums} as {built.tip[:10]} on main {main[:10]} ...", flush=True)
-            passed = workflow.run_gate(tree, contexts, log)
+            passed = workflow.run_gate(tree, contexts, log, gate_issue(built, main))
             failing = workflow.failing_lines(log.read_text(errors="replace")) if passed is not True else []
             gates.append({"members": nums, "tip": built.tip, "passed": passed is True, "log": str(log)}
                          | ({"stopped": passed} if isinstance(passed, str) else {}))  # fmt: skip
