@@ -22,8 +22,7 @@ rounds.
 
 ## 1. A round
 0. **Check discovery.** `uv run dev lit search` prints a `discovery` line first. A researcher whose line says DEGRADED
-   (OpenAlex and Semantic Scholar both down; one is enough) stops and reports; re-dispatch only once
-   `uv run dev lit status` reports OK. Fallbacks miss papers. The worst line is `Search coverage:`.
+   stops and reports; re-dispatch only once `uv run dev lit status` reports OK. Fallbacks miss papers. The worst line is `Search coverage:`.
 1. **Decompose** what is still open into sub-questions that do not overlap and together cover it, one per
    researcher. Split by mechanism, evidence base, prior art, tools (`uv run dev reuse check`), and risks or counter-evidence.
    One researcher argues *against* the leading answer; the contrarian is one of them.
@@ -31,7 +30,8 @@ rounds.
    background).
    Each prompt names: the sub-question, what is already known (file paths, not pasted text), the scratch file to
    write (`docs/research/_scratch/<slug>/r<round>-<topic>.md`), and "round mode". A researcher hands back only once
-   `uv run dev cite-check` passes on that file.
+   `uv run dev cite-check` passes on that file, which needs an `against:` line (query and result) per
+   recommendation-driving claim.
 3. **Gap pass.** When all have returned, read their hand-backs, not the files. Write
    `_scratch/<slug>/gaps-r<round>.md`, headed `findings that changed the recommendation: N, new primary sources: M`,
    with: those findings, contradictions between researchers, claims resting on one weak source or tagged
@@ -53,7 +53,7 @@ stated as such.
   runs, told it is the last round, so its Blocking findings mean 'reconsider'. On 'reconsider', the researcher drops
   failed claims or relabels them BELIEVED, rewrites the Recommendation without them and lists them in the note's
   open-issues section; the lead asks the owner before integrating a changed Recommendation.
-- The synthesis researcher opens the PR (`uv run dev pr <n>`). The lead integrates it.
+- The synthesis researcher opens the PR (`uv run dev pr <n>`).
 - The scratch folder stays in git as the audit trail. It merges with the union driver.
 
 ## Cheap alternative
