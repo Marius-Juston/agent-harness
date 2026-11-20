@@ -80,6 +80,9 @@ class Config:
     # cores and memory idle; integrate's gate still takes the next free slot ahead of queued worker gates. A gate uses
     # every slot file it finds, so lowering it takes effect once the extra `gate.lock.<n>` files are deleted.
     gate_slots: int = 1
+    # #543: the nice level `dev test` and `dev suite-audit` run pytest at (0-19; 0 = as the caller). Linux CFS gives a
+    # nice-0 gate about 10x the CPU of a nice-10 process, so heavy non-gate work leaves a gate near its idle speed.
+    background_nice: int = 10
     # `dev integrate --local-ci` (#76): a required check that has not queued after this long means Actions cannot run.
     local_ci_wait_s: int = 600
     # `dev integrate --local-ci`: required check context -> the commands (argument lists, run in the merged tree after
@@ -136,6 +139,8 @@ def parse(data: dict) -> Config:
             raise ConfigError(f"[tool.devkit] {key} = {value!r}: expected {want}")
     if data.get("gate_slots", 1) < 1:
         raise ConfigError(f"[tool.devkit] gate_slots = {data['gate_slots']!r}: expected a whole number of at least 1")
+    if not 0 <= data.get("background_nice", 10) <= 19:
+        raise ConfigError(f"[tool.devkit] background_nice = {data['background_nice']!r}: expected 0 to 19")
     for match, tools in data.get("mcp_prereqs", {}).items():
         if not (isinstance(tools, list) and all(isinstance(t, str) and t for t in tools)):
             raise ConfigError(f"[tool.devkit.mcp_prereqs] {match} = {tools!r}: expected a list of binary names")

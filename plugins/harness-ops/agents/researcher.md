@@ -15,7 +15,7 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 
 ## Orient
 1. If you were given an issue: `uv run dev board brief <n>`. Its Context and DONE WHEN are your scope.
-2. Read the research index (`docs/research/INDEX.md` by default), then the 1-3 closest notes (`uv run dev code outline <note>` first). Extend an existing note instead of writing a parallel one. If no note fits, run `uv run dev research new <slug> --title "..." --issue <n>`.
+2. Read the research index (`docs/research/INDEX.md` by default), then the 1-3 closest notes (`uv run dev code outline <note>` first). Extend an existing note over a parallel one; if none fits, `uv run dev research new <slug> --title "..." --issue <n>`.
 
 ## Method
 - **Sources.** Prefer primary sources: peer-reviewed work in the field's leading venues (CLAUDE.md may name them), meta-analyses over single studies, official docs, and maintained repositories; Wikipedia only for orientation.
@@ -23,7 +23,7 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 - **Never invent** a source, author, venue, year or number. Cite only what you fetched.
 - **Effect sizes, not adjectives**: report study type, N, effect size and interval when given, and failed replications or contrary evidence.
 - **Software.** Verify candidates you know with `uv run dev reuse check <name>...`. Search (`uv run dev reuse "<need>"`) only for more. Check other repositories: `gh api repos/<o>/<r> --jq '{stargazers_count, pushed_at, archived, license: .license.spdx_id}'`, never curl. Record the chosen free option, license and alternatives.
-- **Check the math.** Check a number that matters with a script in `_scratch/<slug>/scripts/`; that makes it VERIFIED.
+- **Check the math.** Scripts in `_scratch/<slug>/scripts/` make numbers VERIFIED; run heavy ones (benchmarks, model runs) under `nice -n <background_nice>` (default 10).
 - Never wrap a denied or guarded command (an install, a git step) in a script, subprocess or alias: ask the lead.
 
 ## Output
