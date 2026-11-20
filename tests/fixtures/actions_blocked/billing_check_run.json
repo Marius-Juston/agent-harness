@@ -1,0 +1,24 @@
+{
+ "id": 135917571091,
+ "name": "check",
+ "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+ "external_id": "e5adb45a-0cbf-5db3-921e-cb583f5fda3e",
+ "url": "https://api.github.com/repos/o/r/check-runs/135917571091",
+ "html_url": "https://github.com/o/r/actions/runs/44625354699/job/135917571091",
+ "details_url": "https://github.com/o/r/actions/runs/44625354699/job/135917571091",
+ "status": "completed",
+ "conclusion": "failure",
+ "started_at": "2026-11-19T22:06:19Z",
+ "completed_at": "2026-11-19T22:06:21Z",
+ "output": {
+  "title": null,
+  "summary": null,
+  "text": null,
+  "annotations_count": 1,
+  "annotations_url": "https://api.github.com/repos/o/r/check-runs/135917571091/annotations"
+ },
+ "app": {
+  "slug": "github-actions",
+  "id": 15368
+ }
+}

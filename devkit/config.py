@@ -101,6 +101,17 @@ class Config:
     wait_bound_s: int = 3600
     # `dev integrate --local-ci` (#76): a required check that has not queued after this long means Actions cannot run.
     local_ci_wait_s: int = 600
+    # #531: "actions" waits for GitHub Actions, and stands in (as `--local-ci` does) once a head shows Actions cannot
+    # run it (billing block, offline self-hosted runners, no workflow run). "local" never waits on Actions: integrate
+    # and the train read each head's checks once, refuse a required check Actions ran and failed, and stand in for
+    # the rest at once; for a repository whose Actions minutes run out.
+    ci: str = "actions"
+    # #531: with ci = "actions", a head with no workflow run after this long means Actions cannot run.
+    actions_start_s: int = 20
+    # #531: a job queued for a self-hosted runner that the repository's runner list cannot settle (an organisation's
+    # repository, a list unreadable, incomplete or without a runner of its labels) is stranded only after this long:
+    # scale-from-zero runners take minutes to start. With a listed matching runner offline, actions_start_s applies.
+    actions_stranded_s: int = 300
     # `dev integrate --local-ci`: required check context -> the commands (argument lists, run in the merged tree after
     # the gate passed; "{tmpdir}" becomes a fresh empty directory) that stand in for it. [] = the gate alone. A required
     # context without an entry is never posted: integrate refuses instead.
@@ -154,6 +165,8 @@ def parse(data: dict) -> Config:
         kind = getattr(want, "__origin__", want)
         if (isinstance(kind, type) and not isinstance(value, kind)) or (kind is int and isinstance(value, bool)):
             raise ConfigError(f"[tool.devkit] {key} = {value!r}: expected {want}")
+    if data.get("ci", "actions") not in ("actions", "local"):
+        raise ConfigError(f'[tool.devkit] ci = {data["ci"]!r}: expected "actions" or "local"')
     if data.get("gate_slots", 1) < 1:
         raise ConfigError(f"[tool.devkit] gate_slots = {data['gate_slots']!r}: expected a whole number of at least 1")
     if data.get("wait_bound_s", 0) < 0:
