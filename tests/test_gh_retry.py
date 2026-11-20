@@ -3,9 +3,11 @@
 GitHub is faked at subprocess level (`FakeCli`), so the real gh() wrapper, its retry loops and its rechecks run.
 """
 
+import inspect
 import json
 import random
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -33,6 +35,7 @@ class FakeCli:
         self.state: dict[int, str] = {}  # issue or PR number -> OPEN / CLOSED / MERGED
         self.labels: dict[int, set[str]] = {}
         self.next_id = 100
+        self.slept: list[float] = []  # the backoff sleeps, when a test installs the fake (fake_gh)
 
     def run(self, argv, input=None, **_):
         assert argv[0] == "gh"
@@ -74,7 +77,13 @@ class FakeCli:
             return ""
         if a[:2] in (["issue", "view"], ["pr", "view"]):
             n = int(a[2])
-            d = {"number": n, "title": f"t{n}", "body": "", "state": self.state.get(n, "OPEN"), "updatedAt": STAMP}
+            d: dict[str, object] = {
+                "number": n,
+                "title": f"t{n}",
+                "body": "",
+                "state": self.state.get(n, "OPEN"),
+                "updatedAt": STAMP,
+            }
             d |= {
                 "labels": [{"name": x} for x in sorted(self.labels.get(n, set()))],
                 "comments": self.comments.get(n, []),
@@ -342,7 +351,8 @@ class KeepGh:
     fake_integrate world then answers gh at subprocess level, under the real gh() and its retries."""
 
     def __init__(self, mp: pytest.MonkeyPatch) -> None:
-        self.mp, self.world_gh = mp, None
+        self.mp = mp
+        self.world_gh: Callable[..., str] = lambda *a, **k: ""  # replaced by the world's board.gh
 
     def setattr(self, target, name, value, *a, **k):
         if (target, name) == (board, "gh"):
@@ -353,7 +363,7 @@ class KeepGh:
 
 def test_integrate_survives_a_tls_timeout_on_a_read_and_on_its_merge(monkeypatch, tmp_path, capsys):
     keep = KeepGh(monkeypatch)
-    fake_integrate.__wrapped__(keep, tmp_path)  # the fixture's world, with the real board.gh left in place
+    inspect.unwrap(fake_integrate)(keep, tmp_path)  # the fixture's world, with the real board.gh left in place
     world_gh, other_run = keep.world_gh, workflow.subprocess.run
     merged = {"done": False, "merges": 0, "views": 0}
 

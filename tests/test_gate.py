@@ -677,7 +677,7 @@ def test_the_gate_hands_integrates_issue_to_the_weakening_stage_and_hides_it_fro
     assert seen == {"issue": "12:abc1234", "env": None}
     captured = []
     monkeypatch.setattr(weaken, "check_weakening", lambda base, issue=None: captured.append((base, issue)))
-    (stage,) = [s for s in real(False, {}, "BASE", issue="7:abc1234") if "check_weakening" in s.__code__.co_names]
+    (stage,) = [s for s in real(False, {}, "BASE", issue="7:abc1234") if _calls(s, "check_weakening")]
     stage()
     assert captured == [("BASE", "7:abc1234")]
 
@@ -1962,8 +1962,14 @@ def test_integrate_whose_gate_waits_for_the_lock_longer_than_its_deadline_is_not
     assert _merged(fake_integrate["events"]), res
 
 
+def _calls(stage, name):
+    """Whether a gate stage (a lambda) names `name` in its code."""
+    code = getattr(stage, "__code__", None)
+    return code is not None and name in code.co_names
+
+
 def _dev_command_stage(**kw):
-    (stage,) = [s for s in gate.stages(False, {"x": set()}, None, **kw) if "check_dev_commands" in s.__code__.co_names]
+    (stage,) = [s for s in gate.stages(False, {"x": set()}, None, **kw) if _calls(s, "check_dev_commands")]
     return stage
 
 
