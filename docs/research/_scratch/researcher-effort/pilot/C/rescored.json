@@ -1,0 +1,67 @@
+{
+ "cost_usd": 0.9475,
+ "tokens": {
+  "input": 38,
+  "write_1h": 0,
+  "write_5m": 60131,
+  "read": 761782,
+  "output": 10105
+ },
+ "by_model": {
+  "claude-opus-5-5": {
+   "input": 38,
+   "cache_write": 60131,
+   "cache_read": 761782,
+   "output": 10105,
+   "cost_usd_reported": 0.6553,
+   "read_usd": 0.1524,
+   "output_usd": 0.2021
+  },
+  "claude-sonnet-5-5": {
+   "input": 18,
+   "cache_write": 43071,
+   "cache_read": 120012,
+   "output": 8935,
+   "cost_usd_reported": 0.2091,
+   "read_usd": 0.012,
+   "output_usd": 0.0893
+  },
+  "claude-haiku-5-5": {
+   "input": 172385,
+   "cache_write": 0,
+   "cache_read": 0,
+   "output": 11866,
+   "cost_usd_reported": 0.0832,
+   "read_usd": 0.0,
+   "output_usd": 0.0059
+  }
+ },
+ "models": [
+  "claude-opus-5-5"
+ ],
+ "num_turns": 28,
+ "main_assistant_messages": 42,
+ "duration_s": 118,
+ "wall_s": 158,
+ "result_segments": 3,
+ "permission_denials": [
+  "Bash",
+  "Bash",
+  "Bash",
+  "Bash"
+ ],
+ "stop": "success",
+ "is_error": false,
+ "agent_calls": [
+  "research-scout",
+  "research-scout"
+ ],
+ "leaks": [
+  "Bash: {\"command\": \"git log --oneline -3 -- docs/research/architecture-consolidation.md; ls docs/research/_scratch/ | grep -i arch\", \"description\": \"Check history of t"
+ ],
+ "answer_chars": 8893,
+ "gold_works": 35,
+ "answer_works": 9,
+ "gold_recall": 0.171,
+ "claude_code_version": "2.1.329"
+}
