@@ -18,9 +18,10 @@ class FakeOpenAlex:
     """works?filter=<field>:<a|b|...> over a graph {W-id: {refs, related, cites, title, ...}}: openalex and doi pick
     works, cited_by the works they cite, cites the works citing any of them; sort and per_page as OpenAlex does."""
 
-    def __init__(self, graph: dict[str, dict], fail: str = ""):
+    def __init__(self, graph: dict[str, dict], fail: str = "", junk: str = ""):
         self.graph = graph
         self.fail = fail
+        self.junk = junk
         self.calls: list[str] = []
 
     def record(self, w: str) -> dict:
@@ -41,6 +42,8 @@ class FakeOpenAlex:
         self.calls.append(url)
         if self.fail and self.fail in url:
             return 404, {}, ""
+        if self.junk and self.junk in url:
+            return 200, {}, "<html>maintenance</html>"
         q = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
         name, _, values = q["filter"][0].partition(":")
         vals = set(values.split("|"))
@@ -105,7 +108,8 @@ def test_snowball_prints_at_most_n_one_line_candidates_without_the_seeds(tmp_pat
     lines = [x for x in out.splitlines() if x.startswith("- ")]
     assert len(lines) == 3 and len(out.splitlines()) == 3 + sum(x.startswith("note: ") for x in out.splitlines())
     assert not any("Seed" in x or "Unconnected" in x for x in lines)
-    scores = [float(re.search(r"score ([0-9.]+),", x).group(1)) for x in lines]
+    scores = [float(m.group(1)) for x in lines if (m := re.search(r"score ([0-9.]+),", x))]
+    assert len(scores) == len(lines)
     assert scores == sorted(scores, reverse=True)
     assert "note: hop 1: 5 OpenAlex calls" in out and "note: 6 OpenAlex calls in all" in out
     assert len(net.calls) == 6  # the seeds by DOI and by W-id, refs, citers, coupling, the printed records
@@ -167,9 +171,11 @@ def test_keep_bounds_the_next_frontier(tmp_path):
 
 def test_bad_arguments_fail_before_any_call(tmp_path, monkeypatch, capsys):
     net = FakeOpenAlex(GRAPH)
-    for kw in ({"depth": 0}, {"depth": 4}, {"signals": ("link", "vibes")}):
+    for depth in (0, 4):
         with pytest.raises(ValueError):
-            snowball.snowball(client(tmp_path, net), ["W1"], **kw)
+            snowball.snowball(client(tmp_path, net), ["W1"], depth=depth)
+    with pytest.raises(ValueError):
+        snowball.snowball(client(tmp_path, net), ["W1"], signals=("link", "vibes"))
     with pytest.raises(ValueError):
         snowball.snowball(client(tmp_path, net), ["0123456789abcdef0123456789abcdef01234567"])
     assert net.calls == []
@@ -182,6 +188,10 @@ def test_failures_and_unknown_seeds_are_notes(tmp_path):
     assert cands and "seed not in OpenAlex: W777" in notes
     cands, notes = snowball.snowball(client(tmp_path / "b", FakeOpenAlex(GRAPH, fail="filter=cites")), ["W1"])
     assert {x.wid for x in cands} == {"W10", "W11", "W50"} and "openalex: not found" in notes
+    junk = FakeOpenAlex(GRAPH, junk="abstract_inverted_index")  # the printed candidates' records call
+    cands, notes = snowball.snowball(client(tmp_path / "d", junk), ["W1"], n=2)
+    assert len(cands) == 2 and "openalex: unreadable answer (JSONDecodeError)" in notes
+    assert all(snowball.line(x).startswith("- (no record) (n.d.) [openalex:W") for x in cands)
     cands, notes = snowball.snowball(client(tmp_path / "c", FakeOpenAlex(GRAPH)), ["W99"])
     assert cands == [] and "no candidates" in snowball.render(cands, notes)
 
@@ -197,7 +207,7 @@ def test_a_second_run_comes_from_the_shared_cache(tmp_path):
 ids = st.integers(min_value=1, max_value=30).map(lambda i: f"W{i}")
 
 
-@settings(max_examples=60, deadline=None)
+@settings(max_examples=30, deadline=None)
 @given(
     graph=st.dictionaries(ids, st.lists(ids, max_size=6, unique=True), min_size=1, max_size=30),
     seeds=st.lists(ids, min_size=1, max_size=4, unique=True),

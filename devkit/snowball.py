@@ -167,15 +167,7 @@ class Snowball:
 
     def records(self, wids: list[str]) -> dict[str, lit.Paper]:
         """The printed candidates' records (title, year, venue, ids, open access), one batch call."""
-        self.calls += 1
-        try:
-            papers = lit.parse_openalex(self.c.fetch("openalex", lit.batch_url("openalex", wids)))
-        except lit.SourceError as exc:
-            self.notes.append(str(exc))
-            return {}
-        except ValueError as exc:
-            self.notes.append(f"openalex: unreadable answer ({type(exc).__name__})")
-            return {}
+        papers = lit.parse_openalex(json.dumps({"results": self._get(lit.batch_url("openalex", wids))}))
         return {p.ids["openalex"].upper(): p for p in papers}
 
     def hop(
