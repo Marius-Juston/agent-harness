@@ -162,7 +162,7 @@ def equivalent(node) -> bool:
     if node.parent.type == "subscript":
         return True
     stmt = node.parent
-    target = stmt.children[0] if stmt.type == "expr_stmt" else None
+    target = stmt.get_first_leaf() if stmt.type == "expr_stmt" else None
     top = stmt.parent is not None and stmt.parent.parent is not None and stmt.parent.parent.type == "file_input"
     return bool(top and target is not None and target.type == "name" and target.value.isupper())
 
