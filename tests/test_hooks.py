@@ -1600,12 +1600,12 @@ def _proc_state(pid: int) -> str:
 def test_the_bound_stops_the_wait_and_its_children(hook, tmp_path):
     """The bound ends the loop with exit 124 and kills what it started (timeout signals its process group)."""
     _project(tmp_path, 1)
-    cmd = "sleep 60 & echo $! > child.pid; until test -f never; do sleep 0.1; done"
+    cmd = "sleep 60 & echo $! > bg.pid; until test -f never; do sleep 0.1; done"
     new = _bounded(hook, cmd, tmp_path)["updatedInput"]["command"]
     t0 = time.monotonic()
     res = _sh(new, tmp_path)
     assert res.returncode == 124 and time.monotonic() - t0 < 10
-    pid = int((tmp_path / "child.pid").read_text())
+    pid = int((tmp_path / "bg.pid").read_text())
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline and _proc_state(pid) not in ("gone", "Z"):
         time.sleep(0.05)
