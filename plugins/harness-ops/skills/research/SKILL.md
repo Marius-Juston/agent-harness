@@ -23,8 +23,7 @@ rounds.
 ## 1. A round
 0. **Check discovery.** `uv run dev lit search` prints a `discovery` line first. A researcher whose line says DEGRADED
    (OpenAlex and Semantic Scholar both down; one is enough) stops and reports; re-dispatch only once
-   `uv run dev lit status` reports OK. Fallbacks miss papers. The worst line is `Search coverage:`. A key that
-   `dev lit status` or `dev lit read` names missing is the owner's to set (docs/SETUP.md#research-api-keys): tell them, never ask for it.
+   `uv run dev lit status` reports OK. Fallbacks miss papers. The worst line is `Search coverage:`.
 1. **Decompose** what is still open into sub-questions that do not overlap and together cover it, one per
    researcher. Split by mechanism, evidence base, prior art, tools (`uv run dev reuse check`), and risks or counter-evidence.
    One researcher argues *against* the leading answer; the contrarian is one of them.
