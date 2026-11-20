@@ -581,7 +581,13 @@ def run_suite(
     with tempfile.TemporaryDirectory(prefix="suite-audit-junit-") as tmp:
         junit = Path(tmp) / "junit.xml"
         subprocess.run(
-            [*cmd, f"--junitxml={junit}"], cwd=cwd, env=env, capture_output=True, check=False, timeout=RUN_TIMEOUT_S
+            [*cmd, f"--junitxml={junit}"],
+            cwd=cwd,
+            env=env,
+            capture_output=True,
+            check=False,
+            timeout=RUN_TIMEOUT_S,
+            preexec_fn=gate.background(),  # #543: below any gate running meanwhile
         )
         gate.record_history(junit, ledger, at=seed, keep=10_000)
 

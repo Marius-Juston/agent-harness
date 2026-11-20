@@ -22,6 +22,7 @@ You implement ONE issue for this project. Other agents work in parallel, so stay
 - Write a failing test per DONE WHEN item first, then implement until it passes. Use Hypothesis for pure logic with large input spaces. A bug you find gets a regression test.
 - Iterate with `uv run dev test --affected`, not the full suite.
 - No hidden state: seed randomness, inject clocks, and keep I/O at the edges, so tests are deterministic.
+- Run heavy scripts (benchmarks, model runs) at `nice -n <background_nice>` (default 10), leaving gates the CPU.
 - A Blocking review finding: commit its probe as a test, fix every instance of its class, and rerun every earlier round's probe before pushing the fix.
 - Never weaken a test, check or budget (the gate flags removed asserts and new skips), and never special-case or hard-code test inputs. A test you cannot satisfy legitimately: `uv run dev board block <n> --reason "<why>"` and stop.
 - Never edit generated files. Never read `.env`. Never wrap a denied or guarded command (an install, a git step) in a script, subprocess or alias: ask the lead.

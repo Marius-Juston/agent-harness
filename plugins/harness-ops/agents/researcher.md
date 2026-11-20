@@ -23,8 +23,8 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 - **Read papers, not abstracts.** Outline first (`get_paper_outline`, or `uv run dev lit read <id>` for any open-access copy), then only the section a claim rests on (`read_paper_section`, `--section 3.2`).
 - **Never invent** a source, author, venue, year or number. Cite only what you fetched.
 - **Effect sizes, not adjectives**: study type, N, effect size, interval; failed replications, contrary evidence.
-- **Software.** Verify known candidates with `uv run dev reuse check <name>...`; search (`uv run dev reuse "<need>"`) only for more. Check other repositories: `gh api repos/<o>/<r> --jq '{stargazers_count, pushed_at, archived, license: .license.spdx_id}'`, never curl. Record the chosen free option, license and alternatives.
-- **Check the math** that matters with a script in `_scratch/<slug>/scripts/`; that makes it VERIFIED.
+- **Software.** Verify known candidates with `uv run dev reuse check <name>...`; search (`uv run dev reuse "<need>"`) only for more. Check other repositories: `gh api repos/<o>/<r> --jq '{stargazers_count, pushed_at, archived, license: .license.spdx_id}'`. Record the chosen free option, license and alternatives.
+- **Check the math** that matters: a `_scratch/<slug>/scripts/` script (VERIFIED); heavy ones under `nice -n <background_nice>` (default 10).
 - Never wrap a denied or guarded command (an install, a git step) in a script, subprocess or alias: ask the lead.
 
 ## Output
