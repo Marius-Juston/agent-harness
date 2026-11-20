@@ -1,0 +1,27 @@
+{
+ "total_count": 1,
+ "jobs": [
+  {
+   "id": 135945173687,
+   "run_id": 44633261493,
+   "run_url": "https://api.github.com/repos/o/r/actions/runs/44633261493",
+   "run_attempt": 1,
+   "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "url": "https://api.github.com/repos/o/r/actions/jobs/135945173687",
+   "html_url": "https://github.com/o/r/actions/runs/44633261493/job/135945173687",
+   "status": "queued",
+   "conclusion": null,
+   "created_at": "2026-11-19T22:56:46Z",
+   "started_at": "2026-11-19T22:56:46Z",
+   "completed_at": null,
+   "name": "check",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/o/r/check-runs/135945173687",
+   "labels": [
+    "self-hosted"
+   ],
+   "runner_id": 0,
+   "runner_name": ""
+  }
+ ]
+}

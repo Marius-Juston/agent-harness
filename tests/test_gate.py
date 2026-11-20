@@ -12,6 +12,7 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import yaml
@@ -572,6 +573,43 @@ def test_dev_test_runs_cleanly_with_a_ros_like_pythonpath(tmp_path, ros_like_sit
     assert broken.returncode != 0 and "lark_that_is_not_installed" in broken.stdout + broken.stderr  # the trap works
     assert gate.test([str(test)], affected=False, slow=False, n=1) == 0
     assert "ignoring PYTHONPATH" in capsys.readouterr().out
+
+
+NICE_PROBE = "import os, pathlib\n\n\ndef test_nice():\n    pathlib.Path({out!r}).write_text(str(os.nice(0)))\n"
+
+
+def test_dev_test_runs_pytest_at_the_configured_background_nice(tmp_path, monkeypatch):
+    """#543: `dev test` drops its pytest to `background_nice`, so a gate running meanwhile keeps the CPU."""
+    out = tmp_path / "nice.txt"
+    test = tmp_path / "test_nice.py"
+    test.write_text(NICE_PROBE.format(out=str(out)))
+    level = min(19, os.nice(0) + 3)
+    monkeypatch.setattr(config, "get", lambda: config.Config(background_nice=level))
+    assert gate.test([str(test)], affected=False, slow=False, n=1) == 0
+    assert int(out.read_text()) == level
+    assert config.Config().background_nice == 10
+
+
+def test_lower_priority_never_raises_priority():
+    """A caller already niced past `background_nice` stays there: lowering a nice level needs root."""
+    probe = "from devkit import gate; import os; gate.lower_priority(0); print(os.nice(0))"
+    out = subprocess.run(["nice", "-n", "5", sys.executable, "-c", probe], capture_output=True, text=True, check=True)
+    assert int(out.stdout) == min(19, os.nice(0) + 5)
+
+
+def test_gate_stages_run_at_the_callers_priority(tmp_path, monkeypatch):
+    """#543: the gate itself is never niced, even with a background_nice set."""
+    monkeypatch.setattr(config, "get", lambda: config.Config(background_nice=19))
+    out = tmp_path / "nice.txt"
+    probe = f"import os, pathlib; pathlib.Path({str(out)!r}).write_text(str(os.nice(0)))"
+    gate._run("probe", [sys.executable, "-c", probe], cwd=tmp_path, checked=1)
+    assert int(out.read_text()) == os.nice(0)
+
+
+@pytest.mark.parametrize("value", [-1, 20, True, "10"])
+def test_background_nice_must_be_a_nice_level(value):
+    with pytest.raises(config.ConfigError, match="background_nice"):
+        config.parse({"background_nice": value})
 
 
 def test_the_rerun_gate_imports_bytecode_only_from_its_prefix(tmp_path):
@@ -1696,12 +1734,21 @@ def _job(name, job, conclusion="FAILURE"):
 @pytest.fixture
 def actions(fake_integrate, monkeypatch, clock):
     """GitHub's REST side for --local-ci on top of fake_integrate. Knobs: protection (required_status_checks, None
-    when unreadable), enabled (Actions permissions), steps (job id -> steps it ran), commands (config local_ci);
+    when unreadable), enabled (Actions permissions), steps (job id -> steps it ran), jobs (job id -> the whole job
+    payload, over steps), notes (check run id -> annotations), runners (self-hosted runners; None when unreadable),
+    owner (the repository owner's type), runs (workflow runs on a head), ci and start_s (config ci, actions_start_s; #531), commands (config local_ci);
     statuses records each status posted."""
-    knobs = {
+    knobs: dict[str, Any] = {
         "protection": {"contexts": ["check"], "checks": [{"context": "check", "app_id": None}]},
         "enabled": True,
         "steps": {},
+        "jobs": {},
+        "notes": {},
+        "runners": {"total_count": 0, "runners": []},
+        "owner": "User",
+        "runs": 1,
+        "ci": "actions",
+        "start_s": 20,
         "commands": {"check": []},
         "statuses": [],
     }
@@ -1719,7 +1766,18 @@ def actions(fake_integrate, monkeypatch, clock):
         if path.endswith("/actions/permissions"):
             return json.dumps({"enabled": knobs["enabled"]})
         if "/actions/jobs/" in path:
-            return json.dumps({"steps": [{}] * knobs["steps"].get(path.rsplit("/", 1)[1], 0)})
+            job = path.rsplit("/", 1)[1]
+            return json.dumps(knobs["jobs"].get(job) or {"steps": [{}] * knobs["steps"].get(job, 0)})
+        if path.endswith("/annotations"):
+            return json.dumps(knobs["notes"].get(path.split("/")[-2], []))
+        if path == "repos/o/r":
+            return json.dumps({"owner": {"type": knobs["owner"]}})
+        if "/actions/runners" in path:
+            if knobs["runners"] is None:
+                raise board.BoardError("gh api: 403 Must have admin rights to Repository")
+            return json.dumps(knobs["runners"])
+        if "/actions/runs?head_sha=" in path:
+            return json.dumps({"total_count": knobs["runs"], "workflow_runs": []})
         if "/statuses/" in path:
             fields = dict(a.split("=", 1) for a in args if "=" in a and not a.startswith("repos/"))
             knobs["statuses"].append({"sha": path.rsplit("/", 1)[1], **fields})
@@ -1727,8 +1785,17 @@ def actions(fake_integrate, monkeypatch, clock):
         raise AssertionError(args)
 
     monkeypatch.setattr(board, "gh", gh)
-    cfg = workflow.config.Config(checks_wait_s=900, local_ci_wait_s=600, local_ci=knobs["commands"])
-    monkeypatch.setattr(workflow.config, "get", lambda: cfg)
+    monkeypatch.setattr(
+        workflow.config,
+        "get",
+        lambda: workflow.config.Config(
+            checks_wait_s=900,
+            local_ci_wait_s=600,
+            local_ci=knobs["commands"],
+            ci=knobs["ci"],
+            actions_start_s=knobs["start_s"],
+        ),
+    )
     return knobs
 
 

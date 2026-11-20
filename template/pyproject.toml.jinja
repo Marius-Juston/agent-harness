@@ -32,6 +32,18 @@ quota_cap = 95
 # can combine, such as a line hashing other files. Mark that file `merge=devkit-generated` in .gitattributes too.
 # regenerate = [["uv", "run", "python", "scripts/rehash.py"]]
 
+# Import contracts the gate's arch stage keeps (`uv run dev arch` reports them); none until you declare one.
+# [[tool.devkit.arch.contracts]]
+# name = "{{ project_name | replace('-', '_') }} modules form no import cycle"
+# type = "acyclic_siblings"
+# ancestors = ["{{ project_name | replace('-', '_') }}"]
+#
+# [[tool.devkit.arch.contracts]]
+# name = "only the entry point imports the CLI"
+# type = "forbidden"
+# source_modules = ["{{ project_name | replace('-', '_') }}.*"]
+# forbidden_modules = ["{{ project_name | replace('-', '_') }}.cli"]
+
 # `uv run dev integrate --local-ci` (no Actions minutes): what stands in for each required check. `check` runs, after
 # the gate, each other `run:` step of .github/workflows/gate.yml's check job, the same text in the same order; a
 # multi-line step runs as itself under bash -e, as Actions runs it. Change one, change the other.

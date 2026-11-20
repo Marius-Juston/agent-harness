@@ -1,0 +1,80 @@
+{
+ "total_count": 3,
+ "runners": [
+  {
+   "id": 21,
+   "name": "runner-0",
+   "os": "Linux",
+   "status": "offline",
+   "busy": false,
+   "version": "2.338.2",
+   "labels": [
+    {
+     "id": 0,
+     "name": "self-hosted",
+     "type": "read-only"
+    },
+    {
+     "id": 0,
+     "name": "Linux",
+     "type": "read-only"
+    },
+    {
+     "id": 0,
+     "name": "X64",
+     "type": "read-only"
+    }
+   ]
+  },
+  {
+   "id": 22,
+   "name": "runner-1",
+   "os": "Linux",
+   "status": "offline",
+   "busy": false,
+   "version": "2.338.2",
+   "labels": [
+    {
+     "id": 0,
+     "name": "self-hosted",
+     "type": "read-only"
+    },
+    {
+     "id": 0,
+     "name": "Linux",
+     "type": "read-only"
+    },
+    {
+     "id": 0,
+     "name": "X64",
+     "type": "read-only"
+    }
+   ]
+  },
+  {
+   "id": 23,
+   "name": "runner-2",
+   "os": "Linux",
+   "status": "offline",
+   "busy": false,
+   "version": "2.338.2",
+   "labels": [
+    {
+     "id": 0,
+     "name": "self-hosted",
+     "type": "read-only"
+    },
+    {
+     "id": 0,
+     "name": "Linux",
+     "type": "read-only"
+    },
+    {
+     "id": 0,
+     "name": "X64",
+     "type": "read-only"
+    }
+   ]
+  }
+ ]
+}

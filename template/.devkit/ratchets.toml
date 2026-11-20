@@ -31,3 +31,12 @@ min_tests = 1          # passed tests in the default gate run; keep it near 95% 
 # or add a [[raise]] with `to` = the new count and reason = "ty <old> -> <new>".
 [types]
 max_diagnostics = 0    # a new project starts clean; an adopted codebase sets this to the count the gate reports
+
+# Architecture ratchets (the gate's arch stage; `uv run dev arch` shows the numbers). Both only tighten: raising
+# max_import_cycle, module_loc_ceiling or a pin needs a [[raise]] (key "arch.<key>" or "arch.module_loc.<path>"),
+# and so does a new pin, which is a module crossing the ceiling.
+[arch]
+max_import_cycle = 0       # modules in the largest import cycle of the non-test code
+module_loc_ceiling = 1000  # LOC (non-blank, non-comment) a module may have without a pin below
+
+[arch.module_loc]          # modules over the ceiling, pinned at their LOC: they may only shrink

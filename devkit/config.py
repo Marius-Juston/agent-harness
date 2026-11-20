@@ -30,6 +30,17 @@ CONSOLIDATION: dict[str, float | int | str | list[str]] = {
     "since": "",  # a commit to count from instead of the newest `Consolidation-Review:` trailer
 }
 
+# `[tool.devkit.arch]`: what `dev arch` and the gate's arch stage check (devkit/arch.py). Contracts on the import
+# graph, each a `[[tool.devkit.arch.contracts]]` table (none by default), with import-linter's names for two kinds:
+# `acyclic_siblings` (`ancestors`: no import cycle among each package's direct submodules) and `forbidden`
+# (`source_modules` may not import `forbidden_modules`, directly or through other modules). A pattern names a module
+# and its descendants; `*` stands for one name part. Imports inside functions count (they run when called); imports
+# under `if TYPE_CHECKING:` never run, so they count only when `type_checking_imports` is true.
+# Evidence: docs/research/architecture-grading.md §4.
+ARCH: dict[str, object] = {"type_checking_imports": False, "contracts": []}
+CONTRACT_KEYS = {"acyclic_siblings": ("ancestors",), "forbidden": ("source_modules", "forbidden_modules")}
+MODULE_PATTERN = re.compile(r"(?:\w+|\*)(?:\.(?:\w+|\*))*")
+
 # `[tool.devkit.prices."<model id>"]`: list $ per million tokens that `dev agent-stats --cost` prices with
 # (devkit/stats.py). A model is priced only by its exact id (a -YYYYMMDD snapshot suffix ignored), so an older model
 # never takes a newer one's prices; unpriced models are listed. Defaults: the pricing page as fetched for
@@ -84,12 +95,26 @@ class Config:
     # cores and memory idle; integrate's gate still takes the next free slot ahead of queued worker gates. A gate uses
     # every slot file it finds, so lowering it takes effect once the extra `gate.lock.<n>` files are deleted.
     gate_slots: int = 1
+    # #543: the nice level `dev test` and `dev suite-audit` run pytest at (0-19; 0 = as the caller). Linux CFS gives a
+    # nice-0 gate about 10x the CPU of a nice-10 process, so heavy non-gate work leaves a gate near its idle speed.
+    background_nice: int = 10
     # #381: the bound the guard_bash hook puts on an agent's Bash command that waits without one (an until/while poll
     # loop, `tail -f`, `watch`, `wait`, `gh run watch`, ...): it runs as `timeout <wait_bound_s> bash -c '<command>'`.
     # The hook reads this key itself (it cannot import devkit); 0 turns the rewrite off.
     wait_bound_s: int = 3600
     # `dev integrate --local-ci` (#76): a required check that has not queued after this long means Actions cannot run.
     local_ci_wait_s: int = 600
+    # #531: "actions" waits for GitHub Actions, and stands in (as `--local-ci` does) once a head shows Actions cannot
+    # run it (billing block, offline self-hosted runners, no workflow run). "local" never waits on Actions: integrate
+    # and the train read each head's checks once, refuse a required check Actions ran and failed, and stand in for
+    # the rest at once; for a repository whose Actions minutes run out.
+    ci: str = "actions"
+    # #531: with ci = "actions", a head with no workflow run after this long means Actions cannot run.
+    actions_start_s: int = 20
+    # #531: a job queued for a self-hosted runner that the repository's runner list cannot settle (an organisation's
+    # repository, a list unreadable, incomplete or without a runner of its labels) is stranded only after this long:
+    # scale-from-zero runners take minutes to start. With a listed matching runner offline, actions_start_s applies.
+    actions_stranded_s: int = 300
     # `dev integrate --local-ci`: required check context -> the commands (argument lists, run in the merged tree after
     # the gate passed; "{tmpdir}" becomes a fresh empty directory) that stand in for it. [] = the gate alone. A required
     # context without an entry is never posted: integrate refuses instead.
@@ -128,6 +153,7 @@ class Config:
     # integrate check still applies. "" (the default) trusts none: a project opts in.
     autopilot_trust_review: str = ""
     consolidation: dict[str, object] = field(default_factory=lambda: dict(CONSOLIDATION))
+    arch: dict[str, object] = field(default_factory=lambda: dict(ARCH))
     prices: dict[str, dict[str, float]] = field(default_factory=lambda: {k: dict(v) for k, v in PRICES.items()})
 
 
@@ -147,8 +173,12 @@ def parse(data: dict) -> Config:
         kind = getattr(want, "__origin__", want)
         if (isinstance(kind, type) and not isinstance(value, kind)) or (kind is int and isinstance(value, bool)):
             raise ConfigError(f"[tool.devkit] {key} = {value!r}: expected {want}")
+    if data.get("ci", "actions") not in ("actions", "local"):
+        raise ConfigError(f'[tool.devkit] ci = {data["ci"]!r}: expected "actions" or "local"')
     if data.get("gate_slots", 1) < 1:
         raise ConfigError(f"[tool.devkit] gate_slots = {data['gate_slots']!r}: expected a whole number of at least 1")
+    if not 0 <= data.get("background_nice", 10) <= 19:
+        raise ConfigError(f"[tool.devkit] background_nice = {data['background_nice']!r}: expected 0 to 19")
     if data.get("wait_bound_s", 0) < 0:
         raise ConfigError(f"[tool.devkit] wait_bound_s = {data['wait_bound_s']!r}: expected seconds, or 0 for no bound")
     for match, tools in data.get("mcp_prereqs", {}).items():
@@ -174,6 +204,8 @@ def parse(data: dict) -> Config:
         data = {**data, "consolidation": _consolidation(data["consolidation"])}
     if "prices" in data:
         data = {**data, "prices": _prices(data["prices"])}
+    if "arch" in data:
+        data = {**data, "arch": _arch(data["arch"])}
     return Config(**data)
 
 
@@ -203,6 +235,32 @@ def _consolidation(table: dict) -> dict:
         if not ok:
             raise ConfigError(f"[tool.devkit.consolidation] {key} = {value!r}: expected {type(default).__name__}")
     return {**CONSOLIDATION, **table}
+
+
+def _arch(table: dict) -> dict:
+    if unknown := sorted(set(table) - set(ARCH)):
+        raise ConfigError(f"[tool.devkit.arch]: unknown key(s) {unknown}; known: {sorted(ARCH)}")
+    if not isinstance(table.get("type_checking_imports", False), bool):
+        raise ConfigError("[tool.devkit.arch] type_checking_imports: expected true or false")
+    contracts = table.get("contracts", [])
+    if not isinstance(contracts, list) or not all(isinstance(c, dict) for c in contracts):
+        raise ConfigError("[tool.devkit.arch] contracts: expected [[tool.devkit.arch.contracts]] tables")
+    names: set[str] = set()
+    for c in contracts:
+        kind, name = c.get("type"), c.get("name")
+        where = f"[[tool.devkit.arch.contracts]] {name!r}"
+        if kind not in CONTRACT_KEYS:
+            raise ConfigError(f"{where}: type {kind!r}; known: {sorted(CONTRACT_KEYS)}")
+        if not isinstance(name, str) or not name or name in names:
+            raise ConfigError(f"{where}: expected a unique non-empty `name`")
+        names.add(name)
+        if unknown := sorted(set(c) - {"name", "type", *CONTRACT_KEYS[kind]}):
+            raise ConfigError(f"{where}: unknown key(s) {unknown} for type {kind}")
+        for key in CONTRACT_KEYS[kind]:
+            v = c.get(key)
+            if not (isinstance(v, list) and v and all(isinstance(m, str) and MODULE_PATTERN.fullmatch(m) for m in v)):
+                raise ConfigError(f"{where}: {key} = {v!r}: expected a list of dotted module names (`*` allowed)")
+    return {**ARCH, **table}
 
 
 def parse_cap(text: str) -> int:
