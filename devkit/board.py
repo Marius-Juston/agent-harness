@@ -22,52 +22,58 @@ GraphQL (addBlockedBy, addSubIssue), across repositories too. They are the one s
 links; its sections still count, and `board sync` backfills them as native links, then renders the body. A blocked-by
 link that would close a cycle is refused with the cycle's path. `Refs` stays plain mentions (relates-to).
 
-The code lives in PARTS, one module per responsibility (#625): board_gh (the `gh` calls, retries and rechecks),
-board_issue (the issue model and body schema), board_related (BM25 for `board new`), board_state (fetch, claims,
-sync, ranking), board_lint and board_brief. This module is their one name space: `board.X` reads X from the part
-that holds it, and setting `board.X` (a test's monkeypatch) sets it in every part that holds it, so a part calling
-`gh` sees a patched `board.gh` as the single module did.
+The code lives in one module per responsibility (#625): board_gh (the `gh` calls, retries and rechecks), board_issue
+(the issue model and body schema), board_related (BM25 for `board new`), board_state (fetch, claims, sync, ranking),
+board_lint and board_brief. This module re-exports their names for callers. The parts call each other through the
+defining module (`board_gh.gh(...)`), so a test patches the defining module (`setattr(board_gh, "gh", f)`) and the
+patch reaches every part. The functions tests replace (GitHub and the board's I/O) are re-exported late-bound
+(`late`), so callers of `board.gh` outside the parts see that patch too. A patch of a name here reaches nothing:
+tests/test_board_split.py refuses one, and checks that every function a test patches on a part is late-bound here.
 """
 
-import sys
+import functools
+from collections.abc import Callable
 from types import ModuleType
-from typing import TYPE_CHECKING
 
-from devkit import board_brief, board_gh, board_issue, board_lint, board_related, board_state
-
-if TYPE_CHECKING:  # the names `board.X` serves, for type checkers and readers
-    from devkit.board_brief import *  # noqa: F403
-    from devkit.board_gh import *  # noqa: F403
-    from devkit.board_gh import _flag, _iso  # noqa: F401
-    from devkit.board_issue import *  # noqa: F403
-    from devkit.board_issue import _issue  # noqa: F401
-    from devkit.board_lint import *  # noqa: F403
-    from devkit.board_related import *  # noqa: F403
-    from devkit.board_state import *  # noqa: F403
-    from devkit.board_state import _line  # noqa: F401
-
-PARTS = (board_gh, board_issue, board_related, board_state, board_lint, board_brief)
+from devkit import board_brief, board_gh, board_issue, board_state
+from devkit.board_brief import *  # noqa: F403
+from devkit.board_gh import *  # noqa: F403
+from devkit.board_gh import _flag, _iso  # noqa: F401
+from devkit.board_issue import *  # noqa: F403
+from devkit.board_issue import _issue  # noqa: F401
+from devkit.board_lint import *  # noqa: F403
+from devkit.board_related import *  # noqa: F403
+from devkit.board_state import *  # noqa: F403
+from devkit.board_state import _line  # noqa: F401
 
 
-def holders(name: str) -> list[ModuleType]:
-    """The parts that hold `name` (none for a dunder: each module keeps its own)."""
-    return [] if name.startswith("__") else [part for part in PARTS if name in vars(part)]
+def late[**P, R](part: ModuleType, f: Callable[P, R]) -> Callable[P, R]:
+    """`f`, looked up in its defining module `part` at each call, so a patch of that module reaches this caller."""
+    name = next(n for n, v in vars(part).items() if v is f)
+
+    def call(*args: P.args, **kwargs: P.kwargs) -> R:
+        return getattr(part, name)(*args, **kwargs)
+
+    return functools.update_wrapper(call, f)
 
 
-class _Board(ModuleType):
-    """Reads come from the parts, so a part's own change (board_related lowering GH_TRIES) shows here; writes go to
-    every part that holds the name and to this module's copy, which monkeypatch reads to restore."""
-
-    def __getattribute__(self, name: str) -> object:
-        if found := holders(name):
-            return vars(found[0])[name]
-        return super().__getattribute__(name)
-
-    def __setattr__(self, name: str, value: object) -> None:
-        for part in holders(name):
-            setattr(part, name, value)
-        super().__setattr__(name, value)
-
-
-globals().update({n: v for part in reversed(PARTS) for n, v in vars(part).items() if not n.startswith("__")})
-sys.modules[__name__].__class__ = _Board
+gh = late(board_gh, board_gh.gh)
+repo = late(board_gh, board_gh.repo)
+deleting_owns = late(board_issue, board_issue.deleting_owns)
+area_globs = late(board_state, board_state.area_globs)
+block = late(board_state, board_state.block)
+closed_numbers = late(board_state, board_state.closed_numbers)
+comment = late(board_state, board_state.comment)
+fetch = late(board_state, board_state.fetch)
+get = late(board_state, board_state.get)
+merged_pr = late(board_state, board_state.merged_pr)
+new = late(board_state, board_state.new)
+resolved = late(board_state, board_state.resolved)
+set_status = late(board_state, board_state.set_status)
+sync = late(board_state, board_state.sync)
+fix_comments = late(board_brief, board_brief.fix_comments)
+gh_user = late(board_brief, board_brief.gh_user)
+in_flight_files = late(board_brief, board_brief.in_flight_files)
+issue_prs = late(board_brief, board_brief.issue_prs)
+marked_comments = late(board_brief, board_brief.marked_comments)
+pr_feedback = late(board_brief, board_brief.pr_feedback)

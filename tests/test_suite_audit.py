@@ -11,7 +11,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, cli, frontmatter, suite_audit, workflow
+from devkit import board, board_gh, board_related, board_state, cli, frontmatter, suite_audit, workflow
 from devkit.paths import root
 from devkit.suite_audit import Static, scan
 
@@ -293,10 +293,10 @@ def test_orient_lines_are_empty_outside_a_repository_and_never_raise(tmp_path, m
     def boom(*a, **k):
         raise board.BoardError("rate limited")
 
-    # board.repo() reads the origin remote, which a fresh clone points at a path: pin it (found by this audit's own
+    # board_gh.repo() reads the origin remote, which a fresh clone points at a path: pin it (found by this audit's own
     # fresh-clone parity check, the test passed in the worktree only)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "gh", boom)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", boom)
     assert suite_audit.orient_lines(repo.path) == ["suite audit trigger failed: rate limited"]
     monkeypatch.setattr(suite_audit, "_orient", lambda r: time.sleep(5) or [])
     assert "skipped: over 0.2 s" in suite_audit.orient_lines(repo.path, budget_s=0.2)[0]
@@ -305,12 +305,12 @@ def test_orient_lines_are_empty_outside_a_repository_and_never_raise(tmp_path, m
 def test_dev_orient_shows_a_due_audit_with_what_the_lead_runs(monkeypatch, repo):
     repo.commit({"tests/test_a.py": suite_of(1)})
     runs = json.dumps([ci_run("ci", "success", 1)])
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "gh", lambda *a, input=None: runs if a[:2] == ("run", "list") else "[]")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", lambda *a, input=None: runs if a[:2] == ("run", "list") else "[]")
     monkeypatch.setattr(suite_audit, "state_dir", lambda *a: repo.path / ".git")  # not this machine's test history
-    monkeypatch.setattr(board, "sync", lambda: [])
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: [])
-    monkeypatch.setattr(board, "closed_numbers", lambda: set())
+    monkeypatch.setattr(board_state, "sync", lambda: [])
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: [])
+    monkeypatch.setattr(board_state, "closed_numbers", lambda: set())
     monkeypatch.setattr(workflow, "root", lambda: repo.path)
     monkeypatch.setattr(workflow, "status", lambda: "")
     line = next(x for x in workflow.orient().splitlines() if x.startswith("## Suite audit due"))
@@ -426,10 +426,10 @@ def test_file_report_opens_updates_closes_and_records_the_snapshot(monkeypatch):
     ]
     gh = FakeGh(open_issues)
     created = []
-    monkeypatch.setattr(board, "gh", gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     monkeypatch.setattr(
-        board, "new", lambda title, kind, prio, ctx, done, *a, **k: created.append((title, kind, done)) or "url"
+        board_state, "new", lambda title, kind, prio, ctx, done, *a, **k: created.append((title, kind, done)) or "url"
     )
     r = report_with({"flaky": ["t: passed and failed"], "slow": ["s: 9 s"]}, skipped=("ci",))
     out = suite_audit.file_report(r)
@@ -447,9 +447,9 @@ def test_file_report_opens_through_the_real_board_new_as_one_line_without_relate
     """Regression (#350 review): board.new's Related lines would split file_report's `<url> <title>: opened` line."""
     similar = {"number": 3, "title": "Suite health: flaky tests", "state": "CLOSED", "body": "## DONE WHEN\n- [ ] d"}
     gh = FakeGh([similar])
-    monkeypatch.setattr(board, "gh", gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "RELATED_MIN", 1e-9)  # the closed twin would show, were related issues looked up
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_related, "RELATED_MIN", 1e-9)  # the closed twin would show, were related issues looked up
     out = suite_audit.file_report(report_with({"flaky": ["t: passed and failed"]}))
     assert "https://github.com/o/r/issues/99 (ready) Suite health: flaky tests: opened" in out
     assert all("\n" not in line and "Related" not in line for line in out)

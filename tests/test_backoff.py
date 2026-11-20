@@ -14,7 +14,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import backoff, board, citecheck, lit
+from devkit import backoff, board, board_gh, citecheck, lit, paths
 from tests.test_lit import OA, Clock, FakeNet, make, oa_body
 
 # ---- the helper ----
@@ -248,9 +248,9 @@ def ghrun(monkeypatch):
         return outs.pop(0) if len(outs) > 1 else outs[0]
 
     monkeypatch.setattr(board.subprocess, "run", run)
-    monkeypatch.setattr(board, "root", lambda: Path("."))
-    monkeypatch.setattr(board, "GH_SLEEP", slept.append)
-    monkeypatch.setattr(board, "GH_RNG", random.Random(9))
+    monkeypatch.setattr(paths, "root", lambda: Path("."))
+    monkeypatch.setattr(board_gh, "GH_SLEEP", slept.append)
+    monkeypatch.setattr(board_gh, "GH_RNG", random.Random(9))
     return outs, slept
 
 
@@ -264,7 +264,7 @@ SECONDARY = "HTTP 403: You have exceeded a secondary rate limit. Please wait a f
 def test_gh_backs_off_on_a_secondary_rate_limit_then_succeeds(ghrun, capsys):
     outs, slept = ghrun
     outs += [_done(1, SECONDARY), _done(1, "HTTP 429: Too Many Requests"), _done(0, out="ok\n")]
-    assert board.gh("issue", "list") == "ok\n"
+    assert board_gh.gh("issue", "list") == "ok\n"
     ref = random.Random(9)
     assert slept == [60 + ref.uniform(0, 30), 60 + ref.uniform(0, 60)]  # at least a minute, then longer, jittered
     assert "secondary rate limit" in capsys.readouterr().err
@@ -274,10 +274,10 @@ def test_gh_gives_up_after_its_tries_and_does_not_retry_other_errors(ghrun):
     outs, slept = ghrun
     outs.append(_done(1, SECONDARY))
     with pytest.raises(board.BoardError, match="secondary rate limit"):
-        board.gh("issue", "list")
+        board_gh.gh("issue", "list")
     assert len(slept) == board.GH_TRIES - 1
     outs[:] = [_done(1, "HTTP 404: Not Found")]
     slept.clear()
     with pytest.raises(board.BoardError, match="404"):
-        board.gh("issue", "view", "9")
+        board_gh.gh("issue", "view", "9")
     assert slept == []

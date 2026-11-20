@@ -16,7 +16,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, ci_status, fixloop, merging, prtext, weaken, workflow
+from devkit import board, board_brief, board_gh, board_state, ci_status, fixloop, merging, prtext, weaken, workflow
 from devkit import branches as local_branches
 from tests.test_board import mk
 from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate are fixtures
@@ -54,16 +54,16 @@ def opened(monkeypatch):
     monkeypatch.setattr(workflow, "git", lambda *a: "33-x" if a[0] == "branch" else "")
     monkeypatch.setattr(workflow, "_gate_passed", lambda: True)
     monkeypatch.setattr(workflow, "main_conflicts", lambda: [])
-    monkeypatch.setattr(board, "get", lambda n: mk(n, ["type:build"], title="t"))
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "comment", lambda n, text: None)
-    monkeypatch.setattr(board, "set_status", lambda n, s: None)
+    monkeypatch.setattr(board_state, "get", lambda n: mk(n, ["type:build"], title="t"))
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_state, "comment", lambda n, text: None)
+    monkeypatch.setattr(board_state, "set_status", lambda n, s: None)
 
     def gh(*args, input=None):
         sent.append(input)
         return "https://example/pr/1\n"
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     return sent
 
 
@@ -130,9 +130,9 @@ def test_dev_pr_refuses_a_session_leak_in_a_public_repo(opened, monkeypatch, bod
         workflow, "git", lambda *a: "33-x" if a[0] == "branch" else log if a[0] == "log" else pushed.append(a) or ""
     )
     monkeypatch.setattr(workflow.checks, "merge_base", lambda: "base")
-    create = board.gh
+    create = board_gh.gh
     monkeypatch.setattr(
-        board,
+        board_gh,
         "gh",
         lambda *a, **k: json.dumps({"visibility": seen[0]}) if a[:2] == ("repo", "view") else create(*a, **k),
     )
@@ -169,8 +169,8 @@ def statuses(opened, monkeypatch):
     """Issues 33 and 34 claimed on the PR's branch `33-x`, 35 on another; returns the status each call set."""
     issues = {33: _claimed(33, "33-x"), 34: _claimed(34, "33-x"), 35: _claimed(35, "35-y")}
     moved = []
-    monkeypatch.setattr(board, "get", lambda n: issues[n])
-    monkeypatch.setattr(board, "set_status", lambda n, s: moved.append((n, s)))
+    monkeypatch.setattr(board_state, "get", lambda n: issues[n])
+    monkeypatch.setattr(board_state, "set_status", lambda n, s: moved.append((n, s)))
     return moved
 
 
@@ -445,7 +445,7 @@ def _weakening_gate(world: dict, monkeypatch, approval: str) -> None:
     integrate gates (detached: no branch, no GITHUB_HEAD_REF) with the environment integrate gives it."""
     monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
     monkeypatch.setattr(weaken, "repo_owner", lambda: "octo")
-    fake_gh, fake_popen = board.gh, subprocess.Popen
+    fake_gh, fake_popen = board_gh.gh, subprocess.Popen
 
     def gh(*args, **kw):
         if args[:3] == ("issue", "view", "12"):
@@ -463,7 +463,7 @@ def _weakening_gate(world: dict, monkeypatch, approval: str) -> None:
                 return REAL_POPEN([sys.executable, "-c", "raise SystemExit(1)"], **kw)
         return fake_popen(cmd, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     monkeypatch.setattr(subprocess, "Popen", popen)
 
 
@@ -517,7 +517,7 @@ def test_integrate_refuses_deleting_a_path_another_open_issue_owns(project, caps
     _delete_in_pr(project, "old/x.py")
     body = "## Owns\n- `old/x.py`\n"
     issues = [mk(n, ["type:build"], body) for n in (12, 14, *others)]
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: issues)
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: issues)
     code = workflow.integrate(7, harness_ok=True, dry_run=False)
     printed = capsys.readouterr().out
     res = last_json(printed)
@@ -532,7 +532,7 @@ def test_override_does_not_lift_the_deleted_owns_refusal_but_refs_does(project, 
     land_on_main(project, {"old/x.py": "x\n"})
     _delete_in_pr(project, "old/x.py")
     issues = [mk(n, ["type:build"], "## Owns\n- `old/x.py`\n") for n in (12, 15, 16)]
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: issues)
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: issues)
     assert workflow.integrate(7, harness_ok=True, dry_run=False, override="moved on purpose") == 1
     assert last_json(capsys.readouterr().out)["outcome"] == "refused"
     project["body"] = "Closes #12\n\nRefs: #15, #16"
@@ -549,7 +549,7 @@ def test_a_deleting_merge_stops_when_the_board_cannot_be_read(project, capsys, m
     def offline(*a, **k):
         raise error
 
-    monkeypatch.setattr(board, "fetch", offline)
+    monkeypatch.setattr(board_state, "fetch", offline)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     assert last_json(capsys.readouterr().out)["outcome"] == "stopped"
     assert not [e for e in project["events"] if e[:3] == ("gh", "pr", "merge")]
@@ -560,14 +560,14 @@ def test_a_deleting_merge_stops_when_the_board_cannot_be_read(project, capsys, m
 
 def _rollups(world: dict, monkeypatch, *rollups: list[dict]) -> None:
     """The PR's own head shows `rollups` in turn, one per read of its checks; the last one repeats."""
-    queue, gh = list(rollups), board.gh
+    queue, gh = list(rollups), board_gh.gh
 
     def fake(*args, **kw):
         if args[:2] == ("pr", "view") and "statusCheckRollup" in args[-1]:
             world["checks"] = queue.pop(0) if len(queue) > 1 else queue[0]
         return gh(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", fake)
+    monkeypatch.setattr(board_gh, "gh", fake)
 
 
 def _gated(ev: list) -> int:
@@ -756,7 +756,7 @@ def _timed(world: dict, monkeypatch) -> dict:
     monkeypatch.setattr(workflow.time, "sleep", REAL_SLEEP)
     for name, value in (("CHECKS_FLOOR_S", 0.01), ("CHECKS_BASE_S", 0.02), ("CHECKS_CAP_S", 0.02)):
         monkeypatch.setattr(ci_status, name, value)
-    git, gh = workflow.git, board.gh
+    git, gh = workflow.git, board_gh.gh
 
     def timed_git(*args, **kw):
         if args[0] == "push":
@@ -781,7 +781,7 @@ def _timed(world: dict, monkeypatch) -> dict:
         return knobs["gates"][-1]
 
     monkeypatch.setattr(workflow, "git", timed_git)
-    monkeypatch.setattr(board, "gh", timed_gh)
+    monkeypatch.setattr(board_gh, "gh", timed_gh)
     monkeypatch.setattr(workflow.subprocess, "Popen", popen)
     monkeypatch.setattr(workflow, "_kill_group", lambda proc: proc.kill())
     return knobs
@@ -906,8 +906,8 @@ def test_a_retargeted_stacked_pr_gets_the_cherry_pick_route_not_a_force_push(mon
             return "a" * 40 + "\n" + "b" * 40 + "\n"
         return ""
 
-    monkeypatch.setattr(board, "gh", gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     tip = "c" * 40
     assert workflow.retarget_stacked("12-parent", tip) == [8]
     assert next(c for c in calls if c[0] == "api")[1] == f"repos/o/r/compare/{tip}...13-stacked"
@@ -926,8 +926,8 @@ def test_the_stacked_hint_without_a_readable_compare_still_names_the_route(monke
             raise board.BoardError("gh api: offline")
         return ""
 
-    monkeypatch.setattr(board, "gh", gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     assert workflow.retarget_stacked("12-parent", "c" * 40) == [8]
     said = capsys.readouterr().out
     assert "rebase" not in said and "git switch -c 13-stacked-v2 origin/main" in said
@@ -992,8 +992,8 @@ def branches(tmp_path, monkeypatch):
     paths.root.cache_clear()
     paths.common_dir.cache_clear()
     monkeypatch.chdir(repo)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "gh", lambda *a, **k: json.dumps(prs) if a[:2] == ("pr", "list") else "")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", lambda *a, **k: json.dumps(prs) if a[:2] == ("pr", "list") else "")
     yield repo, prs
     paths.root.cache_clear()
     paths.common_dir.cache_clear()
@@ -1102,7 +1102,7 @@ def test_status_resume_lists_dirty_or_ahead_worktrees_with_a_respawn_prompt(bran
         {"number": 41, "headRefName": "12-dirty", "url": "https://x/pull/41", "isCrossRepository": True},
     ]
     thread = {"path": "a1", "line": 1, "comments": {"nodes": [{"url": "https://x/pull/40#r1"}]}}
-    monkeypatch.setattr(board, "pr_feedback", lambda n: {"threads": [thread] if n == 40 else []})
+    monkeypatch.setattr(board_brief, "pr_feedback", lambda n: {"threads": [thread] if n == 40 else []})
 
     rows = json.loads(workflow.status(as_json=True, resume=True))
     assert [(r["issue"], r["branch"], r["pr"], r["review"]) for r in rows] == [
@@ -1130,7 +1130,7 @@ def test_status_resume_still_lists_worktrees_when_github_cannot_say(branches, tm
     def down(*a, **k):
         raise board.BoardError("gh: no network")
 
-    monkeypatch.setattr(board, "gh", down)
+    monkeypatch.setattr(board_gh, "gh", down)
     assert "PR ?" in workflow.status(resume=True)
 
 
@@ -1189,7 +1189,7 @@ def test_worktree_prune_refuses_when_the_pr_list_may_be_cut_off(branches, monkey
 def test_integrate_keeps_a_branch_another_open_pr_has_as_head(project, capsys, monkeypatch, answer):  # noqa: F811
     clone = project["clone"]
     tip = open_pr(project, note(clone, "c"))
-    fake = board.gh
+    fake = board_gh.gh
 
     def gh(*args, **kw):
         if args[:2] == ("pr", "list") and "--head" in args:
@@ -1198,7 +1198,7 @@ def test_integrate_keeps_a_branch_another_open_pr_has_as_head(project, capsys, m
             return json.dumps([{"number": 8, "isCrossRepository": False}])
         return fake(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     said = capsys.readouterr().out
     assert _local(clone, "12-c") == tip
@@ -1210,14 +1210,14 @@ def test_integrate_deletes_the_branch_when_a_stale_list_still_shows_the_merged_p
     """Round-2 review of #343: right after the merge, `gh pr list --state open` can still show the PR just merged."""
     clone = project["clone"]
     tip = open_pr(project, note(clone, "c"))
-    fake = board.gh
+    fake = board_gh.gh
 
     def gh(*args, **kw):
         if args[:2] == ("pr", "list") and "--head" in args:
             return json.dumps([{"number": 7, "isCrossRepository": False}])
         return fake(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     said = capsys.readouterr().out
     assert not _local(clone, "12-c") and f"deleted branch 12-c (was {tip[:10]})" in said
@@ -1243,11 +1243,11 @@ def remote(tmp_path, monkeypatch):
     monkeypatch.chdir(clone)
     monkeypatch.setattr(workflow, "_gate_passed", lambda: True)
     monkeypatch.setattr(workflow, "pr_areas", lambda: [])
-    monkeypatch.setattr(board, "get", lambda n: mk(n, ["type:build"], title="t"))
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "comment", lambda n, text: None)
-    monkeypatch.setattr(board, "set_status", lambda n, s: None)
-    monkeypatch.setattr(board, "gh", lambda *a, input=None: world["sent"].append(input) or "https://example/pr/1\n")
+    monkeypatch.setattr(board_state, "get", lambda n: mk(n, ["type:build"], title="t"))
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_state, "comment", lambda n, text: None)
+    monkeypatch.setattr(board_state, "set_status", lambda n, s: None)
+    monkeypatch.setattr(board_gh, "gh", lambda *a, input=None: world["sent"].append(input) or "https://example/pr/1\n")
     return world
 
 
@@ -1355,7 +1355,7 @@ def _into_main(args: tuple) -> bool:
 
 def _merging(world: dict, monkeypatch, listed: list[dict]) -> None:
     """GitHub's squash merge lands the gated head on origin's main; `gh pr list --base main` shows `listed`."""
-    fake = board.gh
+    fake = board_gh.gh
 
     def gh(*args, **kw):
         if args[:2] == ("pr", "merge"):
@@ -1365,7 +1365,7 @@ def _merging(world: dict, monkeypatch, listed: list[dict]) -> None:
             return json.dumps(listed)
         return fake(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
 
 
 def test_integrate_sends_back_each_open_pr_the_new_main_conflicts_with(project, capsys, monkeypatch):  # noqa: F811
@@ -1415,14 +1415,14 @@ def test_a_pr_already_sent_back_on_the_same_head_is_not_sent_back_again(project,
 def test_the_post_merge_check_failing_does_not_turn_a_merge_into_a_stop(project, capsys, monkeypatch):  # noqa: F811
     clone = project["clone"]
     open_pr(project, note(clone, "c"))
-    fake = board.gh
+    fake = board_gh.gh
 
     def gh(*args, **kw):
         if _into_main(args):
             raise board.BoardError("gh: offline")
         return fake(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     said = capsys.readouterr().out
     assert last_json(said)["outcome"] == "merged" and "conflict check of the new main skipped" in said
@@ -1480,14 +1480,14 @@ def test_a_send_back_github_refuses_still_reports_those_already_sent(project, ca
     ]
     open_pr(project, {"docs/research/a.md": "one\nTWO by c\nthree\n"})
     _merging(project, monkeypatch, listed)
-    fake = board.gh
+    fake = board_gh.gh
 
     def gh(*args, **kw):
         if args[:4] == ("pr", "comment", "9", "-R"):
             raise board.BoardError("gh: 502")
         return fake(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     said = capsys.readouterr().out
     assert last_json(said)["sent_back"] == [8] and "skipped #9: send-back failed: gh: 502" in said
@@ -1683,7 +1683,7 @@ def test_why_still_prints_the_record_when_github_cannot_be_read(fake_integrate, 
     def down(*a, **k):
         raise board.BoardError("gh: 502")
 
-    monkeypatch.setattr(board, "gh", down)
+    monkeypatch.setattr(board_gh, "gh", down)
     assert fixloop.why(7) == 0
     out = capsys.readouterr().out
     assert "refused" in out and "cannot read the PR head" in out
@@ -1849,8 +1849,8 @@ def _github_keeps_comments(
     comments (GraphQL's last 50, none when not `in_window`; the paginated REST list, as the marker search filters it), next
     to the `foreign` comments others wrote first; `gh run view --log-failed` prints `log`. Returns the comments
     integrate posted."""
-    fake, posted = board.gh, []
-    monkeypatch.setattr(board, "gh_user", lambda: "lead")
+    fake, posted = board_gh.gh, []
+    monkeypatch.setattr(board_brief, "gh_user", lambda: "lead")
 
     def gh(*args, **kw):
         every = [*foreign, *posted]
@@ -1870,7 +1870,7 @@ def _github_keeps_comments(
             return log
         return fake(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     return posted
 
 
@@ -2116,14 +2116,14 @@ def test_scrubbed_leaves_ordinary_log_lines(line):
 
 def test_a_check_log_without_gh_still_ends_in_a_result(fake_integrate, monkeypatch, capsys):  # noqa: F811
     posted = _github_keeps_comments(fake_integrate, monkeypatch)
-    fake, missing = board.gh, FileNotFoundError("gh")
+    fake, missing = board_gh.gh, FileNotFoundError("gh")
 
     def gh(*args, **kw):
         if args[:2] == ("run", "view"):
             raise missing
         return fake(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     fake_integrate["checks"] = [_job("check", 42)]
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     assert _last_json(capsys.readouterr().out)["outcome"] == "refused"
@@ -2145,7 +2145,7 @@ def test_a_fix_loop_github_refuses_keeps_the_outcome(fake_integrate, monkeypatch
     def offline(n, status):
         raise board.BoardError("gh issue edit: offline")
 
-    monkeypatch.setattr(board, "set_status", offline)
+    monkeypatch.setattr(board_state, "set_status", offline)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     res = _last_json(capsys.readouterr().out)
     assert res["outcome"] == "gate-failed" and res["cycle"] == 1 and "offline" in res["fix_error"]
@@ -2155,7 +2155,7 @@ def test_a_fix_loop_github_refuses_keeps_the_outcome(fake_integrate, monkeypatch
 def test_a_pr_github_cannot_read_keeps_the_outcome(fake_integrate, monkeypatch, capsys, knobs):  # noqa: F811
     """The fix loop reads the PR's comments after the outcome is known: failing there must not turn it into stopped."""
     fake_integrate.update(knobs)
-    reads, read = [], board.pr_feedback
+    reads, read = [], board_brief.pr_feedback
 
     def offline(n):  # the read before the gate answers; the fix loop's, after the outcome, fails
         if reads:
@@ -2163,7 +2163,7 @@ def test_a_pr_github_cannot_read_keeps_the_outcome(fake_integrate, monkeypatch, 
         reads.append(n)
         return read(n)
 
-    monkeypatch.setattr(board, "pr_feedback", offline)
+    monkeypatch.setattr(board_brief, "pr_feedback", offline)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     res = _last_json(capsys.readouterr().out)
     assert res["outcome"] in {"conflict", "gate-failed"} and "offline" in res["fix_error"] and "cycle" not in res
@@ -2213,10 +2213,10 @@ def test_brief_shows_fix_before_merge_and_feedback_does_not_repeat_it(monkeypatc
         "reviews": [],
         "threads": [],
     }
-    monkeypatch.setattr(board, "get", lambda n: issue)
-    monkeypatch.setattr(board, "in_flight_files", dict)
-    monkeypatch.setattr(board, "issue_prs", lambda n: [7])
-    monkeypatch.setattr(board, "pr_feedback", lambda n: fb)
+    monkeypatch.setattr(board_state, "get", lambda n: issue)
+    monkeypatch.setattr(board_brief, "in_flight_files", dict)
+    monkeypatch.setattr(board_brief, "issue_prs", lambda n: [7])
+    monkeypatch.setattr(board_brief, "pr_feedback", lambda n: fb)
     text = board.brief(110)
     assert "## Fix before merge (PR #7, gate-failed, fix cycle 1 of 3" in text
     assert "     tests/test_x.py::test_a FAILED" in text
@@ -2305,11 +2305,11 @@ def test_dev_pr_opens_the_pr_with_the_conventional_title(monkeypatch):
     monkeypatch.setattr(workflow, "_gate_passed", lambda: True)
     monkeypatch.setattr(workflow, "main_conflicts", lambda: [])
     monkeypatch.setattr(workflow, "pr_areas", lambda: [])
-    monkeypatch.setattr(board, "get", lambda n: mk(n, ["type:build"], title="dev pr: conventional titles"))
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "comment", lambda n, text: None)
-    monkeypatch.setattr(board, "set_status", lambda n, s: None)
-    monkeypatch.setattr(board, "gh", lambda *a, input=None: created.append(a) or "https://example/pr/1\n")
+    monkeypatch.setattr(board_state, "get", lambda n: mk(n, ["type:build"], title="dev pr: conventional titles"))
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_state, "comment", lambda n, text: None)
+    monkeypatch.setattr(board_state, "set_status", lambda n, s: None)
+    monkeypatch.setattr(board_gh, "gh", lambda *a, input=None: created.append(a) or "https://example/pr/1\n")
     monkeypatch.setattr("sys.stdin", io.StringIO("body\n"))
     workflow.pr(100, "-", draft=False)
     args = created[-1]
@@ -2319,9 +2319,11 @@ def test_dev_pr_opens_the_pr_with_the_conventional_title(monkeypatch):
 def test_integrate_refuses_a_non_conventional_title_with_the_expected_form(fake_integrate, monkeypatch, capsys):  # noqa: F811
     """No Actions needed: integrate itself refuses before the gate, names the title `dev pr` would give, and sends it
     back through the fix loop; --override does not lift it."""
-    real = board.gh
-    monkeypatch.setattr(board, "gh", lambda *a, **k: real(*a, **k).replace('"feat: t (#5)"', '"Stop on a moved head"'))
-    monkeypatch.setattr(board, "get", lambda n: mk(n, ["type:bug"], title="integrate: stop on a moved head"))
+    real = board_gh.gh
+    monkeypatch.setattr(
+        board_gh, "gh", lambda *a, **k: real(*a, **k).replace('"feat: t (#5)"', '"Stop on a moved head"')
+    )
+    monkeypatch.setattr(board_state, "get", lambda n: mk(n, ["type:bug"], title="integrate: stop on a moved head"))
     assert workflow.integrate(7, harness_ok=True, dry_run=False, override="ship it") == 1
     out = capsys.readouterr().out
     assert "RESULT: refused" in out and "'fix(integrate): stop on a moved head (#5)'" in out
@@ -2333,8 +2335,8 @@ def test_integrate_refuses_a_non_conventional_title_with_the_expected_form(fake_
 def test_a_title_edited_during_the_gate_is_checked_again_before_the_merge(monkeypatch):
     """The title integrate checked first is not the one it merges with: the squash subject is re-read after the gate."""
     calls = []
-    monkeypatch.setattr(board, "gh", lambda *a, **k: calls.append(a) or "")
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", lambda *a, **k: calls.append(a) or "")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     monkeypatch.setattr(workflow, "_remote_shas", lambda n: ("h1", "m1"))
     monkeypatch.setattr(workflow, "repo_public", lambda: True)
     reason = workflow._merge_if_unchanged(7, "h1", "m1", info={"title": "Stop on a moved head", "body": "b"})
@@ -2349,9 +2351,9 @@ def test_integrate_refuses_a_body_that_lost_the_closes_line_through_the_fix_loop
     """#434: a body rewritten with `gh pr edit` dropped `Closes #5`, so the merge would leave #5 open. integrate
     refuses before the gate, names the missing line, and sends it back through the fix loop; override does not lift it."""
     posted = _github_keeps_comments(fake_integrate, monkeypatch)
-    real = board.gh
+    real = board_gh.gh
     monkeypatch.setattr(
-        board, "gh", lambda *a, **k: real(*a, **k).replace('"Closes #5"', '"Rewritten summary, see #9"')
+        board_gh, "gh", lambda *a, **k: real(*a, **k).replace('"Closes #5"', '"Rewritten summary, see #9"')
     )
     assert workflow.integrate(7, harness_ok=True, dry_run=False, override="ship it") == 1
     out = capsys.readouterr().out
@@ -2440,7 +2442,7 @@ def test_integrate_refuses_a_configured_path_without_a_review_then_accepts_it_on
     _push(fake_integrate, "c" * 40)  # a hex head: a VERDICT line names it
     posted = _github_keeps_comments(fake_integrate, monkeypatch)
     reviews: list[dict] = []
-    real = board.gh
+    real = board_gh.gh
 
     def gh(*args, **kw):
         out = real(*args, **kw)
@@ -2450,7 +2452,7 @@ def test_integrate_refuses_a_configured_path_without_a_review_then_accepts_it_on
             return json.dumps(data)
         return out
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     assert workflow.integrate(7, harness_ok=True, dry_run=False, override="ship it") == 1
     out = capsys.readouterr().out
     res = _last_json(out)
@@ -2481,10 +2483,10 @@ def test_is_ancestor_reads_the_clone_and_says_no_for_an_unknown_sha(tmp_path, mo
 
 def test_a_review_on_the_head_itself_needs_no_ancestry_check(fake_integrate, monkeypatch):  # noqa: F811
     monkeypatch.setattr(workflow.config, "get", lambda: workflow.config.Config(required_reviews=RULES))
-    monkeypatch.setattr(board, "gh_user", lambda: "lead")
+    monkeypatch.setattr(board_brief, "gh_user", lambda: "lead")
     fake_integrate["files"] = ["src/math/lemma.py"]
     _push(fake_integrate, "c" * 40)
-    real = board.gh
+    real = board_gh.gh
 
     def gh(*args, **kw):
         out = real(*args, **kw)
@@ -2494,7 +2496,7 @@ def test_a_review_on_the_head_itself_needs_no_ancestry_check(fake_integrate, mon
             return json.dumps(data)
         return out
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     assert _merged(fake_integrate["events"])
     assert not any(e[:2] == ("git", "merge-base") and "--is-ancestor" in e for e in fake_integrate["events"])
@@ -2502,8 +2504,8 @@ def test_a_review_on_the_head_itself_needs_no_ancestry_check(fake_integrate, mon
 
 def test_a_body_edited_during_the_gate_is_checked_again_before_the_merge(monkeypatch):
     calls = []
-    monkeypatch.setattr(board, "gh", lambda *a, **k: calls.append(a) or "")
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", lambda *a, **k: calls.append(a) or "")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     monkeypatch.setattr(workflow, "_remote_shas", lambda n: ("h1", "m1"))
     info = {"title": "fix: t", "body": "rewritten", "headRefName": "5-x"}
     reason = workflow._merge_if_unchanged(7, "h1", "m1", info=info)
@@ -2518,8 +2520,10 @@ def test_conventional_titles_false_turns_the_check_off(fake_integrate, monkeypat
 
     assert config.Config().conventional_titles is True
     monkeypatch.setattr(config, "get", lambda: config.parse({"conventional_titles": False}))
-    real = board.gh
-    monkeypatch.setattr(board, "gh", lambda *a, **k: real(*a, **k).replace('"feat: t (#5)"', '"Stop on a moved head"'))
+    real = board_gh.gh
+    monkeypatch.setattr(
+        board_gh, "gh", lambda *a, **k: real(*a, **k).replace('"feat: t (#5)"', '"Stop on a moved head"')
+    )
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     assert _merged(fake_integrate["events"])
     assert cli.run(cli.parse(["pr-title", "--title", "Fix the thing"])) == 0
@@ -2548,7 +2552,7 @@ def test_expected_title_falls_back_to_the_form_without_a_readable_issue(monkeypa
     def unreadable(n):
         raise board.BoardError("offline")
 
-    monkeypatch.setattr(board, "get", unreadable)
+    monkeypatch.setattr(board_state, "get", unreadable)
     assert prtext.expected_title({"body": "Closes #5", "headRefName": "5-x"}) == repr(prtext.TITLE_FORM)
 
 

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from fnmatch import fnmatchcase
 from typing import NamedTuple
 
-from devkit.board_gh import BoardError, graphql, repo
+from devkit import board_gh
 
 STATUSES = ("ready", "in-progress", "review", "blocked")
 TYPES = ("research", "build", "test", "infra", "bug", "epic")
@@ -88,7 +88,7 @@ type Ref = int | str  # an issue of this repository by number, or another's as `
 def ref_of(where: str | None, number: int | str) -> Ref:
     """`number` in repository `where` (None: this one), as a Ref: an int when it is this repository."""
     n = int(number)
-    return n if not where or where.lower() == repo().lower() else f"{where}#{n}"
+    return n if not where or where.lower() == board_gh.repo().lower() else f"{where}#{n}"
 
 
 def refs_in(text: str) -> list[Ref]:
@@ -103,7 +103,7 @@ def parse_ref(text: int | str) -> Ref:
         return int(text)
     found = refs_in(text)
     if len(found) != 1:
-        raise BoardError(f"not one issue reference: {text!r} (use 12, #12, owner/repo#12 or an issue URL)")
+        raise board_gh.BoardError(f"not one issue reference: {text!r} (use 12, #12, owner/repo#12 or an issue URL)")
     return found[0]
 
 
@@ -113,7 +113,7 @@ def show(ref: Ref) -> str:
 
 def split(ref: Ref) -> tuple[str, str, int]:
     """(owner, name, number) of a Ref."""
-    where, _, n = (f"{repo()}#{ref}" if isinstance(ref, int) else ref).rpartition("#")
+    where, _, n = (f"{board_gh.repo()}#{ref}" if isinstance(ref, int) else ref).rpartition("#")
     owner, _, name = where.partition("/")
     return owner, name, int(n)
 
@@ -121,7 +121,7 @@ def split(ref: Ref) -> tuple[str, str, int]:
 def ref_from_url(url: str) -> Ref:
     m = re.search(r"github\.com/([^/]+/[^/]+)/issues/(\d+)", url or "")
     if not m:
-        raise BoardError(f"not an issue URL: {url}")
+        raise board_gh.BoardError(f"not an issue URL: {url}")
     return ref_of(m.group(1), m.group(2))
 
 
@@ -137,9 +137,9 @@ ADD_SUB_ISSUE = """mutation($parent: ID!, $sub: ID!, $replace: Boolean!) {
 def remote(ref: Ref) -> dict:
     """An issue's node id, state, stateReason and native blockers (as Refs), by GraphQL; any repository."""
     owner, name, n = split(ref)
-    issue = (graphql(ISSUE_QUERY, owner=owner, name=name, number=n).get("repository") or {}).get("issue")
+    issue = (board_gh.graphql(ISSUE_QUERY, owner=owner, name=name, number=n).get("repository") or {}).get("issue")
     if not issue:
-        raise BoardError(f"{show(ref)}: no such issue, or no access to it")
+        raise board_gh.BoardError(f"{show(ref)}: no such issue, or no access to it")
     issue["blockers"] = [ref_from_url(x["url"]) for x in (issue.get("blockedBy") or {}).get("nodes") or []]
     return issue
 

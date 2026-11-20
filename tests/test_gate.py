@@ -19,7 +19,20 @@ import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, branches, ci_status, config, fixloop, gate, merging, paths, weaken, workflow
+from devkit import (
+    board,
+    board_gh,
+    board_state,
+    branches,
+    ci_status,
+    config,
+    fixloop,
+    gate,
+    merging,
+    paths,
+    weaken,
+    workflow,
+)
 from devkit.ran import Ran
 
 REAL_POPEN = subprocess.Popen
@@ -1006,8 +1019,8 @@ def test_integrate_refuses_forks_and_non_main_bases():
 
 def test_merge_rechecks_both_shas_and_matches_the_head(monkeypatch):
     calls = []
-    monkeypatch.setattr(board, "gh", lambda *a, **k: calls.append(a) or "")
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", lambda *a, **k: calls.append(a) or "")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     monkeypatch.setattr(workflow, "_remote_shas", lambda n: ("h1", "m1"))
     assert workflow._merge_if_unchanged(7, "h1", "m1") is None
     assert calls[-1][:3] == ("pr", "merge", "7")
@@ -1026,8 +1039,8 @@ def test_integrate_reads_the_fields_it_checks(monkeypatch, tmp_path):
         seen["fields"] = set(args[args.index("--json") + 1].split(","))
         return json.dumps(_info(isCrossRepository=True, isDraft=False, files=[], title="t", body=""))
 
-    monkeypatch.setattr(board, "gh", gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     assert workflow.integrate(7, harness_ok=True, dry_run=True) == 1
     assert {"headRefOid", "baseRefName", "isCrossRepository"} <= seen["fields"]
 
@@ -1147,14 +1160,16 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(branches, "git", git)
     monkeypatch.setattr(merging, "git", git)
     monkeypatch.setattr(fixloop, "git", git)
-    monkeypatch.setattr(board, "gh", gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "comment", lambda *a, **k: None)
-    monkeypatch.setattr(board, "sync", lambda: [])
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_state, "comment", lambda *a, **k: None)
+    monkeypatch.setattr(board_state, "sync", lambda: [])
     claim = board.Claim(host="box", agent="builder-5", branch="5-x", at="", token=None, cid="")
-    monkeypatch.setattr(board, "get", lambda n: SimpleNamespace(state="OPEN", status="review", claim=lambda: claim))
-    monkeypatch.setattr(board, "block", lambda n, reason: world["blocked"].append((n, reason)))
-    monkeypatch.setattr(board, "set_status", lambda n, status: world["status"].append((n, status)))
+    monkeypatch.setattr(
+        board_state, "get", lambda n: SimpleNamespace(state="OPEN", status="review", claim=lambda: claim)
+    )
+    monkeypatch.setattr(board_state, "block", lambda n, reason: world["blocked"].append((n, reason)))
+    monkeypatch.setattr(board_state, "set_status", lambda n, status: world["status"].append((n, status)))
     monkeypatch.setattr(workflow.time, "sleep", lambda s: None)
     monkeypatch.setattr(branches, "worktrees", lambda: [])
     monkeypatch.setattr(workflow, "main_checkout", lambda: tmp_path)
@@ -1477,7 +1492,7 @@ def test_a_timeout_reports_waiting_and_a_rerun_resumes_without_pushing(fake_inte
 
 def test_a_head_that_moves_while_waiting_stops(fake_integrate, clock, capsys, monkeypatch):
     fake_integrate["tip"] = "t" * 40
-    gh = board.gh
+    gh = board_gh.gh
 
     def moved(*args, **kw):
         out = gh(*args, **kw)
@@ -1485,7 +1500,7 @@ def test_a_head_that_moves_while_waiting_stops(fake_integrate, clock, capsys, mo
             return json.dumps(json.loads(out) | {"headRefOid": "w" * 40})
         return out
 
-    monkeypatch.setattr(board, "gh", moved)
+    monkeypatch.setattr(board_gh, "gh", moved)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     assert not _merged(fake_integrate["events"])
     assert "moved" in _last_json(capsys.readouterr().out)["reason"]
@@ -1499,7 +1514,7 @@ def test_issues_move_only_after_the_merge(fake_integrate, monkeypatch, capsys):
         ev.append(("merged_pr", *args))
         raise board.BoardError("gh issue close: boom")
 
-    monkeypatch.setattr(board, "merged_pr", merged_pr)
+    monkeypatch.setattr(board_state, "merged_pr", merged_pr)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     assert _index(ev, lambda e: e[:3] == ("gh", "pr", "merge")) < _index(ev, lambda e: e[0] == "merged_pr")
     res = _last_json(capsys.readouterr().out)
@@ -1507,7 +1522,7 @@ def test_issues_move_only_after_the_merge(fake_integrate, monkeypatch, capsys):
 
 
 def test_no_issue_moves_when_the_merge_does_not_happen(fake_integrate, monkeypatch):
-    monkeypatch.setattr(board, "merged_pr", lambda *a: pytest.fail("issue moved without a merge"))
+    monkeypatch.setattr(board_state, "merged_pr", lambda *a: pytest.fail("issue moved without a merge"))
     fake_integrate["gate_code"] = 1
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     fake_integrate["gate_code"] = 0
@@ -1555,14 +1570,14 @@ def test_a_failed_merge_without_conflicted_paths_is_stopped_not_sent_back(fake_i
 def test_a_crash_after_the_push_still_ends_with_a_result_line(fake_integrate, monkeypatch, capsys):
     """Reviewer on #73: every exit prints RESULT-JSON, even an unexpected error once the PR branch was updated."""
     fake_integrate["tip"] = "t" * 40
-    gh = board.gh
+    gh = board_gh.gh
 
     def flaky(*args, **kw):
         if args[:2] == ("pr", "merge"):
             raise ConnectionError("network down")
         return gh(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", flaky)
+    monkeypatch.setattr(board_gh, "gh", flaky)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
     assert any(e[:2] == ("git", "push") for e in fake_integrate["events"])
     res = _last_json(capsys.readouterr().out)
@@ -1753,7 +1768,7 @@ def actions(fake_integrate, monkeypatch, clock):
         "commands": {"check": []},
         "statuses": [],
     }
-    inner = board.gh
+    inner = board_gh.gh
 
     def gh(*args, **kw):
         if args[0] != "api" or args[1] in ("graphql", "user") or any(a.endswith("/comments") for a in args):
@@ -1785,7 +1800,7 @@ def actions(fake_integrate, monkeypatch, clock):
             return "{}"
         raise AssertionError(args)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     monkeypatch.setattr(
         workflow.config,
         "get",
@@ -1950,9 +1965,9 @@ def test_without_local_ci_a_billing_blocked_check_still_refuses(fake_integrate, 
 def test_orient_syncs_the_board_first(monkeypatch, tmp_path):
     """#76: blockers re-sync at every orient (and integrate), so the scheduled board workflow is optional."""
     calls = []
-    monkeypatch.setattr(board, "sync", lambda: calls.append("sync") or ["#4 -> ready"])
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: calls.append("fetch") or [])
-    monkeypatch.setattr(board, "closed_numbers", lambda: set())
+    monkeypatch.setattr(board_state, "sync", lambda: calls.append("sync") or ["#4 -> ready"])
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: calls.append("fetch") or [])
+    monkeypatch.setattr(board_state, "closed_numbers", lambda: set())
     monkeypatch.setattr(workflow, "root", lambda: tmp_path)
     monkeypatch.setattr(workflow, "status", lambda: "")
     out = workflow.orient()
@@ -1961,7 +1976,7 @@ def test_orient_syncs_the_board_first(monkeypatch, tmp_path):
     def down():
         raise board.BoardError("rate limited")
 
-    monkeypatch.setattr(board, "sync", down)
+    monkeypatch.setattr(board_state, "sync", down)
     assert "board sync: failed (rate limited)" in workflow.orient()
 
 

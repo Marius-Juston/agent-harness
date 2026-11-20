@@ -3,7 +3,7 @@ show in `board feedback <pr>` and in the brief of an issue that has an open PR. 
 
 import json
 
-from devkit import board
+from devkit import board, board_brief, board_gh, board_state
 from tests.test_board import mk
 from tests.test_gate import _graphql, _thread
 
@@ -29,8 +29,8 @@ def _fake(monkeypatch, data, prs=()):
             return json.dumps(list(prs))
         return ""
 
-    monkeypatch.setattr(board, "gh", gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     return calls
 
 
@@ -46,7 +46,7 @@ def test_feedback_shows_only_what_is_new_since_the_last_commit_plus_unresolved_t
         threads=[_thread("devkit/a.py", 4, who="coderabbit"), _thread("devkit/b.py", 1, resolved=True)],
     )
     calls = _fake(monkeypatch, data)
-    lines = board.pr_feedback_lines(board.pr_feedback(7))
+    lines = board.pr_feedback_lines(board_brief.pr_feedback(7))
     text = "\n".join(lines)
     assert "new: please rename" in text and "old, already handled" not in text
     assert "tests missing" in text and "stale review" not in text
@@ -60,9 +60,9 @@ def test_feedback_tolerates_deleted_authors_and_no_feedback(monkeypatch):
     c = _comment("ghost says hi", T1)
     c["author"] = None
     _fake(monkeypatch, _graphql(committed=COMMIT, comments=[c]))
-    assert "ghost says hi" in "\n".join(board.pr_feedback_lines(board.pr_feedback(7)))
+    assert "ghost says hi" in "\n".join(board.pr_feedback_lines(board_brief.pr_feedback(7)))
     _fake(monkeypatch, _graphql(committed=COMMIT))
-    assert board.pr_feedback_lines(board.pr_feedback(7)) == []
+    assert board.pr_feedback_lines(board_brief.pr_feedback(7)) == []
 
 
 def test_issue_prs_finds_open_prs_by_branch_or_closing_keyword(monkeypatch):
@@ -72,12 +72,12 @@ def test_issue_prs_finds_open_prs_by_branch_or_closing_keyword(monkeypatch):
         {"number": 52, "headRefName": "390-x", "body": "Refs #39"},  # a mention links nothing
     ]
     _fake(monkeypatch, {}, prs)
-    assert board.issue_prs(39) == [50, 51]
+    assert board_brief.issue_prs(39) == [50, 51]
 
 
 def test_a_resumed_worker_gets_its_pr_feedback_in_the_brief(monkeypatch):
-    monkeypatch.setattr(board, "get", lambda n: mk(n, ["status:in-progress"], "## DONE WHEN\n- [ ] a\n"))
-    monkeypatch.setattr(board, "in_flight_files", lambda: {})
+    monkeypatch.setattr(board_state, "get", lambda n: mk(n, ["status:in-progress"], "## DONE WHEN\n- [ ] a\n"))
+    monkeypatch.setattr(board_brief, "in_flight_files", lambda: {})
     _fake(
         monkeypatch, _graphql(committed=COMMIT, threads=[_thread("x.py", 2)]), [{"number": 50, "headRefName": "39-a"}]
     )
@@ -86,23 +86,23 @@ def test_a_resumed_worker_gets_its_pr_feedback_in_the_brief(monkeypatch):
 
 
 def test_brief_without_an_open_pr_or_with_github_down_has_no_feedback_section(monkeypatch):
-    monkeypatch.setattr(board, "get", lambda n: mk(n, ["status:ready"], "## DONE WHEN\n- [ ] a\n"))
-    monkeypatch.setattr(board, "in_flight_files", lambda: {})
+    monkeypatch.setattr(board_state, "get", lambda n: mk(n, ["status:ready"], "## DONE WHEN\n- [ ] a\n"))
+    monkeypatch.setattr(board_brief, "in_flight_files", lambda: {})
     _fake(monkeypatch, {}, [])
     assert "feedback" not in board.brief(39)
 
     def down(*a, **k):
         raise board.BoardError("offline")
 
-    monkeypatch.setattr(board, "gh", down)
+    monkeypatch.setattr(board_gh, "gh", down)
     assert "feedback" not in board.brief(39)
 
 
 def test_feedback_past_the_first_page_of_threads_is_flagged_not_dropped(monkeypatch):
     calls = _fake(monkeypatch, _graphql(committed=COMMIT, threads=[_thread("x.py", 2)], more_threads=True))
-    fb = board.pr_feedback(7)
+    fb = board_brief.pr_feedback(7)
     assert fb["threads_truncated"]
     assert "more than 100 review threads" in "\n".join(board.pr_feedback_lines(fb))
     assert "hasNextPage" in next(c for c in calls if c[:2] == ("api", "graphql"))[-1]
     _fake(monkeypatch, _graphql(committed=COMMIT))
-    assert not board.pr_feedback(7)["threads_truncated"]
+    assert not board_brief.pr_feedback(7)["threads_truncated"]

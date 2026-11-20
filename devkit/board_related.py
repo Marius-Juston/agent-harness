@@ -4,9 +4,7 @@ import math
 import re
 from collections import Counter
 
-from devkit import board_gh
-from devkit.board_gh import gh_json, repo
-from devkit.board_issue import FIELDS, ISSUE_LIMIT, Issue, _issue
+from devkit import board_gh, board_issue
 
 # Related issues for `board new`: BM25 over title, Context and DONE WHEN of every earlier issue in any state, measured
 # in docs/research/issue-pr-automation.md §3.3 and chosen there over TF-IDF and three embedding models. Advisory
@@ -74,8 +72,13 @@ def issue_terms(title: str, context: str, done: str) -> list[str]:
 
 
 def related(
-    title: str, context: str, done: list[str], issues: list[Issue], named: set[int], minimum: float | None = None
-) -> list[tuple[Issue, float]]:
+    title: str,
+    context: str,
+    done: list[str],
+    issues: list[board_issue.Issue],
+    named: set[int],
+    minimum: float | None = None,
+) -> list[tuple[board_issue.Issue, float]]:
     """Up to RELATED_SHOWN of `issues` most like a new item, best first, each scoring at least `minimum` (RELATED_MIN
     when None). `named`: issues the filer already names, never suggested."""
     pool = [i for i in issues if i.number not in named]
@@ -86,16 +89,16 @@ def related(
     return [(i, s) for s, i in ranked[:RELATED_SHOWN] if s > 0 and s >= least]
 
 
-def related_pool() -> list[Issue]:
+def related_pool() -> list[board_issue.Issue]:
     """Every issue in any state, closed as not planned included (most known duplicate targets were; every measured
     number ranked all of them), in one `gh` try: an advisory read never waits out a rate limit."""
     tries, board_gh.GH_TRIES = board_gh.GH_TRIES, 1  # gh reads it per call; restored below
     try:
-        args = ("issue", "list", "-R", repo(), "--state", "all", "--limit", str(ISSUE_LIMIT))
-        rows = gh_json(*args, fields=FIELDS, links="")
+        args = ("issue", "list", "-R", board_gh.repo(), "--state", "all", "--limit", str(board_issue.ISSUE_LIMIT))
+        rows = board_gh.gh_json(*args, fields=board_issue.FIELDS, links="")
     finally:
         board_gh.GH_TRIES = tries
-    return [_issue(d) for d in rows]
+    return [board_issue._issue(d) for d in rows]
 
 
 def one_line(text: str, width: int = 100) -> str:
@@ -104,7 +107,7 @@ def one_line(text: str, width: int = 100) -> str:
     return flat if len(flat) <= width else flat[: width - 3] + "..."
 
 
-def related_lines(found: list[tuple[Issue, float]]) -> list[str]:
+def related_lines(found: list[tuple[board_issue.Issue, float]]) -> list[str]:
     if not found:
         return []
     shown = [f"  #{i.number} {one_line(i.title)}" for i, _ in found]

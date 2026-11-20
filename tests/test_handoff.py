@@ -6,7 +6,7 @@ from pathlib import Path
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, cli, handoff
+from devkit import board, board_state, cli, handoff
 
 T0 = "2026-10-11T00:00:00Z"
 OWNER = "## Owner decisions\n- keep #12 or drop it?  \n\ttabbed — ünïcode, no final newline"
@@ -97,7 +97,7 @@ def test_dev_handoff_is_a_no_op_without_a_handoff_file(tmp_path, monkeypatch, ca
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(handoff, "root", lambda: tmp_path)
-    monkeypatch.setattr(board, "fetch", lambda **k: (_ for _ in ()).throw(AssertionError("board read")))
+    monkeypatch.setattr(board_state, "fetch", lambda **k: (_ for _ in ()).throw(AssertionError("board read")))
     assert cli.run(cli.build().parse_args(["handoff"])) in (0, None)
     assert "no handoff file at docs/HANDOFF.md" in capsys.readouterr().out
     assert not (tmp_path / "docs").exists()
@@ -107,8 +107,8 @@ def test_dev_handoff_rewrites_the_file(tmp_path, monkeypatch):
     (tmp_path / "docs").mkdir()
     (tmp_path / "docs/HANDOFF.md").write_text(OLD)
     monkeypatch.setattr(handoff, "root", lambda: tmp_path)
-    monkeypatch.setattr(board, "fetch", lambda **k: fixture_board())
-    monkeypatch.setattr(board, "closed_numbers", set)
+    monkeypatch.setattr(board_state, "fetch", lambda **k: fixture_board())
+    monkeypatch.setattr(board_state, "closed_numbers", set)
     monkeypatch.setattr(handoff, "merged_subjects", lambda: ["feat: x (#7)"])
     assert handoff.refresh().startswith("refreshed docs/HANDOFF.md")
     text = (tmp_path / "docs/HANDOFF.md").read_text()
@@ -121,8 +121,8 @@ def test_after_integrate_leaves_the_default_branch_checkout_clean(tmp_path, monk
     (tmp_path / "docs/HANDOFF.md").write_text(OLD)
     monkeypatch.setattr(handoff, "root", lambda: tmp_path)
     monkeypatch.setattr(handoff, "git", lambda *a, **k: "main")
-    monkeypatch.setattr(board, "fetch", lambda **k: fixture_board())
-    monkeypatch.setattr(board, "closed_numbers", set)
+    monkeypatch.setattr(board_state, "fetch", lambda **k: fixture_board())
+    monkeypatch.setattr(board_state, "closed_numbers", set)
     assert "not refreshed" in handoff.after_integrate()
     assert (tmp_path / "docs/HANDOFF.md").read_text() == OLD
 
@@ -136,6 +136,6 @@ def test_after_integrate_never_raises(tmp_path, monkeypatch):
     def boom(**k):
         raise RuntimeError("gh crashed")
 
-    monkeypatch.setattr(board, "fetch", boom)
+    monkeypatch.setattr(board_state, "fetch", boom)
     assert handoff.after_integrate() == "handoff not refreshed: gh crashed"
     assert (tmp_path / "docs/HANDOFF.md").read_text() == OLD

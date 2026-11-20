@@ -13,7 +13,22 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, ci_status, cli, config, fixloop, paths, prtext, train, weaken, workflow
+from devkit import (
+    board,
+    board_brief,
+    board_gh,
+    board_issue,
+    board_state,
+    ci_status,
+    cli,
+    config,
+    fixloop,
+    paths,
+    prtext,
+    train,
+    weaken,
+    workflow,
+)
 from tests.test_merge_hygiene import ATTRIBUTES, INDEX, REAL_POPEN, REAL_RUN, commit, index, note, out, sh
 
 
@@ -84,16 +99,18 @@ def world(tmp_path, monkeypatch):
     monkeypatch.chdir(clone)
     monkeypatch.setattr(subprocess, "run", run)
     monkeypatch.setattr(subprocess, "Popen", popen)
-    monkeypatch.setattr(board, "gh", gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "gh_user", lambda: "lead")
-    monkeypatch.setattr(board, "pr_feedback", lambda n: {"since": "", "comments": [], "reviews": [], "threads": []})
-    monkeypatch.setattr(board, "fix_comments", lambda n: [])
-    monkeypatch.setattr(board, "get", lambda n: type("I", (), {"claim": lambda self: claim})())
-    monkeypatch.setattr(board, "block", lambda n, reason: w["blocked"].append((n, reason)))
-    monkeypatch.setattr(board, "set_status", lambda n, status: w["status"].append((n, status)))
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_brief, "gh_user", lambda: "lead")
     monkeypatch.setattr(
-        board, "merged_pr", lambda n, *a: w["events"].append(("merged_pr", n)) or [f"#{n + 100} -> done"]
+        board_brief, "pr_feedback", lambda n: {"since": "", "comments": [], "reviews": [], "threads": []}
+    )
+    monkeypatch.setattr(board_brief, "fix_comments", lambda n: [])
+    monkeypatch.setattr(board_state, "get", lambda n: type("I", (), {"claim": lambda self: claim})())
+    monkeypatch.setattr(board_state, "block", lambda n, reason: w["blocked"].append((n, reason)))
+    monkeypatch.setattr(board_state, "set_status", lambda n, status: w["status"].append((n, status)))
+    monkeypatch.setattr(
+        board_state, "merged_pr", lambda n, *a: w["events"].append(("merged_pr", n)) or [f"#{n + 100} -> done"]
     )
     monkeypatch.setattr(workflow, "main_checkout", lambda: clone)
     monkeypatch.setattr(workflow, "state_dir", lambda *p: tmp_path.joinpath("state", *p))
@@ -296,7 +313,7 @@ def test_feedback_arriving_during_the_gate_sends_that_member_back_and_lands_noth
         late = n == 2 and world["gates"]
         return {"since": "", "comments": [], "reviews": [], "threads": [thread] if late else []}
 
-    monkeypatch.setattr(board, "pr_feedback", feedback)
+    monkeypatch.setattr(board_brief, "pr_feedback", feedback)
     code = train.train([1, 2, 3], harness_ok=True, dry_run=False)
     assert code == 1
     res = last_json(capsys.readouterr().out)
@@ -385,8 +402,10 @@ def test_a_member_deleting_what_another_open_issue_owns_is_sent_back_before_the_
     _deleting_pr(world, 2, "docs/research/a.md")
     open_pr(world, 3, note(world["clone"], "n3"))
     owned = "docs/research/a.md"
-    monkeypatch.setattr(board, "fetch", lambda *a, **kw: [])
-    monkeypatch.setattr(board, "deleting_owns", lambda _i, deleted, *_a: {300: [owned]} if owned in deleted else {})
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **kw: [])
+    monkeypatch.setattr(
+        board_issue, "deleting_owns", lambda _i, deleted, *_a: {300: [owned]} if owned in deleted else {}
+    )
     assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
     res = last_json(capsys.readouterr().out)
     assert outcomes_of(res) == {"1": "merged", "2": "refused", "3": "merged"}
@@ -402,7 +421,7 @@ def test_the_owns_check_fails_closed_when_the_board_cannot_be_read(world, capsys
     def unreadable(*a, **kw):
         raise board.BoardError("gh: rate limited")
 
-    monkeypatch.setattr(board, "fetch", unreadable)
+    monkeypatch.setattr(board_state, "fetch", unreadable)
     assert train.train([1, 2], harness_ok=True, dry_run=False) == 1
     res = last_json(capsys.readouterr().out)
     assert set(outcomes_of(res).values()) == {"stopped"} and "deleted Owns" in res["reason"]
@@ -433,28 +452,28 @@ def test_local_ci_statuses_are_posted_only_after_the_push(world, capsys, monkeyp
     monkeypatch.setattr(ci_status, "actions_enabled", lambda: False)
     monkeypatch.setattr(config, "get", lambda: config.Config(local_ci={"check": []}))
     main_at_post = []
-    real = board.gh
+    real = board_gh.gh
 
     def gh(*args, **kw):
         if args[:3] == ("api", "-X", "POST") and "/statuses/" in args[3]:
             main_at_post.append(out(world["origin"], "git", "log", "-1", "--format=%s", "refs/heads/main"))
         return real(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     assert train.train([1, 2], harness_ok=True, dry_run=False, local_ci=True) == 0
     assert main_at_post == ["feat(x): pr 2 (#102) (#2)"] * 2
 
 
 def test_a_close_github_refuses_keeps_the_member_merged_and_closes_the_rest(world, capsys, monkeypatch):
     three(world)
-    real = board.gh
+    real = board_gh.gh
 
     def gh(*args, **kw):
         if args[:3] == ("pr", "close", "1"):
             raise board.BoardError("gh: 502")
         return real(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
     res = last_json(capsys.readouterr().out)
     assert set(outcomes_of(res).values()) == {"merged"} and res["members"]["1"]["close_error"] == "gh: 502"
@@ -516,7 +535,7 @@ def test_a_landed_member_leaves_no_branch_behind_locally_or_on_origin(world, cap
 
 def test_a_head_moving_after_the_push_keeps_its_pr_open_and_its_branch(world, capsys, monkeypatch):
     three(world)
-    clone, real, moved = world["clone"], board.gh, []
+    clone, real, moved = world["clone"], board_gh.gh, []
 
     def gh(*args, **kw):
         if args[:3] == ("pr", "view", "2") and args[-1] == "headRefOid" and not moved:
@@ -526,7 +545,7 @@ def test_a_head_moving_after_the_push_keeps_its_pr_open_and_its_branch(world, ca
             sh(clone, "git", "checkout", "-q", "-f", "main")
         return real(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
     res = last_json(capsys.readouterr().out)
     assert set(outcomes_of(res).values()) == {"merged"} and "stays open" in res["members"]["2"]["kept_open"]
@@ -536,7 +555,7 @@ def test_a_head_moving_after_the_push_keeps_its_pr_open_and_its_branch(world, ca
 
 def test_a_pr_stacked_on_a_member_is_retargeted_to_main_before_the_close(world, capsys, monkeypatch):
     three(world)
-    real = board.gh
+    real = board_gh.gh
 
     def gh(*args, **kw):
         if args[:2] == ("pr", "list") and "--base" in args and args[args.index("--base") + 1] == "101-pr1":
@@ -544,7 +563,7 @@ def test_a_pr_stacked_on_a_member_is_retargeted_to_main_before_the_close(world, 
             return json.dumps([{"number": 9, "headRefName": "109-x"}])
         return real(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
     assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
     ev = world["events"]
     edit = next(i for i, e in enumerate(ev) if e[:4] == ("gh", "pr", "edit", "9"))
@@ -562,7 +581,7 @@ def test_a_board_update_github_refuses_keeps_the_member_merged(world, capsys, mo
         world["events"].append(("merged_pr", n))
         return [f"#{n + 100} -> done"]
 
-    monkeypatch.setattr(board, "merged_pr", merged_pr)
+    monkeypatch.setattr(board_state, "merged_pr", merged_pr)
     assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 0
     res = last_json(capsys.readouterr().out)
     assert set(outcomes_of(res).values()) == {"merged"}
@@ -686,7 +705,7 @@ def protected(
     world: dict, monkeypatch, protection: dict | list | None, rules: list | None = None, **repo: object
 ) -> None:
     """main's branch protection and active rulesets as GitHub reports them to the train's preflight (#472)."""
-    fake = board.gh
+    fake = board_gh.gh
 
     def gh(*args, **kw):
         if args[:1] == ("api",) and len(args) == 2:
@@ -704,7 +723,7 @@ def protected(
                 return json.dumps({"permissions": {"admin": repo.get("admin", False)}})
         return fake(*args, **kw)
 
-    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(board_gh, "gh", gh)
 
 
 def test_a_main_that_requires_status_checks_refuses_the_train_before_any_gate(world, capsys, monkeypatch):

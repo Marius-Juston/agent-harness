@@ -1,4 +1,4 @@
-"""board.gh retries transient network errors (#538) without ever repeating a write that may have landed.
+"""board_gh.gh retries transient network errors (#538) without ever repeating a write that may have landed.
 
 GitHub is faked at subprocess level (`FakeCli`), so the real gh() wrapper, its retry loops and its rechecks run.
 """
@@ -14,7 +14,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, workflow
+from devkit import board, board_gh, board_state, paths, workflow
 from tests.test_gate import _last_json, fake_integrate
 
 TLS = "Post https://api.github.com/graphql: net/http: TLS handshake timeout"
@@ -121,11 +121,11 @@ def cli(monkeypatch):
     f = FakeCli()
     slept: list[float] = []
     monkeypatch.setattr(board.subprocess, "run", f.run)
-    monkeypatch.setattr(board, "root", lambda: Path("."))
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "GH_SLEEP", slept.append)
-    monkeypatch.setattr(board, "GH_RNG", random.Random(7))
-    monkeypatch.setattr(board, "GH_CLOCK", lambda: T0)
+    monkeypatch.setattr(paths, "root", lambda: Path("."))
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "GH_SLEEP", slept.append)
+    monkeypatch.setattr(board_gh, "GH_RNG", random.Random(7))
+    monkeypatch.setattr(board_gh, "GH_CLOCK", lambda: T0)
     f.slept = slept
     return f
 
@@ -144,7 +144,7 @@ ERRORS = [
 @pytest.mark.parametrize("err", ERRORS)
 def test_a_read_is_retried_after_a_transient_error_then_succeeds(cli, err, capsys):
     cli.drop = {0: ("before", err)}
-    assert json.loads(board.gh("issue", "view", "3", "-R", "o/r", "--json", "state"))["state"] == "OPEN"
+    assert json.loads(board_gh.gh("issue", "view", "3", "-R", "o/r", "--json", "state"))["state"] == "OPEN"
     assert len(cli.calls) == 2 and len(cli.slept) == 1
     assert board.GH_NET_FLOOR <= cli.slept[0] <= board.GH_NET_FLOOR + board.GH_NET_BASE
     assert "network error" in capsys.readouterr().err
@@ -153,7 +153,7 @@ def test_a_read_is_retried_after_a_transient_error_then_succeeds(cli, err, capsy
 def test_transient_retries_are_bounded(cli):
     cli.drop = {i: ("before", TLS) for i in range(50)}
     with pytest.raises(board.BoardError, match="TLS handshake timeout"):
-        board.gh("pr", "list", "-R", "o/r")
+        board_gh.gh("pr", "list", "-R", "o/r")
     assert len(cli.calls) == board.GH_NET_TRIES
     assert len(cli.slept) == board.GH_NET_TRIES - 1
 
@@ -162,13 +162,13 @@ def test_transient_retries_are_bounded(cli):
 def test_other_errors_are_not_retried(cli, err):
     cli.drop = {0: ("before", err)}
     with pytest.raises(board.BoardError):
-        board.gh("issue", "view", "3", "-R", "o/r")
+        board_gh.gh("issue", "view", "3", "-R", "o/r")
     assert len(cli.calls) == 1 and cli.slept == []
 
 
 def test_an_idempotent_write_is_retried_as_is(cli):
     cli.drop = {0: ("after", "HTTP 502: Bad Gateway")}
-    board.gh("issue", "edit", "4", "-R", "o/r", "--add-label", "x")
+    board_gh.gh("issue", "edit", "4", "-R", "o/r", "--add-label", "x")
     assert cli.sent("issue", "edit") == 2 and cli.labels[4] == {"x"}
 
 
@@ -184,14 +184,14 @@ def test_an_idempotent_write_is_retried_as_is(cli):
 def test_a_write_without_a_recheck_is_not_retried_and_says_its_outcome_is_unknown(cli, args):
     cli.drop = {0: ("after", TLS)}
     with pytest.raises(board.BoardError, match="outcome is unknown"):
-        board.gh(*args)
+        board_gh.gh(*args)
     assert len(cli.calls) == 1
 
 
 @pytest.mark.parametrize("how", ["before", "after"])
 def test_a_comment_is_posted_once_whether_or_not_the_dropped_try_landed(cli, how):
     cli.drop = {0: (how, "read: connection reset by peer")}
-    url = board.gh("issue", "comment", "4", "-R", "o/r", "--body-file", "-", input="hello\n")
+    url = board_gh.gh("issue", "comment", "4", "-R", "o/r", "--body-file", "-", input="hello\n")
     assert [c["body"] for c in cli.comments[4]] == ["hello\n"]
     assert url == cli.comments[4][0]["url"] + "\n"
     assert cli.sent("issue", "comment") == (1 if how == "after" else 2)
@@ -199,7 +199,7 @@ def test_a_comment_is_posted_once_whether_or_not_the_dropped_try_landed(cli, how
 
 def test_a_pr_comment_by_body_flag_is_posted_once(cli):
     cli.drop = {0: ("after", "unexpected EOF")}
-    board.gh("pr", "comment", "9", "-R", "o/r", "--body", "CI ran locally")
+    board_gh.gh("pr", "comment", "9", "-R", "o/r", "--body", "CI ran locally")
     assert len(cli.comments[9]) == 1 and cli.sent("pr", "comment") == 1
 
 
@@ -216,21 +216,21 @@ def test_an_identical_older_comment_is_not_taken_for_the_new_one(cli, monkeypatc
 
     monkeypatch.setattr(cli, "answer", windowed)
     cli.drop = {0: ("before", TLS)}
-    board.gh("issue", "comment", "4", "-R", "o/r", "--body", "Merged in PR #5.")
+    board_gh.gh("issue", "comment", "4", "-R", "o/r", "--body", "Merged in PR #5.")
     assert len(cli.comments[4]) == 2 and cli.sent("issue", "comment") == 2
 
 
 @pytest.mark.parametrize("how", ["before", "after"])
 def test_an_issue_is_created_once(cli, how):
     cli.drop = {0: (how, TLS)}
-    url = board.gh("issue", "create", "-R", "o/r", "--title", "T", "--body-file", "-", "--label", "P1", input="B")
+    url = board_gh.gh("issue", "create", "-R", "o/r", "--title", "T", "--body-file", "-", "--label", "P1", input="B")
     assert len(cli.issues) == 1 and url == cli.issues[0]["html_url"] + "\n"
 
 
 def test_an_issue_with_the_same_title_but_another_body_is_not_taken_for_it(cli):
     cli.issues.append({"title": "T", "body": "older", "html_url": "https://github.com/o/r/issues/1"})
     cli.drop = {0: ("before", TLS)}
-    url = board.gh("issue", "create", "-R", "o/r", "--title", "T", "--body-file", "-", input="new")
+    url = board_gh.gh("issue", "create", "-R", "o/r", "--title", "T", "--body-file", "-", input="new")
     assert len(cli.issues) == 2 and url.endswith("/issues/101\n")
 
 
@@ -238,14 +238,14 @@ def test_an_issue_with_the_same_title_but_another_body_is_not_taken_for_it(cli):
 def test_a_pr_is_opened_once(cli, how):
     cli.drop = {0: (how, "HTTP 502: Bad Gateway")}
     args = ("pr", "create", "-R", "o/r", "--base", "main", "--head", "5-x", "--title", "t", "--body-file", "-")
-    url = board.gh(*args, input="Closes #5")
+    url = board_gh.gh(*args, input="Closes #5")
     assert len(cli.prs) == 1 and url == cli.prs[0]["url"] + "\n"
 
 
 @pytest.mark.parametrize("how", ["before", "after"])
 def test_a_merge_is_sent_again_only_when_the_pr_is_not_merged(cli, how):
     cli.drop = {0: (how, TLS)}
-    board.gh("pr", "merge", "7", "-R", "o/r", "--squash", "--match-head-commit", "abc")
+    board_gh.gh("pr", "merge", "7", "-R", "o/r", "--squash", "--match-head-commit", "abc")
     assert cli.state[7] == "MERGED"
     assert cli.sent("pr", "merge") == (1 if how == "after" else 2)
 
@@ -267,7 +267,7 @@ def test_a_close_whose_comment_landed_is_sent_again_without_the_comment(cli, mon
 
     monkeypatch.setattr(cli, "answer", comment_then_drop)
     monkeypatch.setattr(board.subprocess, "run", run)
-    board.gh("issue", "close", "6", "-R", "o/r", "--reason", "completed", "--comment", "Merged in PR #8.")
+    board_gh.gh("issue", "close", "6", "-R", "o/r", "--reason", "completed", "--comment", "Merged in PR #8.")
     assert [c["body"] for c in cli.comments[6]] == ["Merged in PR #8."] and cli.state[6] == "CLOSED"
     assert cli.calls[-1] == ["issue", "close", "6", "-R", "o/r", "--reason", "completed"]
 
@@ -275,13 +275,13 @@ def test_a_close_whose_comment_landed_is_sent_again_without_the_comment(cli, mon
 def test_a_failed_recheck_stops_with_the_outcome_unknown(cli):
     cli.drop = {i: ("after" if i == 0 else "before", TLS) for i in range(50)}
     with pytest.raises(board.BoardError, match="outcome is unknown"):
-        board.gh("pr", "merge", "7", "-R", "o/r", "--squash")
+        board_gh.gh("pr", "merge", "7", "-R", "o/r", "--squash")
     assert cli.sent("pr", "merge") == 1
 
 
 def test_a_rate_limit_after_a_dropped_write_still_does_not_duplicate(cli):
     cli.drop = {0: ("before", TLS), 2: ("before", "HTTP 403: You have exceeded a secondary rate limit.")}
-    board.gh("issue", "comment", "4", "-R", "o/r", "--body", "x")
+    board_gh.gh("issue", "comment", "4", "-R", "o/r", "--body", "x")
     assert len(cli.comments[4]) == 1
 
 
@@ -333,7 +333,7 @@ def test_an_unknown_command_counts_as_a_write(args):
 
 
 def test_board_claim_survives_a_tls_timeout_on_a_read_and_on_its_claim_comment(cli, monkeypatch):
-    monkeypatch.setattr(board, "get", board.get)  # the real one, through the fake CLI
+    monkeypatch.setattr(board_state, "get", board_state.get)  # the real one, through the fake CLI
     monkeypatch.setattr(board.time, "sleep", lambda s: None)
     board.repo_labels.cache_clear()
     cli.drop = {0: ("before", TLS), 2: ("after", TLS)}  # the first issue read; the claim comment (it landed)
@@ -347,15 +347,15 @@ def test_board_claim_survives_a_tls_timeout_on_a_read_and_on_its_claim_comment(c
 
 
 class KeepGh:
-    """A monkeypatch that applies every patch but the one replacing `board.gh`, which it keeps as `world_gh`: the
+    """A monkeypatch that applies every patch but the one replacing `board_gh.gh`, which it keeps as `world_gh`: the
     fake_integrate world then answers gh at subprocess level, under the real gh() and its retries."""
 
     def __init__(self, mp: pytest.MonkeyPatch) -> None:
         self.mp = mp
-        self.world_gh: Callable[..., str] = lambda *a, **k: ""  # replaced by the world's board.gh
+        self.world_gh: Callable[..., str] = lambda *a, **k: ""  # replaced by the world's board_gh.gh
 
     def setattr(self, target, name, value, *a, **k):
-        if (target, name) == (board, "gh"):
+        if (target, name) == (board_gh, "gh"):
             self.world_gh = value
             return
         self.mp.setattr(target, name, value, *a, **k)
@@ -363,7 +363,7 @@ class KeepGh:
 
 def test_integrate_survives_a_tls_timeout_on_a_read_and_on_its_merge(monkeypatch, tmp_path, capsys):
     keep = KeepGh(monkeypatch)
-    inspect.unwrap(fake_integrate)(keep, tmp_path)  # the fixture's world, with the real board.gh left in place
+    inspect.unwrap(fake_integrate)(keep, tmp_path)  # the fixture's world, with the real board_gh.gh left in place
     world_gh, other_run = keep.world_gh, workflow.subprocess.run
     merged = {"done": False, "merges": 0, "views": 0}
 
@@ -386,8 +386,8 @@ def test_integrate_survives_a_tls_timeout_on_a_read_and_on_its_merge(monkeypatch
             return subprocess.CompletedProcess(cmd, 1, "", TLS)  # merged, but the answer was lost
         return subprocess.CompletedProcess(cmd, 0, out, "")
 
-    monkeypatch.setattr(board, "root", lambda: Path("."))
-    monkeypatch.setattr(board, "GH_SLEEP", lambda s: None)
+    monkeypatch.setattr(paths, "root", lambda: Path("."))
+    monkeypatch.setattr(board_gh, "GH_SLEEP", lambda s: None)
     monkeypatch.setattr(workflow.subprocess, "run", run)
     assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
     assert merged["merges"] == 1 and merged["views"] > 1

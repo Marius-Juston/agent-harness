@@ -10,8 +10,7 @@ import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from devkit import backoff
-from devkit.paths import git, root
+from devkit import backoff, paths
 
 
 class BoardError(RuntimeError):
@@ -22,7 +21,7 @@ class BoardError(RuntimeError):
 # longer (docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api). gh prints no headers, so
 # the wait is GH_FLOOR plus full jitter (devkit.backoff). A refused request did nothing, so a retry is safe.
 SECONDARY_LIMIT = re.compile(r"secondary rate limit|abuse detection|HTTP 429", re.I)
-GH_TRIES: int = 3
+GH_TRIES: int = 3  # read on every gh call: board_related lowers it for one advisory read
 GH_FLOOR, GH_BASE, GH_CAP = 60.0, 30.0, 240.0  # seconds
 GH_SLEEP = time.sleep
 GH_RNG = random.Random()  # noqa: S311 - retry jitter, not a secret
@@ -169,7 +168,7 @@ def gh(*args: str, input: str | None = None) -> str:
             if isinstance(again, str):
                 return subprocess.CompletedProcess(["gh", *sent], 0, again, "")
             sent = again
-        out = subprocess.run(["gh", *sent], cwd=root(), capture_output=True, text=True, input=input, check=False)
+        out = subprocess.run(["gh", *sent], cwd=paths.root(), capture_output=True, text=True, input=input, check=False)
         unknown = out.returncode != 0 and bool(TRANSIENT.search(out.stderr))
         dropped = (out.stderr.strip().splitlines() or [""])[-1][:200]
         return out
@@ -217,7 +216,7 @@ def gh(*args: str, input: str | None = None) -> str:
 
 
 def repo() -> str:
-    url = git("remote", "get-url", "origin", check=False)
+    url = paths.git("remote", "get-url", "origin", check=False)
     m = re.search(r"github\.com[:/]([^/]+/[^/.]+?)(?:\.git)?$", url)
     if not m:
         raise BoardError("no GitHub origin remote: run `uv run dev setup` (or `gh repo create`) first")

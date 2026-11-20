@@ -5,23 +5,7 @@ import re
 from collections.abc import Iterable
 from typing import NamedTuple
 
-from devkit.board_gh import BoardError, gh, repo
-from devkit.board_issue import (
-    ALL_LINK_FIELDS,
-    PR_LIMIT,
-    PRIORITIES,
-    TYPES,
-    Issue,
-    Ref,
-    cycle_text,
-    cycles,
-    gone_owns,
-    linked,
-    owns_of,
-    show,
-)
-from devkit.board_state import fetch, missing_labels_created, path_history, resolved
-from devkit.paths import default_branch
+from devkit import board_gh, board_issue, board_state, paths
 from devkit.ran import Ran
 
 # Conventions every open item meets (docs/specs/multi-agent.md, "Conventions"). `board lint` reports them, the gate
@@ -42,7 +26,7 @@ class Finding(NamedTuple):
     warn: bool = False
 
 
-def done_items(i: Issue) -> list[str]:
+def done_items(i: board_issue.Issue) -> list[str]:
     """DONE WHEN entries that say something: a bare `- [ ]`, `-` or number is not a condition."""
     out = []
     for line in i.parts.get("DONE WHEN", "").splitlines():
@@ -52,21 +36,21 @@ def done_items(i: Issue) -> list[str]:
     return out
 
 
-def _label_findings(i: Issue, done: set[Ref]) -> tuple[str, list[Finding]]:
+def _label_findings(i: board_issue.Issue, done: set[board_issue.Ref]) -> tuple[str, list[Finding]]:
     """(the item's kind, "" when no label or prefix says it; its label findings). A title prefix names the kind, so
     it fixes the type label."""
     n, found = i.number, []
     m = TITLE_PREFIX.match(i.title)
     said = PREFIX_KIND[m.group(1)] if m else None
     types = [x for x in i.labels if x.startswith("type:")]
-    one = len(types) == 1 and types[0].split(":", 1)[1] in TYPES
+    one = len(types) == 1 and types[0].split(":", 1)[1] in board_issue.TYPES
     kind = said or (i.kind if one else "")
     if not one:
         fix = ((f"type:{said}",), tuple(t for t in types if t != f"type:{said}")) if said else ((), ())
         found.append(Finding(n, f"needs exactly one type: label, has {', '.join(types) or 'none'}", *fix))
     elif said and types[0] != f"type:{said}":
         found.append(Finding(n, f"title says {m[1]}: but the label is {types[0]}", (f"type:{said}",), (types[0],)))
-    prios = [p for p in PRIORITIES if p in i.labels]
+    prios = [p for p in board_issue.PRIORITIES if p in i.labels]
     if len(prios) != 1:
         fix = (("P2",), ()) if not prios else ((), tuple(prios[1:]))  # the board's default, or keep the highest
         found.append(Finding(n, f"needs exactly one priority label, has {', '.join(prios) or 'none'}", *fix))
@@ -85,7 +69,7 @@ def _label_findings(i: Issue, done: set[Ref]) -> tuple[str, list[Finding]]:
         found.append(
             Finding(
                 n,
-                f"status:ready with an open blocker {','.join(map(show, waiting))}",
+                f"status:ready with an open blocker {','.join(map(board_issue.show, waiting))}",
                 ("status:blocked",),
                 tuple(states),
             )
@@ -110,8 +94,8 @@ def _title_findings(t: str, kind: str) -> list[str]:
 
 
 def lint(
-    issues: list[Issue],
-    done: set[Ref],
+    issues: list[board_issue.Issue],
+    done: set[board_issue.Ref],
     merged: dict[int, list[int]],
     history: tuple[set[str], set[str]] | None = None,
 ) -> list[Finding]:
@@ -131,9 +115,9 @@ def lint(
         out += [Finding(n, p) for p in _title_findings(i.title, kind)]
         if kind != "epic" and not done_items(i):
             out.append(Finding(n, "DONE WHEN is empty (or only bare numbers)"))
-        if kind in NEEDS_OWNS and not owns_of(i):
+        if kind in NEEDS_OWNS and not board_issue.owns_of(i):
             out.append(Finding(n, f"type:{kind} without Owns (backticked paths)"))
-        for p in gone_owns(owns_of(i), deleted, now) if deleted else ():
+        for p in board_issue.gone_owns(board_issue.owns_of(i), deleted, now) if deleted else ():
             out.append(Finding(n, f"Owns `{p}` existed and is gone: close the item or fix its Owns"))
         if kind == "epic" and not (i.links and i.links.subs) and n not in named_parent:
             out.append(Finding(n, "epic with no sub-issues"))
@@ -144,10 +128,12 @@ def lint(
             out.append(Finding(n, f"status:{i.status} with no live claim", warn=True))
         titles.setdefault(i.title.strip().lower(), []).append(n)
 
-    def open_deps(r: Ref) -> list[Ref]:
+    def open_deps(r: board_issue.Ref) -> list[board_issue.Ref]:
         return [b for b in by[r].blockers if b in by] if r in by else []
 
-    out += [Finding(c[0], f"blocking cycle: {cycle_text(c)}") for c in cycles(sorted(by), open_deps)]
+    out += [
+        Finding(c[0], f"blocking cycle: {board_issue.cycle_text(c)}") for c in board_issue.cycles(sorted(by), open_deps)
+    ]
     same = [ns for ns in titles.values() if len(ns) > 1]
     out += [Finding(ns[0], f"same title as {', '.join(f'#{x}' for x in ns[1:])}", warn=True) for ns in same]
     return out
@@ -156,16 +142,27 @@ def lint(
 def merged_closes() -> dict[int, list[int]]:
     """Issue -> merged PRs into the default branch that close it by keyword (the last PR_LIMIT merged)."""
     out: dict[int, list[int]] = {}
-    args = ("pr", "list", "-R", repo(), "--state", "merged", "--base", default_branch(), "--limit", str(PR_LIMIT))
-    for p in json.loads(gh(*args, "--json", "number,body,headRefName")):
-        for n in linked(p.get("body") or "", p.get("headRefName") or "")[0]:
+    args = (
+        "pr",
+        "list",
+        "-R",
+        board_gh.repo(),
+        "--state",
+        "merged",
+        "--base",
+        paths.default_branch(),
+        "--limit",
+        str(board_issue.PR_LIMIT),
+    )
+    for p in json.loads(board_gh.gh(*args, "--json", "number,body,headRefName")):
+        for n in board_issue.linked(p.get("body") or "", p.get("headRefName") or "")[0]:
             out.setdefault(n, []).append(p["number"])
     return out
 
 
-def _findings() -> tuple[list[Issue], list[Finding]]:
-    issues = fetch(with_comments=True, links=ALL_LINK_FIELDS)
-    return issues, lint(issues, resolved(issues), merged_closes(), path_history())
+def _findings() -> tuple[list[board_issue.Issue], list[Finding]]:
+    issues = board_state.fetch(with_comments=True, links=board_issue.ALL_LINK_FIELDS)
+    return issues, lint(issues, board_state.resolved(issues), merged_closes(), board_state.path_history())
 
 
 def lint_board(fix: bool = False) -> tuple[str, int]:
@@ -188,12 +185,12 @@ def lint_board(fix: bool = False) -> tuple[str, int]:
                 add, remove = edits.setdefault(f.number, (set(), set()))
                 add.update(f.add)
                 remove.update(f.remove)
-        missing_labels_created(sorted({x for add, _ in edits.values() for x in add}))
+        board_state.missing_labels_created(sorted({x for add, _ in edits.values() for x in add}))
         for n, (add, remove) in edits.items():
-            args = ["issue", "edit", str(n), "-R", repo()]
+            args = ["issue", "edit", str(n), "-R", board_gh.repo()]
             args += ["--add-label", ",".join(sorted(add))] if add else []
             args += ["--remove-label", ",".join(sorted(remove - add))] if remove - add else []
-            gh(*args)
+            board_gh.gh(*args)
             lines.append(f"#{n:<4} fixed: {edit(add, remove - add)}")
     hint = "; `uv run dev board lint --fix` makes the label edits" if left and not fix else ""
     lines.append(f"{len(left)} problem(s) left{hint}")
@@ -206,7 +203,7 @@ def check_board() -> Ran:
     ran = Ran("board conventions (warnings only)", allow_empty=True)
     try:
         issues, found = _findings()
-    except (BoardError, OSError) as e:
+    except (board_gh.BoardError, OSError) as e:
         ran.warnings.append(f"board not read, skipped: {e}")
         return ran
     ran.checked = len(issues)
