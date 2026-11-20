@@ -15,7 +15,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, ci_status, fixloop, merging, prtext, workflow
+from devkit import board, ci_status, fixloop, merging, prtext, weaken, workflow
 from devkit import branches as local_branches
 from tests.test_board import mk
 from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate are fixtures
@@ -34,6 +34,7 @@ from tests.test_gate import (  # noqa: F401 - actions, clock and fake_integrate 
 from tests.test_merge_hygiene import (  # noqa: F401 - project is a fixture
     ATTRIBUTES,
     INDEX,
+    REAL_POPEN,
     commit,
     land_on_main,
     last_json,
@@ -435,6 +436,63 @@ def test_workflow_keeps_exporting_the_names_plugin_scripts_and_train_import():
         assert getattr(workflow, name) is getattr(fixloop, name), name
 
 
+# --- integrate: the gate's weakening check reads the PR's issue, not the detached worktree's branch (#487, #251) --
+
+
+def _weakening_gate(world: dict, monkeypatch, approval: str) -> None:
+    """Issue 12's body is `approval`, written by the owner; the faked gate runs the real weakening check in the tree
+    integrate gates (detached: no branch, no GITHUB_HEAD_REF) with the environment integrate gives it."""
+    monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+    monkeypatch.setattr(weaken, "repo_owner", lambda: "octo")
+    fake_gh, fake_popen = board.gh, subprocess.Popen
+
+    def gh(*args, **kw):
+        if args[:3] == ("issue", "view", "12"):
+            return json.dumps({"author": {"login": "octo"}, "body": approval, "comments": []})
+        return fake_gh(*args, **kw)
+
+    def popen(cmd, **kw):
+        if list(cmd[:2]) == ["uv", "run"] and "check" in cmd:
+            tree = Path(kw["cwd"])
+            assert sh(tree, "git", "branch", "--show-current").stdout.strip() == ""  # detached: nothing to read
+            world["issue_env"] = kw["env"].get(weaken.ISSUE_ENV)
+            monkeypatch.setattr(weaken, "root", lambda: tree)
+            world["weakening"] = ran = weaken.check_weakening(None, world["issue_env"])
+            if not ran.ok:
+                return REAL_POPEN([sys.executable, "-c", "raise SystemExit(1)"], **kw)
+        return fake_popen(cmd, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+    monkeypatch.setattr(subprocess, "Popen", popen)
+
+
+@pytest.mark.parametrize(("approval", "code"), [("weakening-ok: the old spec was wrong", 0), ("## DONE WHEN", 1)])
+def test_integrate_gate_reads_the_owners_weakening_ok_on_the_prs_issue(project, monkeypatch, capsys, approval, code):  # noqa: F811
+    """#487/#251: integrate's gate runs in a detached worktree, so the weakening check reads the PR's issue from
+    ISSUE_ENV (the head branch's number, since the main it gated on) and finds the owner's approval there."""
+    clone = project["clone"]
+    land_on_main(project, {"tests/test_x.py": "def test_f():\n    assert 1 + 1 == 2\n"})
+    main = out(clone, "git", "rev-parse", "HEAD")
+    open_pr(project, {"tests/test_x.py": "def test_f():\n    pass\n"})
+    _weakening_gate(project, monkeypatch, approval)
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == code
+    said = capsys.readouterr().out
+    assert project["issue_env"] == f"12:{main}"
+    ran = project["weakening"]
+    if code:
+        assert last_json(said)["outcome"] == "gate-failed"
+        assert "#12 records no owner `weakening-ok:` line" in ran.problems[-1]
+    else:
+        assert last_json(said)["outcome"] == "merged"
+        assert ran.ok and ran.warnings == ["tests/test_x.py:2: removed assert: assert 1 + 1 == 2 (approved in #12)"]
+
+
+def test_gate_issue_names_the_issue_of_the_head_branch_or_none():
+    assert workflow.gate_issue({"headRefName": "487-weaken-approval"}, "abc1234") == "487:abc1234"
+    assert workflow.gate_issue({"headRefName": "dependabot/pip/x"}, "abc1234") == "-:abc1234"
+    assert weaken.spans("-:abc1234") == [(None, "abc1234", None)]
+
+
 # --- integrate: a merge that deletes another open issue's Owns (#230) ---------------------------------------------
 
 
@@ -529,6 +587,26 @@ def test_integrate_waits_for_checks_on_the_pr_head_then_merges(fake_integrate, c
     ev = fake_integrate["events"]
     assert len(clock["sleeps"]) >= 2 and _gated(ev) < _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
     assert _last_json(capsys.readouterr().out)["outcome"] == "merged"
+
+
+def test_a_main_that_moves_during_the_check_wait_is_fetched_again_and_gated(fake_integrate, clock, monkeypatch, capsys):  # noqa: F811
+    """Review of #549: the wait on running checks can last `checks_wait_s`; main is read after it, not before."""
+    moved = "n" * 40
+    git = workflow.git
+
+    def fake(*args, **kw):
+        if clock["sleeps"] and args[0] == "rev-parse" and "main-" in args[1]:
+            return moved
+        return git(*args, **kw)
+
+    monkeypatch.setattr(workflow, "git", fake)
+    monkeypatch.setattr(workflow, "_remote_shas", lambda n: (HEAD, moved))  # origin's main, as read after the gate
+    running = [_run("check", status="IN_PROGRESS")]
+    _rollups(fake_integrate, monkeypatch, running, running, [_run("check")])
+    assert workflow.integrate(7, harness_ok=True, dry_run=False) == 0
+    printed = capsys.readouterr().out
+    assert clock["sleeps"] and f"merged with main {moved[:10]}" in printed
+    assert _last_json(printed)["outcome"] == "merged"
 
 
 @pytest.mark.parametrize(
@@ -1696,7 +1774,8 @@ def test_gate_reruns_on_one_head_that_differ_only_in_duration_post_once(fake_int
     posted = _github_keeps_comments(fake_integrate, monkeypatch)
     cycles = []
     for took in (30, 31, 32):
-        _gate_says(monkeypatch, GATE_OUT.replace("30 s", f"{took} s"), 1)
+        out = GATE_OUT.replace("30 s", f"{took} s").replace("FAIL ", f"FAIL {took / 7:6.1f}s ")  # #521 stage seconds
+        _gate_says(monkeypatch, out, 1)
         assert workflow.integrate(7, harness_ok=True, dry_run=False) == 1
         res = _last_json(capsys.readouterr().out)
         cycles.append((res["cycle"], res["fix"]))
@@ -2316,3 +2395,26 @@ def test_ci_checks_the_title_through_env_never_by_interpolation():
     assert runs and all("${{" not in s["run"] for s in runs)
     check = next(s for s in runs if "dev pr-title" in s["run"])
     assert check["env"]["PR_TITLE"] == "${{ github.event.pull_request.title }}"
+
+
+def test_gate_passed_needs_a_record_whose_test_selection_matches(tmp_path, monkeypatch):
+    """#469: `dev pr` reuses a pass record only when gate.cached_pass accepts it, as the gate's own cache does."""
+    from devkit import checks, gate, paths
+    from tests.test_gate import _sh, _shared_state
+
+    repo = tmp_path / "repo"
+    (repo / "tests").mkdir(parents=True)
+    (repo / "tests/test_one.py").write_text("def test_one():\n    pass\n")
+    (repo / ".gitignore").write_text("__pycache__/\n")
+    _sh(repo, "git", "init", "-q", "-b", "main")
+    _sh(repo, "git", "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+    _sh(repo, "git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init")
+    _shared_state(monkeypatch, tmp_path / "common")
+    monkeypatch.chdir(repo)
+    paths.root.cache_clear()
+    record = gate.pass_record(checks.merge_base(), False)
+    assert record and not workflow._gate_passed()
+    gate.save_pass(record, 1.0, "another-selection")  # recorded where another conftest selected other tests
+    assert not workflow._gate_passed()
+    gate.save_pass(record, 1.0, gate.selection(False))
+    assert workflow._gate_passed()

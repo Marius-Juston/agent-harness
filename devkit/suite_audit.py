@@ -29,7 +29,7 @@ import tempfile
 import threading
 import time
 import tomllib
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -792,6 +792,27 @@ def _commits(repo: Path, base: str | None) -> list[tuple[str, str, list[str]]]:
     return commits
 
 
+@contextlib.contextmanager
+def hold_every_slot(lock: Path, slots: int, on_wait: Callable[[], None] = lambda: None) -> Iterator[None]:
+    """Hold every gate slot (gate.effective_slots of `slots`, #461) for the reruns, one gate.gate_lock per slot, so
+    no gate runs beside a timing measurement, as with one slot (#475). Audits queue on their own lock first: two
+    audits each holding part of the slots would wait on each other forever. A gate arriving meanwhile can take a
+    slot the audit has not reached yet; the audit waits for it like any gate."""
+    said = False
+
+    def say() -> None:
+        nonlocal said
+        if not said:
+            on_wait()
+            said = True
+
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(gate.gate_lock(lock.with_name(lock.name + ".audit"), on_wait=say))
+        for _ in range(gate.effective_slots(lock, slots)):
+            stack.enter_context(gate.gate_lock(lock, on_wait=say, slots=slots))
+        yield
+
+
 def report(repo: Path, reruns: int | None = None, quick: bool = False, now: float | None = None) -> dict:
     """Measure the suite and run the nine checks. `reruns`: seeds for the fresh-clone reruns (default: the tier's;
     the whole suite at tier S, the history's suspects at M and L);
@@ -818,9 +839,7 @@ def report(repo: Path, reruns: int | None = None, quick: bool = False, now: floa
     tree: dict[str, str] | None = None
     if not quick and k > 0:
         lock = state_dir() / "gate.lock"
-        with gate.gate_lock(
-            lock, on_wait=lambda: print("suite audit: waiting for a gate ..."), slots=gate.gate_slots()
-        ):
+        with hold_every_slot(lock, gate.gate_slots(), on_wait=lambda: print("suite audit: waiting for a gate ...")):
             clone_runs, tree = rerun(repo, list(range(1, k + 1)), None if tier == "S" else suspects(ledger))
     try:
         runs = ci_runs()

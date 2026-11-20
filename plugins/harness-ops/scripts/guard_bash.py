@@ -6,12 +6,16 @@ text, file contents), while every simple command is checked, including those ins
 `bash -c`, `eval`, `find -exec`, wrappers (sudo, env, time, timeout, xargs, uv run, python -m) and text fed on stdin
 to an interpreter (bash, sh, python) by a heredoc, a here-string or a pipe. Stdlib only. Settings deny rules are
 prefix-only and this hook is best effort; server-side branch protection is the only complete guard for main.
+
+A command allowed through that can wait forever (a poll loop, `tail -f`, `watch`, `wait`, ...) is rewritten
+(updatedInput) to run under `timeout <[tool.devkit] wait_bound_s>`; see bound_waits.
 """
 
 import itertools
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -78,8 +82,19 @@ LIT_API = re.compile(
 )
 LIT_VAR = re.compile(r"\$\{?(\w+)")  # a fetched argument that starts with a variable: $u, ${u}...
 LIT_RAW = "DEVKIT_LIT_RAW"
+# Environment the guards read (#191). The first two switch a guard off, so they count only from the environment
+# Claude Code started in (owner_env); edit_guard refuses agent edits that put any of them in a settings file.
+OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE")
+# Names that move where settings files are found: a settings `env` setting one could hide the file that sets an
+# override, so owner_env ignores every override while one is set, and edit_guard refuses adding them as well.
+LOCATORS = ("HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_PROJECT_DIR")
 FETCHERS = {"curl", "wget"}
-CAP_FILE = "devkit/quota_cap"  # under the git common dir: `dev quota-cap`'s machine-local override
+SLOTS = (
+    "the gate slot count is the owner's: agents never change it. `uv run dev gate-slots` prints it; ask the owner to "
+    "run `! uv run dev gate-slots <n>` (or to change [tool.devkit] gate_slots)."
+)
+# The owner's machine-local overrides under the git common dir: the `dev` command that sets each, its file, the denial.
+OWNER_SETTINGS = (("quota-cap", "devkit/quota_cap", QUOTA), ("gate-slots", "devkit/gate_slots", SLOTS))
 CAP_READERS = {"cat", "head", "tail", "ls", "stat", "wc", "test", "[", "[[", "file"}
 WHOLE_TREE = {".", "./", ":", ":/", ":/*", "*"}  # pathspecs that name every file
 HOOK_VAR = re.compile(r"^(SKIP|PRE_COMMIT\w*|GIT_CONFIG\w*)(=|$)")
@@ -378,6 +393,85 @@ def lex(text: str) -> list[list[Simple]]:
     return out
 
 
+def settings_files(cwd: str) -> list[str]:
+    """Every Claude Code settings file that could feed this session's `env`: .claude/settings{,.local}.json in each
+    directory from the cwd, the git checkout (and its main checkout), the user's home and the project directory up
+    to /, and in $CLAUDE_CONFIG_DIR. Home and checkout are found without the environment as well, since a settings
+    `env` block could point HOME or CLAUDE_PROJECT_DIR elsewhere."""
+    starts = [cwd, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR", ""), os.path.expanduser("~")]
+    try:
+        import pwd  # POSIX only
+
+        starts.append(pwd.getpwuid(os.getuid()).pw_dir)
+    except (ImportError, KeyError, AttributeError):
+        pass
+    try:
+        out = subprocess.run(
+            ["git", "-C", cwd, "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        lines = out.stdout.splitlines() if out.returncode == 0 else []
+        starts += lines[:1] + [os.path.dirname(x) for x in lines[1:2]]
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    dirs: list[str] = []
+    for start in starts:
+        d = os.path.abspath(start) if start else ""
+        while d and d not in dirs:
+            dirs.append(d)
+            d = os.path.dirname(d) if os.path.dirname(d) != d else ""
+    files = [os.path.join(d, ".claude", f) for d in dirs for f in ("settings.json", "settings.local.json")]
+    if config := os.environ.get("CLAUDE_CONFIG_DIR"):
+        files += [os.path.join(config, f) for f in ("settings.json", "settings.local.json")]
+    return files
+
+
+JSON_KEY = re.compile(r'"((?:[^"\\]|\\.)*)"\s*:')
+
+
+def unescape(raw: str) -> str:
+    """A JSON string body decoded, so `DEVKIT_LIT_RAW` reads as the name it is; undecodable text as written."""
+    try:
+        return json.loads(f'"{raw}"')
+    except ValueError:
+        return raw
+
+
+def env_keys(text: str) -> set[str]:
+    """The names a settings file's `env` block sets. Text that is not a JSON object fails closed: every key-like
+    string in it counts, since Claude Code's reader may be more lenient than json."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return {unescape(m.group(1)) for m in JSON_KEY.finditer(text)}
+    env = data.get("env") if isinstance(data, dict) else None
+    return {k for k in env if isinstance(k, str)} if isinstance(env, dict) else set()
+
+
+def owner_env(name: str, cwd: str) -> str:
+    """An override that switches a guard off, read only where an agent's tools cannot set it (#191).
+
+    Claude Code hands a settings file's `env` block to hooks, ahead of the shell it started in (VERIFIED,
+    docs/research/agent-harness.md §12c), and an agent can write those files. So the name reads as unset when any
+    settings `env` sets it, or sets one of LOCATORS (which could hide the file that does): the owner sets it in the
+    shell that starts Claude Code. Unset in the environment, nothing is read, so the usual call costs nothing."""
+    value = os.environ.get(name, "")
+    if not value:
+        return ""
+    for path in settings_files(cwd):
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            continue
+        if env_keys(text) & {name, *LOCATORS}:
+            return ""
+    return value
+
+
 def base(word: str) -> str:
     return word.rsplit("/", 1)[-1]
 
@@ -444,6 +538,7 @@ SKIP_VALUE = {
     "xargs": {"-I", "-n", "-P", "-L", "-d", "-a", "-E", "-s", "-i", "--max-args", "--max-procs", "--delimiter"},
     "stdbuf": {"-i", "-o", "-e"},
     "flock": {"-w", "-E", "--timeout"},
+    "env": {"-u", "--unset", "-C", "--chdir"},  # strip_starters only: unwrap handles env itself
 }
 WRAPPERS = {"sudo", "doas", "nice", "ionice", "timeout", "xargs", "stdbuf", "nohup", "exec", "command", "builtin"}
 WRAPPERS |= {"setsid", "chronic", "unbuffer", "flock", "time"}
@@ -514,6 +609,7 @@ class Checker:
         self.start = cwd  # the session's worktree; a `cd ..` inside the command does not move it
         self.in_python = 0  # > 0 while checking a Python string literal as a shell command
         self.lit_vars: set[str] = set()  # variables the command sets to a literature-API URL
+        self.lit_raw = owner_env(LIT_RAW, cwd) == "1"
 
     def text(self, text: str, depth: int = 0) -> str | None:
         """Check a shell command string; return the reason it is blocked, or None."""
@@ -610,7 +706,7 @@ class Checker:
             for body, _ in c.stdin:
                 if why := self.code(body, lang, depth):
                     return why
-        if why := self.quota_cap(argv, c.writes, paths):
+        if why := self.owner_setting(argv, c.writes, paths):
             return why
         if self.read_only and (why := read_only(argv, c.writes, self.read_only, tuple(assigns))):
             return why
@@ -649,7 +745,7 @@ class Checker:
             rest = [a for a in args if not a.startswith("-")]
             if rest[:1] == ["pip"] and {"install", "uninstall", "sync"} & set(rest):
                 return PIP
-        if name in FETCHERS and f"{LIT_RAW}=1" not in assigns and os.environ.get(LIT_RAW) != "1":
+        if name in FETCHERS and f"{LIT_RAW}=1" not in assigns and not self.lit_raw:
             for a in args:
                 a = a.split("=", 1)[1] if a.startswith("--") and "=" in a else a  # --url=<url>
                 if LIT_API.match(a) or ((m := LIT_VAR.match(a)) and m.group(1) in self.lit_vars):
@@ -662,20 +758,22 @@ class Checker:
             return self.rm(args)
         return None
 
-    def quota_cap(self, argv: list[str], writes: list[str], paths: list[Word]) -> str | None:
-        """QUOTA when the command sets the owner's cap: `dev quota-cap <pct>|--clear`, or touches its file other
-        than to read it (a `cd` earlier in the command counts, so `cd .git/devkit && echo 99 > quota_cap` too)."""
+    def owner_setting(self, argv: list[str], writes: list[str], paths: list[Word]) -> str | None:
+        """The denial when the command sets one of OWNER_SETTINGS: `dev quota-cap <pct>|--clear` (or gate-slots), or
+        touches its file other than to read it (a `cd` earlier in the command counts, so `cd .git/devkit && echo 99 >
+        quota_cap` too)."""
         name, args = (base(argv[0]), argv[1:]) if argv else ("", [])
-        if name in ("dev", "devkit.cli") and args[:1] == ["quota-cap"] and not set(args[1:]) <= {"-h", "--help"}:
-            return QUOTA
+        for command, path, why in OWNER_SETTINGS:
+            if name in ("dev", "devkit.cli") and args[:1] == [command] and not set(args[1:]) <= {"-h", "--help"}:
+                return why
 
-        def cap_file(v: str) -> bool:
-            return CAP_FILE in v or os.path.normpath(os.path.join(self.cwd, v)).endswith("/" + CAP_FILE)
+            def owned(v: str, path: str = path) -> bool:
+                return path in v or os.path.normpath(os.path.join(self.cwd, v)).endswith("/" + path)
 
-        if any(cap_file(w) for w in writes):
-            return QUOTA
-        if name not in CAP_READERS and any(cap_file(w.value) for w in paths):
-            return QUOTA
+            if any(owned(w) for w in writes):
+                return why
+            if name not in CAP_READERS and any(owned(w.value) for w in paths):
+                return why
         return None
 
     def git(self, args: list[str], assigns: list[str]) -> str | None:
@@ -1030,6 +1128,162 @@ def read_only(argv: list[str], writes: list[str], report: str = "", assigns: tup
     return READ_ONLY
 
 
+# #381: commands that can wait forever. An agent's poll loop whose file is never written, or whose `pgrep -f` matches
+# its own shell, otherwise outlives the agent as a stale shell. Such a command is rewritten, not refused, to run under
+# `timeout <wait_bound_s>`. WAIT_HINT is the cheap test every command takes; only a hit is lexed.
+WAIT_HINT = re.compile(r"\b(?:while|until|tail|watch|sleep|wait|inotifywait|flock|follow|journalctl|logs)\b")
+WAIT_BOUND = 3600  # [tool.devkit] wait_bound_s; devkit/config.py documents it
+BOUND_KEY = re.compile(r"(?m)^\s*wait_bound_s\s*=\s*(\d+)")
+FOLLOWERS = {"docker", "podman", "kubectl", "oc", "nerdctl"}  # `<tool> [compose] logs -f`
+STARTERS = {"nohup", "nice", "ionice", "setsid", "stdbuf", "exec", "command", "builtin", "time", "sudo", "doas", "env"}
+SLEEP_ARG = re.compile(r"^(\d+(?:\.\d*)?|\.\d+)([smhd]?)$")
+UNIT = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
+PGREP_F = "`pgrep -f` may match this shell's own command line, so the loop never ends; prefer `pgrep -x` or a pid."
+
+
+def short_flag(args: list[str], letters: str, longs: tuple[str, ...]) -> bool:
+    """A flag given as one of `letters` (alone or in a cluster such as -fn) or one of the long options."""
+    for a in args:
+        if a == "--":
+            return False
+        if a.startswith("--"):
+            if a.split("=", 1)[0] in longs:
+                return True
+        elif a.startswith("-") and any(ch in letters for ch in a[1:]):
+            return True
+    return False
+
+
+def sleep_s(args: list[str]) -> float | None:
+    total = 0.0
+    for a in args:
+        if a.startswith("inf"):
+            return float("inf")
+        m = SLEEP_ARG.match(a)
+        if not m:
+            return None  # $N, $((...)): not knowable here
+        total += float(m.group(1)) * UNIT[m.group(2)]
+    return total
+
+
+def waits_forever(argv: list[str], bound: int) -> str | None:
+    """What makes this one command (wrappers already stripped) wait without end, or None."""
+    name, args = base(argv[0]), argv[1:]
+    if name == "tail" and short_flag(args, "fF", ("--follow", "--retry")):
+        return "tail -f"
+    if name == "watch":
+        return "watch"
+    if name == "sleep" and (s := sleep_s(args)) is not None and s > bound:
+        return f"sleep {' '.join(args)}"
+    if name == "wait":
+        return "wait"
+    if name == "inotifywait" and (short_flag(args, "m", ("--monitor",)) or not short_flag(args, "t", ("--timeout",))):
+        return "inotifywait without -t"
+    if name == "flock" and not short_flag(args, "wnu", ("--wait", "--timeout", "--nonblock", "--unlock")):
+        return "flock without -w"
+    if name == "gh" and (args[:2] == ["run", "watch"] or (args[:2] == ["pr", "checks"] and "--watch" in args)):
+        return f"gh {' '.join(args[:2])}"
+    if name in FOLLOWERS and "logs" in args[:3] and short_flag(args, "f", ("--follow",)):
+        return f"{name} logs -f"
+    if name == "journalctl" and short_flag(args, "f", ("--follow",)):
+        return "journalctl -f"
+    return None
+
+
+def strip_starters(argv: list[str]) -> list[str]:
+    """Drop assignments and the wrappers that run a command without bounding it (nohup, nice, env, sudo ...)."""
+    while argv and (base(argv[0]) in STARTERS or ASSIGN.match(argv[0])):
+        name, argv = base(argv[0]), argv[1:]
+        while name in STARTERS and argv and argv[0].startswith("-"):
+            a, argv = argv[0], argv[1:]
+            if a == "--":
+                break
+            if a in SKIP_VALUE.get(name, ()) and argv:
+                argv = argv[1:]
+    return argv
+
+
+def unbounded(text: str, bound: int, depth: int = 0) -> tuple[list[str], bool]:
+    """The waits in a shell command that nothing bounds, and whether it polls with `pgrep -f`.
+
+    A wait under `timeout` is bounded. A `while read` loop ends with its input. Shell code passed with -c (or flock -c)
+    or fed to a shell by a heredoc is searched too, unless a timeout wraps that shell."""
+    found: list[str] = []
+    pgrep_f = False
+    if depth > MAX_DEPTH or not WAIT_HINT.search(text):
+        return found, pgrep_f
+    for pipe in lex(text):
+        for c in pipe:
+            words = list(c.words)
+            loop = False
+            while words and ((not words[0].quoted and words[0].value in KEYWORDS) or ASSIGN.match(words[0].value)):
+                loop = loop or (words[0].value in ("while", "until") and not words[0].quoted)
+                words.pop(0)
+            argv = [w.value for w in words]
+            argv = strip_starters(argv)
+            if argv and base(argv[0]) == "pgrep" and short_flag(argv[1:], "f", ("--full",)):
+                pgrep_f = True
+            if loop and not (argv and base(argv[0]) == "read"):
+                found.append("until/while loop")
+            if not argv or base(argv[0]) == "timeout":
+                continue
+            if why := waits_forever(argv, bound):
+                found.append(why)
+            if base(argv[0]) not in SHELLS | {"flock"}:
+                continue
+            code = [body for body, _ in c.stdin] if base(argv[0]) in SHELLS else []  # bash <<'EOF' ... EOF
+            for k, a in enumerate(argv[1:-1], 1):
+                if a in ("-c", "--command") or (a.startswith("-") and not a.startswith("--") and "c" in a):
+                    code = [argv[k + 1]]
+                    break
+            for chunk in code:
+                more, pf = unbounded(chunk, bound, depth + 1)
+                found += more
+                pgrep_f = pgrep_f or pf
+    return found, pgrep_f
+
+
+def wait_bound(cwd: str) -> int:
+    """[tool.devkit] wait_bound_s from the nearest pyproject.toml with a [tool.devkit] table above cwd (the worktree's
+    own config), else above $CLAUDE_PROJECT_DIR, else the default.
+
+    Read only for a command WAIT_HINT matches. A plain scan, not tomllib: hooks run on the host's python3 (3.10)."""
+    for start in (cwd, os.environ.get("CLAUDE_PROJECT_DIR", "")):
+        d = os.path.abspath(start) if start else ""
+        while d:
+            try:
+                with open(os.path.join(d, "pyproject.toml"), encoding="utf-8") as f:
+                    text = f.read()
+            except (OSError, UnicodeDecodeError):
+                text = ""
+            if (at := text.find("[tool.devkit]")) >= 0:
+                table = re.split(r"(?m)^\s*\[", text[at + len("[tool.devkit]") :], maxsplit=1)[0]
+                m = BOUND_KEY.search(table)
+                return int(m.group(1)) if m else WAIT_BOUND
+            d = "" if os.path.dirname(d) == d else os.path.dirname(d)
+    return WAIT_BOUND
+
+
+def bound_waits(cmd: str, cwd: str) -> tuple[str, str] | None:
+    """(the rewritten command, the note for the agent) when the command waits without a bound, else None."""
+    if not WAIT_HINT.search(cmd) or (bound := wait_bound(cwd)) <= 0:
+        return None
+    found, pgrep_f = unbounded(cmd, bound)
+    if not found:
+        return None
+    body, tail = cmd.strip(), ""
+    if body.endswith("&") and not body.endswith(("&&", "\\&", ">&", "<&")):
+        body, tail = body[:-1].rstrip(), " &"  # a backgrounded wait: bound it in the background
+    new = f"timeout {bound} bash -c {shlex.quote(body)}{tail}"
+    what = ", ".join(dict.fromkeys(found))
+    note = (
+        f"guard-bash: this command can wait forever ({what}), so it runs as `timeout {bound} bash -c '...'` "
+        f"([tool.devkit] wait_bound_s). Exit 124 means the bound ran out. Put a shorter `timeout <s>` in front "
+        f"yourself to choose the bound."
+    )
+    return new, note + (" " + PGREP_F if pgrep_f else "")
+
+
 def main() -> int:
     try:
         data = json.load(sys.stdin)
@@ -1037,12 +1291,12 @@ def main() -> int:
         url = (data.get("tool_input") or {}).get("url", "") if data.get("tool_name") == "WebFetch" else ""
     except (json.JSONDecodeError, AttributeError):
         return 0
-    if isinstance(url, str) and LIT_API.match(url.strip()) and os.environ.get(LIT_RAW) != "1":
+    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
+    if isinstance(url, str) and LIT_API.match(url.strip()) and owner_env(LIT_RAW, cwd) != "1":
         print(f"Blocked by project rule: {LIT}", file=sys.stderr)
         return 2
     if not isinstance(cmd, str):
         return 0
-    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
     agent = data.get("agent_type") if isinstance(data.get("agent_type"), str) else ""  # set inside a subagent
     try:
         why = Checker(cwd, read_only=READ_ONLY_AGENTS.get(agent.rsplit(":", 1)[-1], "")).text(cmd)
@@ -1051,6 +1305,11 @@ def main() -> int:
     if why:
         print(f"Blocked by project rule: {why}", file=sys.stderr)
         return 2
+    if data.get("tool_name", "Bash") == "Bash" and (bounded := bound_waits(cmd, cwd)):
+        new, note = bounded
+        inp = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
+        out = {"hookEventName": "PreToolUse", "updatedInput": {**inp, "command": new}, "additionalContext": note}
+        print(json.dumps({"hookSpecificOutput": out}))
     return 0
 
 

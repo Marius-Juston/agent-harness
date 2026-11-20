@@ -594,6 +594,140 @@ def test_edit_guard_blocks_any_file_with_the_generated_marker(hook, tmp_path):
     assert hook("edit_guard.py", {"tool_input": {"file_path": str(plain)}})[0] == 0
 
 
+def _settings_edit(path, tool: str, before: str, **inp) -> dict:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if before:
+        path.write_text(before)
+    return {"tool_name": tool, "tool_input": {"file_path": str(path), **inp}}
+
+
+SETTINGS_BEFORE = '{\n  "env": {"FOO": "1", "X_COPYLEFT": "pyqt6"},\n  "permissions": {"allow": ["Bash(DEVKIT_LIT_RAW=1 curl:*)"]}\n}\n'
+
+
+@pytest.mark.parametrize(
+    ("where", "tool", "inp", "blocked"),
+    [
+        (".claude/settings.local.json", "Write", {"content": '{"env": {"DEVKIT_ALLOW_COPYLEFT": "pyqt6"}}'}, True),
+        (".claude/settings.json", "Edit", {"old_string": '"FOO": "1"', "new_string": '"DEVKIT_LIT_RAW": "1"'}, True),
+        ("home/.claude/settings.json", "Write", {"content": '{"env": {"DEVKIT_SECRETS_FILE": "/x"}}'}, True),
+        (".claude/settings.json", "Write", {"content": '{"env": {"DEVKIT\\u005fLIT_RAW": "1"}}'}, True),
+        # completing a name from text already in the file
+        (".claude/settings.json", "Edit", {"old_string": '"X_', "new_string": '"DEVKIT_ALLOW_'}, True),
+        (
+            ".claude/settings.local.json",
+            "MultiEdit",
+            {
+                "edits": [
+                    {"old_string": "FOO", "new_string": "BAR"},
+                    {"old_string": "BAR", "new_string": "DEVKIT_LIT_RAW"},
+                ]
+            },
+            True,
+        ),
+        # names that move where settings are found, so they could hide the file that sets an override
+        (".claude/settings.json", "Edit", {"old_string": '"FOO"', "new_string": '"HOME"'}, True),
+        (".claude/settings.json", "Write", {"content": '{"env": {"CLAUDE_CONFIG_DIR": "/tmp/c"}}'}, True),
+        (".claude/settings.local.json", "Write", {"content": '{"env": {"CLAUDE_PROJECT_DIR": "/tmp/p"}}'}, True),
+        # not JSON: every key-like string counts, \u escapes decoded
+        (".claude/settings.json", "Write", {"content": '{"env": {"DEVKIT\\u005fALLOW_COPYLEFT": "x",}}'}, True),
+        # a name already in a permissions rule, moved into env
+        (
+            ".claude/settings.json",
+            "Write",
+            {"content": '{"env": {"DEVKIT_LIT_RAW": "1"}, "permissions": {"allow": []}}'},
+            True,
+        ),
+        (".claude/settings.json", "Edit", {"old_string": '"FOO": "1"', "new_string": '"FOO": "2"'}, False),
+        # the same name outside env is no override
+        (
+            ".claude/settings.json",
+            "Write",
+            {"content": '{"env": {"FOO": "1"}, "permissions": {"allow": ["Bash(DEVKIT_LIT_RAW=1 curl:*)"]}}'},
+            False,
+        ),
+        (".claude/settings.json", "Write", {"content": '{"permissions": {"allow": ["Bash(ls)"]}}'}, False),
+        ("docs/SETUP.md", "Write", {"content": "export DEVKIT_ALLOW_COPYLEFT=pyqt6 before starting claude"}, False),
+    ],
+)
+def test_edit_guard_refuses_guard_overrides_in_settings_env(hook, tmp_path, where, tool, inp, blocked):
+    payload = _settings_edit(tmp_path / where, tool, SETTINGS_BEFORE, **inp)
+    code, _, err = hook("edit_guard.py", payload)
+    assert (code == 2) == blocked, err
+    assert not blocked or "owner" in err
+
+
+def test_edit_guard_lets_an_agent_remove_a_guard_override_from_settings(hook, tmp_path):
+    before = '{"env": {"DEVKIT_LIT_RAW": "1", "FOO": "1"}}'
+    payload = _settings_edit(
+        tmp_path / ".claude/settings.json", "Edit", before, old_string='"DEVKIT_LIT_RAW": "1", ', new_string=""
+    )
+    assert hook("edit_guard.py", payload)[0] == 0
+
+
+def _isolated(tmp_path, **extra) -> tuple[Path, dict]:
+    project = tmp_path / "project"
+    (project / ".claude").mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "HOME": str(tmp_path / "home"), "CLAUDE_PROJECT_DIR": str(project), **extra}
+    env.pop("CLAUDE_CONFIG_DIR", None)
+    return project, env
+
+
+@pytest.mark.parametrize(
+    ("settings", "text"),
+    [
+        ("project/.claude/settings.local.json", '{"env": {"DEVKIT_LIT_RAW": "1"}}'),
+        ("project/.claude/settings.json", '{"env": {"DEVKIT_LIT_RAW": "0"}}'),
+        ("home/.claude/settings.json", '{"env": {"DEVKIT\\u005fLIT_RAW": "1"}}'),
+        ("project/.claude/settings.json", '{"env": {"DEVKIT_LIT_RAW": "1",}}'),  # not JSON: fail closed
+        # a settings env that moves HOME, the config or the project dir could hide the file that sets the override
+        ("project/.claude/settings.local.json", '{"env": {"HOME": "/nowhere"}}'),
+        ("project/.claude/settings.json", '{"env": {"CLAUDE_CONFIG_DIR": "/nowhere"}}'),
+        ("home/.claude/settings.json", '{"env": {"CLAUDE_PROJECT_DIR": "/nowhere"}}'),
+    ],
+)
+def test_guard_bash_ignores_an_override_any_settings_file_sets(hook, tmp_path, settings, text):
+    """Claude Code passes a settings file's env to hooks ahead of the shell's (#191, live check in
+    docs/research/agent-harness.md §12c), and an agent can write that file: the override then counts as unset."""
+    project, env = _isolated(tmp_path, DEVKIT_LIT_RAW="1")
+    url = LIT_URLS[0]
+    bash = {"cwd": str(project), "tool_input": {"command": f"curl -s '{url}'"}}
+    fetch = {"cwd": str(project), "tool_name": "WebFetch", "tool_input": {"url": url, "prompt": "x"}}
+    assert hook("guard_bash.py", bash, env=env)[0] == 0  # the shell's value is the owner's
+    assert hook("guard_bash.py", fetch, env=env)[0] == 0
+    path = tmp_path / settings
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    assert hook("guard_bash.py", bash, env=env)[0] == 2
+    assert hook("guard_bash.py", fetch, env=env)[0] == 2
+
+
+def test_guard_bash_finds_the_checkout_settings_when_the_project_dir_is_moved(hook, tmp_path):
+    """The review of #515: a settings env sets CLAUDE_PROJECT_DIR and HOME elsewhere, and the agent runs the fetch
+    from outside the project. The checkout's settings are still found, through the hook process's own cwd."""
+    project, env = _isolated(tmp_path, DEVKIT_LIT_RAW="1")
+    subprocess.run(["git", "init", "-q", str(project)], check=True)
+    (project / ".claude/settings.local.json").write_text('{"env": {"DEVKIT_LIT_RAW": "1", "HOME": "/nowhere"}}')
+    env |= {"HOME": str(tmp_path / "elsewhere"), "CLAUDE_PROJECT_DIR": str(tmp_path / "elsewhere")}
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    payload = json.dumps({"cwd": str(outside), "tool_input": {"command": f"curl -s '{LIT_URLS[0]}'"}})
+    script = Path(__file__).parent.parent / "plugins/harness-ops/scripts/guard_bash.py"
+    run = subprocess.run(
+        [sys.executable, str(script)], input=payload, text=True, capture_output=True, env=env, cwd=project, check=False
+    )
+    assert run.returncode == 2, run.stderr
+
+
+def test_guard_bash_override_survives_unrelated_settings(hook, tmp_path):
+    project, env = _isolated(tmp_path, DEVKIT_LIT_RAW="1")
+    (project / ".claude/settings.json").write_text(
+        '{"env": {"FOO": "1"}, "permissions": {"allow": ["DEVKIT_LIT_RAW"]}}'
+    )
+    (project / ".claude/settings.local.json").write_text("not json at all")
+    bash = {"cwd": str(project), "tool_input": {"command": f"curl -s '{LIT_URLS[0]}'"}}
+    assert hook("guard_bash.py", bash, env=env)[0] == 0
+
+
 def _long_file(tmp_path, name, lines):
     p = tmp_path / name
     p.write_text("".join(f"x{i} = {i}\n" for i in range(lines)))
@@ -1098,6 +1232,39 @@ def test_edit_guard_blocks_the_quota_cap_override(hook, path, tool):
     assert code == 2 and "quota cap" in err
 
 
+# #523: the gate slot override is the owner's too, guarded the same way as the quota cap's.
+GATE_SLOTS_WRITES = [
+    c.replace("quota-cap", "gate-slots").replace("quota_cap", "gate_slots").replace("100", "8")
+    for c in QUOTA_CAP_WRITES
+]
+GATE_SLOTS_READS = [
+    "uv run dev gate-slots",
+    "uv run dev gate-slots --help",
+    "cat .git/devkit/gate_slots",
+    "grep -rn gate_slots devkit",
+    "git commit -m 'dev gate-slots 8 is owner only'",
+]
+
+
+@pytest.mark.parametrize("cmd", GATE_SLOTS_WRITES)
+def test_guard_bash_blocks_an_agent_setting_the_gate_slots(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "cwd": "/repo"})
+    assert code == 2, cmd
+    assert "gate slot count" in err
+
+
+@pytest.mark.parametrize("cmd", GATE_SLOTS_READS)
+def test_guard_bash_allows_reading_the_gate_slots(hook, cmd):
+    code, _, err = hook("guard_bash.py", {"tool_input": {"command": cmd}, "cwd": "/repo"})
+    assert code == 0, (cmd, err)
+
+
+@pytest.mark.parametrize("tool", ["Write", "Edit"])
+def test_edit_guard_blocks_the_gate_slots_override(hook, tool):
+    code, _, err = hook("edit_guard.py", {"tool_name": tool, "tool_input": {"file_path": ".git/devkit/gate_slots"}})
+    assert code == 2 and "gate slot count" in err
+
+
 # #227: the literature APIs that `uv run dev lit` wraps (devkit/lit.py), denied to curl, wget and WebFetch.
 LIT_URLS = [
     "https://api.openalex.org/works?search=spaced+retrieval",
@@ -1298,3 +1465,193 @@ def test_skew_line_follows_the_memory_warning_of_a_held_agent(hook, tmp_path):
     code, out, _ = hook("spawn_guard.sh", SKEW_EVENTS[2][1], env=env)
     first, second = json.loads(out)["systemMessage"].splitlines()
     assert code == 0 and first.startswith("spawn_guard: held builder") and second.startswith("harness-ops skew:")
+
+
+# #381: a command that can wait forever is rewritten to run under `timeout <wait_bound_s>`, never refused.
+WAITS = [
+    "until grep -q RESULT out.log; do sleep 10; done",
+    "until ! pgrep -f 'dev check'; do sleep 5; done",
+    "while pgrep -x pytest >/dev/null; do sleep 2; done",
+    "while kill -0 $pid 2>/dev/null; do sleep 1; done",
+    "while true; do date; sleep 60; done",
+    "while :; do sleep 1; done",
+    "if true; then while [ ! -f done.txt ]; do sleep 1; done; fi",
+    "wait 4242",
+    "wait",
+    "make & wait",
+    "inotifywait -m -e create .",
+    "inotifywait -e create .",
+    "flock /tmp/lock make",
+    "gh run watch 123",
+    "gh pr checks 9 --watch",
+    "docker logs -f web",
+    "docker compose logs --follow web",
+    "kubectl logs -f pod/x",
+    "journalctl -fu ssh",
+    "tail -f build.log",
+    "tail -n 100 -F build.log | grep ERROR",
+    "nohup tail -fn0 x.log",
+    "watch -n 5 ls",
+    "sleep infinity",
+    "sleep 2h",
+    "cd sub && until test -s out; do sleep 1; done && cat out",
+    "x=$(tail -f log)",
+    "bash -c 'until test -f x; do sleep 1; done'",
+    "bash <<'EOF'\nwhile true; do sleep 1; done\nEOF",
+    "env FOO=1 nice -n 5 tail -f log",
+]
+NOT_WAITS = [
+    "timeout 600 bash -c 'until grep -q X f; do sleep 5; done'",
+    "timeout 60 tail -f log",
+    "nohup timeout -k 5 60 tail -f log",
+    "cat f | while read -r l; do echo $l; done",
+    "while IFS= read -r l; do echo $l; done < f",
+    "for i in 1 2 3; do sleep 1; done",
+    "sleep 5",
+    "tail -n 50 log",
+    "inotifywait -t 30 -e create .",
+    "flock -w 10 /tmp/lock make",
+    "flock -n /tmp/lock make",
+    "gh run view 123",
+    "gh pr checks 9",
+    "docker logs web",
+    "journalctl -u ssh",
+    "git commit -m 'wait until the loop is done; tail -f'",
+    "echo while until watch",
+    "grep -rn 'sleep infinity' docs/",
+    "pgrep -f pytest",
+]
+
+
+def _payload(cmd: str, cwd, **inp) -> dict:
+    return {"tool_name": "Bash", "cwd": str(cwd), "tool_input": {"command": cmd, **inp}}
+
+
+def _bounded(hook, cmd: str, cwd) -> dict | None:
+    code, out, err = hook("guard_bash.py", _payload(cmd, cwd), env={**os.environ, "CLAUDE_PROJECT_DIR": str(cwd)})
+    assert code == 0, err
+    return json.loads(out)["hookSpecificOutput"] if out.strip() else None
+
+
+def _rewritten(hook, cmd: str, cwd) -> dict:
+    """_bounded, for a command the hook must rewrite."""
+    out = _bounded(hook, cmd, cwd)
+    assert out is not None, cmd
+    return out
+
+
+@pytest.mark.parametrize("cmd", WAITS)
+def test_guard_bash_bounds_a_command_that_can_wait_forever(hook, tmp_path, cmd):
+    out = _bounded(hook, cmd, tmp_path)
+    assert out is not None, cmd
+    assert out["updatedInput"]["command"] == f"timeout 3600 bash -c {shlex.quote(cmd)}"
+    assert "timeout 3600" in out["additionalContext"] and "wait_bound_s" in out["additionalContext"]
+
+
+@pytest.mark.parametrize("cmd", NOT_WAITS)
+def test_guard_bash_leaves_bounded_and_finite_commands_unchanged(hook, tmp_path, cmd):
+    assert _bounded(hook, cmd, tmp_path) is None, cmd
+
+
+def test_guard_bash_bound_keeps_the_other_tool_input_and_a_trailing_background(hook, tmp_path):
+    payload = _payload("until test -f x; do sleep 1; done &", tmp_path, run_in_background=True, description="poll")
+    _, out, _ = hook("guard_bash.py", payload, env={**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)})
+    inp = json.loads(out)["hookSpecificOutput"]["updatedInput"]
+    assert inp == {
+        "command": "timeout 3600 bash -c 'until test -f x; do sleep 1; done' &",
+        "run_in_background": True,
+        "description": "poll",
+    }
+
+
+def test_guard_bash_pgrep_f_poll_gets_the_self_match_note(hook, tmp_path):
+    note = _rewritten(hook, "until ! pgrep -f 'uv run dev check'; do sleep 5; done", tmp_path)["additionalContext"]
+    assert "pgrep -x" in note and "own command line" in note
+    assert "pgrep" not in _rewritten(hook, "while kill -0 $pid; do sleep 1; done", tmp_path)["additionalContext"]
+
+
+def test_guard_bash_still_refuses_a_blocked_command_inside_a_wait(hook, tmp_path):
+    code, out, err = hook("guard_bash.py", _payload("until pip install x; do sleep 1; done", tmp_path))
+    assert code == 2 and "uv only" in err and not out.strip()
+
+
+def _project(tmp_path, bound: int) -> None:
+    (tmp_path / "pyproject.toml").write_text(f'[project]\nname = "p"\n\n[tool.devkit]\nwait_bound_s = {bound}\n')
+
+
+def test_guard_bash_reads_the_bound_from_tool_devkit_and_zero_turns_it_off(hook, tmp_path):
+    (tmp_path / "sub").mkdir()
+    _project(tmp_path, 120)
+    assert (
+        _rewritten(hook, "tail -f x", tmp_path / "sub")["updatedInput"]["command"] == "timeout 120 bash -c 'tail -f x'"
+    )
+    assert _rewritten(hook, "sleep 1000", tmp_path)["updatedInput"]["command"].startswith("timeout 120 ")
+    _project(tmp_path, 0)
+    assert _bounded(hook, "tail -f x", tmp_path) is None
+
+
+@pytest.mark.parametrize("value", [-1, True, "3600", 1.5])
+def test_wait_bound_must_be_whole_seconds(value):
+    from devkit import config
+
+    with pytest.raises(config.ConfigError, match="wait_bound_s"):
+        config.parse({"wait_bound_s": value})
+    assert config.Config().wait_bound_s == GUARD.WAIT_BOUND == 3600
+
+
+# Commands that end, with every kind of quoting the rewrite must carry through intact.
+FINITE_WAITS = [
+    """n=0; until [ $n -ge 3 ]; do n=$((n+1)); echo "it's $n" '"q"' \\$HOME; done""",
+    'i=0; while [ $i -lt 2 ]; do echo "$(echo sub $i)" `echo tick`; i=$((i+1)); done | tr a-z A-Z',
+    "until true; do :; done; cat <<'EOF'\n$HOME 'single' \"double\" `x`\nEOF",
+    "until true; do :; done; cat <<EOF\nexpanded ${USER:-u} $(echo cmd)\nEOF",
+    "while false; do :; done; printf '%s\\n' 'a b' \"c'd\" | sort -r",
+    "until true; do :; done; echo end # a comment with 'quotes",
+    "bash -c 'until true; do :; done; echo inner \"$0\"' zero",
+]
+
+
+def _sh(cmd: str, cwd) -> subprocess.CompletedProcess:
+    return subprocess.run(["bash", "-c", cmd], capture_output=True, text=True, cwd=cwd, timeout=30, check=False)
+
+
+@pytest.mark.parametrize("cmd", FINITE_WAITS)
+def test_guard_bash_rewrite_runs_the_command_unchanged(hook, tmp_path, cmd):
+    new = _rewritten(hook, cmd, tmp_path)["updatedInput"]["command"]
+    before, after = _sh(cmd, tmp_path), _sh(new, tmp_path)
+    assert (after.stdout, after.returncode) == (before.stdout, before.returncode) and before.stdout
+
+
+@settings(max_examples=40, deadline=None)
+@given(st.text(alphabet=st.characters(blacklist_characters="\x00", blacklist_categories=("Cs",)), max_size=40))
+def test_guard_bash_rewrite_carries_any_text_through(text):
+    cmd = f"until true; do :; done; printf %s {shlex.quote(text)}"
+    new, _ = GUARD.bound_waits(cmd, "/nonexistent")
+    assert re.match(r"timeout \d+ bash -c ", new)
+    assert _sh(new, "/").stdout == _sh(cmd, "/").stdout
+
+
+def test_the_bound_stops_the_wait_and_its_children(hook, tmp_path):
+    """The bound ends the loop with exit 124 and kills what it started (timeout signals its process group).
+
+    The background sleep holds the captured stdout open, so the run returns early only once the sleep is dead too."""
+    _project(tmp_path, 1)
+    cmd = "sleep 60 & echo $! > bg.pid; until test -f never; do sleep 0.1; done"
+    new = _rewritten(hook, cmd, tmp_path)["updatedInput"]["command"]
+    t0 = time.monotonic()
+    res = _sh(new, tmp_path)
+    assert res.returncode == 124 and time.monotonic() - t0 < 10
+    assert (tmp_path / "bg.pid").read_text().strip().isdigit()
+
+
+def _timed(fn, *args) -> float:
+    t0 = time.perf_counter()
+    fn(*args)
+    return time.perf_counter() - t0
+
+
+def test_guard_bash_wait_check_adds_under_a_millisecond_to_other_commands():
+    """The hook's added cost for a command that does not wait: best of 20 runs per command, under 1 ms."""
+    for cmd in [c for c in ALLOWED if isinstance(c, str)] + NOT_WAITS:
+        best = min(_timed(GUARD.bound_waits, cmd, "/nonexistent") for _ in range(20))
+        assert best < 1e-3, (cmd, best)

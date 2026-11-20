@@ -3,6 +3,7 @@ thresholds: docs/research/test-suite-design.md §9-§10."""
 
 import json
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -551,3 +552,47 @@ def test_the_architect_does_not_gain_the_suite_audit(hook):
         "guard_bash.py", {"tool_input": {"command": "uv run dev suite-audit status"}, "agent_type": "architect"}
     )
     assert code == 2 and "read-only" in err
+
+
+def test_the_audits_reruns_hold_every_gate_slot_so_no_gate_runs_beside_them(tmp_path):
+    """#475: with gate_slots = 3 the reruns wait until a running gate is done, then hold all three slots (and a slot
+    file a gate with more slots made), so a gate that arrives meanwhile waits: the reruns' timings run alone."""
+    from devkit import gate
+
+    path = tmp_path / "gate.lock"
+    (tmp_path / "gate.lock.3").touch()  # a gate elsewhere runs with 4 slots
+    release, gate_in, audit_waited, audit_in, audit_done = (threading.Event() for _ in range(5))
+    late_waited, late_in = threading.Event(), threading.Event()
+
+    def running_gate():
+        with gate.gate_lock(path, slots=3):
+            gate_in.set()
+            release.wait(10)
+
+    def audit():
+        with suite_audit.hold_every_slot(path, 3, on_wait=audit_waited.set):
+            audit_in.set()
+            audit_done.wait(10)
+
+    def late_gate():
+        with gate.gate_lock(path, slots=3, on_wait=late_waited.set):
+            late_in.set()
+
+    first = threading.Thread(target=running_gate)
+    first.start()
+    assert gate_in.wait(10)
+    auditor = threading.Thread(target=audit)
+    auditor.start()
+    assert audit_waited.wait(10)
+    assert not audit_in.wait(0.3)
+    release.set()
+    assert audit_in.wait(10)
+    assert len(gate.holders(path)) == 4
+    late = threading.Thread(target=late_gate)
+    late.start()
+    assert late_waited.wait(10)
+    assert not late_in.wait(0.3)
+    audit_done.set()
+    for t in (first, auditor, late):
+        t.join(10)
+    assert late_in.is_set()
