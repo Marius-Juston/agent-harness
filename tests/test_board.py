@@ -1258,18 +1258,26 @@ def _fed_brief(title, context, comment, path, review, fix, files):
     its PR #7 a review-thread path, a stranger's review, the lead's fix-loop comment, and in-flight file names."""
     issue = mk(56, ["status:in-progress"], f"## Context\n{context}\n## Owns\n- `devkit/`\n", [comment], title=title)
     note = "<!-- devkit:fix-loop cycle=1 head=" + "a" * 40 + " key=k outcome=gate-failed -->"
-    fb = {
-        "since": COMMITTED,
-        "head": "a" * 40,
-        "trusted": {"lead"},
-        "comments": [{"author": {"login": "lead"}, "body": f"{note}\n{fix}", "createdAt": AFTER, "url": "u"}],
-        "reviews": [_review_node(review, who="mallory")],
-        "threads": [{"path": path, "line": 3, "comments": {"nodes": [{"author": {"login": "m"}, "body": "b"}]}}],
+    thread = {
+        "isResolved": False,
+        "path": path,
+        "line": 3,
+        "comments": {"nodes": [{"author": {"login": "m"}, "body": "b"}]},
     }
+    pr = json.loads(_pr_graphql([_review_node(review, who="mallory")], author="lead"))
+    node = pr["data"]["repository"]["pullRequest"]
+    node["comments"]["nodes"] = [{"author": {"login": "lead"}, "body": f"{note}\n{fix}", "createdAt": AFTER}]
+    node["reviewThreads"]["nodes"] = [thread]
+
+    def gh(*args, input=None):  # the GitHub answers pr_feedback reads: who the gh user is, then PR #7
+        return "lead\n" if args[:2] == ("api", "user") else json.dumps(pr)
+
+    board.gh_user.cache_clear()
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(board, "in_flight_files", lambda: {f: ["PR #9"] for f in files})
         mp.setattr(board, "issue_prs", lambda n: [7])
-        mp.setattr(board, "pr_feedback", lambda n: fb)
+        mp.setattr(board, "gh", gh)
+        mp.setattr(board, "repo", lambda: "o/r")
         return board.brief_of(issue)
 
 
