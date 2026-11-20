@@ -317,7 +317,6 @@ def test_a_local_tag_unlike_origins_is_refused_before_any_release(world, tmp_pat
 
 def test_the_command_prints_its_steps_and_a_refusal_as_result(world, monkeypatch, capsys):
     monkeypatch.setattr(cli, "root", lambda: world.clone)
-    monkeypatch.setattr(config, "get", lambda: config.Config(release_files=FILES))
     monkeypatch.setattr(board, "repo", lambda: "o/r")
     assert cli.run(cli.build().parse_args(["release", "publish", "0.1.18"])) == 0
     assert capsys.readouterr().out.splitlines()[-1] == "RESULT: published v0.1.18"
