@@ -575,6 +575,43 @@ def test_dev_test_runs_cleanly_with_a_ros_like_pythonpath(tmp_path, ros_like_sit
     assert "ignoring PYTHONPATH" in capsys.readouterr().out
 
 
+NICE_PROBE = "import os, pathlib\n\n\ndef test_nice():\n    pathlib.Path({out!r}).write_text(str(os.nice(0)))\n"
+
+
+def test_dev_test_runs_pytest_at_the_configured_background_nice(tmp_path, monkeypatch):
+    """#543: `dev test` drops its pytest to `background_nice`, so a gate running meanwhile keeps the CPU."""
+    out = tmp_path / "nice.txt"
+    test = tmp_path / "test_nice.py"
+    test.write_text(NICE_PROBE.format(out=str(out)))
+    level = min(19, os.nice(0) + 3)
+    monkeypatch.setattr(config, "get", lambda: config.Config(background_nice=level))
+    assert gate.test([str(test)], affected=False, slow=False, n=1) == 0
+    assert int(out.read_text()) == level
+    assert config.Config().background_nice == 10
+
+
+def test_lower_priority_never_raises_priority():
+    """A caller already niced past `background_nice` stays there: lowering a nice level needs root."""
+    probe = "from devkit import gate; import os; gate.lower_priority(0); print(os.nice(0))"
+    out = subprocess.run(["nice", "-n", "5", sys.executable, "-c", probe], capture_output=True, text=True, check=True)
+    assert int(out.stdout) == min(19, os.nice(0) + 5)
+
+
+def test_gate_stages_run_at_the_callers_priority(tmp_path, monkeypatch):
+    """#543: the gate itself is never niced, even with a background_nice set."""
+    monkeypatch.setattr(config, "get", lambda: config.Config(background_nice=19))
+    out = tmp_path / "nice.txt"
+    probe = f"import os, pathlib; pathlib.Path({str(out)!r}).write_text(str(os.nice(0)))"
+    gate._run("probe", [sys.executable, "-c", probe], cwd=tmp_path, checked=1)
+    assert int(out.read_text()) == os.nice(0)
+
+
+@pytest.mark.parametrize("value", [-1, 20, True, "10"])
+def test_background_nice_must_be_a_nice_level(value):
+    with pytest.raises(config.ConfigError, match="background_nice"):
+        config.parse({"background_nice": value})
+
+
 def test_the_rerun_gate_imports_bytecode_only_from_its_prefix(tmp_path):
     env = os.environ | {"PYTHONPYCACHEPREFIX": str(tmp_path), gate.CLEAN_FLAG: str(tmp_path)}
     code = "import sys; from devkit import gate; print(gate.clean_bytecode(), sys.modules['devkit.gate'].__cached__)"

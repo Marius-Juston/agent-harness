@@ -22,6 +22,7 @@
 import argparse
 import contextlib
 import fcntl
+import functools
 import hashlib
 import itertools
 import json
@@ -643,6 +644,18 @@ def set_gate_slots(n: int | None) -> Path:
     return f
 
 
+def lower_priority(level: int) -> None:
+    """Raise this process's nice level to `level`, never lowering it (that needs root)."""
+    if (now := os.nice(0)) < level:
+        os.nice(level - now)
+
+
+def background() -> Callable[[], None]:
+    """The `preexec_fn` of pytest runs outside the gate (#543): the forked process drops to `[tool.devkit]
+    background_nice`, so a gate at nice 0 keeps most of a busy machine's CPU. The level is read here, before the fork."""
+    return functools.partial(lower_priority, config.get().background_nice)
+
+
 def slot_paths(path: Path, slots: int) -> list[Path]:
     """The slots' lock files: `path` itself, then `<path>.1` ... `<path>.<slots-1>`."""
     return [path, *(path.with_name(f"{path.name}.{i}") for i in range(1, slots))]
@@ -931,7 +944,7 @@ def test(paths: list[str], affected: bool, slow: bool, n: int | None) -> int:
     cmd = pytest_cmd(paths or ["tests"], slow=slow, n=n)
     env, dropped = hermetic_env(os.environ)
     _say_dropped(dropped)
-    code = subprocess.run(cmd, cwd=root(), env=env, check=False).returncode
+    code = subprocess.run(cmd, cwd=root(), env=env, check=False, preexec_fn=background()).returncode
     if code == 5:
         print("pytest collected no tests (exit 5): check the paths/markers", file=sys.stderr)
         return 1

@@ -95,6 +95,9 @@ class Config:
     # cores and memory idle; integrate's gate still takes the next free slot ahead of queued worker gates. A gate uses
     # every slot file it finds, so lowering it takes effect once the extra `gate.lock.<n>` files are deleted.
     gate_slots: int = 1
+    # #543: the nice level `dev test` and `dev suite-audit` run pytest at (0-19; 0 = as the caller). Linux CFS gives a
+    # nice-0 gate about 10x the CPU of a nice-10 process, so heavy non-gate work leaves a gate near its idle speed.
+    background_nice: int = 10
     # #381: the bound the guard_bash hook puts on an agent's Bash command that waits without one (an until/while poll
     # loop, `tail -f`, `watch`, `wait`, `gh run watch`, ...): it runs as `timeout <wait_bound_s> bash -c '<command>'`.
     # The hook reads this key itself (it cannot import devkit); 0 turns the rewrite off.
@@ -169,6 +172,8 @@ def parse(data: dict) -> Config:
         raise ConfigError(f'[tool.devkit] ci = {data["ci"]!r}: expected "actions" or "local"')
     if data.get("gate_slots", 1) < 1:
         raise ConfigError(f"[tool.devkit] gate_slots = {data['gate_slots']!r}: expected a whole number of at least 1")
+    if not 0 <= data.get("background_nice", 10) <= 19:
+        raise ConfigError(f"[tool.devkit] background_nice = {data['background_nice']!r}: expected 0 to 19")
     if data.get("wait_bound_s", 0) < 0:
         raise ConfigError(f"[tool.devkit] wait_bound_s = {data['wait_bound_s']!r}: expected seconds, or 0 for no bound")
     for match, tools in data.get("mcp_prereqs", {}).items():
