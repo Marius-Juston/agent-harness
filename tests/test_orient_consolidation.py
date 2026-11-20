@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from devkit import board, consolidation, workflow
+from devkit import board_state, consolidation, workflow
 from tests.test_consolidation import Repo, cfg, code
 
 
@@ -15,9 +15,9 @@ def repo(tmp_path) -> Repo:
 
 
 def test_orient_shows_the_review_line(monkeypatch, tmp_path):
-    monkeypatch.setattr(board, "sync", lambda: [])
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: [])
-    monkeypatch.setattr(board, "closed_numbers", lambda: set())
+    monkeypatch.setattr(board_state, "sync", lambda: [])
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: [])
+    monkeypatch.setattr(board_state, "closed_numbers", lambda: set())
     monkeypatch.setattr(workflow, "root", lambda: tmp_path)
     monkeypatch.setattr(workflow, "status", lambda: "  wt")
     monkeypatch.setattr(consolidation, "orient_line", lambda path, c=None: "## Consolidation review due: x")

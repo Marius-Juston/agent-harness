@@ -9,7 +9,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, gate, workflow
+from devkit import board, board_gh, board_state, gate, paths, workflow
 
 T0 = "2026-10-11T00:00:00Z"
 DONE = "## DONE WHEN\n- [ ] a test passes\n"
@@ -199,9 +199,9 @@ def gh_board(monkeypatch):
             return json.dumps([{"name": n} for n in board.LABELS])
         return ""
 
-    monkeypatch.setattr(board, "gh", gh)
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
-    monkeypatch.setattr(board, "default_branch", lambda: "main")
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(paths, "default_branch", lambda: "main")
     board.repo_labels.cache_clear()
     yield calls
     board.repo_labels.cache_clear()
@@ -232,10 +232,10 @@ def test_gate_stage_is_offline_tolerant(monkeypatch):
     def offline(*a, **k):
         raise board.BoardError("gh issue list: error connecting to api.github.com")
 
-    monkeypatch.setattr(board, "fetch", offline)
+    monkeypatch.setattr(board_state, "fetch", offline)
     ran = board.check_board()
     assert ran.ok and ran.checked == 0 and "not read" in ran.warnings[0]
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("gh")))
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("gh")))
     assert board.check_board().ok
 
 
@@ -245,8 +245,8 @@ def test_gate_runs_the_board_stage():
 
 def test_orient_warns_with_the_lint_count(monkeypatch, tmp_path):
     issues = [mk(1, ["P2", "status:ready"], title="no component")]
-    monkeypatch.setattr(board, "fetch", lambda *a, **k: issues)
-    monkeypatch.setattr(board, "closed_numbers", lambda: set())
+    monkeypatch.setattr(board_state, "fetch", lambda *a, **k: issues)
+    monkeypatch.setattr(board_state, "closed_numbers", lambda: set())
     monkeypatch.setattr(workflow, "status", lambda: "")
     monkeypatch.setattr(workflow, "root", lambda: tmp_path)
     out = workflow.orient()

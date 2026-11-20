@@ -73,6 +73,8 @@ HOOK_PAYLOADS = {
     "guard_bash.py": {"tool_name": "Bash", "tool_input": {"command": "ls"}},
     "uv_add_guard.py": {"tool_name": "Bash", "tool_input": {"command": "ls"}},
     "read_guard.py": {"tool_name": "Read", "tool_input": {"file_path": "a.py"}},
+    # a path with a secret hint, so file_guard imports guard_bash under the minimum Python too
+    "file_guard.py": {"tool_name": "Read", "tool_input": {"file_path": "/x/.config/uv/uv.toml"}},
     "edit_guard.py": {"tool_name": "Edit", "tool_input": {"file_path": "a.py", "old_string": "x", "new_string": "y"}},
     "lint_after_edit.py": {"tool_name": "Edit", "tool_input": {"file_path": "a.py"}},
     "completion_gate.py": {"hook_event_name": "SubagentStop", "agent_type": "harness-ops:builder"},
@@ -459,6 +461,15 @@ def test_the_gaps_file_counts_what_changed_and_what_is_new():
     assert "`single-source`" in gap
 
 
+def test_the_gap_pass_snowballs_the_accepted_papers_in_one_call():
+    """#618: `dev lit snowball` (#591) ranks candidates from all accepted papers at once; refs and cited-by stay for
+    one paper's own links."""
+    _, skill = frontmatter.read(PLUGIN / "skills/research/SKILL.md")
+    gap = " ".join(skill.split("**Gap pass.**", 1)[1].split("\n4. ", 1)[0].split())
+    assert "`uv run dev lit snowball <accepted ids>`" in gap
+    assert "`uv run dev lit refs <id>`" in gap and "`uv run dev lit cited-by <id>`" in gap
+
+
 def test_the_research_audit_runs_a_second_cycle_only_after_send_back():
     """#84: verifier strictness alone moved unsupported-citation rates from about 3 % to 18 % on identical outputs,
     so a second audit mostly re-rolls the verifier; it runs only when the first one sent the note back."""
@@ -474,3 +485,36 @@ def test_the_researcher_quotes_and_locates_each_recommendation_driving_claim():
     rule = next(x for x in body.splitlines() if "recommendation-driving claim" in x)
     assert "verbatim quote" in rule and "locator" in rule
     assert "two independent sources" in rule and "`single-source`" in rule
+
+
+def test_the_auditor_checks_quote_locator_and_sources_and_re_reads_the_cited_section():
+    """#413: each recommendation-driving claim needs a verbatim quote, a locator and two independent sources or a
+    `single-source` tag. #512: the auditor re-reads the cited section of the paper, never only its abstract."""
+    _, body = frontmatter.read(PLUGIN / "agents/research-auditor.md")
+    sample = body.split("2. Sample the claims", 1)[1].split("\n3. ", 1)[0]
+    check = next(x for x in sample.splitlines() if "verbatim quote" in x)
+    assert "a locator" in check and "two independent sources" in check and "`single-source`" in check
+    read = next(x for x in sample.splitlines() if "re-read" in x)
+    assert "never only the abstract" in read and "outline first" in read and "dev lit read <id> --section" in read
+    assert "never curl or WebFetch" in read
+    assert "quote problem is a finding" in body
+
+
+def test_the_researcher_reads_the_outline_then_the_cited_section_and_tags_abstract_only():
+    """#512: owner, 2026-11-19: agents must read papers, not abstracts, token-cheaply: outline, then one section."""
+    _, body = frontmatter.read(PLUGIN / "agents/researcher.md")
+    read = next(x for x in body.splitlines() if "**Read papers, not abstracts.**" in x)
+    assert "get_paper_outline" in read and "uv run dev lit read <id>" in read and "read_paper_section" in read
+    rule = next(x for x in body.splitlines() if "recommendation-driving claim" in x)
+    assert "any SOURCED claim on a paper" in rule and "§3.2" in rule and "`abstract-only`" in rule
+    assert "The abstract backs no number, method or limitation" in rule
+
+
+def test_the_research_skill_says_what_reconsider_means_within_two_audits():
+    """#413: the auditor's round-3 'reconsider' cannot fire under the skill's two-audit maximum, so the second audit
+    is told it is the last round, and the skill says what the researcher and the lead then do."""
+    _, skill = frontmatter.read(PLUGIN / "skills/research/SKILL.md")
+    audit = " ".join(skill.split("## 3. Audit", 1)[1].split("\n## ", 1)[0].split())
+    assert "told it is the last round, so its Blocking findings mean 'reconsider'" in audit
+    assert "On 'reconsider', the researcher drops failed claims or relabels them BELIEVED" in audit
+    assert "the lead asks the owner before integrating a changed Recommendation" in audit

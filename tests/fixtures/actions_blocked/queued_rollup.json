@@ -1,0 +1,26 @@
+{
+ "headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+ "state": "OPEN",
+ "statusCheckRollup": [
+  {
+   "__typename": "CheckRun",
+   "completedAt": "0001-01-01T00:00:00Z",
+   "conclusion": "",
+   "detailsUrl": "https://github.com/o/r/actions/runs/44633261493/job/135945173687",
+   "name": "check",
+   "startedAt": "2026-11-19T22:56:46Z",
+   "status": "QUEUED",
+   "workflowName": "gate"
+  },
+  {
+   "__typename": "CheckRun",
+   "completedAt": "0001-01-01T00:00:00Z",
+   "conclusion": "",
+   "detailsUrl": "https://github.com/o/r/actions/runs/44633261454/job/135945173073",
+   "name": "ui",
+   "startedAt": "2026-11-19T22:56:46Z",
+   "status": "QUEUED",
+   "workflowName": "ui"
+  }
+ ]
+}

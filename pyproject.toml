@@ -21,6 +21,8 @@ dependencies = [
     "diff-cover>=11.0.0",
     "pytest-timeout>=2.4",
     "pathspec>=1.1",
+    "pypdf>=7.1",
+    "ty==0.0.107",  # pre-1.0: pinned exactly, so a bump is a deliberate PR whose gate shows the new count
 ]
 
 [project.urls]
@@ -33,10 +35,14 @@ dev = "devkit.cli:main"
 semantic = [
     "model2vec>=0.10",
 ]
+mutants = [
+    "cosmic-ray>=8.9.0",
+]
 
 [dependency-groups]
 dev = [
     "copier>=9.19.1",
+    "cosmic-ray>=8.9.0",
 ]
 
 [build-system]
@@ -61,6 +67,12 @@ surface = ["plugins/harness-ops"]
 path_check_skip = ["plugins/", "template/"]
 # Dependabot bumps ci.yml only; `dev docs` (and so integrate) moves the template's copies of those pins with it (#431).
 action_pins = { ".github/workflows/ci.yml" = ["template/.github/workflows/*.yml"] }
+# Every project pins this code: integrate refuses a PR touching it until a reviewer verdict says merge (#501).
+required_reviews = { "devkit/" = "harness-ops:reviewer", "plugins/" = "harness-ops:reviewer" }
+# A release states its version in all three (tests/test_version_sync.py); `dev release` writes and checks them (#605).
+release_files = ["pyproject.toml", "plugins/harness-ops/.claude-plugin/plugin.json", "copier.yml"]
+# Owner decision (#499): a harness-ops:reviewer merge verdict on the current head suffices; autopilot integrates it.
+autopilot_trust_review = "harness-ops:reviewer"
 
 # The review trigger's code count leaves out research evidence (experiment scripts never imported) and the trees
 # reached only by path: eval fixtures from evals/scenarios/*.yaml, test fixtures, and the Copier template (#451).
@@ -76,9 +88,40 @@ exclude = [
     "template/*",
 ]
 
+# Import contracts the gate's arch stage keeps (`uv run dev arch`). Review 1 cut docs -> cli (#140) and PR #417 put
+# the pattern back as checks -> cli, which review 2 cut again (#449): docs/research/architecture-grading.md §4.
+# The acyclic contract is off until #615 cuts main's two cycles (code -> reuse, integrate <-> workflow); [arch]
+# max_import_cycle = 2 in .devkit/ratchets.toml holds them meanwhile. Uncomment it then.
+# [[tool.devkit.arch.contracts]]
+# name = "devkit modules form no import cycle"
+# type = "acyclic_siblings"
+# ancestors = ["devkit"]
+
+[[tool.devkit.arch.contracts]]
+name = "only the entry point imports the CLI"
+type = "forbidden"
+source_modules = ["devkit.*"]
+forbidden_modules = ["devkit.cli"]
+
 # `dev integrate --local-ci`: what stands in for each required CI job when Actions cannot run (ci.yml's commands).
+# `check` runs, after the gate, each other `run:` step of ci.yml's check job, the same text in the same order
+# (tests/test_config.py compares them, #544); a multi-line step runs as itself under bash -e, as Actions runs it.
 [tool.devkit.local_ci]
-check = []
+check = [
+    ["uvx", "prek@0.5.3", "run", "-c", ".pre-commit-config.yaml", "--hook-stage", "manual", "gitleaks-history", "--all-files"],
+    ["uv", "audit", "--locked", "--preview-features", "audit-command"],
+    ["env", "RUNNER_TEMP={tmpdir}", "bash", "-ec", '''
+rules="$RUNNER_TEMP/semgrep-rules"
+mkdir -p "$rules"
+curl -fsSL --retry 3 https://codeload.github.com/semgrep/semgrep-rules/tar.gz/a5ad1714f00c9f7fde980cab0ea1d6dc6d414fd2 \
+  | tar -xz -C "$rules" --strip-components=1
+uvx semgrep@1.186.0 scan --error --metrics=off --disable-version-check \
+  --config "$rules/bash" --config "$rules/yaml/github-actions" --config "$rules/dockerfile" \
+  --config "$rules/generic/ci" .
+'''],
+    ["uv", "export", "--frozen", "--format", "cyclonedx1.5", "--preview-features", "sbom-export", "--quiet", "--output-file", "sbom.cdx.json"],
+    ["uv", "run", "pytest", "-m", "live", "tests/test_security.py"],
+]
 template = [["scripts/render_check.sh", "{tmpdir}/rendered-project"]]
 plugin = [
     ["npx", "--yes", "@anthropic-ai/claude-code@2.1.296", "plugin", "validate", "--strict", "."],
@@ -100,6 +143,11 @@ ignore = ["E501", "RUF001", "RUF002", "RUF003", "S603", "S607"]
 [tool.ruff.lint.per-file-ignores]
 # pytest asserts; fake tokens and seeded random generators are test fixtures, not secrets
 "**/tests/**" = ["S101", "S105", "S311"]
+
+# The gate's ty stage counts diagnostics against [types] max_diagnostics of .devkit/ratchets.toml. Research scratch is
+# frozen evidence, not code (#451): it is not type checked.
+[tool.ty.src]
+exclude = ["docs/research/_scratch/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

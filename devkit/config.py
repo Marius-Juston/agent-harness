@@ -5,8 +5,11 @@ a typo must not silently fall back to a default."""
 import dataclasses
 import functools
 import re
+import sys
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from devkit.paths import root
 
@@ -17,7 +20,9 @@ CONSOLIDATION: dict[str, float | int | str | list[str]] = {
     "growth_min_loc": 5000,  # ... and by at least this many LOC
     "fp_commits": 100,  # first-parent commits since the last review
     "dormant_k": 30,  # a unit no commit touched in this many first-parent commits is dormant
-    "dormant_share": 0.05,  # orphaned dormant units (dormant, imported by no active unit): share of code LOC
+    # orphaned dormant units (dormant, imported by no active unit), less files a CI workflow, a command table or an
+    # active decision names (#634): share of code LOC
+    "dormant_share": 0.05,
     "churny_loc": 1000,  # a non-test file over this many LOC ...
     "churny_commits": 30,  # ... changed by at least this many non-merge commits
     "lazy_cycle": 10,  # an import cycle of this many modules
@@ -26,6 +31,17 @@ CONSOLIDATION: dict[str, float | int | str | list[str]] = {
     "exclude": ["migrations/*", "*/migrations/*"],  # globs of dynamically loaded trees, never orphaned
     "since": "",  # a commit to count from instead of the newest `Consolidation-Review:` trailer
 }
+
+# `[tool.devkit.arch]`: what `dev arch` and the gate's arch stage check (devkit/arch.py). Contracts on the import
+# graph, each a `[[tool.devkit.arch.contracts]]` table (none by default), with import-linter's names for two kinds:
+# `acyclic_siblings` (`ancestors`: no import cycle among each package's direct submodules) and `forbidden`
+# (`source_modules` may not import `forbidden_modules`, directly or through other modules). A pattern names a module
+# and its descendants; `*` stands for one name part. Imports inside functions count (they run when called); imports
+# under `if TYPE_CHECKING:` never run, so they count only when `type_checking_imports` is true.
+# Evidence: docs/research/architecture-grading.md §4.
+ARCH: dict[str, object] = {"type_checking_imports": False, "contracts": []}
+CONTRACT_KEYS = {"acyclic_siblings": ("ancestors",), "forbidden": ("source_modules", "forbidden_modules")}
+MODULE_PATTERN = re.compile(r"(?:\w+|\*)(?:\.(?:\w+|\*))*")
 
 # `[tool.devkit.prices."<model id>"]`: list $ per million tokens that `dev agent-stats --cost` prices with
 # (devkit/stats.py). A model is priced only by its exact id (a -YYYYMMDD snapshot suffix ignored), so an older model
@@ -57,7 +73,11 @@ class Config:
     generated_dir: str = "docs/generated"
     handoff: str = "docs/HANDOFF.md"
     evals_dir: str = "evals/scenarios"
+    research_eval_dir: str = "evals/research"  # `dev eval research` (#590): questions.yaml and gold.json
     area_map: str = ".github/labeler.yml"  # path -> area label map, in actions/labeler format
+    # #605: the files `dev release prepare` writes the version into and `publish` requires to agree: a .toml's
+    # [project] version, a .json's top-level version, a .yml's first `default: v<version>` line.
+    release_files: list[str] = field(default_factory=lambda: ["pyproject.toml"])
     # Plain content: a PR touching only these (with CONTENT_SUFFIXES) is not harness and needs no lead read.
     content: list[str] = field(default_factory=lambda: ["docs/research/", "docs/log/", "docs/questions/"])
     # Backticked repository paths in prose under these prefixes are not checked (their markdown links still are).
@@ -80,8 +100,26 @@ class Config:
     # cores and memory idle; integrate's gate still takes the next free slot ahead of queued worker gates. A gate uses
     # every slot file it finds, so lowering it takes effect once the extra `gate.lock.<n>` files are deleted.
     gate_slots: int = 1
+    # #543: the nice level `dev test` and `dev suite-audit` run pytest at (0-19; 0 = as the caller). Linux CFS gives a
+    # nice-0 gate about 10x the CPU of a nice-10 process, so heavy non-gate work leaves a gate near its idle speed.
+    background_nice: int = 10
+    # #381: the bound the guard_bash hook puts on an agent's Bash command that waits without one (an until/while poll
+    # loop, `tail -f`, `watch`, `wait`, `gh run watch`, ...): it runs as `timeout <wait_bound_s> bash -c '<command>'`.
+    # The hook reads this key itself (it cannot import devkit); 0 turns the rewrite off.
+    wait_bound_s: int = 3600
     # `dev integrate --local-ci` (#76): a required check that has not queued after this long means Actions cannot run.
     local_ci_wait_s: int = 600
+    # #531: "actions" waits for GitHub Actions, and stands in (as `--local-ci` does) once a head shows Actions cannot
+    # run it (billing block, offline self-hosted runners, no workflow run). "local" never waits on Actions: integrate
+    # and the train read each head's checks once, refuse a required check Actions ran and failed, and stand in for
+    # the rest at once; for a repository whose Actions minutes run out.
+    ci: str = "actions"
+    # #531: with ci = "actions", a head with no workflow run after this long means Actions cannot run.
+    actions_start_s: int = 20
+    # #531: a job queued for a self-hosted runner that the repository's runner list cannot settle (an organisation's
+    # repository, a list unreadable, incomplete or without a runner of its labels) is stranded only after this long:
+    # scale-from-zero runners take minutes to start. With a listed matching runner offline, actions_start_s applies.
+    actions_stranded_s: int = 300
     # `dev integrate --local-ci`: required check context -> the commands (argument lists, run in the merged tree after
     # the gate passed; "{tmpdir}" becomes a fresh empty directory) that stand in for it. [] = the gate alone. A required
     # context without an entry is never posted: integrate refuses instead.
@@ -95,6 +133,9 @@ class Config:
     # `commands = { coverage = ["python", "-m", "study.coverage"] }`. `dev coverage <args>` runs that list with <args>
     # appended, in the project root, and exits with its code; `dev --help` lists it. A built-in's name is an error.
     commands: dict[str, list[str]] = field(default_factory=dict)
+    # #9: the contact address `dev lit read` sends Unpaywall, which asks for one on every call, when UNPAYWALL_EMAIL is
+    # unset. "" skips Unpaywall. A shared team or project address, never a person's private one in a public repo.
+    contact_email: str = ""
     # Claude Code plugins `dev setup` installs at project scope: "plugin@marketplace" -> marketplace source.
     plugins: dict[str, str] = field(
         default_factory=lambda: {
@@ -114,7 +155,13 @@ class Config:
     # `{ "src/math/" = "harness-ops:reviewer" }`. integrate refuses a PR touching such a path until the gh user posted a
     # `Verdict: merge` review (board.VERDICT) naming that agent on its head or an ancestor. {} requires none.
     required_reviews: dict[str, str] = field(default_factory=dict)
+    # #499: the reviewer agent `dev autopilot` trusts, e.g. "harness-ops:reviewer": it integrates a harness PR (with
+    # --harness-ok for that head only) when the gh user's latest Verdict review naming that agent (as required_reviews
+    # matches it) says merge on the PR's current head, instead of waiting for the lead to read the diff. Every other
+    # integrate check still applies. "" (the default) trusts none: a project opts in.
+    autopilot_trust_review: str = ""
     consolidation: dict[str, object] = field(default_factory=lambda: dict(CONSOLIDATION))
+    arch: dict[str, object] = field(default_factory=lambda: dict(ARCH))
     prices: dict[str, dict[str, float]] = field(default_factory=lambda: {k: dict(v) for k, v in PRICES.items()})
 
 
@@ -134,8 +181,14 @@ def parse(data: dict) -> Config:
         kind = getattr(want, "__origin__", want)
         if (isinstance(kind, type) and not isinstance(value, kind)) or (kind is int and isinstance(value, bool)):
             raise ConfigError(f"[tool.devkit] {key} = {value!r}: expected {want}")
+    if data.get("ci", "actions") not in ("actions", "local"):
+        raise ConfigError(f'[tool.devkit] ci = {data["ci"]!r}: expected "actions" or "local"')
     if data.get("gate_slots", 1) < 1:
         raise ConfigError(f"[tool.devkit] gate_slots = {data['gate_slots']!r}: expected a whole number of at least 1")
+    if not 0 <= data.get("background_nice", 10) <= 19:
+        raise ConfigError(f"[tool.devkit] background_nice = {data['background_nice']!r}: expected 0 to 19")
+    if data.get("wait_bound_s", 0) < 0:
+        raise ConfigError(f"[tool.devkit] wait_bound_s = {data['wait_bound_s']!r}: expected seconds, or 0 for no bound")
     for match, tools in data.get("mcp_prereqs", {}).items():
         if not (isinstance(tools, list) and all(isinstance(t, str) and t for t in tools)):
             raise ConfigError(f"[tool.devkit.mcp_prereqs] {match} = {tools!r}: expected a list of binary names")
@@ -159,6 +212,8 @@ def parse(data: dict) -> Config:
         data = {**data, "consolidation": _consolidation(data["consolidation"])}
     if "prices" in data:
         data = {**data, "prices": _prices(data["prices"])}
+    if "arch" in data:
+        data = {**data, "arch": _arch(data["arch"])}
     return Config(**data)
 
 
@@ -190,12 +245,59 @@ def _consolidation(table: dict) -> dict:
     return {**CONSOLIDATION, **table}
 
 
+def _arch(table: dict) -> dict:
+    if unknown := sorted(set(table) - set(ARCH)):
+        raise ConfigError(f"[tool.devkit.arch]: unknown key(s) {unknown}; known: {sorted(ARCH)}")
+    if not isinstance(table.get("type_checking_imports", False), bool):
+        raise ConfigError("[tool.devkit.arch] type_checking_imports: expected true or false")
+    contracts = table.get("contracts", [])
+    if not isinstance(contracts, list) or not all(isinstance(c, dict) for c in contracts):
+        raise ConfigError("[tool.devkit.arch] contracts: expected [[tool.devkit.arch.contracts]] tables")
+    names: set[str] = set()
+    for c in contracts:
+        kind, name = c.get("type"), c.get("name")
+        where = f"[[tool.devkit.arch.contracts]] {name!r}"
+        if kind not in CONTRACT_KEYS:
+            raise ConfigError(f"{where}: type {kind!r}; known: {sorted(CONTRACT_KEYS)}")
+        if not isinstance(name, str) or not name or name in names:
+            raise ConfigError(f"{where}: expected a unique non-empty `name`")
+        names.add(name)
+        if unknown := sorted(set(c) - {"name", "type", *CONTRACT_KEYS[kind]}):
+            raise ConfigError(f"{where}: unknown key(s) {unknown} for type {kind}")
+        for key in CONTRACT_KEYS[kind]:
+            v = c.get(key)
+            if not (isinstance(v, list) and v and all(isinstance(m, str) and MODULE_PATTERN.fullmatch(m) for m in v)):
+                raise ConfigError(f"{where}: {key} = {v!r}: expected a list of dotted module names (`*` allowed)")
+    return {**ARCH, **table}
+
+
 def parse_cap(text: str) -> int:
     """A quota cap percent: a decimal integer 0-100 (surrounding whitespace allowed), else ValueError."""
     t = text.strip()
     if not re.fullmatch(r"[0-9]{1,3}", t) or int(t) > 100:
         raise ValueError(f"quota cap {text!r}: expected an integer percent 0-100")
     return int(t)
+
+
+def parse_slots(text: str) -> int:
+    """A gate slot count: a decimal integer 1-256 (surrounding whitespace allowed), else ValueError."""
+    t = text.strip()
+    if not re.fullmatch(r"[0-9]{1,3}", t) or not 1 <= int(t) <= 256:
+        raise ValueError(f"gate slots {text!r}: expected a whole number 1-256")
+    return int(t)
+
+
+def local_override(path: Path, parse: Callable[[str], int], key: str) -> tuple[int, str]:
+    """(value, "local" | "pyproject"): the owner's machine-local override in `path` (`dev quota-cap`, `dev gate-slots`)
+    when `parse` accepts it, else `[tool.devkit] <key>`. A corrupt or unreadable override falls back with a warning,
+    never an error: a guard or the gate must not lose its setting."""
+    try:
+        return parse(path.read_text(errors="replace")), "local"
+    except FileNotFoundError:
+        pass
+    except (OSError, ValueError) as exc:
+        print(f"warning: ignoring {path} ({exc}); using [tool.devkit] {key}", file=sys.stderr)
+    return getattr(get(), key), "pyproject"
 
 
 @functools.cache

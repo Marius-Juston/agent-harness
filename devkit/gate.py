@@ -6,18 +6,23 @@
   also records the test selection, so a conftest that narrows collection by branch cannot lend its pass to another.
   recorded_pass is the one test of a recorded pass, for this cache and for `dev pr` alike.
 - The first line names the worktree, interpreter and devkit the gate runs; a devkit from elsewhere is a warning.
-- Each stage prints one line; a failing stage prints at most FAIL_LINES of its output and saves the rest in a log of
+- Each stage prints one line with its wall time; a failing stage prints at most FAIL_LINES of its output and saves the rest in a log of
   its own: worktrees share the state dir, so nothing a run writes there is named by stage and time alone.
 - A pytest run that passed nothing fails (nothing collected, everything skipped or deselected): it is not a pass.
 - The [tests] floors of ratchets.toml hold the run to a passed-test count and a line coverage; diff coverage is
   printed, never gated (docs/research/test-floors-and-coverage.md).
+- The [types] max_diagnostics of ratchets.toml caps ty's diagnostics count and only goes down; without it the ty
+  stage only reports the count.
 - Each gate's test run appends per-test outcome and duration to a bounded history in the machine's state dir (CI
-  uploads it as the test-history artifact), so an audit can find flaky and slow tests across runs.
+  uploads it as the test-history artifact), so an audit can find flaky and slow tests across runs; the gate adds its
+  stages' seconds to that record and prints the 10 slowest tests after the test stage (#521).
+- At most gate_slots gates run at once: this machine's `dev gate-slots` override, else [tool.devkit] (#523).
 """
 
 import argparse
 import contextlib
 import fcntl
+import functools
 import hashlib
 import itertools
 import json
@@ -28,13 +33,15 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable, Iterator, Mapping, MutableMapping, Sequence
+import tomllib
+from collections.abc import Callable, Generator, Mapping, MutableMapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import IO
 from xml.etree import ElementTree
 
 import devkit
-from devkit import board, checks, config, docs, rules, weaken
+from devkit import arch, board, checks, config, docs, rules, weaken
 from devkit.paths import git, root, state_dir
 from devkit.ran import Ran
 
@@ -84,13 +91,12 @@ HISTORY_CLOCK = time.time
 OUTCOMES = (("error", "error"), ("failure", "failed"), ("skipped", "skipped"))  # JUnit tag inside a testcase -> outcome
 
 
-def record_history(junit: Path, history: Path, at: int, keep: int = HISTORY_RUNS) -> None:
-    """Append one run (`at`, and per test id its outcome and seconds) from a JUnit report to a JSON-lines history,
-    keeping the last `keep` runs. An unreadable report records nothing: the history is evidence, never a gate."""
+def junit_tests(junit: Path) -> dict[str, list] | None:
+    """Per test id of a JUnit report, [outcome, seconds]; None when the report is unreadable."""
     try:
         cases = list(ElementTree.parse(junit).getroot().iter("testcase"))  # noqa: S314 - the gate's own pytest wrote it
     except (OSError, ElementTree.ParseError):
-        return
+        return None
     tests = {}
     for case in cases:
         tags = {x.tag for x in case}
@@ -100,14 +106,53 @@ def record_history(junit: Path, history: Path, at: int, keep: int = HISTORY_RUNS
         except ValueError:
             seconds = 0.0
         tests[f"{case.get('classname', '')}::{case.get('name', '')}".lstrip(":")] = [outcome, seconds]
+    return tests
+
+
+def record_history(junit: Path, history: Path, at: int, keep: int = HISTORY_RUNS) -> None:
+    """Append one run (`at`, and per test id its outcome and seconds) from a JUnit report to a JSON-lines history,
+    keeping the last `keep` runs. An unreadable report records nothing: the history is evidence, never a gate."""
+    if (tests := junit_tests(junit)) is not None:
+        append_run(history, {"at": at, "tests": tests}, keep)
+
+
+def append_run(history: Path, run: dict, keep: int = HISTORY_RUNS) -> None:
+    """Append `run` ({"at", "tests"} and, from the gate, "stages": seconds per stage) to the history, keeping the last
+    `keep` runs."""
     history.parent.mkdir(parents=True, exist_ok=True)
     # Every worktree's gate shares this file: read, trim and replace it under a lock, or two gates finishing at once
     # lose a run or mix theirs (#463).
     with open(history.with_name(history.name + ".lock"), "a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         lines = history.read_text().splitlines() if history.exists() else []
-        lines = [*lines, json.dumps({"at": at, "tests": tests}, separators=(",", ":"))][-keep:]
+        lines = [*lines, json.dumps(run, separators=(",", ":"))][-keep:]
         write_atomic(history, "\n".join(lines) + "\n")
+
+
+SLOWEST = 10  # tests the gate lists after its test stage
+STAGE_CLOCK = time.monotonic  # times each stage (injectable for tests)
+
+
+def stage_line(ran: Ran, seconds: float) -> str:
+    """The stage's line with its wall time as a column after the state: `ok      1.5s ruff lint: ...`."""
+    line = ran.line()
+    return f"{line[:5]}{seconds:6.1f}s {line[5:]}"
+
+
+def slowest(tests: dict[str, list], n: int = SLOWEST) -> list[str]:
+    """A header and the `n` slowest tests, slowest first (at most n + 1 lines; none for no tests). The header is not
+    indented, so a failed stage's problem block (fixloop.failing_lines) ends before it."""
+    if not tests:
+        return []
+    top = sorted(tests.items(), key=lambda kv: -kv[1][1])[:n]
+    return [f"slowest {len(top)} of {len(tests)} tests:", *(f"  {s:7.2f}s {name}" for name, (_, s) in top)]
+
+
+@dataclass
+class PytestRan(Ran):
+    """A pytest stage's result, with per test id [outcome, seconds] from its JUnit report (None: unreadable)."""
+
+    tests: dict[str, list] | None = None
 
 
 def write_atomic(path: Path, text: str) -> None:
@@ -143,16 +188,17 @@ def _run(
     env: dict[str, str] | None = None,
     history: Path | None = None,
 ) -> Ran:
-    ran = Ran(name, allow_empty=allow_empty)
+    ran = PytestRan(name, allow_empty=allow_empty) if "pytest" in cmd else Ran(name, allow_empty=allow_empty)
     with tempfile.TemporaryDirectory(prefix="gate-junit-") as tmp:
         junit = Path(tmp) / "junit.xml"
         full = [*cmd, f"--junitxml={junit}"] if "pytest" in cmd else cmd
         out = subprocess.run(full, cwd=cwd or root(), capture_output=True, text=True, check=False, env=env)
         # count what ran; an unreadable summary counts 0, which fails (never a silent pass)
-        if "pytest" in cmd:
+        if isinstance(ran, PytestRan):
             ran.checked = passed_count(out.stdout, junit)
-            if history is not None:
-                record_history(junit, history, at=int(HISTORY_CLOCK()))
+            ran.tests = junit_tests(junit)
+            if history is not None and ran.tests is not None:
+                append_run(history, {"at": int(HISTORY_CLOCK()), "tests": ran.tests})
         else:
             ran.checked = len(checks.tracked("*.py")) if checked is None else checked
     text = (out.stdout + out.stderr).strip()
@@ -297,6 +343,125 @@ def zizmor(cwd: Path | None = None) -> Ran:
     files = _workflow_files(cwd)
     args = ["--offline", "--no-progress", "--format", "plain", *files]
     return _tool_stage("zizmor", "zizmor", args, cwd, checked=len(files))
+
+
+TYPE_KEY = "types.max_diagnostics"  # the [[raise]] key that loosens the ty budget
+TYPE_SHOWN = 10  # diagnostics listed when the count is over the budget
+# Rules whose result depends on which packages (extras, optional tools) the environment has installed: kept out of the
+# budgeted count, so the count is the same in every venv of one tree, and only reported.
+TYPE_ENV_RULES = frozenset({"import-not-found", "missing-module-member", "possibly-missing-submodule"})
+
+
+def type_budget(text: str) -> int | None:
+    """[types] max_diagnostics of a ratchets.toml: the most ty diagnostics the gate allows, or None (no ratchet).
+    ValueError if bad."""
+    types = tomllib.loads(text).get("types", {})
+    for key in types:
+        if key != "max_diagnostics":
+            raise ValueError(f"[types] {key}: unknown key; known: ['max_diagnostics']")
+    budget = types.get("max_diagnostics")
+    if budget is not None and (isinstance(budget, bool) or not isinstance(budget, int) or budget < 0):
+        raise ValueError(f"[types] max_diagnostics = {budget!r}: expected an integer from 0")
+    return budget
+
+
+def type_problems(count: int, budget: int) -> tuple[list[str], list[str]]:
+    """(problems, notes) of the ty budget: above it fails; below it, a notice to lower it (the ratchet only tightens)."""
+    where = config.get().ratchets
+    if count > budget:
+        return [f"{count} ty diagnostics, above the budget max_diagnostics = {budget} ({where}): fix the new ones"], []
+    if count < budget:
+        return [], [f"lower max_diagnostics to {count} ({count} ty diagnostics, budget {budget})"]
+    return [], []
+
+
+def type_raises(cur: str, old: str) -> list[str]:
+    """The ty budget only tightens: one above main's, or removed, needs a [[raise]] new since main on TYPE_KEY whose
+    `to` covers it. The ratchets stage checks that every new [[raise]] is approved by the repository owner."""
+    before = type_budget(old) if old else None
+    if before is None:
+        return []
+    value = type_budget(cur)
+    if value is not None and value <= before:
+        return []
+    known = {(r.get("key"), r.get("to")) for r in tomllib.loads(old).get("raise", [])}
+    tos = [
+        r.get("to")
+        for r in tomllib.loads(cur).get("raise", [])
+        if r.get("key") == TYPE_KEY and (r.get("key"), r.get("to")) not in known and isinstance(r.get("to"), int)
+    ]
+    if value is None:
+        return [] if tos else [f"ratchets.toml: {TYPE_KEY} removed (was {before}) without an owner-approved [[raise]]"]
+    if not tos:
+        return [f"ratchets.toml: {TYPE_KEY} raised {before} -> {value} without an owner-approved [[raise]]"]
+    if value > max(tos):
+        return [f"ratchets.toml: {TYPE_KEY} raised to {value}, above its [[raise]] to = {max(tos)}"]
+    return []
+
+
+def type_check(base: str | None, cwd: Path | None = None) -> Ran:
+    """ty's diagnostics held to [types] max_diagnostics of ratchets.toml, a ceiling that only goes down (type_raises
+    against main). Without one the stage only reports the count (and is off when ty is not installed), so a project
+    turns the ratchet on by setting the budget to that count. ty reads its own [tool.ty] config for what to check."""
+    ran = Ran("ty (type diagnostics)", allow_empty=True)
+    where = config.get().ratchets
+    try:
+        text = ((cwd or root()) / where).read_text()
+    except OSError:
+        text = ""
+    try:
+        budget = type_budget(text)
+    except ValueError as e:  # TOMLDecodeError is a ValueError
+        ran.problems.append(f"{where}: {e}")
+        return ran
+    if base:  # a main without a readable ratchets.toml has no budget to compare with
+        with contextlib.suppress(RuntimeError, ValueError):
+            ran.problems += type_raises(text, git("show", f"{base}:{where}"))
+    binary = tool("ty")
+    if binary is None:
+        if budget is None:
+            ran.notes.append("off: ty not installed and no [types] max_diagnostics")
+        else:
+            notice = "ty not found (run `uv sync`); ty skipped"
+            (ran.problems if os.environ.get("CI") else ran.warnings).append(notice)
+        return ran
+    # --exit-zero: diagnostics are counted, not judged by ty's exit code; a bad config or a crash still exits 2/101
+    cmd = [binary, "check", "--output-format", "gitlab", "--exit-zero", "--no-progress", "--python", sys.prefix]
+    out = subprocess.run(cmd, cwd=cwd or root(), capture_output=True, text=True, check=False)
+    try:
+        found = json.loads(out.stdout)
+    except ValueError:
+        found = None
+    if out.returncode != 0 or not isinstance(found, list):
+        ran.problems += (out.stdout + out.stderr).strip().splitlines()[-FAIL_LINES:] or [f"ty exited {out.returncode}"]
+        return ran
+    ran.checked = len(checks.tracked("*.py")) if cwd is None else len(list(cwd.rglob("*.py")))
+    env = [d for d in found if d.get("check_name") in TYPE_ENV_RULES]
+    found = [d for d in found if d.get("check_name") not in TYPE_ENV_RULES]
+    if env:
+        ran.notes.append(
+            f"{len(env)} more depend on installed packages ({', '.join(sorted(TYPE_ENV_RULES))}): not counted"
+        )
+    if budget is None:
+        ran.notes.insert(
+            0,
+            f"{len(found)} ty diagnostics (report-only: set [types] max_diagnostics = {len(found)} in {where} "
+            "to ratchet them)",
+        )
+        return ran
+    problems, notes = type_problems(len(found), budget)
+    ran.notes[:0] = notes
+    if problems:  # the change's own files first: that is where the new diagnostics most likely are
+        changed = set(git("diff", "--name-only", base).splitlines()) if base else set()
+        found.sort(key=lambda d: d["location"]["path"] not in changed)
+        shown = [
+            f"{d['location']['path']}:{d['location']['positions']['begin']['line']}: {d['description']}" for d in found
+        ]
+        problems += shown[:TYPE_SHOWN] + (
+            [f"(+{len(shown) - TYPE_SHOWN} more: `ty check`)"] if len(shown) > TYPE_SHOWN else []
+        )
+    ran.problems += problems
+    return ran
 
 
 def pytest_cmd(paths: list[str], slow: bool = False, n: int | None = None) -> list[str]:
@@ -451,9 +616,44 @@ def take_lock_role(env: MutableMapping[str, str]) -> dict:
 SLOT_POLL_S = 0.2  # with several slots, how often a waiting gate tries them all again
 
 
+SLOTS_FILE = "gate_slots"  # in state_dir(): the owner's machine-local override (`dev gate-slots`), never committed
+SLOTS_SOURCES = {
+    "local": "local: `uv run dev gate-slots --clear` drops it",
+    "pyproject": "pyproject: [tool.devkit] gate_slots",
+}
+
+
+def slots_setting() -> tuple[int, str]:
+    """(gate slots, "local" | "pyproject"): this machine's override from `dev gate-slots` when it is valid (#523), else
+    `[tool.devkit] gate_slots` (#461). A corrupt or unreadable override falls back with a warning, never an error."""
+    return config.local_override(state_dir() / SLOTS_FILE, config.parse_slots, "gate_slots")
+
+
 def gate_slots() -> int:
-    """How many gates may run at once on this machine: `[tool.devkit] gate_slots` (#461)."""
-    return config.get().gate_slots
+    """How many gates may run at once on this machine (slots_setting)."""
+    return slots_setting()[0]
+
+
+def set_gate_slots(n: int | None) -> Path:
+    """Owner only (the Bash and Edit guards deny agents): write this machine's override, or drop it when n is None."""
+    f = state_dir() / SLOTS_FILE
+    if n is None:
+        f.unlink(missing_ok=True)
+    else:
+        write_atomic(f, f"{config.parse_slots(str(n))}\n")
+    return f
+
+
+def lower_priority(level: int) -> None:
+    """Raise this process's nice level to `level`, never lowering it (that needs root)."""
+    if (now := os.nice(0)) < level:
+        os.nice(level - now)
+
+
+def background() -> Callable[[], None]:
+    """The `preexec_fn` of pytest runs outside the gate (#543): the forked process drops to `[tool.devkit]
+    background_nice`, so a gate at nice 0 keeps most of a busy machine's CPU. The level is read here, before the fork."""
+    return functools.partial(lower_priority, config.get().background_nice)
 
 
 def slot_paths(path: Path, slots: int) -> list[Path]:
@@ -467,10 +667,12 @@ def _on_disk(path: Path) -> list[Path]:
     return ([path] if path.exists() else []) + sorted(found, key=lambda p: int(p.name.rsplit(".", 1)[1]))
 
 
-def effective_slots(path: Path, slots: int) -> int:
-    """`slots`, or more when slot files on disk say a gate elsewhere runs with more (a worktree whose pyproject still
-    has the old gate_slots, or a caller that names none): a gate must not wait while a slot it does not know is free.
-    Lowering gate_slots therefore takes effect once the extra `<path>.<n>` files are deleted with no gate running."""
+def effective_slots(path: Path, slots: int | None = None) -> int:
+    """`slots` (default gate_slots()), or more when slot files on disk say a gate elsewhere runs with more (a worktree
+    whose pyproject still has the old gate_slots, or a caller that names none): a gate must not wait while a slot it
+    does not know is free. Lowering gate_slots therefore takes effect once the extra `<path>.<n>` files are deleted
+    with no gate running."""
+    slots = gate_slots() if slots is None else slots
     numbered = [int(p.name.rsplit(".", 1)[1]) for p in _on_disk(path) if p != path]
     return max(slots, max(numbered, default=0) + 1)
 
@@ -496,7 +698,7 @@ def gate_lock(
     priority: bool = False,
     held: Path | None = None,
     slots: int = 1,
-) -> Iterator[None]:
+) -> Generator[None]:
     """At most `slots` gates per machine (effective_slots: more when slot files on disk show more), one per lock file
     of slot_paths (#461). Opened with "a+" (never truncating) so a waiting gate does not erase a holder's pid.
     A gate tries every slot without blocking. Worker gates that find none free queue on `<path>.wait` (plain flock, so
@@ -553,7 +755,7 @@ def _try(f: IO[str]) -> bool:
     return True
 
 
-def _any_free(locks: list[IO[str]]) -> bool:
+def _any_free(locks: Sequence[IO[str]]) -> bool:
     for f in locks:
         if _try(f):
             fcntl.flock(f, fcntl.LOCK_UN)
@@ -561,7 +763,7 @@ def _any_free(locks: list[IO[str]]) -> bool:
     return False
 
 
-def _wait_slot(locks: list[IO[str]]) -> IO[str]:
+def _wait_slot(locks: Sequence[IO[str]]) -> IO[str]:
     """Block until a slot is held: on the lock itself when there is one, else by trying them all every SLOT_POLL_S
     (flock cannot wait on several files at once)."""
     if len(locks) == 1:
@@ -602,16 +804,18 @@ def stages(
         lambda: rules.check_rules(base),
         board.check_board,
         lambda: checks.check_ratchets(base),
+        arch.check_arch,
         lambda: weaken.check_weakening(base, issue),
         lambda: checks.check_installs(base),
         lambda: checks.check_clones(base),
         lambda: checks.check_generated(docs.render(help_rows)),
         lambda: _run("ruff lint", ["ruff", "check", "--quiet", "--output-format", "concise", "."]),
         lambda: _run("ruff format", ["ruff", "format", "--check", "--quiet", "--output-format", "concise", "."]),
+        lambda: type_check(base),
         lock_check,
         actionlint,
         zizmor,
-        lambda: tests_stage(pytest_cmd(["tests"], slow=full), _floors(), base, history=state_dir() / HISTORY_FILE),
+        lambda: tests_stage(pytest_cmd(["tests"], slow=full), _floors(), base),  # check records the history
     ]
 
 
@@ -695,17 +899,28 @@ def check(
     with gate_lock(state_dir() / "gate.lock", on_wait=waiting, slots=gate_slots(), **role):
         start = time.time()
         failed = 0
+        seconds: dict[str, float] = {}
+        results = None  # the test stage's per-test [outcome, seconds]
         for stage in stages(full, commands, base, help_rows, parser, issue):
+            began = STAGE_CLOCK()
             ran = stage()
-            print(ran.line(), flush=True)
+            took = STAGE_CLOCK() - began
+            seconds[ran.name] = round(seconds.get(ran.name, 0) + took, 1)
+            print(stage_line(ran, took), flush=True)
             for p in ran.problems[:FAIL_LINES]:
                 print(f"     {p}")
             for w in ran.warnings[:10]:
                 print(f"     warning: {w}")
             for n in ran.notes:
                 print(f"     {n}")
+            if isinstance(ran, PytestRan) and ran.tests is not None:
+                results = ran.tests
+                for line in slowest(results):
+                    print(line)
             failed += not ran.ok
         took = time.time() - start
+        if results is not None:  # the stage timings beside the tests' in one record of the machine's history
+            append_run(state_dir() / HISTORY_FILE, {"at": int(HISTORY_CLOCK()), "tests": results, "stages": seconds})
     if failed:
         print(f"RESULT: failed ({failed} stage(s), {took:.0f} s)")
         return 1
@@ -729,7 +944,7 @@ def test(paths: list[str], affected: bool, slow: bool, n: int | None) -> int:
     cmd = pytest_cmd(paths or ["tests"], slow=slow, n=n)
     env, dropped = hermetic_env(os.environ)
     _say_dropped(dropped)
-    code = subprocess.run(cmd, cwd=root(), env=env, check=False).returncode
+    code = subprocess.run(cmd, cwd=root(), env=env, check=False, preexec_fn=background()).returncode
     if code == 5:
         print("pytest collected no tests (exit 5): check the paths/markers", file=sys.stderr)
         return 1

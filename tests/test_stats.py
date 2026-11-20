@@ -16,7 +16,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, config, fixloop, stats, workflow
+from devkit import board, board_brief, board_gh, board_state, config, fixloop, stats, workflow
 from tests.test_gate import fake_integrate  # noqa: F401 (a fixture)
 
 FIXTURE = Path(__file__).parent / "fixtures/transcript_usage.jsonl"
@@ -250,8 +250,8 @@ def test_merged_prs_flattens_the_graphql_pages_and_keeps_the_window(monkeypatch)
         "commits": {"nodes": [{"commit": {"oid": "b"}}]},
     }
     late = {**node, "number": 21, "mergedAt": "2026-10-20T00:00:00Z"}
-    monkeypatch.setattr(stats.board, "repo", lambda: "o/proj")
-    monkeypatch.setattr(stats.board, "gh", lambda *a: json.dumps(node) + "\n" + json.dumps(late) + "\n")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/proj")
+    monkeypatch.setattr(board_gh, "gh", lambda *a: json.dumps(node) + "\n" + json.dumps(late) + "\n")
     prs = stats.merged_prs("2026-10-11", "2026-10-16")
     assert [p["number"] for p in prs] == [20]
     assert prs[0]["closingIssuesReferences"] == [{"number": 12}] and prs[0]["commits"] == [{"oid": "b"}]
@@ -329,10 +329,10 @@ def test_a_disposition_comment_round_trips_and_only_trusted_later_records_count(
 
 def test_feedback_records_dispositions_on_the_pr(monkeypatch):
     posted = []
-    monkeypatch.setattr(fixloop.board, "pr_feedback", lambda pr: {"reviews": _reviews(), "comments": []})
-    monkeypatch.setattr(fixloop.board, "gh_user", lambda: ME)
-    monkeypatch.setattr(fixloop.board, "marked_comments", lambda pr, marker: [_cm(b) for _, b in posted])
-    monkeypatch.setattr(fixloop.board, "comment", lambda n, body: posted.append((n, body)) or "https://x/c1")
+    monkeypatch.setattr(board_brief, "pr_feedback", lambda pr: {"reviews": _reviews(), "comments": []})
+    monkeypatch.setattr(board_brief, "gh_user", lambda: ME)
+    monkeypatch.setattr(board_brief, "marked_comments", lambda pr, marker: [_cm(b) for _, b in posted])
+    monkeypatch.setattr(board_state, "comment", lambda n, body: posted.append((n, body)) or "https://x/c1")
     assert "F1, F2, F3, F4" in fixloop.undisposed_hint(7) and not posted
     lines = fixloop.dispose(7, ["F1=false", "rest=fixed"])
     assert [n for n, _ in posted] == [7]
@@ -353,10 +353,10 @@ def _github(monkeypatch, posted, fail=False):
 
     feedback = {"since": "2026-11-09T00:00:00Z", "head": "", "trusted": set(), "comments": [], "threads": [],
                 "threads_truncated": False, "reviews": _reviews()}  # fmt: skip
-    monkeypatch.setattr(board, "pr_feedback", lambda pr: feedback)
-    monkeypatch.setattr(board, "gh_user", lambda: ME)
-    monkeypatch.setattr(board, "marked_comments", marked)
-    monkeypatch.setattr(board, "comment", lambda n, body: posted.append((n, body)) or "https://x/c1")
+    monkeypatch.setattr(board_brief, "pr_feedback", lambda pr: feedback)
+    monkeypatch.setattr(board_brief, "gh_user", lambda: ME)
+    monkeypatch.setattr(board_brief, "marked_comments", marked)
+    monkeypatch.setattr(board_state, "comment", lambda n, body: posted.append((n, body)) or "https://x/c1")
 
 
 def test_board_feedback_dispose_on_the_command_line(monkeypatch, capsys):
@@ -423,9 +423,9 @@ def test_findings_mode_reads_merged_prs_from_github(monkeypatch):
     node = {"number": 7, "mergedAt": "2026-11-05T00:00:00Z", "reviews": {"nodes": _reviews()},
             "comments": {"nodes": []}}  # fmt: skip
     old = node | {"number": 6, "mergedAt": "2026-10-01T00:00:00Z"}
-    monkeypatch.setattr(stats.board, "repo", lambda: "o/proj")
-    monkeypatch.setattr(stats.board, "gh_user", lambda: ME)
-    monkeypatch.setattr(stats.board, "gh", lambda *a: json.dumps(node) + "\n" + json.dumps(old) + "\n")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/proj")
+    monkeypatch.setattr(board_brief, "gh_user", lambda: ME)
+    monkeypatch.setattr(board_gh, "gh", lambda *a: json.dumps(node) + "\n" + json.dumps(old) + "\n")
     monkeypatch.setattr(stats, "load_runs", lambda *a: pytest.fail("findings need no transcripts"))
     text = stats.run("findings", since="2026-11-01")
     assert "4 findings on 1 merged PRs" in text and "n=0" in text

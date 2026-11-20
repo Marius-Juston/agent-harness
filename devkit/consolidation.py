@@ -21,6 +21,7 @@ import tarfile
 import tempfile
 import threading
 import time
+import tomllib
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -132,6 +133,12 @@ def is_test(path: str) -> bool:
     return bool(TEST_RE.search(path))
 
 
+def is_code(path: str, exclude: list[str]) -> bool:
+    """A file of a counted language outside the excluded globs (and the built-in EXCLUDE)."""
+    ext = os.path.splitext(path)[1].lower()
+    return ext in COMMENT and not any(fnmatch.fnmatch(path, g) for g in EXCLUDE + exclude)
+
+
 def code_files(repo: Path, rev: str, exclude: list[str]) -> list[tuple[str, str]]:
     """(blob sha, path) of tracked code files at ``rev``, symlinks and excluded globs left out."""
     out = []
@@ -140,9 +147,7 @@ def code_files(repo: Path, rev: str, exclude: list[str]) -> list[tuple[str, str]
             continue
         meta, path = entry.split("\t", 1)
         mode, typ, sha = meta.split()
-        if typ != "blob" or mode == "120000" or os.path.splitext(path)[1].lower() not in COMMENT:
-            continue
-        if not any(fnmatch.fnmatch(path, g) for g in EXCLUDE + exclude):
+        if typ == "blob" and mode != "120000" and is_code(path, exclude):
             out.append((sha, path))
     return out
 
@@ -228,6 +233,40 @@ def tarjan(graph: dict[str, set[str]]) -> list[list[str]]:
     return out
 
 
+PATH_TOKEN_RE = re.compile(r"[\w./-]+")
+COMMAND_TABLES = ("local_ci", "regenerate", "commands")  # the [tool.devkit] tables whose argument lists run files
+
+
+def _strings(value: object) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        value = list(value.values())
+    return [s for v in value for s in _strings(v)] if isinstance(value, list) else []
+
+
+def reached_paths(repo: Path, rev: str, reader: BlobReader) -> set[str]:
+    """Paths at ``rev`` run or held without an import (#634): named by a CI workflow (.github/workflows/*.yml), by a
+    `[tool.devkit]` command table in pyproject.toml, or by an active decision's enforced-by path. A test or a
+    repository check naming a path does not reach it: note §6's true positive is a tree only a check reads."""
+    text: list[str] = []
+    for p in _git(repo, "ls-tree", "-z", "--name-only", "--full-tree", rev, "--", ".github/workflows/").split("\0"):
+        if p.endswith((".yml", ".yaml")):
+            text.append(reader.text(f"{rev}:{p}") or "")
+    try:
+        tool = tomllib.loads(reader.text(f"{rev}:pyproject.toml") or "").get("tool", {}).get("devkit", {})
+        decisions = tomllib.loads(reader.text(f"{rev}:{tool.get('decisions', config.Config().decisions)}") or "")
+    except (tomllib.TOMLDecodeError, AttributeError):
+        tool, decisions = {}, {}
+    text += [s for t in COMMAND_TABLES for s in _strings(tool.get(t))]
+    out = {t.removeprefix("./").rstrip(".") for s in text for t in PATH_TOKEN_RE.findall(s)}
+    rows = decisions.get("decision", [])
+    for r in rows if isinstance(rows, list) else []:
+        if isinstance(r, dict) and r.get("status") == "active" and isinstance(r.get("enforced-by"), list):
+            out |= {m["path"] for m in r["enforced-by"] if isinstance(m, dict) and isinstance(m.get("path"), str)}
+    return out
+
+
 def signals(repo: Path, rev: str, cfg: dict, reader: BlobReader | None = None) -> dict:
     """Size and structural smells at ``rev``, from git objects and regexes only."""
     own = reader is None
@@ -244,6 +283,7 @@ def signals(repo: Path, rev: str, cfg: dict, reader: BlobReader | None = None) -
                 if not is_test(path):
                     lazy += len(INDENTED_IMPORT_RE.findall(src))
                     imps += len(ANY_IMPORT_RE.findall(src))
+        reached = reached_paths(repo, rev, reader)
     finally:
         if own:
             reader.close()
@@ -270,6 +310,11 @@ def signals(repo: Path, rev: str, cfg: dict, reader: BlobReader | None = None) -
             used |= {unit_of(mods[w]) for w in ws}
     tests = {u for u in unit_loc if all(is_test(p) for p in loc if unit_of(p) == u)}
     orphan = {u for u in dormant - used if u not in tests or not uses[u] - dormant}
+    left: Counter[str] = Counter()  # an orphan's LOC less its reached files'
+    for p, n in loc.items():
+        if unit_of(p) in orphan and p not in reached:
+            left[unit_of(p)] += n
+    orphan = {u for u in orphan if left[u]}
     commits = Counter(
         p for p in _git(repo, "log", "--no-merges", f"-{MAX_WALK}", "--name-only", "--format=", rev).split("\n") if p
     )
@@ -277,7 +322,7 @@ def signals(repo: Path, rev: str, cfg: dict, reader: BlobReader | None = None) -
         p for p, n in loc.items() if not is_test(p) and n > cfg["churny_loc"] and commits[p] >= cfg["churny_commits"]
     )
     cycle = max(tarjan(graph), key=len, default=[])
-    share = round(sum(unit_loc[u] for u in orphan) / (total or 1), 3)
+    share = round(sum(left[u] for u in orphan) / (total or 1), 3)
     smells = {
         "dormant": share >= cfg["dormant_share"],
         "lazy-imports": imps >= cfg["lazy_min_imports"] and lazy >= cfg["lazy_share"] * imps,
@@ -289,8 +334,8 @@ def signals(repo: Path, rev: str, cfg: dict, reader: BlobReader | None = None) -
         "loc": loc,
         "fp_commits": nfp,
         "orphaned_dormant_share": share,
-        "orphaned_dormant_units": sorted(orphan, key=lambda u: (-unit_loc[u], u)),
-        "unit_loc": {u: unit_loc[u] for u in orphan},
+        "orphaned_dormant_units": sorted(orphan, key=lambda u: (-left[u], u)),
+        "unit_loc": {u: left[u] for u in orphan},
         "imports": imps,
         "indented_import_share": round(lazy / (imps or 1), 3),
         "largest_import_cycle": len(cycle),

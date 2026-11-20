@@ -9,7 +9,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from devkit import cli, config, consolidation, workflow
+from devkit import board_gh, cli, config, consolidation, workflow
 
 ENV = {
     "GIT_AUTHOR_NAME": "t",
@@ -108,6 +108,61 @@ def test_orphaned_dormant_unit_is_a_smell_unless_an_active_unit_imports_it(repo)
     assert "dormant" not in s["smells"] and s["orphaned_dormant_units"] == []
 
 
+REACH_PYPROJECT = """
+[tool.devkit]
+decisions = "rules/decisions.toml"
+regenerate = [["uv", "run", "python", "./tools/rehash.py"]]
+[tool.devkit.local_ci]
+template = [["tools/render.sh", "{tmpdir}/out"]]
+"""
+REACH_DECISIONS = """
+[[decision]]
+id = "D1"
+enforced-by = [{ path = "tools/frozen.py", literal = "x" }]
+status = "active"
+[[decision]]
+id = "D2"
+enforced-by = [{ path = "tools/old.py", literal = "x" }]
+status = "superseded"
+"""
+
+
+def test_a_file_named_by_ci_a_command_table_or_an_active_decision_is_reached_not_orphaned(repo):
+    # #634 (owner option B): scripts/ is run by CI or frozen by a decision, never imported, so it was always orphaned.
+    tools = ("ci", "render", "rehash", "frozen", "old", "tested", "checked")
+    repo.commit(
+        {
+            **{f"tools/{t}.{'sh' if t == 'render' else 'py'}": code(10, t) for t in tools},
+            ".github/workflows/ci.yml": "jobs:\n  check:\n    steps:\n      - run: uv run python tools/ci.py --all\n",
+            "pyproject.toml": REACH_PYPROJECT,
+            "rules/decisions.toml": REACH_DECISIONS,
+            "app/check.py": 'PATH = "tools/checked.py"\n',
+        }
+    )
+    for k in range(3):
+        repo.commit({"app/main.py": code(5 + k), "tests/test_tools.py": f'PATH = "tools/tested.py"\nK = {k}\n'})
+    s = consolidation.signals(repo.path, "HEAD", cfg(dormant_k=2, dormant_share=0.5))
+    # reach through a test or a repository check (the note §6 true positive) does not count; a superseded row neither
+    assert s["orphaned_dormant_units"] == ["tools"] and s["unit_loc"] == {"tools": 30}
+    assert "dormant" not in s["smells"]
+
+
+def test_a_unit_whose_every_file_is_reached_is_not_orphaned(repo):
+    repo.commit({"tools/ci.py": code(10), ".github/workflows/ci.yaml": "run: ./tools/ci.py\n"})
+    for k in range(3):
+        repo.commit({"app/main.py": code(5 + k)})
+    s = consolidation.signals(repo.path, "HEAD", cfg(dormant_k=2, dormant_share=0.1))
+    assert s["orphaned_dormant_units"] == [] and "dormant" not in s["smells"]
+
+
+def test_a_path_named_only_as_a_prefix_of_another_is_not_reached(repo):
+    repo.commit({"tools/a.py": code(10), ".github/workflows/ci.yml": "run: tools/a.pyc tools/a.py.bak x/tools/a.py\n"})
+    for k in range(3):
+        repo.commit({"app/main.py": code(5 + k)})
+    s = consolidation.signals(repo.path, "HEAD", cfg(dormant_k=2))
+    assert s["orphaned_dormant_units"] == ["tools"]
+
+
 def test_import_cycle_and_function_level_imports_are_smells(repo):
     a = "import pkg.b\n\ndef f():\n    import json\n    import os\n    return json, os\n"
     b = "from pkg import a\n"
@@ -169,11 +224,9 @@ def test_only_a_first_parent_trailer_block_resets_the_trigger(repo):
 
 
 def test_integrate_writes_the_trailer_into_the_merge_commit(monkeypatch):
-    from devkit import board
-
     calls = []
-    monkeypatch.setattr(board, "gh", lambda *a, **k: calls.append(a) or "")
-    monkeypatch.setattr(board, "repo", lambda: "o/r")
+    monkeypatch.setattr(board_gh, "gh", lambda *a, **k: calls.append(a) or "")
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     monkeypatch.setattr(workflow, "_remote_shas", lambda n: ("h1", "m1"))
     assert workflow._merge_if_unchanged(7, "h1", "m1", review=138) is None
     assert calls[-1][calls[-1].index("--body") + 1] == "Consolidation-Review: #138"

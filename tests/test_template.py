@@ -14,6 +14,7 @@ from copier import run_copy, run_update
 
 from devkit import checks, config, frontmatter
 from devkit.paths import root
+from tests.test_config import as_ci_run, ci_check_commands
 
 ROOT = root()
 
@@ -79,6 +80,14 @@ def test_the_project_pins_the_devkit_and_the_plugin_to_this_release(rendered):
     assert source == {"source": "github", "repo": "Marius-Juston/agent-harness", "ref": tag}
 
 
+def test_the_local_check_runs_what_the_gate_workflow_runs(rendered):
+    """#544: `dev integrate --local-ci` stands in for the gate workflow's `check` job with `local_ci.check`."""
+    local = config.parse(tomllib.loads((rendered / "pyproject.toml").read_text())["tool"]["devkit"]).local_ci
+    ci = ci_check_commands((rendered / ".github/workflows/gate.yml").read_text())
+    assert [as_ci_run(argv) for argv in local["check"]] == ci
+    assert any("gitleaks-history" in c for c in ci) and any(c.startswith("uv audit") for c in ci)
+
+
 def test_the_answers_file_supports_copier_update(rendered):
     answers = yaml.safe_load((rendered / ".copier-answers.yml").read_text())
     assert answers["project_name"] == "demo-project" and answers["_commit"] and "_src_path" in answers
@@ -123,6 +132,18 @@ def test_the_project_carries_the_research_api_keys_setup(rendered):
     # one text: this repository's own setup page is the template's, so the two never drift apart
     assert (ROOT / "docs/SETUP.md").read_text() == (ROOT / "template/docs/SETUP.md").read_text()
     assert "docs/SETUP.md#research-api-keys" in (ROOT / "README.md").read_text()
+
+
+def test_the_setup_page_gives_every_secret_dev_lit_reads_a_recipe():
+    """#622: each name the secrets file may hold has its own `read -rsp ... printf` line, never an echo or export."""
+    from devkit import lit
+
+    text = (ROOT / "docs/SETUP.md").read_text()
+    section = text.split("## Research API keys", 1)[1].split("\n## ", 1)[0]
+    for name in lit.SECRET_NAMES:
+        recipe = f"printf '{name}=%s\\n' \"$k\" >> ~/.config/api-keys.env; unset k"
+        assert f"| `{name}` |" in section and recipe in section, name
+    assert "core.ac.uk/services/api" in section and "never paste" in section.lower()
 
 
 def test_copier_update_brings_the_research_api_keys_setup_to_an_existing_project(tmp_path):

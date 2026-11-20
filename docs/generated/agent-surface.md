@@ -7,10 +7,10 @@
 | name | model | effort | tools | words | use when |
 |---|---|---|---|---|---|
 | harness-ops:architect | opus | high | Read, Grep, Glob, Bash | 426 | Read-only consolidation review of the whole repository, run when `uv run dev orient` says a review is due or the owner asks for one. |
-| harness-ops:builder | opus | medium | all | 619 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
-| harness-ops:research-auditor | opus | high | Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers | 600 | Adversarial, read-only audit of one research note. |
-| harness-ops:researcher | opus | high | all | 600 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
-| harness-ops:reviewer | opus | medium | Read, Grep, Glob, Bash | 597 | Read-only pre-merge review of one PR against its issue's DONE WHEN, the research it cites and the project rules. |
+| harness-ops:builder | opus | medium | all | 650 | Implements one build/infra/bug issue test-first in its own worktree and hands back a gated PR. |
+| harness-ops:research-auditor | opus | high | Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__arxiv__get_abstract, mcp__arxiv__get_paper_outline, mcp__arxiv__read_paper_section, mcp__arxiv__search_papers | 599 | Adversarial, read-only audit of one research note. |
+| harness-ops:researcher | opus | high | all | 599 | Researches one question or one research issue and writes or extends one cited note in docs/research/ (house style, labelled claims, verified sources). |
+| harness-ops:reviewer | opus | medium | Read, Grep, Glob, Bash | 598 | Read-only pre-merge review of one PR against its issue's DONE WHEN, the research it cites and the project rules. |
 | harness-ops:suite-auditor | opus | medium | Read, Grep, Glob, Bash | 272 | Read-only judgement pass of a size-tiered test-suite audit, run when `uv run dev suite-audit report` lists judgement items. |
 | harness-ops:tester | opus | high | all | 285 | Writes adversarial, property-based and regression tests for one issue or one merged change (inputs nobody planned for, wrong state, crashes midway), fixes sm... |
 
@@ -19,7 +19,7 @@
 | name | invocation | words | purpose |
 |---|---|---|---|
 | harness-ops:harness | model + /harness-ops:harness | 558 | How to change a project's agent surface safely — CLAUDE.md, .claude/ settings and agents, skills, hooks, the [tool.devkit] config, CI — without drift or bloa... |
-| harness-ops:lead | model + /harness-ops:lead | 718 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
+| harness-ops:lead | model + /harness-ops:lead | 719 | The lead session's routine in a repository run with agent-harness — orient, integrate finished PRs, file and rank issues, dispatch workers with one-line prom... |
 | harness-ops:research | model + /harness-ops:research | 650 | Recursive deep research in a repository run with agent-harness — decompose a question, fan out researcher subagents in rounds, chase the gaps each round reve... |
 
 ## Hooks
@@ -28,6 +28,13 @@
 |---|---|---|---|
 | plugins/harness-ops/hooks/hooks.json | SessionStart | startup/resume/clear/compact | `scripts/session_brief.sh` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash/WebFetch | `scripts/guard_bash.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Grep | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
+| plugins/harness-ops/hooks/hooks.json | PreToolUse | Read | `scripts/file_guard.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash | `scripts/uv_add_guard.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Bash/Read | `scripts/read_guard.py` |
 | plugins/harness-ops/hooks/hooks.json | PreToolUse | Edit/Write/MultiEdit/NotebookEdit | `scripts/edit_guard.py` |
@@ -62,11 +69,12 @@
 | `check` | the gate: drift checks, budgets, lint, tests (one per machine; cached per tree) |
 | `test` | pytest with workers scaled to free memory; --affected runs the change's tests |
 | `docs` | regenerate the generated references and the research INDEX.md |
-| `code` | navigate by symbol: outline / show / refs / find (capped output) |
+| `code` | navigate by symbol: outline / show / refs / find / search (capped output) |
 | `code outline` | signatures / headings of a file |
 | `code show` | body of a function, class or Class.method |
 | `code refs` | who mentions a symbol, grouped by file, tests last |
 | `code find` | regex search, capped per file |
+| `code search` | the functions a task description most likely means (BM25), one line each |
 | `board` | work items (GitHub issues): list, next, new, claim, beat, block, release, sync, sweep, event, brief |
 | `board init` | create the status/priority/type/area/stale labels in the GitHub repo |
 | `board list` | open items, one line each (STALE = in progress, no update for 6 h) |
@@ -86,27 +94,37 @@
 | `board feedback` | a PR's comments and reviews since its last commit, and its unresolved threads |
 | `pr` | worker: push the gated branch, open the PR, move the item to review |
 | `pr-title` | CI: fail unless the PR title is Conventional Commits (title from PR_TITLE) |
+| `release` | lead: prepare (version bumps, uv lock) or publish (tag, GitHub Release) X.Y.Z |
+| `release prepare` | on a release branch: write the version into release_files and run uv lock |
+| `release publish` | on main at the merged release commit: tag, push, GitHub Release (rerun-safe) |
 | `integrate` | lead: re-gate a PR merged onto main in a throwaway worktree, then merge it |
+| `autopilot` | lead: one loop tick in code (quota, board sync, integrate ready PRs); prints only what needs a decision |
 | `cite-check` | resolve every source in research notes; flag dead links and title mismatches |
 | `lit` | literature search shared by all agents: rate-limited, cached, compact (OpenAlex, S2, Crossref, Europe PMC, arXiv) |
 | `lit search` | papers for a query: title, year, venue, cites, ids, abstract snippet |
 | `lit status` | each source's health now (live probe); exits 1 only when every default source is down: run before a research round |
 | `lit get` | papers by DOI, arXiv id, OpenAlex W-id or S2 id: authors, open-access link, full abstract; several ids batch into one OpenAlex call |
+| `lit read` | a paper's full text (arXiv HTML/PDF, Europe PMC, the open-access copy), cached: its outline, or one section with --section |
 | `lit refs` | citation chasing through OpenAlex: the works it cites (backward), most cited first, compact lines like search |
 | `lit cited-by` | citation chasing through OpenAlex: the works citing it (forward), most cited first, compact lines like search |
+| `lit snowball` | expand accepted papers by references, citations, co-citation, coupling and related works (OpenAlex): one line per candidate, ranked, naming the signals that surfaced it |
 | `reuse` | reuse before build: `check NAME...` verifies packages you name (exists, gates G1-G6, maintenance); `"<need>"` searches for more (GitHub, ecosyste.ms, deps.dev; shares dev lit's cache and rate limits) |
-| `research` | research notes: new |
+| `research` | research notes: new, search |
+| `research search` | what earlier notes, their labelled claims and cached full texts already say (BM25), one line each |
 | `research new` | create <research_dir>/<slug>.md from the house template |
 | `gotcha` | append a one-line lesson to the .claude/rules file scoped to a path |
 | `setup` | once per machine/clone: uv sync, git config, plugin install, then doctor |
 | `doctor` | read-only: what this machine still needs |
 | `usage-poll` | record the weekly usage percent every 10 min for the spawn guard (detach it) |
 | `quota-cap` | the spawn guard's weekly cap and its source; owner only: `! uv run dev quota-cap <0-100>` sets a machine-local override (never committed), --clear drops it |
+| `gate-slots` | how many gates run at once here, and the source; owner only: `! uv run dev gate-slots <n>` sets a machine-local override (never committed), --clear drops it |
 | `eval` | micro-scenario evals of the agent surface via claude -p in a remote-less clone |
 | `consolidation` | architecture review: is one due (orient shows it), and the report the architect reads |
 | `consolidation status` | is a review due since the last Consolidation-Review: trailer, and why (fast) |
 | `consolidation report` | read-only measurements: smells, growth by directory, command overlap, parse errors |
+| `arch` | architecture in at most 8 lines: import contracts, largest cycle, top 3 hotspots, LOC ceiling |
 | `agent-stats` | scorecard from transcripts: tokens, calls, big-result share per agent type |
+| `mutants` | advisory mutation of the change's lines: surviving mutants, untested lines |
 | `suite-audit` | size-tiered audit of the whole test suite: is one due, and the nine checks |
 | `suite-audit status` | is an audit due since the last one (what orient shows), and why |
 | `suite-audit report` | tier, the nine checks and the judgement items for harness-ops:suite-auditor |
@@ -117,13 +135,13 @@
 |---|---|---|
 | CLAUDE.md | 277 | 600 |
 | plugins/harness-ops/agents/architect.md | 426 | 600 |
-| plugins/harness-ops/agents/builder.md | 619 | 650 |
-| plugins/harness-ops/agents/research-auditor.md | 600 | 600 |
-| plugins/harness-ops/agents/researcher.md | 600 | 600 |
-| plugins/harness-ops/agents/reviewer.md | 597 | 600 |
+| plugins/harness-ops/agents/builder.md | 650 | 650 |
+| plugins/harness-ops/agents/research-auditor.md | 599 | 600 |
+| plugins/harness-ops/agents/researcher.md | 599 | 600 |
+| plugins/harness-ops/agents/reviewer.md | 598 | 600 |
 | plugins/harness-ops/agents/suite-auditor.md | 272 | 600 |
 | plugins/harness-ops/agents/tester.md | 285 | 600 |
 | plugins/harness-ops/commands/gotcha.md | 177 | 650 |
 | plugins/harness-ops/skills/harness/SKILL.md | 558 | 650 |
-| plugins/harness-ops/skills/lead/SKILL.md | 718 | 720 |
+| plugins/harness-ops/skills/lead/SKILL.md | 719 | 720 |
 | plugins/harness-ops/skills/research/SKILL.md | 650 | 650 |

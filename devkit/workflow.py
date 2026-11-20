@@ -18,18 +18,22 @@ import threading
 import time
 import traceback
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from devkit import board, branches, checks, config, consolidation, handoff, quota
+from devkit import integrate as admission
 from devkit.ci_status import (  # re-exported: devkit/train.py reads these through devkit.workflow
+    Probe,
     actions_enabled,
     await_actions,
     await_checks,
     check_key,
     latest_checks,
     local_ci_refusal,
-    only_pending,
+    only_pending,  # noqa: F401 - devkit/integrate.py and devkit/train.py read it by name
     required_contexts,
+    stand_in_mode,
     standing,
     unfinished,
 )
@@ -42,7 +46,7 @@ from devkit.fixloop import (  # re-exported: devkit/train.py reads these through
     send_back_conflicting,
     undisposed_hint,
 )
-from devkit.gate import HELD_ENV, PRIORITY_ENV, free_gb, holders, recorded_pass
+from devkit.gate import HELD_ENV, PRIORITY_ENV, effective_slots, free_gb, holders, recorded_pass, slots_setting
 from devkit.merging import (  # re-exported: devkit/train.py reads these through devkit.workflow
     GENERATED_MERGE,  # noqa: F401 - tests read it here
     _add_worktree,
@@ -60,7 +64,7 @@ from devkit.prtext import (  # re-exported: plugin scripts and devkit/train.py r
     REUSE_FORMS,  # noqa: F401 - completion_gate.py imports it by name
     SESSION_RULE,
     conventional_title,
-    expected_title,
+    expected_title,  # noqa: F401 - devkit/integrate.py reads it by name (tests patch it here)
     reuse_problem,  # noqa: F401 - completion_gate.py imports it by name
     session_leaks,
     title_problem,
@@ -163,8 +167,12 @@ def status(as_json: bool = False, resume: bool = False) -> str:
         return json.dumps(rows, indent=1) if as_json else resume_text(rows)
     wts = branches.worktrees()
     pct, cap = quota.quota_reading()
+    setting, source = slots_setting()
+    slots = effective_slots(state_dir() / "gate.lock", setting)  # slot files a larger setting left count too
     data = {
         "gate": gate_holder(),
+        "gate_slots": slots,
+        "gate_slots_source": source if slots == setting else "slot files on disk",
         "mem_gb": round(free_gb(), 1),
         "worktrees": wts,
         "quota": quota.quota(),
@@ -173,7 +181,8 @@ def status(as_json: bool = False, resume: bool = False) -> str:
     }
     if as_json:
         return json.dumps(data, indent=1)
-    out = [f"gate {data['gate']} . {data['mem_gb']} GB free . {data['quota']}"]
+    slots = f"{data['gate_slots']} gate slots ({data['gate_slots_source']})"
+    out = [f"gate {data['gate']} . {slots} . {data['mem_gb']} GB free . {data['quota']}"]
     for w in wts:
         out.append(
             f"  {w['branch']:<40} +{w['ahead']} {'*' + str(w['dirty']) if w['dirty'] else ''}  {w['last']}  {w['path']}"
@@ -438,14 +447,19 @@ HELD_POLL_S = 1.0  # how often bounded_run looks for its `held` file while the c
 
 
 def bounded_run(
-    cmd: list[str], timeout_s: float, held: Path | None = None, wait_s: float = 0, **kwargs: object
+    cmd: list[str],
+    timeout_s: float,
+    held: Path | None = None,
+    wait_s: float = 0,
+    cancel: threading.Event | None = None,
+    **kwargs: object,
 ) -> int | None:
     """Run `cmd` in a session of its own and return its exit code, or None when it outran `timeout_s`: then the whole
     process group (uv, the gate, its pytest workers) is killed, since killing only `uv` would leave the gate under it
     holding the machine's gate lock. With `held`, `timeout_s` counts from when that file appears (the gate holds the
     lock, #385) and the time before it is bounded by `wait_s`. An interrupt, SIGTERM or SIGHUP to this process kills
     the group too, since none of them reaches a separate session (in the main thread only, where Python can handle
-    signals)."""
+    signals). Setting `cancel` (from another thread) kills the group the same way within HELD_POLL_S."""
     main = threading.current_thread() is threading.main_thread()
     old = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGHUP)} if main else {}
     for s, handler in old.items():
@@ -462,8 +476,12 @@ def bounded_run(
                     if left <= 0:
                         _kill_group(proc)
                         return None
+                    step = min(left, HELD_POLL_S) if cancel is not None or not running else left
                     with contextlib.suppress(subprocess.TimeoutExpired):
-                        return proc.wait(timeout=left if running else min(left, HELD_POLL_S))
+                        return proc.wait(timeout=step)
+                    if cancel is not None and cancel.is_set():
+                        _kill_group(proc)
+                        return None
             except BaseException:
                 _kill_group(proc)
                 raise
@@ -490,12 +508,14 @@ def gate_issue(info: dict, since: str) -> str:
     return f"{m.group(1) if m else '-'}:{since}"
 
 
-def run_gate(tree: Path, contexts: list[str], log: Path, issue: str | None = None) -> bool | str:
+def run_gate(
+    tree: Path, contexts: list[str], log: Path, issue: str | None = None, cancel: threading.Event | None = None
+) -> bool | str:
     """The gate, then (`--local-ci`) each required context's own stand-in commands, in the merged tree; all output
     goes to `log` (kept for `--why`) and, as it comes, to stdout (`_follow`). True when every one passed, the reason
     when the gate was stopped: it waited past `gate_lock_wait_s` for the machine's gate lock, which it takes ahead of
-    worker gates, or ran past `gate_deadline_s` once it held it (#385). `issue` goes to the gate as ISSUE_ENV
-    (`weaken.spans`)."""
+    worker gates, or ran past `gate_deadline_s` once it held it (#385), or `cancel` was set (#541: the checks run
+    beside it already decided). `issue` goes to the gate as ISSUE_ENV (`weaken.spans`)."""
     cfg = config.get()
     stop = threading.Event()
     with log.open("w") as out, tempfile.TemporaryDirectory(prefix="gate-held-") as marks:
@@ -508,11 +528,13 @@ def run_gate(tree: Path, contexts: list[str], log: Path, issue: str | None = Non
             env = {k: v for k, v in os.environ.items() if k != ISSUE_ENV} | {PRIORITY_ENV: "1", HELD_ENV: str(held)}
             env |= {ISSUE_ENV: issue} if issue else {}
             kw = {"cwd": tree, "stdout": out, "stderr": subprocess.STDOUT, "env": env}
-            code = bounded_run(GATE, cfg.gate_deadline_s, held=held, wait_s=cfg.gate_lock_wait_s, **kw)
+            code = bounded_run(GATE, cfg.gate_deadline_s, held=held, wait_s=cfg.gate_lock_wait_s, cancel=cancel, **kw)
             ok: bool | str = code == 0
             if code is None:
                 ok = (
-                    f"the gate ran past {cfg.gate_deadline_s} s (gate_deadline_s) once it held the gate lock"
+                    "the gate was cancelled: the checks run beside it decided first"
+                    if cancel is not None and cancel.is_set()
+                    else f"the gate ran past {cfg.gate_deadline_s} s (gate_deadline_s) once it held the gate lock"
                     if held.exists()
                     else f"the gate waited past {cfg.gate_lock_wait_s} s (gate_lock_wait_s) for the machine's gate lock"
                 )
@@ -548,11 +570,14 @@ def _follow(log: Path, stop: threading.Event) -> None:
             stop.wait(FOLLOW_S)
 
 
-def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: list[str], update: dict) -> int | None:
-    """`--local-ci`, after the local run passed on the merged tree whose commit is `tip`: wait for Actions on `tip`,
-    then post a success status for each required context Actions did not run, with the log's hash, and say so on the
-    PR. None to go on to the merge, else the exit code after the result line."""
-    print(f"waiting for Actions on {tip[:10]} ({', '.join(contexts)}) ...", flush=True)
+def _stand_in(
+    pr_number: int, tip: str, contexts: list[str], log: Path, todo: list[str], update: dict, mode: str = "--local-ci"
+) -> int | None:
+    """`--local-ci` (or what `mode` names: why CI ran locally, kept in the status and the comment), after the local run passed on the merged tree whose commit is `tip`: wait for Actions on `tip`
+    (not with `ci = "local"`), then post a success status for each required context Actions did not run, with the
+    log's hash, and say so on the PR. None to go on to the merge, else the exit code after the result line."""
+    if config.get().ci != "local":
+        print(f"waiting for Actions on {tip[:10]} ({', '.join(contexts)}) ...", flush=True)
     state, now = await_actions(pr_number, tip, contexts)
     if state == "moved":
         print(f"RESULT: stopped (the PR head moved away from {tip[:10]} while waiting for Actions); rerun integrate")
@@ -565,7 +590,7 @@ def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: li
         return result(pr_number, 1, "waiting", judged=tip, pending=running, **({"head": tip} | update))
     if stood := [c for c, s in now.items() if s == "never-ran"]:
         digest = hashlib.sha256(log.read_bytes()).hexdigest()
-        note = f"dev integrate --local-ci: passed on this commit; log sha256 {digest[:16]}"
+        note = f"dev integrate ({mode}): passed on this commit; log sha256 {digest[:16]}"
         for ctx in stood:
             board.gh(
                 "api", "-X", "POST", f"repos/{board.repo()}/statuses/{tip}",
@@ -575,8 +600,13 @@ def _stand_in(pr_number: int, tip: str, contexts: list[str], log: Path, todo: li
             f"`{c}`: " + (" && ".join(" ".join(a) for a in config.get().local_ci[c]) or "the gate") for c in stood
         )
         body = (
-            f"CI ran locally (`dev integrate --local-ci`): GitHub Actions did not run {', '.join(stood)} on {tip} "
-            "(disabled, billing-blocked, or not queued in time). On that exact merged tree `uv run dev check "
+            f"CI ran locally (`dev integrate`, {mode}): GitHub Actions did not run {', '.join(stood)} on {tip} "
+            + (
+                "(it is not waited on)"
+                if config.get().ci == "local"
+                else "(disabled, billing-blocked, no runner, or not queued in time)"
+            )
+            + ". On that exact merged tree `uv run dev check "
             f"--no-cache` passed, then each check's own stand-in ({ran}). Log sha256 `{digest}`, kept at `{log}` on "
             f"{os.uname().nodename}. Posted {', '.join(stood)} as commit statuses on {tip[:10]}."
         )
@@ -640,6 +670,69 @@ def _head_is(pr_number: int, tip: str) -> bool:
     return False
 
 
+@dataclass
+class _Tree:
+    """What integrate's `gate` made of a PR merged with main: `fail` reports why it cannot merge (None: the gate
+    passed); else the merged tree's commit `tip`, the regenerated files, the gate's `log`, the result fields `update`,
+    and `watch`, the wait on the checks of `tip` when it went onto the PR branch before the gate (#541), whose
+    `expected` checks are those the PR had."""
+
+    fail: Callable[[], int] | None = None
+    tip: str = ""
+    regenerated: bool = False
+    log: Path = Path()
+    update: dict = field(default_factory=dict)
+    watch: "_Watch | None" = None
+    expected: list[str] = field(default_factory=list)
+
+
+WATCH_LEFT_S = 5.0  # how long a wait the gate made moot may take to notice its stop before it is left behind
+
+
+class _Watch:
+    """`await_checks` on `tip` in a thread of its own, started before the gate so the gate runs while Actions does
+    (#541); `result` joins it. With `judge` (the checks decide before the gate, as on the PR's own head) a wait that
+    does not end with every check complete and no unfinished feedback sets `bad`, which cancels the gate run beside
+    it. `leave` stops a wait the gate already decided."""
+
+    def __init__(
+        self, pr_number: int, tip: str, expected: list[str], ignore: frozenset[str] = frozenset(), judge: bool = False
+    ) -> None:
+        timeout_s = config.get().checks_wait_s
+        print(f"waiting up to {timeout_s} s for the checks on {tip[:10]} (the gate runs meanwhile) ...", flush=True)
+        self.stop, self.bad = threading.Event(), threading.Event()
+        self.got: tuple[str, list[str]] | BaseException = ("stopped", [])
+        args = (pr_number, tip, expected, timeout_s, ignore, judge)
+        self.thread = threading.Thread(target=self._run, args=args, daemon=True, name=f"checks-{tip[:10]}")
+        self.thread.start()
+
+    def _run(
+        self, pr_number: int, tip: str, expected: list[str], timeout_s: float, ignore: frozenset[str], judge: bool
+    ) -> None:
+        try:
+            self.got = await_checks(pr_number, tip, expected, timeout_s, ignore, stop=self.stop)
+        except BaseException as exc:  # raised again in the main thread by `result`
+            self.got = exc
+            self.bad.set()
+            return
+        if judge and self.got[0] != "ready":
+            self.bad.set()
+        elif judge:
+            with contextlib.suppress(board.BoardError, OSError, ValueError, KeyError):  # the main thread reads again
+                if _pr_state(pr_number, ignore)[1]:
+                    self.bad.set()
+
+    def result(self) -> tuple[str, list[str]]:
+        self.thread.join()
+        if isinstance(self.got, BaseException):
+            raise self.got
+        return self.got
+
+    def leave(self) -> None:
+        self.stop.set()
+        self.thread.join(WATCH_LEFT_S)
+
+
 def _wait_on_tip(
     pr_number: int,
     tip: str,
@@ -647,13 +740,16 @@ def _wait_on_tip(
     update: dict,
     ignore: frozenset[str] = frozenset(),
     again: bool = False,
+    watch: _Watch | None = None,
 ) -> int | None:
-    """`await_checks` on a head integrate pushed. None when every check on it is complete; else the exit code, after
-    the result line: `stopped` when the head moved, `waiting` (recorded for a rerun) when the time ran out. `again`
-    (the last run already timed out on this head): the result says a rerun waits the same and carries `again`."""
+    """`await_checks` on a head integrate pushed (or what `watch`, already waiting on it, ends with). None when every
+    check on it is complete; else the exit code, after the result line: `stopped` when the head moved, `waiting`
+    (recorded for a rerun) when the time ran out. `again` (the last run already timed out on this head): the result
+    says a rerun waits the same and carries `again`."""
     timeout_s = config.get().checks_wait_s
-    print(f"waiting up to {timeout_s} s for the checks on {tip[:10]} ...", flush=True)
-    state, detail = await_checks(pr_number, tip, expected, timeout_s, ignore)
+    if watch is None:
+        print(f"waiting up to {timeout_s} s for the checks on {tip[:10]} ...", flush=True)
+    state, detail = watch.result() if watch else await_checks(pr_number, tip, expected, timeout_s, ignore)
     if state == "moved":
         _waiting_file(pr_number).unlink(missing_ok=True)
         print(f"RESULT: stopped (the PR head moved to {detail[0][:10]} while waiting for checks); rerun integrate")
@@ -676,7 +772,7 @@ def _wait_on_tip(
 
 def integrate(
     pr_number: int,
-    harness_ok: bool,
+    harness_ok: bool | str,
     dry_run: bool,
     override: str | None = None,
     local_ci: bool = False,
@@ -698,7 +794,7 @@ def integrate(
 
 def _integrate(
     pr_number: int,
-    harness_ok: bool,
+    harness_ok: bool | str,
     dry_run: bool,
     override: str | None = None,
     local_ci: bool = False,
@@ -712,9 +808,12 @@ def _integrate(
     which is logged on the PR just before the merge. Feedback is read again after the gate: what arrived during it
     refuses the merge, override or not. After a push it waits (bounded, `checks_wait_s`) for every check on the new
     head, whatever the branch protection, and reads feedback once more; a timeout is `waiting`, and a rerun on that
-    head resumes the wait instead of refusing its pending checks. The same bounded wait runs before the gate when the
-    only unfinished feedback is checks still running on the PR's own head (no override, not a dry run; with
-    `local_ci`, apart from the contexts it stands in for); what they conclude is then judged as above. With
+    head resumes the wait instead of refusing its pending checks. The same bounded wait runs when the only unfinished
+    feedback is checks still running on the PR's own head (no override, not a dry run; with `local_ci`, apart from
+    the contexts it stands in for); what they conclude is then judged as above. #541: each wait runs beside the gate,
+    not before or after it, and each is judged in the old order. Checks on the PR's own head come first: one that
+    fails cancels the gate. A merged tree to push goes up before its gate (not with `local_ci` or a dry run, nor
+    after a wait on the head); its gate's failure decides first and ends the wait on it. With
     `local_ci` (no Actions minutes), required checks Actions does not run are left to the local run on the merged
     tree (`_stand_in`), which posts them as commit statuses only after it passed. A merged tree that empties an Owns
     entry of an open issue other than the PR's own (`deleted_owns`) is refused before the gate, and `override` does
@@ -733,34 +832,28 @@ def _integrate(
         head = pushed or info["headRefOid"]
         return done(1, outcome, **fields, **fix_loop(pr_number, info, outcome, reasons, failing, head, dry_run))
 
-    if info["state"] != "OPEN" or info["isDraft"]:
-        print(f"PR #{pr_number} is {info['state']}{' (draft)' if info['isDraft'] else ''}: nothing to integrate")
-        return done(1, "not-open")
-    if reason := refusal(info):
-        print(f"RESULT: refused: {reason}")
-        return done(1, "refused", reason=reason)
-    if (leaks := session_leaks(**{"PR title": info.get("title"), "PR body": info.get("body")})) and repo_public():
-        reason = f"{SESSION_RULE}: the {' and '.join(leaks)} carry one; edit the PR, then rerun integrate"
-        print(f"RESULT: refused: {reason}")
-        return back("refused", [reason], [], reason=reason)
-    if why := title_problem(info.get("title")):  # works with no Actions; override does not lift it
-        reason = f"{why}; expected {expected_title(info)}: edit the PR title, then rerun integrate"
-        print(f"RESULT: refused: {reason}")
-        return back("refused", [reason], [], reason=reason)
-    if why := closes_problem(info):  # #434: override does not lift it either
-        reason = f"{why}, then rerun integrate"
-        print(f"RESULT: refused: {reason}")
-        return back("refused", [reason], [], reason=reason)
-    if override is not None and not override.strip():
-        print("RESULT: refused: --override needs a reason")
-        return done(1, "refused", reason="--override needs a reason")
+    def turned_away(adm: admission.Admission) -> int:
+        """A PR `admission.admit` did not admit: said, sent back through the fix loop when the worker can fix it."""
+        for line in adm.say:
+            print(line)
+        fields = ({"reason": adm.reason} if adm.reason else {}) | adm.fields
+        if adm.send is not None:
+            return back(adm.outcome, adm.send, adm.failing, **fields)
+        return done(adm.code, adm.outcome, **fields)
+
+    if not (adm := admission.admit(pr_number, info, override=override)).admitted:
+        return turned_away(adm)
     contexts, ignore = [], frozenset()
-    if local_ci:
+    # #531: one path for the flag, `ci = "local"` and a head Actions cannot run (billing, offline runners, no run)
+    if mode := stand_in_mode(local_ci, info.get("statusCheckRollup") or [], info["headRefOid"]):
+        local_ci = True
+        if mode != "--local-ci":
+            print(f"running CI locally ({mode}), as --local-ci does", flush=True)
         contexts, bound = required_contexts()
         if why := local_ci_refusal(contexts, bound):
-            print(f"RESULT: refused: --local-ci: {why}")
-            return done(1, "refused", reason=f"--local-ci: {why}")
-        now = standing(info.get("statusCheckRollup") or [], contexts, actions_enabled(), {})
+            print(f"RESULT: refused: {mode}: {why}")
+            return done(1, "refused", reason=f"{mode}: {why}")
+        now = standing(info.get("statusCheckRollup") or [], contexts, actions_enabled(), Probe())
         ignore = frozenset(c for c, s in now.items() if s != "failed")  # judged on the gated head, after the run
     again = False  # the last run timed out waiting on this same head (#305)
     if (waiting := _waiting_file(pr_number)).exists():
@@ -771,110 +864,188 @@ def _integrate(
                 return code
             info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
         waiting.unlink(missing_ok=True)
-    feedback = board.pr_feedback(pr_number)
-    if override is None and not dry_run and only_pending(info, feedback, ignore):
-        # checks still running on the PR's own head: wait for them as for a pushed head, then judge them (#322).
-        # Under --local-ci the required contexts it stands in for are neither waited for nor judged here.
-        if (code := _wait_on_tip(pr_number, info["headRefOid"], [], {}, ignore, again)) is not None:
-            return code
-        info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
-        feedback = board.pr_feedback(pr_number)
-    if todo := unfinished(info, feedback, ignore):
-        if override is None:
-            print(f"RESULT: refused: PR #{pr_number} has unfinished feedback:\n  " + "\n  ".join(todo))
-            print(
-                f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, resolve the threads and "
-                "wait for the checks; or rerun with --override '<reason>' (logged on the PR)."
-            )
-            return back("refused", [f"- {t}" for t in todo], failed_check_lines(info), reason="unfinished feedback",
-                        feedback=todo)  # fmt: skip
-        print(f"overriding unfinished feedback ({override}):\n  " + "\n  ".join(todo))
     head_ref, main_ref = f"refs/devkit/integrate/pr-{pr_number}", f"refs/devkit/integrate/main-{pr_number}"
-    try:
-        git("fetch", "--no-tags", "origin", f"+refs/pull/{pr_number}/head:{head_ref}", f"+refs/heads/main:{main_ref}")
-        head, main = git("rev-parse", head_ref), git("rev-parse", main_ref)
-        touched = changed_paths(main, head)
-    except RuntimeError as exc:
-        print(f"RESULT: stopped (cannot fetch or diff PR #{pr_number} against main): {exc}")
-        return done(1, "stopped", reason=f"cannot fetch or diff: {exc}")
-    if head != info["headRefOid"]:
-        print(f"RESULT: stopped (the PR head moved while fetching: {info['headRefOid'][:10]} -> {head[:10]}); rerun")
-        return done(1, "stopped", reason="the PR head moved while fetching")
-    rules = config.get().required_reviews
-    trusted = {board.gh_user()} - {""} if rules else set()  # asked only when a review can be required
 
-    def ancestor(sha: str) -> bool:
-        return _is_ancestor(sha, head)
-
-    if rules and (why := review_problem(touched, feedback["reviews"], head, trusted, rules, ancestor)):
-        reason = f"{why}, then rerun integrate"  # #391: override does not lift it
-        print(f"RESULT: refused: {reason}")
-        return back("refused", [reason], [], reason=reason)
-    harness = [f for f in touched if is_harness(f)]
-    if harness and not harness_ok:
-        print("PR changes the harness (rules agents are judged by):\n  " + "\n  ".join(harness))
-        print(f"Read that diff yourself (`git diff {main[:10]}...{head[:10]}`), then rerun with --harness-ok.")
-        return done(2, "harness-review", harness=harness)
-    tmp = state_dir("integrate") / f"pr-{pr_number}"
-    _add_worktree(tmp, head)
-    try:
-        try:
-            if conflicts := merge_main(tmp, main):
-                returned = send_back(pr_number, info, main, conflicts, dry_run=dry_run)
-                who = ", ".join(returned.get("resume", [])) or "its worker"
-                print(f"RESULT: conflict with main in {', '.join(conflicts)}; sent back, resume {who}")
-                return done(1, "conflict", conflicts=conflicts, branch=info["headRefName"], **returned)
-            regenerated = regenerate(tmp)
-            gone = deleted_owns(tmp, main, info)
-        except OSError as exc:  # no gh at all; a gh failure is a BoardError, a RuntimeError
-            print(f"RESULT: stopped (cannot read the board to check deleted Owns: {exc})")
-            return done(1, "stopped", reason=f"cannot read the board: {exc}")
-        except RuntimeError as exc:
-            print(f"RESULT: stopped ({exc})")
-            return done(1, "stopped", reason=str(exc))
-        if gone:
-            rows = [f"#{n}: {', '.join(paths)}" for n, paths in gone.items()]
-            print(f"RESULT: refused: PR #{pr_number} deletes what open issues own:\n  " + "\n  ".join(rows))
-            print("--override does not lift this: name each issue with `Refs #N` in the PR body, or edit its Owns.")
-            why = "It deletes what open issues own: name each with `Refs #N` in the PR body, or edit its Owns:"
-            return back("refused", [why, *(f"- {r}" for r in rows)], [], reason="deletes paths open issues own",
-                        owns=gone)  # fmt: skip
-        tip = git("rev-parse", "HEAD", cwd=tmp)
-        print(
-            f"gating PR #{pr_number} ({head[:10]}) merged with main {main[:10]} as {tip[:10]} in {tmp} ...", flush=True
-        )
-        run_log = state_dir("integrate") / f"pr-{pr_number}-{tip[:12]}.log"
-        print(f"gate output (also kept in {run_log}):", flush=True)
-        passed = run_gate(tmp, contexts if local_ci else [], run_log, gate_issue(info, main))
-        said = {"gate": failing_lines(run_log.read_text(errors="replace")), "log": str(run_log)}
-        if isinstance(passed, str):
-            print(
-                f"RESULT: stopped ({passed}) and was killed; its output shows a hung stage or a wait on another gate "
-                "(`uv run dev status` names the holder), then rerun integrate"
-            )
-            return done(1, "stopped", reason=passed, **said)
-        if not passed:
-            print(f"RESULT: gate-failed (the merged tree fails the gate); PR #{pr_number} is sent back")
-            why = f"The merged tree (main {main[:10]} merged in) fails the gate; its full log: {run_log}"
-            return back("gate-failed", [why], said["gate"], reason="the merged tree fails the gate", **said)
-    finally:
-        git("worktree", "remove", "--force", str(tmp), check=False)
+    def drop_refs() -> None:
         git("update-ref", "-d", head_ref, check=False)
         git("update-ref", "-d", main_ref, check=False)
-    state, now = _pr_state(pr_number, ignore)
-    if arrived := [t for t in now if t not in todo]:
-        print(f"RESULT: refused: feedback arrived on PR #{pr_number} during the gate:\n  " + "\n  ".join(arrived))
-        print(f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate.")
-        return back("refused", [f"- {t}" for t in arrived], failed_check_lines(state),
-                    reason="feedback arrived during the gate", feedback=arrived)  # fmt: skip
+
+    def fetched() -> admission.At | str:
+        """The PR head and main as origin has them now, with the PR's feedback; or why they cannot be read."""
+        try:
+            git(
+                "fetch",
+                "--no-tags",
+                "origin",
+                f"+refs/pull/{pr_number}/head:{head_ref}",
+                f"+refs/heads/main:{main_ref}",
+            )
+            head, main = git("rev-parse", head_ref), git("rev-parse", main_ref)
+            return admission.At(head, main, board.pr_feedback(pr_number), changed_paths(main, head))
+        except RuntimeError as exc:
+            drop_refs()
+            return str(exc)
+
+    def report(line: str, outcome: str, **fields: object) -> Callable[[], int]:
+        """An outcome `gate` found, said and recorded only when called: the checks on the head are judged first."""
+
+        def say() -> int:
+            print(line)
+            return done(1, outcome, **fields)
+
+        return say
+
+    def gate(head: str, main: str, early: bool, cancel: threading.Event | None = None) -> _Tree:
+        """Merge `main` into `head` in a throwaway worktree, regenerate, check deleted Owns, and run the gate there. A
+        failure comes back as `fail`, which reports it when called. `early` (#541): a merged tree that is not the head
+        goes onto the PR branch before the gate, and its checks are waited for (`watch`) while the gate runs; the PR
+        branch may then carry a tree that fails the gate, main never does. `cancel` stops the gate."""
+        nonlocal pushed
+        tmp, watch = state_dir("integrate") / f"pr-{pr_number}", None
+        _add_worktree(tmp, head)
+        try:
+            try:
+                if conflicts := merge_main(tmp, main):
+
+                    def conflict() -> int:
+                        returned = send_back(pr_number, info, main, conflicts, dry_run=dry_run)
+                        who = ", ".join(returned.get("resume", [])) or "its worker"
+                        print(f"RESULT: conflict with main in {', '.join(conflicts)}; sent back, resume {who}")
+                        return done(1, "conflict", conflicts=conflicts, branch=info["headRefName"], **returned)
+
+                    return _Tree(fail=conflict)
+                regenerated = regenerate(tmp)
+                gone = deleted_owns(tmp, main, info)
+            except OSError as exc:  # no gh at all; a gh failure is a BoardError, a RuntimeError
+                line = f"RESULT: stopped (cannot read the board to check deleted Owns: {exc})"
+                return _Tree(fail=report(line, "stopped", reason=f"cannot read the board: {exc}"))
+            except RuntimeError as exc:
+                return _Tree(fail=report(f"RESULT: stopped ({exc})", "stopped", reason=str(exc)))
+            if gone:
+
+                def owned() -> int:
+                    rows = [f"#{n}: {', '.join(paths)}" for n, paths in gone.items()]
+                    print(f"RESULT: refused: PR #{pr_number} deletes what open issues own:\n  " + "\n  ".join(rows))
+                    print(
+                        "--override does not lift this: name each issue with `Refs #N` in the PR body, or edit its "
+                        "Owns."
+                    )
+                    why = "It deletes what open issues own: name each with `Refs #N` in the PR body, or edit its Owns:"
+                    return back("refused", [why, *(f"- {r}" for r in rows)], [], reason="deletes paths open issues own",
+                                owns=gone)  # fmt: skip
+
+                return _Tree(fail=owned)
+            tip = git("rev-parse", "HEAD", cwd=tmp)
+            update = {"updated": tip != head, "regenerated": regenerated, "head": tip}
+            expected = [check_key(c) for c in latest_checks(info.get("statusCheckRollup") or [])]
+            if early and tip != head:
+                try:  # a fast-forward of the head: refused if the worker pushed meanwhile
+                    git("push", "origin", f"{tip}:refs/heads/{info['headRefName']}")
+                except RuntimeError as exc:
+                    line = f"RESULT: stopped (cannot update the PR branch; did the worker push? rerun): {exc}"
+                    return _Tree(fail=report(line, "stopped", reason=f"cannot update the PR branch: {exc}", **update))
+                pushed = tip
+                if not _head_is(pr_number, tip):
+                    line = f"RESULT: stopped (GitHub does not show the pushed head {tip[:10]} yet); rerun integrate"
+                    return _Tree(fail=report(line, "stopped", reason="pushed head not visible on GitHub", **update))
+                watch = _Watch(pr_number, tip, expected)
+            print(
+                f"gating PR #{pr_number} ({head[:10]}) merged with main {main[:10]} as {tip[:10]} in {tmp} ...",
+                flush=True,
+            )
+            run_log = state_dir("integrate") / f"pr-{pr_number}-{tip[:12]}.log"
+            print(f"gate output (also kept in {run_log}):", flush=True)
+            passed = run_gate(tmp, contexts if local_ci else [], run_log, gate_issue(info, main), cancel)
+            failing = failing_lines(run_log.read_text(errors="replace"))
+            said = {"gate": failing, "log": str(run_log)}
+            fail = None
+            if isinstance(passed, str):
+                line = (
+                    f"RESULT: stopped ({passed}) and was killed; its output shows a hung stage or a wait on another "
+                    "gate (`uv run dev status` names the holder), then rerun integrate"
+                )
+                fail = report(line, "stopped", reason=passed, **said)
+            elif not passed:
+
+                def failed() -> int:
+                    print(f"RESULT: gate-failed (the merged tree fails the gate); PR #{pr_number} is sent back")
+                    why = f"The merged tree (main {main[:10]} merged in) fails the gate; its full log: {run_log}"
+                    return back("gate-failed", [why], failing, reason="the merged tree fails the gate", **said)
+
+                fail = failed
+            return _Tree(fail, tip, regenerated, run_log, update, watch, expected)
+        except BaseException:
+            if watch is not None:
+                watch.leave()
+            raise
+        finally:
+            git("worktree", "remove", "--force", str(tmp), check=False)
+            drop_refs()
+
+    if isinstance(at := fetched(), str):
+        print(f"RESULT: stopped (cannot fetch or diff PR #{pr_number} against main): {at}")
+        return done(1, "stopped", reason=f"cannot fetch or diff: {at}")
+    # checks still running on the PR's own head: wait for them as for a pushed head, then judge them (#322). Under
+    # --local-ci the required contexts it stands in for are neither waited for nor judged here. The merged tree is
+    # gated during the wait (#541); what the checks conclude is judged first, and a refusal cancels the gate.
+    hold = override is None and not dry_run
+    adm = admission.admit(pr_number, info, override=override, harness_ok=harness_ok, at=at, ignore=ignore,
+                          hold_pending=hold)  # fmt: skip
+    watch = _Watch(pr_number, info["headRefOid"], [], ignore, judge=True) if adm.outcome == "waiting" else None
+    if watch is None and not adm.admitted:
+        drop_refs()
+        return turned_away(adm)
+    head, main = at.head, at.main
+    try:  # with nothing to judge first, a merged tree that is not the head is pushed and gated as Actions runs on it
+        tree = gate(head, main, watch is None and not dry_run and not local_ci, watch.bad if watch else None)
+    except BaseException:
+        if watch is not None:
+            watch.leave()
+        raise
+    if watch is not None:
+        if (code := _wait_on_tip(pr_number, info["headRefOid"], [], {}, ignore, again, watch)) is not None:
+            return code
+        info = json.loads(board.gh("pr", "view", str(pr_number), "-R", board.repo(), "--json", PR_FIELDS))
+        if isinstance(at := fetched(), str):  # main may have moved during the wait: gate what is there now
+            print(f"RESULT: stopped (cannot fetch or diff PR #{pr_number} against main): {at}")
+            return done(1, "stopped", reason=f"cannot fetch or diff: {at}")
+        adm = admission.admit(pr_number, info, override=override, harness_ok=harness_ok, at=at, ignore=ignore)
+        if not adm.admitted:
+            drop_refs()
+            return turned_away(adm)
+        if (at.head, at.main) == (head, main):
+            drop_refs()
+        else:  # the tree gated during the wait is not what is there now
+            head, main = at.head, at.main
+            tree = gate(head, main, False)
+    if tree.fail is not None:
+        if tree.watch is not None:
+            tree.watch.leave()
+        return tree.fail()
+    todo, tip, run_log, update = adm.overridden, tree.tip, tree.log, tree.update
+    if tree.watch is not None:  # pushed before the gate: the checks on it, then its feedback once more
+        if (code := _wait_on_tip(pr_number, tip, tree.expected, update, watch=tree.watch)) is not None:
+            return code
+        state, later = _pr_state(pr_number)
+        if arrived := [t for t in later if t not in todo]:
+            print(f"RESULT: refused: unfinished feedback on the pushed head {tip[:10]}:\n  " + "\n  ".join(arrived))
+            print(f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate.")
+            return back("refused", [f"- {t}" for t in arrived], failed_check_lines(state),
+                        reason="feedback on the pushed head", feedback=arrived, **update)  # fmt: skip
+    else:
+        state, now = _pr_state(pr_number, ignore)
+        if arrived := [t for t in now if t not in todo]:
+            print(f"RESULT: refused: feedback arrived on PR #{pr_number} during the gate:\n  " + "\n  ".join(arrived))
+            print(f"Read it (`uv run dev board feedback {pr_number}`), answer or fix each item, then rerun integrate.")
+            return back("refused", [f"- {t}" for t in arrived], failed_check_lines(state),
+                        reason="feedback arrived during the gate", feedback=arrived)  # fmt: skip
     if todo:
-        log = f"`dev integrate --override`: {override}\n\nOverriding:\n" + "\n".join(f"- {t}" for t in todo)
+        log = admission.override_log(override or "", todo)
         if dry_run:
             print(f"would log on PR #{pr_number}:\n{log}")
         else:
             board.gh("pr", "comment", str(pr_number), "-R", board.repo(), "--body", log)
-    update = {"updated": tip != head, "regenerated": regenerated, "head": tip}
-    if tip != head:  # behind main, or stale generated files: the gated tree goes onto the PR branch first
+    if tip != head and tree.watch is None:  # behind main, or stale generated files: the gated tree goes up first
         if dry_run:
             print(f"would push {tip[:10]} (main merged in, generated files regenerated) to {info['headRefName']}")
         else:
@@ -900,7 +1071,7 @@ def _integrate(
                             reason="feedback on the pushed head", feedback=arrived, **update)  # fmt: skip
     if local_ci and dry_run:
         print(f"would wait for Actions on {tip[:10]} and post what it does not run as statuses: {', '.join(contexts)}")
-    elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update)) is not None:
+    elif local_ci and (code := _stand_in(pr_number, tip, contexts, run_log, todo, update, mode)) is not None:
         return code
     try:
         reason = _merge_if_unchanged(
@@ -932,7 +1103,7 @@ def _integrate(
             print(branches.drop_branch(name, [tip]))
     try:  # the merge stands whatever this finds: a failure only skips the check
         sent = send_back_conflicting(pr_number)
-    except (board.BoardError, RuntimeError, OSError, ValueError) as exc:
+    except (board.BoardError, RuntimeError, OSError, ValueError, subprocess.SubprocessError) as exc:
         sent = []
         print(f"conflict check of the new main skipped ({exc}): each open PR meets it at its own integrate")
     if not git("-C", str(main_checkout()), "status", "--porcelain", "--untracked-files=no"):
