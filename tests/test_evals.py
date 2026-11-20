@@ -4,6 +4,7 @@ import json
 import re
 import runpy
 import subprocess
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -366,7 +367,7 @@ class FakeWeb:
 
     def __call__(self, url: str, headers: dict) -> tuple[int, dict, str]:
         self.calls += 1
-        if "api.openalex.org" not in url:
+        if urllib.parse.urlsplit(url).hostname != "api.openalex.org":
             return 404, {}, ""
         if m := re.search(r"search=q(\d)", url):
             q = m.group(1)
@@ -509,11 +510,12 @@ def _held_out_web(gold: list[dict], qid: str):
 
     def web(url: str, headers: dict) -> tuple[int, dict, str]:
         calls.append(url)
-        if "api.semanticscholar.org" in url:
+        parts = urllib.parse.urlsplit(url)
+        if parts.hostname == "api.semanticscholar.org":
             return 200, {}, json.dumps({"data": []})
-        if "api.openalex.org" not in url:
+        if parts.hostname != "api.openalex.org":
             return 404, {}, ""
-        if "search=" in url:
+        if parts.path == "/works" and "search" in urllib.parse.parse_qs(parts.query):
             return 200, {}, _oa([(h1, "Held one")])
         return oa(url, headers)
 
