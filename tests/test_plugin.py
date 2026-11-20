@@ -461,6 +461,15 @@ def test_the_gaps_file_counts_what_changed_and_what_is_new():
     assert "`single-source`" in gap
 
 
+def test_the_gap_pass_snowballs_the_accepted_papers_in_one_call():
+    """#618: `dev lit snowball` (#591) ranks candidates from all accepted papers at once; refs and cited-by stay for
+    one paper's own links."""
+    _, skill = frontmatter.read(PLUGIN / "skills/research/SKILL.md")
+    gap = " ".join(skill.split("**Gap pass.**", 1)[1].split("\n4. ", 1)[0].split())
+    assert "`uv run dev lit snowball <accepted ids>`" in gap
+    assert "`uv run dev lit refs <id>`" in gap and "`uv run dev lit cited-by <id>`" in gap
+
+
 def test_the_research_audit_runs_a_second_cycle_only_after_send_back():
     """#84: verifier strictness alone moved unsupported-citation rates from about 3 % to 18 % on identical outputs,
     so a second audit mostly re-rolls the verifier; it runs only when the first one sent the note back."""
