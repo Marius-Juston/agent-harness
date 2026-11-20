@@ -21,8 +21,9 @@ import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
-from devkit import board, branches, ci_status, config, handoff, workflow
+from devkit import board, branches, ci_status, handoff, integrate, workflow
 
 
 class TrainStop(Exception):
@@ -36,6 +37,7 @@ class Member:
     head: str = ""
     stood: list[str] = field(default_factory=list)  # --local-ci: required contexts Actions never ran on its head
     outcome: str = ""  # set once this member's fate is decided
+    overridden: list[str] = field(default_factory=list)  # unfinished feedback --override lifted at admission
     fields: dict = field(default_factory=dict)
 
 
@@ -84,20 +86,27 @@ def first_breaking(n: int, passes: Callable[[int], bool]) -> tuple[int, int]:
 
 
 def harness_cleared(number: int, harness_ok: set[int] | dict[int, str] | bool, head: str = "") -> bool:
-    """Whether the lead read the harness diff of PR `number`: `--harness-ok` names the PRs in a train. A dict (PR ->
-    SHA, `dev autopilot`'s trusted review, #499) clears a PR only at that head."""
-    if isinstance(harness_ok, dict):
+    """Whether the lead read the harness diff of PR `number`: `--harness-ok` names the PRs in a train."""
+    if isinstance(harness_ok, dict):  # PR -> SHA (`dev autopilot`'s trusted review, #499): that head only
         return bool(head) and harness_ok.get(number) == head
     return harness_ok if isinstance(harness_ok, bool) else number in harness_ok
 
 
-def _admit(m: Member, main: str, harness_ok: bool, dry_run: bool, contexts: list[str], enabled: bool) -> bool:
-    """Integrate's per-PR checks, before the member joins the candidate: open and into main from this repository,
-    no session link, a Conventional title (#100), a Closes/Refs line (#434), no unfinished feedback, the required
-    reviews (#391), and `harness_ok` for harness files. A failure the worker fixes goes through the fix loop as a
-    single integrate would send it; checks still running leave the member for a later train. With `contexts`
+def _admit(
+    m: Member,
+    main: str,
+    harness_ok: bool,
+    dry_run: bool,
+    contexts: list[str],
+    enabled: bool,
+    override: str | None = None,
+) -> bool:
+    """Integrate's own per-PR checks (`integrate.admit`, shared with a single integrate so the two cannot drift,
+    #473), before the member joins the candidate. A failure the worker fixes goes through the fix loop as a single
+    integrate would send it; checks still running leave the member for a later train. With `contexts`
     (`--local-ci`) it first waits for Actions on the head as integrate's `_stand_in` does (`await_actions`), and
-    stands in only for the contexts Actions never ran; one that ran and failed refuses the member."""
+    stands in only for the contexts Actions never ran; one that ran and failed refuses the member. `override` lifts
+    unfinished feedback as for a single integrate (#486): no wait for running checks, which it lifts too."""
     info, n = m.info, m.number
 
     def stop(outcome: str, **fields: object) -> bool:
@@ -105,34 +114,28 @@ def _admit(m: Member, main: str, harness_ok: bool, dry_run: bool, contexts: list
         print(f"train: #{n} not admitted: {outcome} ({fields.get('reason') or ''})".rstrip(" ()"))
         return False
 
-    def back(reasons: list[str], failing: list[str], **fields: object) -> bool:
-        stop("refused", **fields)
-        m.fields |= workflow.fix_loop(n, info, "refused", reasons, failing, info["headRefOid"], dry_run)
+    def turned_away(adm: integrate.Admission) -> bool:
+        fields = ({"reason": adm.reason} if adm.reason else {}) | adm.fields
+        if adm.outcome == "waiting":
+            fields["reason"] = "checks still run on its head: it joins a later train"
+        stop(adm.outcome, **fields)
+        if adm.outcome == "harness-review":
+            print(
+                f"train: #{n} changes the harness: read `git diff {main[:10]}...{m.head[:10]}`, then --harness-ok {n}"
+            )
+        if adm.send is not None:
+            m.fields |= workflow.fix_loop(n, info, adm.outcome, adm.send, adm.failing, info["headRefOid"], dry_run)
         return False
 
-    if info["state"] != "OPEN" or info["isDraft"]:
-        return stop("not-open")
-    if reason := workflow.refusal(info):
-        return stop("refused", reason=reason)
-    if m.head != info["headRefOid"]:
-        return stop("stopped", reason="the PR head moved while fetching")
-    if (leaks := workflow.session_leaks(**{"PR title": info.get("title"), "PR body": info.get("body")})) and (
-        workflow.repo_public()
-    ):
-        reason = f"{workflow.SESSION_RULE}: the {' and '.join(leaks)} carry one; edit the PR, then rerun integrate"
-        return back([reason], [], reason=reason)
-    if why := workflow.title_problem(info.get("title")):
-        reason = f"{why}; expected {workflow.expected_title(info)}: edit the PR title, then rerun integrate"
-        return back([reason], [], reason=reason)
-    if why := workflow.closes_problem(info):
-        reason = f"{why}, then rerun integrate"
-        return back([reason], [], reason=reason)
+    if not (adm := integrate.admit(n, info, override=override)).admitted:
+        return turned_away(adm)
     ignore: frozenset[str] = frozenset()
-    if contexts and dry_run:
-        print(f"would wait for Actions on {m.head[:10]} and stand in for what it never runs: {', '.join(contexts)}")
+    if contexts and (dry_run or override is not None):  # as a single integrate: an override waits for nothing
+        if dry_run:
+            print(f"would wait for Actions on {m.head[:10]} and stand in for what it never runs: {', '.join(contexts)}")
         now = ci_status.standing(info.get("statusCheckRollup") or [], contexts, enabled, {})
-        ignore = frozenset(c for c, s in now.items() if s != "failed")
         m.stood = sorted(c for c, s in now.items() if s == "never-ran")
+        ignore = frozenset(c for c, s in now.items() if s != "failed") if dry_run else frozenset(m.stood)
     elif contexts:
         print(f"train: waiting for Actions on #{n} {m.head[:10]} ({', '.join(contexts)}) ...", flush=True)
         state, now = ci_status.await_actions(n, m.head, contexts)
@@ -146,25 +149,11 @@ def _admit(m: Member, main: str, harness_ok: bool, dry_run: bool, contexts: list
         info = m.info = json.loads(board.gh("pr", "view", str(n), "-R", board.repo(), "--json", workflow.PR_FIELDS))
         if info["headRefOid"] != m.head:
             return stop("stopped", reason="the PR head moved while waiting for Actions")
-    feedback = board.pr_feedback(n)
-    if todo := ci_status.unfinished(info, feedback, ignore):
-        if ci_status.only_pending(info, feedback, ignore):
-            return stop("waiting", reason="checks still run on its head: it joins a later train", pending=todo)
-        return back([f"- {t}" for t in todo], workflow.failed_check_lines(info), reason="unfinished feedback",
-                    feedback=todo)  # fmt: skip
-    touched = workflow.changed_paths(main, m.head)
-    if rules := config.get().required_reviews:
-        trusted = {board.gh_user()} - {""}
-
-        def ancestor(sha: str) -> bool:
-            return workflow._is_ancestor(sha, m.head)
-
-        if why := workflow.review_problem(touched, feedback["reviews"], m.head, trusted, rules, ancestor):
-            reason = f"{why}, then rerun integrate"
-            return back([reason], [], reason=reason)
-    if (harness := [f for f in touched if workflow.is_harness(f)]) and not harness_ok:
-        print(f"train: #{n} changes the harness: read `git diff {main[:10]}...{m.head[:10]}`, then --harness-ok {n}")
-        return stop("harness-review", harness=harness)
+    at = integrate.At(m.head, main, board.pr_feedback(n), workflow.changed_paths(main, m.head))
+    adm = integrate.admit(n, info, override=override, harness_ok=harness_ok, at=at, ignore=ignore, hold_pending=True)
+    if not adm.admitted:
+        return turned_away(adm)
+    m.overridden = adm.overridden
     return True
 
 
@@ -277,8 +266,8 @@ def _recheck(members: list[Member], main: str, dry_run: bool) -> str | None:
             why = [f"{t} in the squash commit: edit the PR title, then rerun integrate"]
         elif c := workflow.closes_problem(state):
             why = [f"{c}, then rerun integrate"]
-        elif todo:
-            why = [f"- {t}" for t in todo]
+        elif arrived := [t for t in todo if t not in m.overridden]:  # what --override lifted at admission is no news
+            why = [f"- {t}" for t in arrived]
         if why:
             m.outcome, m.fields = "refused", {"reason": "changed during the gate", "feedback": why}
             m.fields |= workflow.fix_loop(m.number, state, "refused", why, [], m.head, dry_run)
@@ -378,13 +367,21 @@ def _close_merged(m: Member, names: str, tip: str) -> None:
         print(f"train: kept branch {branch}: {exc}")
 
 
-def train(prs: list[int], harness_ok: set[int] | dict[int, str] | bool, dry_run: bool, local_ci: bool = False) -> int:
+def train(
+    prs: list[int],
+    harness_ok: set[int] | dict[int, str] | bool,
+    dry_run: bool,
+    local_ci: bool = False,
+    override: str | None = None,
+) -> int:
     """`_train`, but every exit ends with the train's RESULT-JSON line, a crash included. `harness_ok`: the PRs whose
-    harness diff the lead read (`--harness-ok 12 15`), or a bool for all of them."""
+    harness diff the lead read (`--harness-ok 12 15`), or a bool for all of them. `override`: a single integrate's
+    `--override`, for every member (#486): it lifts unfinished feedback at admission, is logged on each member PR
+    before main is pushed, and the merged train is gated all the same."""
     gates: list[dict] = []
     members = [Member(n) for n in dict.fromkeys(prs)]
     try:
-        return _train(members, gates, harness_ok, dry_run, local_ci)
+        return _train(members, gates, harness_ok, dry_run, local_ci, override)
     except Exception as exc:  # the lead branches on the last line, whatever failed
         if not isinstance(exc, TrainStop):
             traceback.print_exc()
@@ -426,7 +423,13 @@ def _train(
     harness_ok: set[int] | dict[int, str] | bool,
     dry_run: bool,
     local_ci: bool,
+    override: str | None = None,
 ) -> int:
+    if why := main_push_refusal():  # #472: before anything is gated or sent back
+        for m in members:
+            m.outcome, m.fields = "refused", {"reason": why}
+        print(f"RESULT: refused: {why}")
+        return _result(members, gates, 1, "refused", reason=why)
     contexts: list[str] = []
     enabled = True
     if local_ci:
@@ -452,7 +455,7 @@ def _train(
         admitted = [
             m
             for m in members
-            if _admit(m, main, harness_cleared(m.number, harness_ok, m.head), dry_run, contexts, enabled)
+            if _admit(m, main, harness_cleared(m.number, harness_ok, m.head), dry_run, contexts, enabled, override)
         ]
         if not admitted:
             print("RESULT: nothing to gate: no member was admitted")
@@ -500,6 +503,14 @@ def _train(
             print(f"RESULT: stopped ({why})")
             return _result(members, gates, 1, "stopped", reason=why)
         tip = _squash_chain(landing, commits, landed, main)
+        if override is not None:  # logged on every member just before main is pushed, as integrate logs it
+            for m in landing:
+                log = integrate.override_log(override, m.overridden)
+                if dry_run:
+                    print(f"would log on PR #{m.number}:\n{log}")
+                else:
+                    board.gh("pr", "comment", str(m.number), "-R", board.repo(), "--body", log)
+                m.fields["override"] = override
         if dry_run:
             print(f"would push {tip[:10]} ({len(landing)} squash commits) to main")
         else:
@@ -620,3 +631,102 @@ def _bisect(
 
 def names_of(members: list[Member]) -> str:
     return "(" + ", ".join(f"#{m.number}" for m in members) + ")"
+
+
+# Ruleset rules that refuse a plain push of new commits to the branch (#472).
+PUSH_RULES = {
+    "pull_request": "a pull request",
+    "required_status_checks": "status checks",
+    "required_signatures": "signed commits",
+    "required_deployments": "deployments",
+    "update": "no updates",
+    "merge_queue": "a merge queue",
+}
+# Ruleset rules a fast-forward push of squash commits meets: no warning for these. Any other type (content rules such
+# as `file_path_restriction` or `commit_message_pattern`, or one GitHub adds later) is named before the gate.
+PUSH_NEUTRAL = {"creation", "deletion", "non_fast_forward", "required_linear_history"}
+
+
+def push_blockers(
+    protection: dict | None, rules: list[dict], bypass: dict[int, str], admin: bool, user: str
+) -> list[str]:
+    """What refuses the train's single push of new commits to main (#472): classic branch protection (`protection`,
+    None when main has none) unless `admin` and admins are not enforced, and the active ruleset `rules` on main
+    unless the ruleset lets this user bypass it always (`bypass`: ruleset id -> `current_user_can_bypass`)."""
+    out = []
+    if protection is not None:
+        if (protection.get("lock_branch") or {}).get("enabled"):
+            out.append("main is locked (branch protection)")
+        if not (admin and not (protection.get("enforce_admins") or {}).get("enabled")):
+            if protection.get("required_pull_request_reviews") is not None:
+                out.append("branch protection requires a pull request")
+            checks = protection.get("required_status_checks") or {}
+            if names := [c.get("context") for c in checks.get("checks") or []] or checks.get("contexts") or []:
+                out.append(f"branch protection requires status checks ({', '.join(names)})")
+            if (protection.get("required_signatures") or {}).get("enabled"):
+                out.append("branch protection requires signed commits")
+            limits = protection.get("restrictions")
+            if limits is not None and user not in {u.get("login") for u in limits.get("users") or []}:
+                out.append(f"branch protection restricts who pushes to main, and {user or 'this user'} is not listed")
+    for r in rules:
+        if (what := PUSH_RULES.get(r.get("type", ""))) and bypass.get(r.get("ruleset_id", 0)) != "always":
+            out.append(f"ruleset {r.get('ruleset_id')} requires {what}")
+    return list(dict.fromkeys(out))
+
+
+def main_push_refusal() -> str | None:
+    """Why main would refuse the train's push, read before anything is gated (#472), or None. What GitHub will not
+    show (no admin rights to read protection, gh unreachable) is said and left to the push itself, which is a
+    fast-forward that lands nothing when refused."""
+    repo = board.repo()
+
+    def read(path: str) -> Any:
+        return json.loads(board.gh("api", path))
+
+    def unread(what: str, why: object) -> None:
+        print(f"train: cannot read main's {what} ({why}): the push of main decides")
+
+    protection: dict | None = None
+    try:
+        got = read(f"repos/{repo}/branches/main/protection")
+        if isinstance(got, dict):
+            protection = got
+        else:
+            unread("branch protection", f"unexpected response {type(got).__name__}")
+    except board.BoardError as exc:
+        if "not protected" not in str(exc).lower():
+            unread("branch protection", exc)
+    except ValueError as exc:
+        unread("branch protection", exc)
+    rules: list[dict] = []
+    try:
+        got = read(f"repos/{repo}/rules/branches/main")
+        if isinstance(got, list) and all(isinstance(r, dict) for r in got):
+            rules = got
+        else:
+            unread("rulesets", f"unexpected response {type(got).__name__}")
+    except (board.BoardError, ValueError) as exc:
+        unread("rulesets", exc)
+    for r in rules:
+        if (kind := r.get("type")) not in PUSH_RULES and kind not in PUSH_NEUTRAL:
+            print(f"train: ruleset {r.get('ruleset_id')} has a {kind!r} rule the train does not judge: the push of "
+                  "main decides")  # fmt: skip
+    if not protection and not [r for r in rules if r.get("type") in PUSH_RULES]:
+        return None
+    bypass: dict[Any, str] = {}  # keyed by ruleset_id as GitHub sends it
+    for rid in {r.get("ruleset_id") for r in rules if r.get("type") in PUSH_RULES}:
+        try:
+            bypass[rid] = str(read(f"repos/{repo}/rulesets/{rid}").get("current_user_can_bypass") or "never")  # type: ignore[union-attr]
+        except (board.BoardError, ValueError, AttributeError):
+            bypass[rid] = "never"
+    try:
+        admin = bool((read(f"repos/{repo}").get("permissions") or {}).get("admin"))  # type: ignore[union-attr]
+    except (board.BoardError, ValueError, AttributeError):
+        admin = False
+    if not (blockers := push_blockers(protection, rules, bypass, admin, board.gh_user())):
+        return None
+    return (
+        f"main refuses the train's direct push: {'; '.join(blockers)}. A train lands its members as commits pushed "
+        "to main, so it cannot land here: integrate them one by one (`uv run dev integrate <pr>`), or the owner lets "
+        "the lead bypass those rules"
+    )

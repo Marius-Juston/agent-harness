@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from devkit import board, ci_status, cli, fixloop, paths, prtext, train, weaken, workflow
+from devkit import board, ci_status, cli, config, fixloop, paths, prtext, train, weaken, workflow
 from tests.test_merge_hygiene import ATTRIBUTES, INDEX, REAL_POPEN, REAL_RUN, commit, index, note, out, sh
 
 
@@ -255,7 +255,7 @@ def test_local_ci_posts_statuses_on_each_member_head(world, capsys, monkeypatch)
     three(world)
     monkeypatch.setattr(ci_status, "required_contexts", lambda: (["check"], []))
     monkeypatch.setattr(ci_status, "actions_enabled", lambda: False)
-    monkeypatch.setattr(train.config, "get", lambda: train.config.Config(local_ci={"check": []}))
+    monkeypatch.setattr(config, "get", lambda: config.Config(local_ci={"check": []}))
     assert train.train([1, 2], harness_ok=True, dry_run=False, local_ci=True) == 0
     posts = [e for e in world["events"] if e[:4] == ("gh", "api", "-X", "POST")]
     heads = {out(world["origin"], "git", "rev-parse", f"refs/pull/{n}/head") for n in (1, 2)}
@@ -418,7 +418,7 @@ def test_local_ci_waits_for_a_check_running_at_admission_and_a_later_failure_kee
     world["prs"][2]["checks"] = [[run], [failed]]  # running when the train reads the PR, failed when it waits
     monkeypatch.setattr(ci_status, "required_contexts", lambda: (["check"], []))
     monkeypatch.setattr(ci_status, "actions_enabled", lambda: False)
-    monkeypatch.setattr(train.config, "get", lambda: train.config.Config(local_ci={"check": []}))
+    monkeypatch.setattr(config, "get", lambda: config.Config(local_ci={"check": []}))
     assert train.train([1, 2], harness_ok=True, dry_run=False, local_ci=True) == 1
     res = last_json(capsys.readouterr().out)
     assert outcomes_of(res) == {"1": "merged", "2": "refused"} and "check check: failing" in str(res["members"]["2"])
@@ -431,7 +431,7 @@ def test_local_ci_statuses_are_posted_only_after_the_push(world, capsys, monkeyp
     three(world)
     monkeypatch.setattr(ci_status, "required_contexts", lambda: (["check"], []))
     monkeypatch.setattr(ci_status, "actions_enabled", lambda: False)
-    monkeypatch.setattr(train.config, "get", lambda: train.config.Config(local_ci={"check": []}))
+    monkeypatch.setattr(config, "get", lambda: config.Config(local_ci={"check": []}))
     main_at_post = []
     real = board.gh
 
@@ -627,3 +627,137 @@ def test_the_cli_refuses_duplicate_members_and_stray_harness_ok_numbers(world, c
     code = cli.run(cli.parse(argv))
     assert code == 2
     assert says in capsys.readouterr().out and world["events"] == []
+
+
+FAILED_LINT = {"__typename": "CheckRun", "name": "lint", "workflowName": "ci", "status": "COMPLETED",
+               "conclusion": "FAILURE"}  # fmt: skip
+
+
+def comments_on(w: dict, n: int) -> list[str]:
+    return [e[e.index("--body") + 1] for e in w["events"] if e[:4] == ("gh", "pr", "comment", str(n))]
+
+
+def test_override_admits_unfinished_feedback_logs_it_on_every_member_and_still_gates(world, capsys):
+    """#486: with Actions unavailable every PR needs --override; a train takes it as a single integrate does."""
+    three(world)
+    world["prs"][2]["checks"] = [[FAILED_LINT]]
+    code = cli.run(cli.parse(["integrate", "--train", "3", "1", "2", "3", "--override", "Actions billing-blocked"]))
+    assert code == 0
+    res = last_json(capsys.readouterr().out)
+    assert outcomes_of(res) == {"1": "merged", "2": "merged", "3": "merged"}
+    assert [g["members"] for g in res["gates_run"]] == [[1, 2, 3]] and world["gates"] == [[]]
+    for n in (1, 2, 3):
+        (log,) = comments_on(world, n)
+        assert log.startswith("`dev integrate --override`: Actions billing-blocked")
+        assert res["members"][str(n)]["override"] == "Actions billing-blocked"
+    assert "check lint: failing (FAILURE)" in comments_on(world, 2)[0]
+    assert "nothing: no unfinished feedback" in comments_on(world, 1)[0]
+
+
+def test_without_override_the_same_member_is_refused_and_an_empty_reason_admits_none(world, capsys):
+    three(world)
+    world["prs"][2]["checks"] = [[FAILED_LINT]]
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
+    assert outcomes_of(last_json(capsys.readouterr().out)) == {"1": "merged", "2": "refused", "3": "merged"}
+    assert train.train([2], harness_ok=True, dry_run=False, override=" ") == 1
+    res = last_json(capsys.readouterr().out)
+    assert res["outcome"] == "none-admitted" and res["members"]["2"]["reason"] == "--override needs a reason"
+
+
+def test_override_does_not_lift_a_failing_title_or_a_harness_review(world, capsys, monkeypatch):
+    monkeypatch.setattr(workflow, "expected_title", lambda info: '"feat(x): pr 2 (#102)"')
+    open_pr(world, 1, {"devkit/x.py": "x = 1\n"})
+    open_pr(world, 2, note(world["clone"], "n2"), title="pr two")
+    assert train.train([1, 2], harness_ok=set(), dry_run=False, override="CI is down") == 1
+    assert outcomes_of(last_json(capsys.readouterr().out)) == {"1": "harness-review", "2": "refused"}
+
+
+def test_feedback_arriving_during_the_gate_still_stops_an_overridden_train(world, capsys):
+    three(world)
+    world["prs"][2]["checks"] = [[FAILED_LINT], [FAILED_LINT, FAILED_LINT | {"name": "types"}]]
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False, override="CI is down") == 1
+    res = last_json(capsys.readouterr().out)
+    assert res["outcome"] == "stopped" and res["members"]["2"]["outcome"] == "refused"
+    assert res["members"]["2"]["feedback"] == ["- check types: failing (FAILURE)"]
+    assert closed(world) == []
+
+
+def protected(
+    world: dict, monkeypatch, protection: dict | list | None, rules: list | None = None, **repo: object
+) -> None:
+    """main's branch protection and active rulesets as GitHub reports them to the train's preflight (#472)."""
+    fake = board.gh
+
+    def gh(*args, **kw):
+        if args[:1] == ("api",) and len(args) == 2:
+            world["events"].append(("gh", *args))
+            path = args[1]
+            if path.endswith("/branches/main/protection"):
+                if protection is None:
+                    raise board.BoardError("gh api repos/o/r/branches/main/protection: Branch not protected (HTTP 404)")
+                return json.dumps(protection)
+            if path.endswith("/rules/branches/main"):
+                return json.dumps(rules or [])
+            if "/rulesets/" in path:
+                return json.dumps({"current_user_can_bypass": repo.get("bypass", "never")})
+            if path == "repos/o/r":
+                return json.dumps({"permissions": {"admin": repo.get("admin", False)}})
+        return fake(*args, **kw)
+
+    monkeypatch.setattr(board, "gh", gh)
+
+
+def test_a_main_that_requires_status_checks_refuses_the_train_before_any_gate(world, capsys, monkeypatch):
+    """#472: the push of main would be refused after the gate; the train says why before it spends one."""
+    three(world)
+    checks = {"checks": [{"context": "check", "app_id": None}], "contexts": ["check"]}
+    protected(world, monkeypatch, {"required_status_checks": checks, "enforce_admins": {"enabled": True}}, admin=True)
+    before = main_log(world)
+    assert train.train([1, 2, 3], harness_ok=True, dry_run=False) == 1
+    printed = capsys.readouterr().out
+    res = last_json(printed)
+    assert res["outcome"] == "refused" and "requires status checks (check)" in res["reason"]
+    assert "RESULT: refused: main refuses the train's direct push" in printed
+    assert res["gates_run"] == [] and world["gates"] == [] and sent_back(world) == [] and main_log(world) == before
+
+
+def test_an_admin_not_enforced_and_an_unprotected_main_still_land_by_one_push(world, capsys, monkeypatch):
+    three(world)
+    checks = {"contexts": ["check"]}
+    protected(world, monkeypatch, {"required_status_checks": checks, "enforce_admins": {"enabled": False}}, admin=True)
+    assert train.train([1, 2], harness_ok=True, dry_run=False) == 0
+    protected(world, monkeypatch, None, [{"type": "deletion", "ruleset_id": 4}])
+    assert train.train([3], harness_ok=True, dry_run=False) == 0
+    assert main_log(world)[:3] == [
+        "feat(x): pr 3 (#103) (#3)",
+        "feat(x): pr 2 (#102) (#2)",
+        "feat(x): pr 1 (#101) (#1)",
+    ]
+
+
+def test_a_ruleset_requiring_a_pull_request_refuses_unless_this_user_always_bypasses_it(world, capsys, monkeypatch):
+    three(world)
+    rules = [{"type": "pull_request", "ruleset_id": 9}]
+    protected(world, monkeypatch, None, rules, bypass="pull_requests_only")
+    assert train.train([1], harness_ok=True, dry_run=True) == 1
+    assert "ruleset 9 requires a pull request" in last_json(capsys.readouterr().out)["reason"]
+    protected(world, monkeypatch, None, rules, bypass="always")
+    assert train.train([1], harness_ok=True, dry_run=True) == 0
+
+
+def test_an_unknown_ruleset_rule_or_an_odd_protection_reply_is_named_and_left_to_the_push(world, capsys, monkeypatch):
+    """Review of #549: the preflight fails open, but never silently."""
+    three(world)
+    protected(world, monkeypatch, ["odd"], [{"type": "file_path_restriction", "ruleset_id": 3}])  # type: ignore[arg-type]
+    assert train.train([1], harness_ok=True, dry_run=True) == 0
+    printed = capsys.readouterr().out
+    assert "cannot read main's branch protection (unexpected response list)" in printed
+    assert "ruleset 3 has a 'file_path_restriction' rule the train does not judge" in printed
+    protected(world, monkeypatch, None, [{"type": "deletion", "ruleset_id": 4}])
+    assert train.train([1], harness_ok=True, dry_run=True) == 0
+    assert "train does not judge" not in capsys.readouterr().out
+
+
+def test_the_cli_refuses_an_empty_override_reason_for_a_train_before_reading_github(world, capsys):
+    assert cli.run(cli.parse(["integrate", "--train", "2", "1", "2", "--override", " "])) == 2
+    assert "--override needs a reason" in capsys.readouterr().out and world["events"] == []
