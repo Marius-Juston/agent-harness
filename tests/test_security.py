@@ -5,6 +5,7 @@ gitleaks and a Go toolchain, uv audit asks OSV, Semgrep CE fetches its pinned ru
 fixture. Semgrep covers what ruff S does not: shell scripts, workflow `run:` blocks and Dockerfiles. The fake secret is generated at
 run time from a fixed seed, so this repository never holds a literal one for gitleaks to flag."""
 
+import http.client
 import os
 import random
 import re
@@ -300,6 +301,27 @@ def test_citecheck_fetches_through_the_guarded_opener(monkeypatch):
     monkeypatch.setattr(netsafe.OPENER, "open", refuse)
     assert citecheck._get("https://example.org/x")[0] == 0 and seen == ["https://example.org/x"]
     assert any(isinstance(h, netsafe.HttpOnlyRedirects) for h in netsafe.OPENER.handlers)
+
+
+def test_a_body_cut_short_is_a_network_failure_not_a_crash(monkeypatch):
+    """A chunked body the server stops sending raises http.client.IncompleteRead, which is no OSError: it crashed
+    `dev cite-check` (found on #56)."""
+
+    class Cut:
+        status, headers = 200, {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self, cap):
+            raise http.client.IncompleteRead(b"partial", 12)
+
+    monkeypatch.setattr(netsafe.OPENER, "open", lambda req, timeout: Cut())
+    status, _, body = netsafe.http_get("https://example.org/x", ua="ua")
+    assert status == 0 and "IncompleteRead" in body
 
 
 BOMB = '<?xml version="1.0"?><!DOCTYPE f [<!ENTITY a "aaaa"><!ENTITY b "&a;&a;&a;">]><feed>&b;</feed>'
