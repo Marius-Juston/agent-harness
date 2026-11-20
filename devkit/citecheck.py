@@ -17,7 +17,8 @@ Retry-After, through devkit.backoff) and again next run. A 401/403 (paywall, bot
 about the page, so it is reported as unverified, never as ok.
 
 Then each SOURCED claim resting on a paper must quote it verbatim with a locator, and the quote must be in that
-section of the paper's full text (check_quotes, #512); a note line per file counts its abstract-only claims.
+section of the paper's full text (check_quotes, #512); a note line per file counts its abstract-only claims. Each
+such claim also records one search for contrary findings or failed replications on an `against:` line (#592).
 """
 
 import concurrent.futures
@@ -48,6 +49,7 @@ BARE = re.compile(r"(?<![(\[])\bhttps?://(?:[^\s()<>\]`'\"]|\([^\s()]*\))+")
 # an id right after '.', '/', '-' or a word character is part of a DOI or a path, not an arXiv id
 BARE_ARXIV = re.compile(r"(?:\barXiv[: ]*|(?<![\w./-]))(\d{4}\.\d{4,5})(?:v\d+)?\b")
 CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
+FENCE = re.compile(r"```.*?```", re.S)
 ARXIV = re.compile(r"arxiv\.org/(?:abs|html|pdf)/(\d{4}\.\d{4,5})(?:v\d+)?")
 DOI = re.compile(r"doi\.org/(10\.\d{4,9}/[^\s?#]+)")
 GITHUB = re.compile(r"^https?://github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$")
@@ -329,6 +331,13 @@ def check_notes(
         more, said, counts = check_quotes(found, texts or lit.client().full_text, lenient, strict)
         problems += more
         notes += said
+        for c in found:
+            if not (bad := against_problem(c)):
+                continue
+            if strict(c):
+                problems.append(bad)
+            else:
+                notes.append(f"{bad} {UNTOUCHED}")
         for p, n in counts.items():
             notes.append(f"{Path(p).name}: {', '.join(f'{v} {k}' for k, v in n.items())} (SOURCED paper claims)")
     return len(cites), problems, notes
@@ -340,6 +349,12 @@ def check_notes(
 # paper's full text (lit.Client.full_text). The abstract cannot back a numeric, method or limitation claim when the
 # full text is reachable; with none reachable, the claim says so with the `abstract-only` tag.
 
+# #592: one targeted search for contrary findings or failed replications per claim, its query quoted or in code, then
+# its result. It sits on its own line (or a table cell) within the claim's paragraph or list item, or right after it.
+AGAINST = re.compile(r"(^[ \t]*(?:[-*+][ \t]+)?|\|[ \t]*)against:([^|\n]*)", re.M)
+AGAINST_SHAPE = re.compile(r"(?:\"[^\"\n]{3,}\"|`[^`\n]{3,}`)\s*(?:→|->)\s*\S")
+AGAINST_FORM = 'against: "<query>" → <result>'
+UNTOUCHED = "(an untouched line: a note; `--all` fails it)"
 LABEL = re.compile(r"\b(VERIFIED|SOURCED|BELIEVED|ASSUMED)\b")
 QUOTE = re.compile(r"[\"“]([^\"“”\n]{12,}?)[\"”]")
 QUOTED = re.compile(r"[\"“][^\"“”\n]*[\"”]")
@@ -369,6 +384,7 @@ class Claim:
     context: str  # what decides the claim's kind: its quote and its own words
     tags: frozenset[str]
     last: int = 0  # the claim's paragraph or list item ends on this line (0: on `line`)
+    against: str | None = None  # what follows `against:` in the claim's paragraph or on the line after it
 
     def lines(self) -> set[int]:
         return set(range(self.line, max(self.line, self.last) + 1))
@@ -431,11 +447,24 @@ def _segment(masked: str, group: tuple[int, int], at: int) -> tuple[int, int]:
     return next(((a + 1, b) for a, b in itertools.pairwise(cuts) if a < at < b), (group[0] + 1, group[1] - 1))
 
 
+def _blank(m: re.Match) -> str:
+    """Code removed without moving the line numbers after it."""
+    return "\n" * m.group(0).count("\n")
+
+
 def claims(path: Path, text: str) -> list[Claim]:
-    """The SOURCED claims of a note that rest on a paper, with their quote, locator and tags."""
+    """The SOURCED claims of a note that rest on a paper, with their quote, locator, tags and `against:` line."""
     found: list[Claim] = []
-    text = re.sub(r"`(abstract-only|single-source)`", r"\1", text)  # tags are written as code; keep them
-    for line, last, block in _blocks(CODE.sub("", text)):
+    text = re.sub(r"`(abstract-only|single-source)`", r"\1", FENCE.sub(_blank, text))  # tags are code; keep them
+    against: dict[int, str] = {}
+
+    def record(m: re.Match) -> str:
+        """The against line's text, kept aside and blanked, so its query is never taken for a claim's quote."""
+        against[text.count("\n", 0, m.start()) + 1] = m.group(2).strip()
+        return f"{m.group(1)}against:{' ' * len(m.group(2))}"
+
+    text = AGAINST.sub(record, text)
+    for line, last, block in _blocks(CODE.sub(_blank, text)):
         links = [m for m in LINK.finditer(block) if ARXIV.search(m.group(2)) or DOI.search(m.group(2))]
         masked = _mask(block)
         groups = _groups(masked)
@@ -463,8 +492,21 @@ def claims(path: Path, text: str) -> list[Claim]:
             quote = inside[0] if inside else outside[-1] if outside else ""
             loc = fulltext.LOCATOR.findall(QUOTED.sub(" ", seg))
             tags = frozenset(t for t in ("abstract-only", "single-source") if t in seg)
-            found.append(Claim(path, line, url, ident, loc[0] if loc else "", quote, f"{quote} {before}", tags, last))
+            said = next((against[n] for n in range(line, last + 2) if n in against), None)
+            context = f"{quote} {before}"
+            found.append(Claim(path, line, url, ident, loc[0] if loc else "", quote, context, tags, last, said))
     return found
+
+
+def against_problem(c: Claim) -> str:
+    """What is wrong with the claim's `against:` line, or ''."""
+    if c.against is None:
+        return (
+            f"{c.where()}: no `against:` line (one search for contrary findings or failed replications): {AGAINST_FORM}"
+        )
+    if not AGAINST_SHAPE.match(c.against):
+        return f"{c.where()}: the `against:` line needs a query and its result: {AGAINST_FORM}"
+    return ""
 
 
 TextSource = Callable[[str], "tuple[fulltext.FullText | None, str]"]  # ident -> (text or None, why); may raise
@@ -496,7 +538,7 @@ def check_quotes(
         if strict(c):
             problems += bad
         else:
-            notes += [f"{x} (an untouched line: a note; `--all` fails it)" for x in bad]
+            notes += [f"{x} {UNTOUCHED}" for x in bad]
     return problems, notes, counts
 
 

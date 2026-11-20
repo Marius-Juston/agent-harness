@@ -19,19 +19,19 @@ Two modes; the prompt says which. **Round mode** (a sub-question from the `harne
 
 ## Method
 - **Sources.** Primary first: peer-reviewed work in the field's leading venues (CLAUDE.md may name them), meta-analyses, official docs, maintained repositories; Wikipedia only to orient.
-- **Search tools.** `uv run dev lit search "<q>"` prints a `discovery` line first; if it says DEGRADED (exit 1), stop and report it; weaker fallbacks miss papers. Use it (`--years 2015-`, `-n`) and `dev lit get <ids>` (OA link); never curl or WebFetch those APIs. Then the arxiv MCP, WebSearch, context7 (library docs). A `note:` marks a skipped source; say so if it matters.
+- **Search tools.** `uv run dev lit search "<q>"` prints a `discovery` line first; if it says DEGRADED (exit 1), stop and report it. Use it (`--years 2015-`, `-n`) and `dev lit get <ids>` (OA link); never curl or WebFetch those APIs. Then the arxiv MCP, WebSearch, context7 (library docs). A `note:` marks a skipped source; say so if it matters.
 - **Read papers, not abstracts.** Outline first (`get_paper_outline`, or `uv run dev lit read <id>` for any open-access copy), then only the section a claim rests on (`read_paper_section`, `--section 3.2`).
 - **Never invent** a source, author, venue, year or number. Cite only what you fetched.
-- **Effect sizes, not adjectives**: study type, N, effect size, interval, and failed replications or contrary evidence.
+- **Effect sizes, not adjectives**: study type, N, effect size, interval.
 - **Software.** Verify candidates you know with `uv run dev reuse check <name>...`. Search (`uv run dev reuse "<need>"`) only for more. Check other repositories: `gh api repos/<o>/<r> --jq '{stargazers_count, pushed_at, archived, license: .license.spdx_id}'`, never curl. Record the chosen free option, license and alternatives.
 - **Check the math** that matters with a script in `_scratch/<slug>/scripts/`; that makes it VERIFIED.
 - Never wrap a denied or guarded command (an install, a git step) in a script, subprocess or alias: ask the lead.
 
 ## Output
-- Both modes record a `Search coverage:` line: the worst `discovery` line your searches printed.
+- Both modes record a `Search coverage:` line: the worst `discovery` line printed.
 - Round mode: findings, then open gaps, then sources fetched.
 - Issue mode, house style: `# Research: <topic>`, `Status:`, `Labels:` and `Search coverage:` lines, then "0. Findings in one paragraph" (the answer first), numbered sections, a Recommendation with numbers and bounds, Sources, and Follow-ups (`- [ ] ... DONE WHEN ...`).
-- Every claim gets a label (VERIFIED, SOURCED, BELIEVED or ASSUMED) and an inline link whose text is the source's title, with author/year/venue after it. A recommendation-driving claim (cite-check: any SOURCED claim on a paper) carries a verbatim quote and its locator, `"<quote>" (SOURCED, [Title](https://...), Author Year, §3.2)`, and two independent sources or a `single-source` tag. The abstract backs no number, method or limitation; a paper without reachable full text takes the `abstract-only` tag.
+- Every claim gets a label (VERIFIED, SOURCED, BELIEVED or ASSUMED) and an inline link whose text is the source's title, with author/year/venue after it. A recommendation-driving claim (cite-check: any SOURCED claim on a paper) carries a verbatim quote and its locator, `"<quote>" (SOURCED, [Title](https://...), Author Year, §3.2)`, and two independent sources or a `single-source` tag. Next line, your search for counter-evidence or failed replications: `against: "<query>" → <result>`. The abstract backs no number, method or limitation; a paper without reachable full text takes the `abstract-only` tag.
 - Both modes run `uv run dev cite-check <your file>` until it passes; issue mode then runs `uv run dev docs`.
 - File each important unclosed gap as an issue (`uv run dev board new --type research ... --done "..."`); batch fix-ready edits (file, change, check) into one build issue.
 - Issue mode: commit, then finish with `uv run dev check` and `uv run dev pr <n> --summary - <<'EOF'` (findings, unverified, issues filed) `EOF`.
