@@ -78,6 +78,12 @@ LIT_API = re.compile(
 )
 LIT_VAR = re.compile(r"\$\{?(\w+)")  # a fetched argument that starts with a variable: $u, ${u}...
 LIT_RAW = "DEVKIT_LIT_RAW"
+# Environment the guards read (#191). The first two switch a guard off, so they count only from the environment
+# Claude Code started in (owner_env); edit_guard refuses agent edits that put any of them in a settings file.
+OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE")
+# Names that move where settings files are found: a settings `env` setting one could hide the file that sets an
+# override, so owner_env ignores every override while one is set, and edit_guard refuses adding them as well.
+LOCATORS = ("HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_PROJECT_DIR")
 FETCHERS = {"curl", "wget"}
 SLOTS = (
     "the gate slot count is the owner's: agents never change it. `uv run dev gate-slots` prints it; ask the owner to "
@@ -383,6 +389,85 @@ def lex(text: str) -> list[list[Simple]]:
     return out
 
 
+def settings_files(cwd: str) -> list[str]:
+    """Every Claude Code settings file that could feed this session's `env`: .claude/settings{,.local}.json in each
+    directory from the cwd, the git checkout (and its main checkout), the user's home and the project directory up
+    to /, and in $CLAUDE_CONFIG_DIR. Home and checkout are found without the environment as well, since a settings
+    `env` block could point HOME or CLAUDE_PROJECT_DIR elsewhere."""
+    starts = [cwd, os.getcwd(), os.environ.get("CLAUDE_PROJECT_DIR", ""), os.path.expanduser("~")]
+    try:
+        import pwd  # POSIX only
+
+        starts.append(pwd.getpwuid(os.getuid()).pw_dir)
+    except (ImportError, KeyError, AttributeError):
+        pass
+    try:
+        out = subprocess.run(
+            ["git", "-C", cwd, "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        lines = out.stdout.splitlines() if out.returncode == 0 else []
+        starts += lines[:1] + [os.path.dirname(x) for x in lines[1:2]]
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    dirs: list[str] = []
+    for start in starts:
+        d = os.path.abspath(start) if start else ""
+        while d and d not in dirs:
+            dirs.append(d)
+            d = os.path.dirname(d) if os.path.dirname(d) != d else ""
+    files = [os.path.join(d, ".claude", f) for d in dirs for f in ("settings.json", "settings.local.json")]
+    if config := os.environ.get("CLAUDE_CONFIG_DIR"):
+        files += [os.path.join(config, f) for f in ("settings.json", "settings.local.json")]
+    return files
+
+
+JSON_KEY = re.compile(r'"((?:[^"\\]|\\.)*)"\s*:')
+
+
+def unescape(raw: str) -> str:
+    """A JSON string body decoded, so `DEVKIT_LIT_RAW` reads as the name it is; undecodable text as written."""
+    try:
+        return json.loads(f'"{raw}"')
+    except ValueError:
+        return raw
+
+
+def env_keys(text: str) -> set[str]:
+    """The names a settings file's `env` block sets. Text that is not a JSON object fails closed: every key-like
+    string in it counts, since Claude Code's reader may be more lenient than json."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return {unescape(m.group(1)) for m in JSON_KEY.finditer(text)}
+    env = data.get("env") if isinstance(data, dict) else None
+    return {k for k in env if isinstance(k, str)} if isinstance(env, dict) else set()
+
+
+def owner_env(name: str, cwd: str) -> str:
+    """An override that switches a guard off, read only where an agent's tools cannot set it (#191).
+
+    Claude Code hands a settings file's `env` block to hooks, ahead of the shell it started in (VERIFIED,
+    docs/research/agent-harness.md §12c), and an agent can write those files. So the name reads as unset when any
+    settings `env` sets it, or sets one of LOCATORS (which could hide the file that does): the owner sets it in the
+    shell that starts Claude Code. Unset in the environment, nothing is read, so the usual call costs nothing."""
+    value = os.environ.get(name, "")
+    if not value:
+        return ""
+    for path in settings_files(cwd):
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            continue
+        if env_keys(text) & {name, *LOCATORS}:
+            return ""
+    return value
+
+
 def base(word: str) -> str:
     return word.rsplit("/", 1)[-1]
 
@@ -519,6 +604,7 @@ class Checker:
         self.start = cwd  # the session's worktree; a `cd ..` inside the command does not move it
         self.in_python = 0  # > 0 while checking a Python string literal as a shell command
         self.lit_vars: set[str] = set()  # variables the command sets to a literature-API URL
+        self.lit_raw = owner_env(LIT_RAW, cwd) == "1"
 
     def text(self, text: str, depth: int = 0) -> str | None:
         """Check a shell command string; return the reason it is blocked, or None."""
@@ -654,7 +740,7 @@ class Checker:
             rest = [a for a in args if not a.startswith("-")]
             if rest[:1] == ["pip"] and {"install", "uninstall", "sync"} & set(rest):
                 return PIP
-        if name in FETCHERS and f"{LIT_RAW}=1" not in assigns and os.environ.get(LIT_RAW) != "1":
+        if name in FETCHERS and f"{LIT_RAW}=1" not in assigns and not self.lit_raw:
             for a in args:
                 a = a.split("=", 1)[1] if a.startswith("--") and "=" in a else a  # --url=<url>
                 if LIT_API.match(a) or ((m := LIT_VAR.match(a)) and m.group(1) in self.lit_vars):
@@ -1044,12 +1130,12 @@ def main() -> int:
         url = (data.get("tool_input") or {}).get("url", "") if data.get("tool_name") == "WebFetch" else ""
     except (json.JSONDecodeError, AttributeError):
         return 0
-    if isinstance(url, str) and LIT_API.match(url.strip()) and os.environ.get(LIT_RAW) != "1":
+    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
+    if isinstance(url, str) and LIT_API.match(url.strip()) and owner_env(LIT_RAW, cwd) != "1":
         print(f"Blocked by project rule: {LIT}", file=sys.stderr)
         return 2
     if not isinstance(cmd, str):
         return 0
-    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
     agent = data.get("agent_type") if isinstance(data.get("agent_type"), str) else ""  # set inside a subagent
     try:
         why = Checker(cwd, read_only=READ_ONLY_AGENTS.get(agent.rsplit(":", 1)[-1], "")).text(cmd)

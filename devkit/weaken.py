@@ -216,11 +216,48 @@ def approved(issue: dict, owner: str | None) -> bool:
     )
 
 
+ISSUE_ENV = "DEVKIT_GATE_ISSUE"  # set by integrate: its gate runs in a detached worktree with no branch (#487)
+SPAN = re.compile(r"(\d+|-)(?::([0-9a-f]{7,64})(?:\.\.([0-9a-f]{7,64}))?)?")
+
+
 def issue_number() -> int | None:
     """The issue of this branch, from its `<n>-slug` name (a PR's head branch in CI)."""
     branch = os.environ.get("GITHUB_HEAD_REF") or git("branch", "--show-current", cwd=root(), check=False)
     m = re.match(r"(\d+)-", branch.strip())
     return int(m.group(1)) if m else None
+
+
+def spans(value: str) -> list[tuple[int | None, str | None, str | None]]:
+    """ISSUE_ENV's (issue, from, to) entries: `N` makes the whole diff issue N's (one PR); a merge train names each
+    member as `N:from..to` in merge order, the last as `N:from` (to the working tree, its regenerated files
+    included); `-` stands for a member whose branch names no issue. The ranges must chain, so no commit escapes the
+    check. Raises ValueError on anything else."""
+    out: list[tuple[int | None, str | None, str | None]] = []
+    for word in value.split():
+        if not (m := SPAN.fullmatch(word)):
+            raise ValueError(f"{word!r} is neither N, N:from..to nor N:from")
+        out.append((None if m[1] == "-" else int(m[1]), m[2], m[3]))
+    if len(out) == 1 and out[0][1] is None:
+        return out
+    for i, (_, frm, to) in enumerate(out):
+        if frm is None or (to is None) != (i == len(out) - 1) or (i and out[i - 1][2] != frm):
+            raise ValueError(
+                f"{out[i]}: train ranges must chain from..to and only the last may end at the working tree"
+            )
+    return out
+
+
+def _approval(number: int | None) -> tuple[bool, str]:
+    """(approved, why not): whether issue `number` carries the owner's `weakening-ok:` line."""
+    if number is None:
+        return False, "no `<n>-slug` branch names the issue"
+    try:
+        issue = json.loads(board.gh("issue", "view", str(number), "-R", board.repo(), "--json", "body,author,comments"))
+    except (board.BoardError, json.JSONDecodeError) as e:
+        return False, f"#{number} could not be read ({e})"
+    if approved(issue, repo_owner()):
+        return True, ""
+    return False, f"#{number} records no owner `weakening-ok:` line"
 
 
 def _read(path: str) -> str:
@@ -230,33 +267,38 @@ def _read(path: str) -> str:
         return ""
 
 
-def check_weakening(base: str | None) -> Ran:
+def check_weakening(base: str | None, issue: str | None = None) -> Ran:
+    """The diff against `base` judged against this branch's issue; `issue` (ISSUE_ENV, set by integrate) names the
+    issue instead, or, in a merge train, judges each member's own commits against that member's issue (#251)."""
     ran = Ran("test weakening (asserts, tests, skips, test config, goldens)", allow_empty=True)
-    if not base:
-        ran.warnings.append("no merge base with main: test changes not compared")
+    try:
+        parts = spans(issue) if issue else []
+    except ValueError as e:
+        ran.problems.append(f"{ISSUE_ENV}={issue!r}: {e}")
         return ran
+    judged = parts
+    if not parts or parts[0][1] is None:
+        if not base:
+            ran.warnings.append("no merge base with main: test changes not compared")
+            return ran
+        judged = [(parts[0][0] if parts else issue_number(), base, None)]
     paths = ["*.py", "*tests/*", "*test/*", *(f"*{name}{ext}" for name in CONFIG_FILES for ext in ("", ".jinja"))]
-    diff = git("diff", "-M", "-U0", "--no-color", "--no-ext-diff", base, "--", *paths, cwd=root())
-    ran.checked = len(parse(diff))
-    found = findings(diff, _read)
-    if not found:
-        return ran
-    number = issue_number()
-    reason = "no `<n>-slug` branch names the issue"
-    if number is not None:
-        try:
-            issue = json.loads(
-                board.gh("issue", "view", str(number), "-R", board.repo(), "--json", "body,author,comments")
-            )
-            if approved(issue, repo_owner()):
-                ran.warnings += [f"{f} (approved in #{number})" for f in found]
-                return ran
-            reason = f"#{number} records no owner `weakening-ok:` line"
-        except (board.BoardError, json.JSONDecodeError) as e:
-            reason = f"#{number} could not be read ({e})"
-    ran.problems += found
-    ran.problems.append(
-        f'{reason}. Fix the code, not the test; if the test is wrong, `uv run dev board block <n> --reason "<why>"` and ask'
-        " the owner to approve the change in the issue"
-    )
+    reasons = []
+    for number, frm, to in judged:
+        revs = [r for r in (frm, to) if r]
+        diff = git("diff", "-M", "-U0", "--no-color", "--no-ext-diff", *revs, "--", *paths, cwd=root())
+        ran.checked += len(parse(diff))
+        if not (found := findings(diff, _read)):
+            continue
+        ok, reason = _approval(number)
+        if ok:
+            ran.warnings += [f"{f} (approved in #{number})" for f in found]
+        else:
+            ran.problems += found
+            reasons.append(reason)
+    if reasons:
+        ran.problems.append(
+            f"{'; '.join(reasons)}. Fix the code, not the test; if the test is wrong, "
+            '`uv run dev board block <n> --reason "<why>"` and ask the owner to approve the change in the issue'
+        )
     return ran
