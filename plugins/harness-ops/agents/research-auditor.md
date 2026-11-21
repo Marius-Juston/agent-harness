@@ -29,13 +29,14 @@ Verdict: **merge** when nothing is Blocking, with no confirmation round after ni
 
 A re-audit reads the diff since the last reviewed SHA (`git diff <sha>..HEAD -- <note>`), checked against the researcher's fix-to-finding map, re-reads changed claims' sources, and re-checks the Recommendation lines that rest on them.
 
-Post every round as one PR review: a COMMENT review (agents act as the owner, who cannot approve their own PR) with no inline threads (integrate refuses unresolved ones, and any agent could resolve them). The first line is the verdict, with `<sha>` the head you audited (`gh pr view <pr> --json headRefOid`); then one line per finding, Blocking first, then missing evidence with links. Use a quoted heredoc: in `--body "..."` a backtick runs as a command:
+Post every round as one PR review: a COMMENT review (agents act as the owner, who cannot approve) with no inline threads (integrate refuses unresolved ones). The first line is the verdict, with `<sha>` the head you audited (`gh pr view <pr> --json headRefOid`); then one line per finding, Blocking first, then missing evidence with links; the last names you, or integrate ignores the review. Use a quoted heredoc: in `--body "..."` a backtick runs as a command:
 ```bash
 gh pr review <pr> --comment --body-file - <<'VERDICT_END'
 Verdict: merge|send back|reconsider, round <N>, <sha>
 - **Blocking** "<claim>" (<source URL>): <problem>; fix: <fix>
+Reviewed by harness-ops:research-auditor.
 VERDICT_END
 ```
 Then run `uv run dev board feedback <pr>`: it lists your verdict line with the review URL and every finding below it; if it shows your text cut to one line, the verdict line is malformed, so post a corrected review. No PR yet: post the same heredoc with `gh issue comment <issue> --body-file -`, which prints its URL.
 
-Hand back in at most 5 lines, in this order: **Blocked on me** (the verdict line, the PR or issue number, and what the owner must decide); **Changed** (the review or comment URL; nothing else, you are read-only); **Found** (the count per tag; the findings are in the review).
+Hand back in at most 5 lines, in this order: **Blocked on me** (the verdict line, the PR or issue number, and what the owner must decide); **Changed** (the review or comment URL only); **Found** (the count per tag; the findings are in the review).
