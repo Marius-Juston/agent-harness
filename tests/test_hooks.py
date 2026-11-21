@@ -2038,6 +2038,87 @@ def test_guard_bash_default_review_agents_agree_with_devkit_config():
     assert config.Config().review_agents == list(sys.modules["hooklib.github"].DEFAULT_REVIEWERS)
 
 
+# #662 round 3: the remote settings decide which repository the review policy is read from, so they are the owner's.
+REMOTE_WRITES = [
+    "git remote set-url origin https://github.com/evil/r",
+    "git remote add evil https://github.com/evil/r",
+    "git remote rename origin old",
+    "git remote remove origin",
+    "git remote rm origin",
+    "git remote -v set-url --push origin https://github.com/evil/r",
+    "git -C /main remote set-url origin https://github.com/evil/r",
+    "cd /main && git remote set-url origin https://github.com/evil/r",
+    "git config remote.origin.url https://github.com/evil/r",
+    "git config --local remote.origin.url https://github.com/evil/r",
+    "git config --worktree remote.origin.url https://github.com/evil/r",
+    "git config --file /main/.git/config remote.origin.url https://github.com/evil/r",
+    "git config remote.origin.pushurl https://github.com/evil/r",
+    "git config --add remote.origin.url https://github.com/evil/r",
+    "git config --replace-all remote.origin.url https://github.com/evil/r",
+    "git config set remote.origin.url https://github.com/evil/r",
+    "git config --unset remote.origin.url",
+    "git config --rename-section remote.origin remote.old",
+    "git config --remove-section remote.origin",
+    "git config url.https://github.com/evil/.insteadOf https://github.com/o/",
+    "git config --global url.https://github.com/evil/.insteadOf https://github.com/o/",
+    "git config --global url.ssh://github.com/evil/.pushInsteadOf ssh://github.com/o/",
+    "git -C /main config remote.origin.url https://github.com/evil/r",
+    "git config -e",
+    "GIT_EDITOR=true git config --edit",
+    "echo '[remote \"origin\"]' >> /main/.git/config",
+    "sed -i s/o/evil/ /main/.git/config",
+    "cd /main/.git && sed -i s/o/evil/ config",
+    "cp /tmp/c /main/.git/config",
+    "tee .git/worktrees/w/config.worktree < /tmp/c",
+]
+REMOTE_READS = [
+    "git remote -v",
+    "git remote",
+    "git remote show origin",
+    "git remote get-url origin",
+    "git config --get remote.origin.url",
+    "git config remote.origin.url",
+    "git config --get-regexp '^url\\.'",
+    "git config --global --get url.https://github.com/evil/.insteadOf",
+    "git config --list",
+    "git config user.name a",
+    "cat /main/.git/config",
+    "grep url /main/.git/config",
+    "git -c remote.origin.url=x fetch",  # one invocation only: no setting is written
+]
+
+
+@pytest.mark.parametrize("cmd", REMOTE_WRITES)
+def test_guard_bash_remote_settings_are_the_owners(hook, cmd):
+    for agent in (LEAD, BUILDER):
+        code, err = _gh(hook, cmd, agent)
+        assert code == 2 and GUARD.REMOTE in err, (cmd, agent, err)
+    assert "owner's" in GUARD.REMOTE
+
+
+@pytest.mark.parametrize("cmd", REMOTE_READS)
+def test_guard_bash_remote_settings_are_readable(hook, cmd):
+    code, err = _gh(hook, cmd, BUILDER)
+    assert code == 0, (cmd, err)
+
+
+@pytest.mark.parametrize(
+    ("path", "blocked"),
+    [
+        ("/main/.git/config", True),
+        (".git/config", True),
+        ("/main/.git/worktrees/w/config.worktree", True),
+        ("/main/.git/HEAD", False),
+        ("/main/src/config", False),
+        ("/main/.github/config.yml", False),
+    ],
+)
+def test_edit_guard_refuses_the_git_config_files(hook, path, blocked):
+    code, _, err = hook("edit_guard.py", {"tool_input": {"file_path": path}})
+    assert (code == 2) == blocked, path
+    assert not blocked or "remote settings are the owner's" in err
+
+
 STILL_ALLOWED = [
     "gh issue comment 528 --body 'fixed in #586'",
     "gh pr comment 5 --body-file - <<'EOF'\nAnswered each finding; the verdict is the reviewer's.\nEOF",
