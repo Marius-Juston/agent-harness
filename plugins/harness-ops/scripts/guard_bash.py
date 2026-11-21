@@ -310,6 +310,11 @@ class Checker(GitHubRules):
         self.lit_vars: set[str] = set()  # variables the command sets to a literature-API URL
         self.lit_raw = owner_env(LIT_RAW, cwd) == "1"
 
+    def project(self) -> str:
+        """#662: $CLAUDE_PROJECT_DIR unless a settings `env` block (an agent can write one) sets it: the main checkout
+        review_agents trusts. Read only when a review is checked."""
+        return owner_env("CLAUDE_PROJECT_DIR", self.start)
+
     def text(self, text: str, depth: int = 0) -> str | None:
         """Check a shell command string; return the reason it is blocked, or None."""
         if depth > MAX_DEPTH:

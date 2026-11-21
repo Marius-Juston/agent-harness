@@ -83,6 +83,12 @@ def verdict_of(body: str) -> re.Match | None:
     return VERDICT.fullmatch((body.strip().splitlines() or [""])[0].strip())
 
 
+def names_agent(body: str, who: str) -> bool:
+    """`body` names agent `who` as a whole name, not inside a longer one (`security-reviewer` does not name
+    `reviewer`), as guard_bash's impersonation check reads it (#662); "" names any."""
+    return not who or re.search(rf"(?<![\w-]){re.escape(who)}(?![\w-])", body) is not None
+
+
 @functools.cache
 def gh_user() -> str:
     """The login gh is authenticated as; "" when GitHub cannot say."""

@@ -69,7 +69,9 @@ def verdict(p: Pr, trusted: set[str], who: str = "") -> tuple[str, str] | None:
     found = [
         (r.get("submittedAt") or "", v[1], v[3])
         for r in p.feedback.get("reviews") or []
-        if board.login(r) in trusted and (v := board.verdict_of(r.get("body") or "")) and who in (r.get("body") or "")
+        if board.login(r) in trusted
+        and (v := board.verdict_of(r.get("body") or ""))
+        and board.names_agent(r.get("body") or "", who)
     ]
     return max(found, key=lambda f: f[0])[1:] if found else None
 
