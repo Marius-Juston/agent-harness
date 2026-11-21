@@ -518,3 +518,42 @@ def test_the_research_skill_says_what_reconsider_means_within_two_audits():
     assert "told it is the last round, so its Blocking findings mean 'reconsider'" in audit
     assert "On 'reconsider', the researcher drops failed claims or relabels them BELIEVED" in audit
     assert "the lead asks the owner before integrating a changed Recommendation" in audit
+
+
+def test_the_architect_starts_from_dev_arch_before_any_deep_analysis():
+    """#660: `dev arch` (#527) measures contracts, the largest cycle, hotspots and the ceiling; step 1 works from it."""
+    _, body = frontmatter.read(PLUGIN / "agents/architect.md")
+    step1 = " ".join(body.split("1. **Measure.**", 1)[1].split("\n2. ", 1)[0].split())
+    assert "`uv run dev arch`" in step1
+    assert all(w in step1 for w in ("contracts", "largest import cycle", "hotspots", "ceiling"))
+    assert "before any deep analysis" in step1
+
+
+def test_the_builder_splits_a_module_near_the_arch_ceiling_in_its_own_issue():
+    """#660: #612, #623 and #640 each met the 1,000-LOC ceiling only when the gate refused."""
+    _, body = frontmatter.read(PLUGIN / "agents/builder.md")
+    text = " ".join(body.split())
+    assert "`uv run dev arch` LOC ceiling" in text
+    assert "split it in its own issue" in text and "never raise the ceiling or its pin without the owner" in text
+
+
+@pytest.mark.parametrize("agent", ["reviewer", "research-auditor"])
+def test_review_templates_end_with_the_reviewed_by_line_required_reviews_matches(agent):
+    """#660: integrate (#391) ignores a verdict review that does not name its agent; one merge was refused so."""
+    lines = _review_command(agent).splitlines()
+    assert lines[-2] == f"Reviewed by harness-ops:{agent}."
+
+
+def test_the_lead_skill_names_required_reviews_and_the_verdict_format():
+    _, body = frontmatter.read(PLUGIN / "skills/lead/SKILL.md")
+    loop = " ".join(body.split("## 2. Close the loop first", 1)[1].split("\n## ", 1)[0].split())
+    assert "`required_reviews`" in loop
+    assert "`Verdict: merge, round <N>, <sha>`" in loop and "`Reviewed by <agent>.`" in loop
+
+
+def test_the_harness_skill_measures_a_research_skill_change_with_the_research_eval():
+    """#660: `dev eval research` (#590, #619) is the known-answer measurement of research-skill changes."""
+    _, body = frontmatter.read(PLUGIN / "skills/harness/SKILL.md")
+    evals = " ".join(body.split("## Evals", 1)[1].split("\n## ", 1)[0].split())
+    assert "**Research skill**" in evals and "`uv run dev eval research --label <name>`" in evals
+    assert "`--compare A B`" in evals
