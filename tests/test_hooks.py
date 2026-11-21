@@ -1812,27 +1812,53 @@ def test_guard_bash_research_auditor_posts_its_verdict_but_never_as_the_reviewer
     assert code == 2 and GUARD.REVIEW in err
 
 
-# #662: the agents that post reviews come from the project's committed [tool.devkit], not a hard-coded pair.
-def _review_project(tmp_path, devkit: str | None, commit: bool = True) -> Path:
+# #662: the agents that post reviews come from [tool.devkit] on the origin's default branch, read through `gh api`
+# (a fake gh here, serving one pyproject per repository), not a hard-coded pair and not local git state.
+POLICY_GH = """#!/bin/sh
+[ "$1 $2 $3" = "api -H Accept: application/vnd.github.raw" ] || exit 1
+f="{dir}/$(printf %s "$4" | tr / _)"
+[ -f "$f" ] && exec cat "$f"
+echo '{{"message": "Not Found"}}' >&2
+exit 1
+"""
+
+
+def _git(repo, *args):
+    subprocess.run(["git", "-C", str(repo), "-c", "user.email=a@b", "-c", "user.name=a", *args], check=True)
+
+
+def _review_project(tmp_path, origin: str = "https://github.com/o/r.git") -> Path:
+    """A main checkout with `origin` and one commit; its pyproject lists builder, which must never count."""
     repo = tmp_path / "proj"
     subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
-    if devkit is not None:
-        (repo / "pyproject.toml").write_text(f'[project]\nname = "p"\n\n[tool.devkit]\n{devkit}\n')
-    if commit:
-        git = ["git", "-C", str(repo), "-c", "user.email=a@b", "-c", "user.name=a"]
-        subprocess.run([*git, "add", "-A"], check=True)
-        subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "x"], check=True)
+    _git(repo, "remote", "add", "origin", origin)
+    (repo / "pyproject.toml").write_text('[tool.devkit]\nreview_agents = ["builder"]\n')
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "x")
     return repo
+
+
+def _serve(tmp_path, repo: str = "o/r", devkit: str | None = "") -> str:
+    """A PATH whose gh serves `devkit` as `repo`'s pyproject.toml (None: a 404)."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    gh = bin_dir / "gh"
+    gh.write_text(POLICY_GH.format(dir=bin_dir))
+    gh.chmod(0o755)
+    if devkit is not None:
+        (bin_dir / f"repos_{repo.replace('/', '_')}_contents_pyproject.toml").write_text(f"[tool.devkit]\n{devkit}\n")
+    return f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"
 
 
 def _verdict(name: str) -> str:
     return f"gh pr review 5 --comment --body-file - <<'E'\nVerdict: merge, round 1, abc1234\nReviewed by {name}\nE"
 
 
-def _rgh(hook, cmd: str, agent: str | None, project, cwd=None) -> tuple[int, str]:
-    """_gh in a session Claude Code started in `project` (its $CLAUDE_PROJECT_DIR; None: unset)."""
+def _rgh(hook, cmd: str, agent: str | None, project, path: str, cwd=None) -> tuple[int, str]:
+    """_gh in a session Claude Code started in `project` (its $CLAUDE_PROJECT_DIR; None: unset) with PATH `path`."""
     env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PROJECT_DIR"}
     env |= {"CLAUDE_PROJECT_DIR": str(project)} if project else {}
+    env["PATH"] = path
     payload = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "tool_input": {"command": cmd}}
     payload |= {"cwd": str(cwd or project or os.getcwd()), "session_id": "s", "tool_use_id": "t"}
     if agent:
@@ -1842,34 +1868,35 @@ def _rgh(hook, cmd: str, agent: str | None, project, cwd=None) -> tuple[int, str
 
 
 def test_guard_bash_a_configured_project_agent_posts_reviews_and_an_unlisted_one_is_refused(hook, tmp_path):
-    repo = _review_project(tmp_path, 'review_agents = ["harness-ops:reviewer", "security-reviewer"]')
-    assert _rgh(hook, _verdict("security-reviewer"), "security-reviewer", repo)[0] == 0
-    assert _rgh(hook, "gh pr review 5 --approve", "security-reviewer", repo)[0] == 0
-    assert _rgh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", repo)[0] == 0
+    repo, path = _review_project(tmp_path), _serve(tmp_path, devkit='review_agents = ["harness-ops:reviewer", "sec"]')
+    assert _rgh(hook, _verdict("sec"), "sec", repo, path)[0] == 0
+    assert _rgh(hook, "gh pr review 5 --approve", "sec", repo, path)[0] == 0
+    assert _rgh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", repo, path)[0] == 0
     for agent in (BUILDER, "general-purpose", "harness-ops:research-auditor"):  # the key replaces the default pair
-        code, err = _rgh(hook, _verdict("security-reviewer"), agent, repo)
+        code, err = _rgh(hook, _verdict("sec"), agent, repo, path)
         assert code == 2 and GUARD.REVIEW in err, agent
     assert "review_agents" in GUARD.REVIEW and "replaces the default" in GUARD.REVIEW  # names the key and its effect
 
 
 def test_guard_bash_an_agent_required_reviews_names_posts_its_verdict(hook, tmp_path):
-    repo = _review_project(tmp_path, '[tool.devkit.required_reviews]\n"src/" = "perf-auditor"')
-    assert _rgh(hook, _verdict("perf-auditor"), "perf-auditor", repo)[0] == 0
-    assert _rgh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", repo)[0] == 0  # default kept
-    assert _rgh(hook, _verdict("perf-auditor"), BUILDER, repo)[0] == 2
+    repo, path = _review_project(tmp_path), _serve(tmp_path, devkit='[tool.devkit.required_reviews]\n"src/" = "perf"')
+    assert _rgh(hook, _verdict("perf"), "perf", repo, path)[0] == 0
+    assert _rgh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", repo, path)[0] == 0  # default kept
+    assert _rgh(hook, _verdict("perf"), BUILDER, repo, path)[0] == 2
 
 
 def test_guard_bash_a_configured_reviewer_never_posts_as_another(hook, tmp_path):
-    repo = _review_project(tmp_path, 'review_agents = ["harness-ops:reviewer", "security-reviewer", "myplug:auditor"]')
+    names = 'review_agents = ["harness-ops:reviewer", "security-reviewer", "myplug:auditor"]'
+    repo, path = _review_project(tmp_path), _serve(tmp_path, devkit=names)
     for agent, other in (
         ("security-reviewer", "harness-ops:reviewer"),
         ("harness-ops:reviewer", "security-reviewer"),
         ("security-reviewer", "myplug:auditor"),
         ("myplug:auditor", "security-reviewer"),
     ):
-        code, err = _rgh(hook, _verdict(other), agent, repo)
+        code, err = _rgh(hook, _verdict(other), agent, repo, path)
         assert code == 2 and GUARD.REVIEW in err, (agent, other)
-    assert _rgh(hook, _verdict("myplug:auditor"), "myplug:auditor", repo)[0] == 0
+    assert _rgh(hook, _verdict("myplug:auditor"), "myplug:auditor", repo, path)[0] == 0
 
 
 def test_guard_bash_and_integrate_agree_a_name_inside_a_longer_one_is_not_that_agent(hook, tmp_path):
@@ -1877,8 +1904,8 @@ def test_guard_bash_and_integrate_agree_a_name_inside_a_longer_one_is_not_that_a
     match counted it as `reviewer`'s verdict. Both now read whole names, so it satisfies only its own requirement."""
     from devkit import autopilot, board, workflow
 
-    repo = _review_project(tmp_path, 'review_agents = ["reviewer", "security-reviewer"]')
-    assert _rgh(hook, _verdict("security-reviewer"), "security-reviewer", repo)[0] == 0
+    repo, path = _review_project(tmp_path), _serve(tmp_path, devkit='review_agents = ["reviewer", "security-reviewer"]')
+    assert _rgh(hook, _verdict("security-reviewer"), "security-reviewer", repo, path)[0] == 0
     body = "Verdict: merge, round 1, abc1234\nReviewed by security-reviewer"
     review = {"author": {"login": "me"}, "body": body, "submittedAt": "t"}
 
@@ -1892,77 +1919,123 @@ def test_guard_bash_and_integrate_agree_a_name_inside_a_longer_one_is_not_that_a
     assert board.names_agent("Reviewed by harness-ops:reviewer.", "reviewer")  # a plugin prefix still names it
 
 
-def test_guard_bash_review_policy_ignores_a_cd_in_the_command(hook, tmp_path):
-    """#662 round 1 probe: `cd <a repo listing builder> && gh pr review` passed while the policy followed the cwd."""
-    main = _review_project(tmp_path, "")
-    fake = _review_project(tmp_path / "fake", 'review_agents = ["builder"]')
-    for cmd in (f"cd {fake} && gh pr review 5 --comment --body ok", f"cd {fake} && " + _verdict("harness-ops:builder")):
-        code, err = _rgh(hook, cmd, BUILDER, main)
-        assert code == 2 and GUARD.REVIEW in err, cmd
-        assert _rgh(hook, cmd, BUILDER, None, cwd=fake)[0] == 2  # nor does the session's own cwd count
-
-
-def test_guard_bash_review_policy_ignores_a_rewritten_worktree_git_file(hook, tmp_path):
-    """#662 round 1 probe: a worker pointing its worktree's `.git` file at a repo listing builder."""
-    main = _review_project(tmp_path, "")
-    fake = _review_project(tmp_path / "fake", 'review_agents = ["builder"]')
-    wt = tmp_path / "wt"
-    subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", "-b", "w", str(wt)], check=True)
-    (wt / ".git").write_text(f"gitdir: {fake}/.git\n")
+def test_guard_bash_review_policy_ignores_a_cd_or_a_rewritten_worktree_git_file(hook, tmp_path):
+    """#662 round 1 probes: `cd <a repo listing builder>`, or a worktree `.git` file pointed at it."""
+    main = _review_project(tmp_path)
+    fake = _review_project(tmp_path / "fake", origin="https://github.com/evil/r")
+    path = _serve(tmp_path, "evil/r", 'review_agents = ["builder"]')
     cmd = "gh pr review 5 --comment --body ok"
+    code, err = _rgh(hook, f"cd {fake} && {cmd}", BUILDER, main, path)
+    assert code == 2 and GUARD.REVIEW in err
+    assert _rgh(hook, cmd, BUILDER, None, path, cwd=fake)[0] == 2  # nor does the session's own cwd count
+    wt = tmp_path / "wt"
+    _git(main, "worktree", "add", "-q", "-b", "w", str(wt))
+    (wt / ".git").write_text(f"gitdir: {fake}/.git\n")
     for project in (main, wt):  # the session started in the main checkout, or in the rewritten worktree itself
-        code, err = _rgh(hook, cmd, BUILDER, project, cwd=wt)
+        code, err = _rgh(hook, cmd, BUILDER, project, path, cwd=wt)
         assert code == 2 and GUARD.REVIEW in err, project
 
 
 @pytest.mark.parametrize(
-    ("devkit", "commit"),
+    "move",
     [
-        (None, True),  # no pyproject
-        ("review_agents = [", True),  # unreadable TOML
-        ('review_agents = "builder"', True),  # not a list
-        ("review_agents = [1]", True),
-        ('review_agents = ["builder"]', False),  # an uncommitted edit: a worker could write it
+        ["replace", "main", "w"],
+        ["update-ref", "refs/heads/main", "w"],
+        ["reset", "-q", "--hard", "w"],
+        ["fetch", "-q", "--update-head-ok", ".", "w:main"],
     ],
 )
-def test_guard_bash_review_agents_fall_back_to_the_defaults_never_to_allow_all(hook, tmp_path, devkit, commit):
-    repo = _review_project(tmp_path, devkit, commit)
-    code, err = _rgh(hook, _verdict("harness-ops:builder"), BUILDER, repo)
+def test_guard_bash_review_policy_ignores_local_git_state_every_worktree_shares(hook, tmp_path, move):
+    """#662 round 2 probes: a worker committing `review_agents = ["builder"]` and moving the main checkout's HEAD
+    (git replace, update-ref, a fetch into main, a commit run in the main checkout) passed while the policy was HEAD's."""
+    main, path = _review_project(tmp_path), _serve(tmp_path)  # GitHub's default branch lists no extra agent
+    (main / "pyproject.toml").write_text("[project]\n")  # the main checkout's own HEAD lists nobody else either
+    _git(main, "commit", "-q", "-am", "plain")
+    wt = tmp_path / "wt"
+    _git(main, "worktree", "add", "-q", "-b", "w", str(wt))
+    (wt / "pyproject.toml").write_text('[tool.devkit]\nreview_agents = ["builder"]\n')
+    _git(wt, "commit", "-q", "-am", "list builder")
+    _git(main, *move)
+    (main / "pyproject.toml").write_text('[tool.devkit]\nreview_agents = ["builder"]\n')
+    _git(main, "commit", "-q", "--allow-empty", "-am", "a commit in the main checkout")
+    code, err = _rgh(hook, "gh pr review 5 --comment --body ok", BUILDER, main, path, cwd=wt)
     assert code == 2 and GUARD.REVIEW in err
-    assert _rgh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", repo)[0] == 0
+
+
+def test_guard_bash_review_policy_ignores_a_redirected_or_non_github_origin(hook, tmp_path):
+    path = _serve(tmp_path, "evil/r", 'review_agents = ["builder"]')
+    main = _review_project(tmp_path)
+    wt = tmp_path / "wt"
+    _git(main, "worktree", "add", "-q", "-b", "w", str(wt))
+    _git(main, "config", "extensions.worktreeConfig", "true")
+    _git(wt, "config", "--worktree", "remote.origin.url", "https://github.com/evil/r")  # the worktree's own config
+    for project in (main, wt):
+        assert _rgh(hook, "gh pr review 5 --approve", BUILDER, project, path, cwd=wt)[0] == 2, project
+    for origin in ("https://gitlab.com/evil/r", "https://github.com.evil.io/evil/r", "/srv/git/evil/r"):
+        other = _review_project(tmp_path / origin.replace("/", "_"), origin=origin)
+        assert _rgh(hook, "gh pr review 5 --approve", BUILDER, other, path)[0] == 2, origin
+    assert sys.modules["hooklib.github"].origin_repo(str(main)) == "o/r"
+
+
+@pytest.mark.parametrize(
+    "devkit",
+    [
+        None,  # a 404, or offline: gh exits non-zero
+        "review_agents = [",  # unreadable TOML
+        'review_agents = "builder"',  # not a list
+        "review_agents = [1]",
+    ],
+)
+def test_guard_bash_review_agents_fall_back_to_the_defaults_never_to_allow_all(hook, tmp_path, devkit):
+    repo, path = _review_project(tmp_path), _serve(tmp_path, devkit=devkit)
+    code, err = _rgh(hook, _verdict("harness-ops:builder"), BUILDER, repo, path)
+    assert code == 2 and GUARD.REVIEW in err
+    assert _rgh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", repo, path)[0] == 0
 
 
 def test_guard_bash_review_agents_unanchored_or_without_tomllib_are_the_defaults(hook, tmp_path, monkeypatch):
-    repo = _review_project(tmp_path, 'review_agents = ["builder", "harness-ops:reviewer"]')
-    for project in (None, tmp_path):  # $CLAUDE_PROJECT_DIR unset, or not a git checkout
-        assert _rgh(hook, _verdict("harness-ops:builder"), BUILDER, project, cwd=repo)[0] == 2
-        assert _rgh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", project, cwd=repo)[0] == 0
+    repo, path = _review_project(tmp_path), _serve(tmp_path, devkit='review_agents = ["builder"]')
+    for project, at in ((None, path), (tmp_path, path), (repo, "/nonexistent")):  # unset, not a checkout, no gh
+        assert _rgh(hook, _verdict("harness-ops:builder"), BUILDER, project, at, cwd=repo)[0] == 2, (project, at)
+        assert _rgh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", project, at, cwd=repo)[0] == 0
     github = sys.modules["hooklib.github"]
-    assert {"builder", "harness-ops:reviewer"} == github.review_agents(str(repo))
-    assert github.review_agents("") == set(github.DEFAULT_REVIEWERS)
+    github.review_agents.cache_clear()
+    assert {"builder"} == github.review_agents(str(repo), path)
+    assert github.review_agents("", path) == github.review_agents(str(repo), "") == set(github.DEFAULT_REVIEWERS)
     github.review_agents.cache_clear()
     monkeypatch.setattr(github, "tomllib", None)
     try:
-        assert github.review_agents(str(repo)) == set(github.DEFAULT_REVIEWERS)
+        assert github.review_agents(str(repo), path) == set(github.DEFAULT_REVIEWERS)
     finally:
         github.review_agents.cache_clear()
 
 
-def test_guard_bash_review_policy_set_by_a_settings_env_block_is_ignored(hook, tmp_path):
-    """An agent can write a settings `env` block: a CLAUDE_PROJECT_DIR it sets is not the owner's (owner_env)."""
-    repo = _review_project(tmp_path, 'review_agents = ["builder"]')
+def test_guard_bash_review_agents_time_out_to_the_defaults(tmp_path, monkeypatch):
+    github = sys.modules["hooklib.github"]
+    repo, path = _review_project(tmp_path), _serve(tmp_path, devkit='review_agents = ["builder"]')
+    (tmp_path / "bin" / "gh").write_text("#!/bin/sh\nexec sleep 5\n")
+    monkeypatch.setattr(github, "POLICY_TIMEOUT", 0.2)
+    github.review_agents.cache_clear()
+    try:
+        assert github.review_agents(str(repo), path) == set(github.DEFAULT_REVIEWERS)
+    finally:
+        github.review_agents.cache_clear()
+
+
+@pytest.mark.parametrize("name", ["CLAUDE_PROJECT_DIR", "PATH"])
+def test_guard_bash_review_policy_anchors_a_settings_env_block_sets_are_ignored(hook, tmp_path, name):
+    """An agent can write a settings `env` block: a CLAUDE_PROJECT_DIR or PATH it sets is not the owner's."""
+    repo, path = _review_project(tmp_path), _serve(tmp_path, devkit='review_agents = ["builder"]')
+    assert _rgh(hook, "gh pr review 5 --comment --body ok", BUILDER, repo, path)[0] == 0  # the served list counts
     (repo / ".claude").mkdir()
-    (repo / ".claude" / "settings.local.json").write_text(json.dumps({"env": {"CLAUDE_PROJECT_DIR": str(repo)}}))
-    assert _rgh(hook, "gh pr review 5 --comment --body ok", BUILDER, repo)[0] == 2
+    (repo / ".claude" / "settings.local.json").write_text(json.dumps({"env": {name: "x"}}))
+    assert _rgh(hook, "gh pr review 5 --comment --body ok", BUILDER, repo, path)[0] == 2
 
 
 def test_guard_bash_default_review_agents_agree_with_devkit_config():
     from devkit import config
 
     assert config.Config().review_agents == list(sys.modules["hooklib.github"].DEFAULT_REVIEWERS)
-    for bad in ([1], [""], "harness-ops:reviewer"):
-        with pytest.raises(config.ConfigError, match="review_agents"):
-            config.parse({"review_agents": bad})
 
 
 STILL_ALLOWED = [

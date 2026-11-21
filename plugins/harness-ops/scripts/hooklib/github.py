@@ -95,7 +95,7 @@ REVIEW = (
     "only the agents [tool.devkit] review_agents lists (default harness-ops:reviewer and harness-ops:research-auditor) "
     "or required_reviews names post PR reviews or `Verdict:` lines, each naming only itself: a verdict is what "
     "integrate trusts, and every agent posts as the owner. Hand back; the lead dispatches the reviewer. A project's "
-    "own reviewer agent goes in review_agents, committed on the main checkout's branch; setting it replaces the default "
+    "own reviewer agent goes in review_agents, on the default branch on GitHub; setting it replaces the default "
     "pair, so list harness-ops:reviewer and harness-ops:research-auditor too."
 )
 OWNER_MARK = (
@@ -273,22 +273,48 @@ def api_write(name: str, args: list[str]) -> bool:
     return any(a.upper() in WRITE_METHODS for a in items) or any(re.match(r"^[\w.-]+(?::=|=|@)", a) for a in items)
 
 
-@functools.cache
-def review_agents(project: str) -> frozenset[str]:
-    """#662: the agents that post verdict reviews, as [tool.devkit] names them: review_agents (DEFAULT_REVIEWERS when
-    unset; setting it replaces them) and every required_reviews value. Read from the pyproject.toml committed at HEAD
-    of `project`, the main checkout Claude Code started in ($CLAUDE_PROJECT_DIR as the owner set it): never from the
-    cwd, which a `cd` in the command moves, nor through a worktree's `.git` file, which a worker can rewrite. So
-    `project` must hold a `.git` directory. Anything else (unset, a worktree, no pyproject, no tomllib, a malformed
-    value) gives the defaults, never more."""
-    names = frozenset(DEFAULT_REVIEWERS)
+GITHUB_REMOTE = re.compile(
+    r"(?:https://(?:[^@/\s]+@)?github\.com/|ssh://git@github\.com/|git@github\.com:)([\w.-]+/[\w.-]+?)(?:\.git)?/?"
+)
+POLICY_TIMEOUT = 4  # seconds for the one `gh api` read; hooks.json gives guard_bash 10
+GH_REDIRECTS = {"GH_HOST", "GH_REPO", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"}  # would point gh elsewhere
+
+
+def origin_repo(project: str) -> str:
+    """`owner/name` of the github.com `origin` in `project`'s own `.git/config` (a directory, not a worktree's `.git`
+    file or a symlink), read as text: no git process, so no GIT_* variable or include redirects it. "" otherwise."""
     git_dir = os.path.join(project, ".git") if project else ""
-    if tomllib is None or not git_dir or os.path.islink(git_dir) or not os.path.isdir(git_dir):
-        return names
-    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}  # no GIT_DIR or alternates redirect it
+    if not git_dir or os.path.islink(git_dir) or not os.path.isdir(git_dir):
+        return ""
     try:
-        show = ["git", "--git-dir", git_dir, "show", "HEAD:pyproject.toml"]
-        out = subprocess.run(show, capture_output=True, text=True, timeout=5, check=False, env=env)
+        with open(os.path.join(git_dir, "config"), encoding="utf-8") as f:
+            text = f.read(1 << 20)
+    except (OSError, UnicodeDecodeError):
+        return ""
+    section = re.search(r'(?ms)^\s*\[remote\s+"origin"\]\s*$(.*?)(?=^\s*\[|\Z)', text)
+    url = re.search(r"(?m)^\s*url\s*=\s*(\S+)\s*$", section.group(1)) if section else None
+    m = GITHUB_REMOTE.fullmatch(url.group(1)) if url else None
+    return m.group(1) if m else ""
+
+
+@functools.cache
+def review_agents(project: str, path: str = "") -> frozenset[str]:
+    """#662: the agents that post verdict reviews, as [tool.devkit] names them: review_agents (DEFAULT_REVIEWERS when
+    unset; setting it replaces them) and every required_reviews value. Read from the pyproject.toml on GitHub's default
+    branch of `project`'s origin, which only integrate writes: no local git state counts (every worktree shares the
+    refs, the object store and refs/replace, so any agent can move them). `project` is the main checkout Claude Code
+    started in and `path` the PATH gh is found on, each as the owner set it (guard_bash.owner_env). Read only for a
+    review or verdict post, once per hook run, with no cache on disk. Anything else (either unset, a worktree, a
+    non-github origin, offline, a timeout, no pyproject, no tomllib, a malformed value) gives the defaults, never
+    more."""
+    names = frozenset(DEFAULT_REVIEWERS)
+    if tomllib is None or not path or not (repo := origin_repo(project)):
+        return names
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_") and k not in GH_REDIRECTS}
+    env["PATH"] = path
+    read = ["gh", "api", "-H", "Accept: application/vnd.github.raw", f"repos/{repo}/contents/pyproject.toml"]
+    try:
+        out = subprocess.run(read, capture_output=True, text=True, timeout=POLICY_TIMEOUT, check=False, env=env)
         data = tomllib.loads(out.stdout).get("tool", {}).get("devkit", {}) if out.returncode == 0 else {}
     except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
         return names
@@ -333,10 +359,10 @@ class GitHubRules:
     vars: dict[str, str]
     transforms: bool
 
-    def project(self) -> str:
-        """The main checkout review_agents reads its policy from; Checker gives $CLAUDE_PROJECT_DIR as the owner set
-        it. "" (the defaults only) here."""
-        return ""
+    def policy_anchor(self) -> tuple[str, str]:
+        """(main checkout, PATH) review_agents reads the policy through; Checker gives $CLAUDE_PROJECT_DIR and $PATH
+        as the owner set them. Unset (the defaults only) here."""
+        return "", ""
 
     def feeds_cred_paths(self, c: Simple, earlier: list[Simple]) -> bool:
         """`du -a ~ | xargs grep x`: xargs runs a reader on paths listed from a directory holding a credential store."""
@@ -543,7 +569,7 @@ class GitHubRules:
             return None
         if not self.reviewer():
             return REVIEW
-        listed = review_agents(self.project())
+        listed = review_agents(*self.policy_anchor())
         named = set(AGENT_NAMED.findall(text))  # a listed name as written, not inside a longer one, counts too
         named |= {kind(n) for n in listed if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", text)}
         others = named & {kind(n) for n in listed} - {self.agent}  # a reviewer passing as another listed one
@@ -551,4 +577,4 @@ class GitHubRules:
 
     def reviewer(self) -> bool:
         """The agent is one review_agents (#662) lets post verdict reviews; the lead session never is."""
-        return self.agent is not None and self.agent in {kind(n) for n in review_agents(self.project())}
+        return self.agent is not None and self.agent in {kind(n) for n in review_agents(*self.policy_anchor())}

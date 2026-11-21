@@ -40,6 +40,8 @@ def test_an_empty_table_gives_the_template_defaults():
         ({"mcp_prereqs": {"lean-lsp": [""]}}, "list of binary names"),
         ({"required_reviews": {"src/math/": ["harness-ops:reviewer"]}}, "reviewer name"),
         ({"required_reviews": {"": "harness-ops:reviewer"}}, "reviewer name"),
+        ({"review_agents": [1]}, "review_agents entry"),
+        ({"review_agents": [""]}, "review_agents entry"),
         ({"regenerate": ["uv", "run", "rehash"]}, "list of arguments"),
         ({"regenerate": [[]]}, "list of arguments"),
         ({"regenerate": [["uv", ""]]}, "list of arguments"),
