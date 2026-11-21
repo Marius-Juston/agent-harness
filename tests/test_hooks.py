@@ -1812,6 +1812,94 @@ def test_guard_bash_research_auditor_posts_its_verdict_but_never_as_the_reviewer
     assert code == 2 and GUARD.REVIEW in err
 
 
+# #662: the agents that post reviews come from the project's committed [tool.devkit], not a hard-coded pair.
+def _review_project(tmp_path, devkit: str | None, commit: bool = True) -> Path:
+    repo = tmp_path / "proj"
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+    if devkit is not None:
+        (repo / "pyproject.toml").write_text(f'[project]\nname = "p"\n\n[tool.devkit]\n{devkit}\n')
+    if commit:
+        git = ["git", "-C", str(repo), "-c", "user.email=a@b", "-c", "user.name=a"]
+        subprocess.run([*git, "add", "-A"], check=True)
+        subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "x"], check=True)
+    return repo
+
+
+def _verdict(name: str) -> str:
+    return f"gh pr review 5 --comment --body-file - <<'E'\nVerdict: merge, round 1, abc1234\nReviewed by {name}\nE"
+
+
+def test_guard_bash_a_configured_project_agent_posts_reviews_and_an_unlisted_one_is_refused(hook, tmp_path):
+    repo = _review_project(tmp_path, 'review_agents = ["harness-ops:reviewer", "security-reviewer"]')
+    assert _gh(hook, _verdict("security-reviewer"), "security-reviewer", repo)[0] == 0
+    assert _gh(hook, "gh pr review 5 --approve", "security-reviewer", repo)[0] == 0
+    assert _gh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", repo)[0] == 0
+    for agent in (BUILDER, "general-purpose", "harness-ops:research-auditor"):  # the key replaces the default pair
+        code, err = _gh(hook, _verdict("security-reviewer"), agent, repo)
+        assert code == 2 and GUARD.REVIEW in err, agent
+    assert "review_agents" in GUARD.REVIEW  # the refusal names the key to set
+
+
+def test_guard_bash_an_agent_required_reviews_names_posts_its_verdict(hook, tmp_path):
+    repo = _review_project(tmp_path, '[tool.devkit.required_reviews]\n"src/" = "perf-auditor"')
+    assert _gh(hook, _verdict("perf-auditor"), "perf-auditor", repo)[0] == 0
+    assert _gh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", repo)[0] == 0  # default kept
+    assert _gh(hook, _verdict("perf-auditor"), BUILDER, repo)[0] == 2
+
+
+def test_guard_bash_a_configured_reviewer_never_posts_as_another(hook, tmp_path):
+    repo = _review_project(tmp_path, 'review_agents = ["harness-ops:reviewer", "security-reviewer", "myplug:auditor"]')
+    for agent, other in (
+        ("security-reviewer", "harness-ops:reviewer"),
+        ("harness-ops:reviewer", "security-reviewer"),
+        ("security-reviewer", "myplug:auditor"),
+        ("myplug:auditor", "security-reviewer"),
+    ):
+        code, err = _gh(hook, _verdict(other), agent, repo)
+        assert code == 2 and GUARD.REVIEW in err, (agent, other)
+    assert _gh(hook, _verdict("myplug:auditor"), "myplug:auditor", repo)[0] == 0
+    # a name inside a longer one is not that agent: security-reviewer's own verdict does not name `reviewer`
+    repo2 = _review_project(tmp_path / "b", 'review_agents = ["reviewer", "security-reviewer"]')
+    assert _gh(hook, _verdict("security-reviewer"), "security-reviewer", repo2)[0] == 0
+
+
+@pytest.mark.parametrize(
+    ("devkit", "commit"),
+    [
+        (None, True),  # no pyproject
+        ("review_agents = [", True),  # unreadable TOML
+        ('review_agents = "builder"', True),  # not a list
+        ("review_agents = [1]", True),
+        ('review_agents = ["builder"]', False),  # an uncommitted edit: a worker could write it
+    ],
+)
+def test_guard_bash_review_agents_fall_back_to_the_defaults_never_to_allow_all(hook, tmp_path, devkit, commit):
+    repo = _review_project(tmp_path, devkit, commit)
+    code, err = _gh(hook, _verdict("harness-ops:builder"), BUILDER, repo)
+    assert code == 2 and GUARD.REVIEW in err
+    assert _gh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", repo)[0] == 0
+
+
+def test_guard_bash_review_agents_outside_a_repository_or_without_tomllib_are_the_defaults(hook, tmp_path, monkeypatch):
+    assert _gh(hook, _verdict("harness-ops:builder"), BUILDER, tmp_path)[0] == 2
+    assert _gh(hook, _verdict("harness-ops:reviewer"), "harness-ops:reviewer", tmp_path)[0] == 0
+    github = sys.modules["hooklib.github"]
+    repo = _review_project(tmp_path, 'review_agents = ["security-reviewer"]')
+    assert {"security-reviewer"} == github.review_agents(str(repo))
+    github.review_agents.cache_clear()
+    monkeypatch.setattr(github, "tomllib", None)
+    try:
+        assert github.review_agents(str(repo)) == set(github.DEFAULT_REVIEWERS)
+    finally:
+        github.review_agents.cache_clear()
+
+
+def test_guard_bash_default_review_agents_agree_with_devkit_config():
+    from devkit import config
+
+    assert config.Config().review_agents == list(sys.modules["hooklib.github"].DEFAULT_REVIEWERS)
+
+
 STILL_ALLOWED = [
     "gh issue comment 528 --body 'fixed in #586'",
     "gh pr comment 5 --body-file - <<'EOF'\nAnswered each finding; the verdict is the reviewer's.\nEOF",

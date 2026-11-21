@@ -5,7 +5,13 @@ variables). Defense in depth, not a security boundary: see guard_bash's docstrin
 import functools
 import os
 import re
+import subprocess
 from fnmatch import fnmatchcase
+
+try:  # 3.11+; hooks run under the host's python3, which may be older (guard_bash.MIN_PYTHON): then the defaults
+    import tomllib
+except ImportError:
+    tomllib = None
 
 from hooklib.shell import ASSIGN, GREPS, PY, SHELLS, Simple, Word, base, short_flag, unwrap, within
 
@@ -86,15 +92,16 @@ ISSUE_WRITE = (
     '(`uv run dev board block <issue> --reason "..."`) and say so in your hand-back.'
 )
 REVIEW = (
-    "only harness-ops:reviewer and harness-ops:research-auditor post PR reviews or `Verdict:` lines, each naming only "
-    "itself: a verdict is what integrate trusts, and every agent posts as the owner. Hand back; the lead dispatches "
-    "the reviewer."
+    "only the agents [tool.devkit] review_agents lists (default harness-ops:reviewer and harness-ops:research-auditor) "
+    "or required_reviews names post PR reviews or `Verdict:` lines, each naming only itself: a verdict is what "
+    "integrate trusts, and every agent posts as the owner. Hand back; the lead dispatches the reviewer. A project's "
+    "own reviewer agent goes in review_agents, committed on the main checkout's branch."
 )
 OWNER_MARK = (
     "`weakening-ok:` lines are the owner's approval and `<!-- devkit:` markers are devkit's own records: an agent "
     'never writes them. Ask the owner with `uv run dev board block <issue> --reason "..."`.'
 )
-REVIEWERS = {"reviewer", "research-auditor"}  # agent types (plugin prefix dropped) that post verdict reviews
+DEFAULT_REVIEWERS = ("harness-ops:reviewer", "harness-ops:research-auditor")  # devkit/config.py review_agents (#662)
 VERDICT_LINE = re.compile(r"(?im)^[\s>*_#`-]*verdict:[\s*_]*(merge|send back|reconsider)")  # looser than board.VERDICT
 WEAKENING_OK = re.compile(r"^\s*weakening-ok:\s*\S", re.M)  # devkit/weaken.py MARKER: must agree (a test checks)
 DEVKIT_MARK = re.compile(r"<!--\s*devkit:")
@@ -265,6 +272,40 @@ def api_write(name: str, args: list[str]) -> bool:
     return any(a.upper() in WRITE_METHODS for a in items) or any(re.match(r"^[\w.-]+(?::=|=|@)", a) for a in items)
 
 
+@functools.cache
+def review_agents(cwd: str) -> frozenset[str]:
+    """#662: the agents that post verdict reviews, as [tool.devkit] names them: review_agents (DEFAULT_REVIEWERS when
+    unset) and every required_reviews value. Read from the pyproject.toml committed at the main checkout's HEAD, not
+    the worktree's file, which the worker posting the review could edit. Anything unreadable (no repository, no
+    pyproject, no tomllib, a malformed value) gives the defaults, never more."""
+    names = frozenset(DEFAULT_REVIEWERS)
+    if tomllib is None:
+        return names
+    try:
+        git = ["git", "-C", cwd, "rev-parse", "--path-format=absolute", "--git-common-dir"]
+        out = subprocess.run(git, capture_output=True, text=True, timeout=5, check=False)
+        if out.returncode != 0:
+            return names
+        show = ["git", "--git-dir", out.stdout.strip(), "show", "HEAD:pyproject.toml"]
+        out = subprocess.run(show, capture_output=True, text=True, timeout=5, check=False)
+        data = tomllib.loads(out.stdout).get("tool", {}).get("devkit", {}) if out.returncode == 0 else {}
+    except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
+        return names
+    if not isinstance(data, dict):
+        return names
+    listed, required = data.get("review_agents", list(names)), data.get("required_reviews", {})
+    if not (isinstance(listed, list) and all(isinstance(n, str) and n for n in listed)):
+        return names
+    if isinstance(required, dict):
+        listed = listed + [n for n in required.values() if isinstance(n, str) and n]
+    return frozenset(listed)
+
+
+def kind(name: str) -> str:
+    """An agent name as guard_bash holds the agent type: plugin prefix dropped."""
+    return name.rsplit(":", 1)[-1]
+
+
 def assigned(pipes: list[list[Simple]]) -> dict[str, str]:
     """NAME -> value for each literal assignment in the command (b=main, export M=-X): what `$b` expands to."""
     out: dict[str, str] = {}
@@ -414,7 +455,7 @@ class GitHubRules:
         texts = self.gh_texts(rest, stdin)
         if group == "api" and (why := self.gh_api(rest, texts)):
             return why
-        if group == "pr" and sub == "review" and self.agent not in REVIEWERS:
+        if group == "pr" and sub == "review" and not self.reviewer():
             return REVIEW
         if group in ("pr", "issue", "api"):
             return self.forged(texts, verdicts=True)
@@ -449,7 +490,7 @@ class GitHubRules:
                 return REF_DELETE
             if GQL_OWNER.search(text):
                 return GH_ADMIN
-            if GQL_REVIEW.search(text) and self.agent not in REVIEWERS:
+            if GQL_REVIEW.search(text) and not self.reviewer():
                 return REVIEW
             return ISSUE_WRITE if GQL_ISSUE.search(text) and self.agent is not None else None
         if method in ("GET", "HEAD"):
@@ -462,7 +503,7 @@ class GitHubRules:
             return REF_DELETE
         if GH_OWNER_API.match(endpoint):
             return GH_ADMIN
-        if GH_REVIEW_API.match(endpoint) and self.agent not in REVIEWERS:
+        if GH_REVIEW_API.match(endpoint) and not self.reviewer():
             return REVIEW
         return ISSUE_WRITE if GH_ISSUE_API.match(endpoint) and self.agent is not None else None
 
@@ -494,5 +535,14 @@ class GitHubRules:
             return OWNER_MARK
         if not (verdicts and VERDICT_LINE.search(text)):
             return None
-        others = set(AGENT_NAMED.findall(text)) & REVIEWERS - {self.agent}  # a reviewer passing as the other one
-        return REVIEW if self.agent not in REVIEWERS or others else None
+        if not self.reviewer():
+            return REVIEW
+        listed = review_agents(self.cwd)
+        named = set(AGENT_NAMED.findall(text))  # a listed name as written, not inside a longer one, counts too
+        named |= {kind(n) for n in listed if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", text)}
+        others = named & {kind(n) for n in listed} - {self.agent}  # a reviewer passing as another listed one
+        return REVIEW if others else None
+
+    def reviewer(self) -> bool:
+        """The agent is one review_agents (#662) lets post verdict reviews; the lead session never is."""
+        return self.agent is not None and self.agent in {kind(n) for n in review_agents(self.cwd)}
