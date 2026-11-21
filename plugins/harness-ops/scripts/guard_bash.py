@@ -10,7 +10,8 @@ prefix-only and this hook is best effort; server-side branch protection is the o
 
 GitHub writes that bypass integrate or widen access (gh pr merge, repository settings, refs, releases, gists) are
 refused to every session; issue housekeeping is the lead's, and PR reviews and `Verdict:` lines belong to the reviewer
-agents (#528), told apart by the input's `agent_type`.
+agents (#528), told apart by the input's `agent_type`. Writes into a directory on the session's PATH outside the
+worktree are refused to every session, and installing a tool onto PATH to subagents (#673, path_refusal).
 
 A command allowed through that can wait forever (a poll loop, `tail -f`, `watch`, `wait`, ...) is rewritten
 (updatedInput) to run under `timeout <[tool.devkit] wait_bound_s>`; see bound_waits.
@@ -21,11 +22,13 @@ file, an encoding this lexer does not undo, or a tool it does not know still rea
 boundary is credentials scoped per agent, which no hook provides.
 """
 
+import functools
 import itertools
 import json
 import os
 import re
 import sys
+from collections.abc import Callable
 from fnmatch import fnmatchcase
 
 # The shared modules live beside this script; a test or another hook may load it by path.
@@ -139,7 +142,8 @@ LIT_VAR = re.compile(r"\$\{?(\w+)")  # a fetched argument that starts with a var
 LIT_RAW = "DEVKIT_LIT_RAW"
 # Environment the guards read (#191). The first two switch a guard off, so they count only from the environment
 # Claude Code started in (owner_env); edit_guard refuses agent edits that put any of them in a settings file.
-OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE", REVIEW_VAR)  # REVIEW_VAR widens a guard (#662)
+# PATH names the directories agents may not write into (#673): a settings `env` setting it could hide one.
+OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE", REVIEW_VAR, "PATH")  # REVIEW_VAR widens a guard
 # Names that move where settings files are found: a settings `env` setting one could hide the file that sets an
 # override, so owner_env ignores every override while one is set, and edit_guard refuses adding them as well.
 LOCATORS = ("HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_PROJECT_DIR")
@@ -150,6 +154,48 @@ SLOTS = (
 )
 # The owner's machine-local overrides under the git common dir: the `dev` command that sets each, its file, the denial.
 OWNER_SETTINGS = (("quota-cap", "devkit/quota_cap", QUOTA), ("gate-slots", "devkit/gate_slots", SLOTS))
+# #673: a file written into a directory on the owner's PATH (~/.local/bin, ~/.cargo/bin, ...) shadows gh, git, uv or
+# python in the owner's shells, every later session and the hooks themselves.
+PATH_DIR = (
+    "{dir} is on the session's PATH outside your worktree: an executable written there shadows the owner's tools (gh, "
+    "git, uv, python) in every later shell, session and hook. Keep scripts in the worktree and run them by path; "
+    "installing a tool onto PATH is the lead's or the owner's."
+)
+PATH_UNKNOWN = (
+    "a settings file's env block sets PATH (or HOME, CLAUDE_CONFIG_DIR, CLAUDE_PROJECT_DIR), so the guard cannot "
+    "tell which directories are on the owner's PATH: writes outside your worktree and the temp dir are refused until "
+    "the owner removes that setting."
+)
+INSTALL = (
+    "`{cmd}` puts executables in a directory on the owner's PATH (~/.local/bin, ~/.cargo/bin, ...), where they shadow "
+    "the owner's tools: installing a tool is the lead's. Run it without installing (`uvx <tool>`, `uv run`), or ask "
+    "the lead."
+)
+# Commands whose every path operand is written (or has its mode or owner changed); cp-like ones write their last
+# operand and their -t / --target-directory value; mv also empties its sources.
+PATH_WRITERS = {"tee", "chmod", "chown", "chgrp", "touch", "truncate", "mkdir", "setfacl", "chattr"}
+PATH_COPIERS = {"cp", "ln", "link", "install", "rsync", "scp", "mv"}
+# Code that writes a file: its string literals are checked as write targets.
+PY_WRITE = re.compile(
+    r"\b(?:write_text|write_bytes|copy\w*|move|rename|replace|symlink\w*|link\w*|chmod|mkdir|makedirs|touch|"
+    r"urlretrieve)\s*\(|\bopen\s*\([^)]*['\"][rbt]*[wax+][rbt+]*['\"]"  # open() only with a writing mode
+)
+# Package managers' install commands that put executables on PATH: (command, the words that install). A word set
+# matches when the command's first non-option words start with it; `-g` / `--global` marks the node ones.
+INSTALLERS = {
+    "uv": [("tool", "install"), ("tool", "upgrade"), ("python", "install"), ("python", "upgrade")],
+    "pipx": [
+        (s,) for s in ("install", "install-all", "inject", "upgrade", "upgrade-all", "reinstall", "reinstall-all")
+    ],
+    "cargo": [("install",), ("binstall",)],
+    "go": [("install",)],
+    "gem": [("install",)],
+}
+GLOBAL_INSTALLERS = {
+    "npm": {"install", "i", "add", "link"},
+    "pnpm": {"add", "install", "i", "link"},
+    "bun": {"add", "install", "i", "link"},
+}
 CAP_READERS = {"cat", "head", "tail", "ls", "stat", "wc", "test", "[", "[[", "file"}
 WHOLE_TREE = {".", "./", ":", ":/", ":/*", "*"}  # pathspecs that name every file
 HOOK_VAR = re.compile(r"^(SKIP|PRE_COMMIT\w*|GIT_CONFIG\w*)(=|$)")
@@ -248,6 +294,63 @@ def owner_env(name: str, cwd: str) -> str:
     return value
 
 
+def path_dirs(cwd: str) -> list[str] | None:
+    """The absolute directories on PATH as the owner set it (owner_env); None when a settings `env` block sets PATH or
+    a locator, so the real PATH is unknown. Relative entries ("", ".") follow the shell's cwd and cannot be guarded."""
+    value = owner_env("PATH", cwd)
+    if not value:
+        return None
+    return list(dict.fromkeys(os.path.normpath(d) for d in value.split(os.pathsep) if os.path.isabs(d)))
+
+
+@functools.lru_cache(maxsize=4)
+def resolved(dirs: tuple[str, ...]) -> tuple[str, ...]:
+    """Each PATH directory with its symlinks resolved. Threads, since a PATH reaching a network or WSL drive costs
+    milliseconds a lookup (0.32 s serial against 0.07 s for 117 entries on WSL2, measured for #673)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(16) as pool:
+        return tuple(pool.map(os.path.realpath, dirs))
+
+
+def path_refusal(target: str, cwd: str, root: str, dirs: Callable[[], list[str] | None]) -> str | None:
+    """The refusal when writing `target` (relative to `cwd`) lands in a directory on PATH (`dirs()`, read only for a
+    target outside the worktree `root`) outside the worktree (#673), or anywhere outside the worktree and the temp dir
+    when `dirs()` is None (PATH unknown: fail closed). A path with a variable the guard cannot expand counts when its
+    literal tail names a PATH directory (`$X/.local/bin/gh`)."""
+    if not target or target.isdigit() or target in SINKS or "://" in target or "\0" in target:
+        return None  # a NUL cannot reach a path: bash strings end there
+    path = os.path.expandvars(os.path.expanduser(target))
+    if "$" in path:
+        tail = os.path.dirname(re.split(r"\$\{?\w*\}?|\$\(", path)[-1]).rstrip("/")
+        if (known := dirs()) is None:
+            return PATH_UNKNOWN
+        hit = next((d for d in known if tail and tail != "." and d.endswith(tail)), None)
+        return PATH_DIR.format(dir=hit) if hit else None
+    full = os.path.normpath(os.path.join(cwd, path))
+    real = os.path.realpath(full)
+    if root not in ("/", os.path.realpath(os.path.expanduser("~"))) and within(real, root):
+        return None  # the worktree's own .venv/bin and the like
+    if (known := dirs()) is None:
+        import tempfile
+
+        return None if within(real, os.path.realpath(tempfile.gettempdir())) else PATH_UNKNOWN
+    for d in itertools.chain(known, resolved(tuple(known))):
+        if within(full, d) or within(real, d):
+            return PATH_DIR.format(dir=d)
+    return None
+
+
+def installs(name: str, args: list[str]) -> bool:
+    """A package manager's install that puts executables on PATH (INSTALLERS, GLOBAL_INSTALLERS, and yarn's global form)."""
+    words = [a for a in args if not a.startswith("-")]
+    if any(tuple(words[: len(w)]) == w for w in INSTALLERS.get(name, ())):
+        return True
+    if name in GLOBAL_INSTALLERS and words[:1] and words[0] in GLOBAL_INSTALLERS[name]:
+        return any(a in ("-g", "--global") or (a.startswith("-") and not a.startswith("--") and "g" in a) for a in args)
+    return name == "yarn" and words[:2] == ["global", "add"]
+
+
 def lit_vars(pipes: list[list[Simple]]) -> set[str]:
     """Names assigned a literature-API URL by a command: `u=<url>`, `export u=<url>`, `for u in ... <url> ...`."""
     names = set()
@@ -310,6 +413,45 @@ class Checker(GitHubRules):
         self.in_python = 0  # > 0 while checking a Python string literal as a shell command
         self.lit_vars: set[str] = set()  # variables the command sets to a literature-API URL
         self.lit_raw = owner_env(LIT_RAW, cwd) == "1"
+        self.root: str | None = None  # the worktree, read on the first write target
+        self.dirs: tuple[list[str] | None] | None = None  # (path_dirs,), read on the first write outside the worktree
+
+    def on_path(self, target: str) -> str | None:
+        """path_refusal for a write target, the worktree and PATH read once per command."""
+        if self.root is None:
+            self.root = worktree_root(self.start)
+        return path_refusal(target, self.cwd, self.root, self.path_dirs)
+
+    def path_dirs(self) -> list[str] | None:
+        if self.dirs is None:
+            self.dirs = (path_dirs(self.start),)
+        return self.dirs[0]
+
+    def path_write(self, name: str, args: list[str], writes: list[str]) -> str | None:
+        """#673: the refusal when the command writes, moves, links or chmods a file into a PATH directory outside the
+        worktree, or (in a subagent) installs a tool there."""
+        if self.agent is not None and installs(name, args):
+            return INSTALL.format(cmd=" ".join([name, *[a for a in args if not a.startswith("-")][:2]]))
+        _, _, pos = parse_opts(args)
+        targets = list(writes)
+        if name in PATH_WRITERS or (name in ("sed", "perl") and any(a.startswith(("-i", "--in-place")) for a in args)):
+            targets += pos
+        elif name in PATH_COPIERS:
+            targets += pos if name == "mv" else pos[-1:]
+            for k, a in enumerate(args):  # -t DIR, -tDIR, --target-directory[=]DIR
+                if a in ("-t", "--target-directory") and k + 1 < len(args):
+                    targets.append(args[k + 1])
+                elif a.startswith("--target-directory="):
+                    targets.append(a.split("=", 1)[1])
+                elif a.startswith("-t") and len(a) > 2 and not a.startswith("--"):
+                    targets.append(a[2:])
+        elif name == "dd":
+            targets += [a[3:] for a in args if a.startswith("of=")]
+        elif name in FETCHERS or name in ("tar", "unzip"):
+            out = {"-o", "--output", "-O", "--output-document", "-P", "--directory-prefix", "-C", "--directory", "-d"}
+            targets += [args[k + 1] for k, a in enumerate(args[:-1]) if a in out]
+            targets += [a.split("=", 1)[1] for a in args if a.startswith("--") and a.split("=", 1)[0] in out]
+        return next((why for t in targets if (why := self.on_path(t))), None)
 
     def review_env(self) -> str:
         """#662: DEVKIT_REVIEW_AGENTS as the owner set it; "" when a settings `env` block (an agent can write one)
@@ -359,6 +501,12 @@ class Checker(GitHubRules):
             strings.append(" ".join(a or b for a, b in parts))
         if why := self.code_reaches(src, "py"):
             return why
+        for line in src.splitlines() if PY_WRITE.search(src) else ():  # the literals on a line that writes a file
+            if PY_WRITE.search(line):  # open("~/.local/bin/gh", "w"), shutil.copy(x, "~/.cargo/bin")
+                found = re.findall(r"'((?:[^'\\\n]|\\.)*)'|\"((?:[^\"\\\n]|\\.)*)\"", line)
+                paths = [s for s in (a or b for a, b in found) if "/" in s and not any(ch.isspace() for ch in s)]
+                if why := next((w for s in paths if (w := self.on_path(s))), None):
+                    return why
         self.in_python += 1
         try:
             for s in strings:
@@ -431,6 +579,8 @@ class Checker(GitHubRules):
                 if why := self.code(body, lang, depth):
                     return why
         if why := self.owner_setting(argv, c.writes, paths):
+            return why
+        if why := self.path_write(name, argv[1:], c.writes):
             return why
         if self.read_only and (why := read_only(argv, c.writes, self.read_only, tuple(assigns))):
             return why
