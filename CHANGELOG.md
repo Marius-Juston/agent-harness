@@ -8,8 +8,9 @@ file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness
 
 A fix release for v0.1.18's Bash guard. A project's own reviewer agent can post PR reviews and `Verdict:` lines
 again, named by the owner in `DEVKIT_REVIEW_AGENTS`. Integrate and autopilot count a review only when it names the
-required reviewer as a whole name. Agents can no longer write executables into the PATH directories ahead of
-`/usr/bin` (pending #673). The architect, builder and lead agents work from `dev arch` and `required_reviews`, and
+required reviewer as a whole name. No session can write into a PATH directory outside the worktree, which
+could shadow `gh` or `git`, and installing tools onto PATH is the lead's. The guards now fail closed on an internal
+error. The architect, builder and lead agents work from `dev arch` and `required_reviews`, and
 the template's ty stage skips research probe scripts.
 
 ### Upgrading a project
@@ -42,11 +43,29 @@ attention:
   mistakes and the common bypasses; they do not contain a hostile agent. Keep the owner-only steps (merges through
   `dev integrate`, releases, approvals) with the owner, and do not rely on the guards to protect secrets on a shared
   machine. Research into Claude Code's sandboxed Bash as the enforcing layer is #674.
-- **Writes into PATH directories are refused (pending #673).** guard_bash and edit_guard refuse an agent's writes,
-  moves, links and `chmod +x` into a directory on the session's PATH outside the worktree (`~/.local/bin`,
-  `~/.cargo/bin`), which could shadow `gh`, `git` or `uv` for the hooks and the owner's own shells. (#673)
+- **Writes into PATH directories are refused, for every session, the lead's included.** guard_bash and edit_guard
+  refuse writing into a directory on the session's PATH that lies outside the worktree (`~/.local/bin`,
+  `~/.cargo/bin`, ...), which could shadow `gh`, `git` or `uv` for the hooks and for the owner's own shells:
+  redirects, `tee`, `cp`, `ln`, `install`, `rsync`, `mv`, `chmod`, `touch`, `mkdir`, `dd of=`, `sed -i`, curl,
+  wget, tar and unzip outputs, and Python, perl, node or ruby code that writes. A recursive copy, a move or an
+  extraction onto a directory that holds a PATH directory (`~/.local`, say) is refused as well. Run such a step
+  yourself outside Claude Code. (#673, #678)
+- **Installing tools onto PATH is the lead's.** A subagent's `uv tool install`, `uv python install`, pipx, `cargo
+  install`, `go install`, `gem install`, brew, apt, dnf, yum, global npm, pnpm, bun or yarn installs, `make install`
+  and `cmake --install` are refused; the lead session can still run them. A builder that needs a tool hands back
+  and asks for it. An install into a staging directory inside the worktree (`make install DESTDIR=...`, `cargo
+  install --root ...`) is refused too; #679 tracks allowing it. (#673, #678)
+- **The guards fail closed.** guard_bash, edit_guard and file_guard used to let a command run when the guard itself
+  raised; now any internal error exits 2 with "guard error, refused". A command that hits a guard bug is refused
+  where it ran before: report the command, since the refusal is the bug. uv_add_guard stays fail-open. (#673, #678)
+- **PATH counts only as the owner set it.** guard_bash reads PATH through owner_env, like the other owner
+  overrides. A `.claude/settings*.json` `env` block that sets PATH, HOME or another settings locator puts the guard
+  in a strict mode: every write outside the worktree, the temp directory and the project's auto-memory is refused,
+  so a builder's write to the main checkout fails too. Remove such a setting rather than work around it. A bare `cd`
+  now moves to home, as the shell does. (#673, #678)
 
 ### Added
+- `hooklib/paths.py`, the guards' PATH-directory rules. (#673, #678)
 - `DEVKIT_REVIEW_AGENTS`: the owner's extra agents allowed to post PR reviews and `Verdict:` lines, read only from
   the environment Claude Code started in. (#662, #665)
 
@@ -57,7 +76,10 @@ attention:
   research-skill changes with `dev eval research`. (#660, #663)
 - The template's `[tool.ty.src] exclude` skips `docs/research/_scratch/`, as ruff's per-file ignore does, so a
   research probe script never fails a project's ty stage. (#661, #664)
-- guard_bash refuses agent writes into PATH directories outside the worktree (pending #673). (#673)
+- guard_bash and edit_guard refuse writes into PATH directories outside the worktree for every session and leave
+  tool installers to the lead; the PATH rules moved to `plugins/harness-ops/scripts/hooklib/paths.py`. guard_bash
+  also checks perl, node and ruby `-e` code for writes. (#673, #678)
+- guard_bash, edit_guard and file_guard fail closed on an internal error. (#673, #678)
 
 ### Fixed
 - v0.1.18's guard refused PR reviews and verdicts from every agent but the two harness-ops reviewers. (#662, #665)
