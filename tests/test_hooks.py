@@ -2623,9 +2623,7 @@ def test_guard_bash_fails_closed_when_a_settings_env_sets_path(hook, tmp_path):
 
 
 def test_memory_dirs_name_the_worktree_and_its_main_checkout(tmp_path):
-    main = tmp_path / "my.repo"
-    subprocess.run(["git", "init", "-q", str(main)], check=True)
-    subprocess.run(["git", "-C", str(main), "commit", "-q", "--allow-empty", "-m", "x"], check=True)
+    main = _repo(tmp_path).rename(tmp_path / "my.repo")  # a commit with its own identity: CI has no git user
     wt = tmp_path / "wt"
     subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(wt)], check=True)
     slugs = [Path(d).parent.name for d in GUARD.memory_dirs(os.path.realpath(wt))]
