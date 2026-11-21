@@ -4,6 +4,93 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.19 (2026-11-20)
+
+A fix release for v0.1.18's Bash guard. A project's own reviewer agent can post PR reviews and `Verdict:` lines
+again, named by the owner in `DEVKIT_REVIEW_AGENTS`. Integrate and autopilot count a review only when it names the
+required reviewer as a whole name. No session can write into a PATH directory outside the worktree, which
+could shadow `gh` or `git`, and installing tools onto PATH is the lead's. The guards now fail closed on an internal
+error. The architect, builder and lead agents work from `dev arch` and `required_reviews`, and
+the template's ty stage skips research probe scripts.
+
+### Upgrading a project
+Run `uvx copier update`, then `uv sync && uv run dev setup && uv run dev docs && uv run dev check`. These can need
+attention:
+- **A project's own reviewer agent needs `DEVKIT_REVIEW_AGENTS`, exported by the owner.** v0.1.18's Bash guard let
+  only harness-ops:reviewer and harness-ops:research-auditor post `gh pr review`, the review REST and GraphQL calls
+  and `Verdict:` lines, so a project's own reviewer (a `security-reviewer`, say) was refused. Export
+  `DEVKIT_REVIEW_AGENTS=security-reviewer` (comma-separated, bare or `plugin:name`) in the shell that starts Claude
+  Code. A value set in a `.claude/settings*.json` `env` block is ignored on purpose, since an agent can write that
+  file, and edit_guard refuses an agent edit that adds it there. The variable is per machine, not per project: it
+  applies in every project started from that shell, and the guard matches the bare agent name, so a listed
+  `security-reviewer` is allowed whichever plugin or project defines an agent of that name. Each listed agent still
+  posts only as itself: a verdict naming another listed agent or a harness-ops reviewer is refused. The two
+  harness-ops reviewers stay allowed without the variable. (#662, #665)
+- **Skipping v0.1.18? Its first-gate risk applies to you.** v0.1.18 added the arch stage, which runs with or without
+  an `[arch]` table (defaults: no import cycle, a 1,000-LOC module ceiling), and `[types] max_diagnostics = 0` in
+  `.devkit/ratchets.toml` for the new ty stage. A project with an import cycle, a module over 1,000 LOC or any ty
+  diagnostic fails its first gate after the update. Run `uv run dev arch` and `uv run dev check`, then in the update
+  PR set `[arch] max_import_cycle`, pin each module over the ceiling under `[arch.module_loc]` and set `[types]
+  max_diagnostics` to the counts they report (adopting the tables needs no `[[raise]]`). See v0.1.18's Upgrading
+  section; a helper that writes these values is #659.
+- **Integrate matches reviewer names as whole names.** `required_reviews` and `autopilot_trust_review` count a
+  verdict review only when its body names the required agent exactly, not inside a longer name: a
+  `security-reviewer` verdict no longer satisfies a rule requiring `reviewer`, which a plain substring match let it
+  do. A review ending `Reviewed by <agent>.` with the configured name, as the harness-ops templates do, still
+  counts. Requiring the closing line itself is #633. (#665, Refs #633)
+- **The guards are defense-in-depth, not a sandbox.** guard_bash, edit_guard and file_guard read command text and
+  file paths, so a command built at run time (or a tool they do not see) can get past them. They stop an agent's
+  mistakes and the common bypasses; they do not contain a hostile agent. Keep the owner-only steps (merges through
+  `dev integrate`, releases, approvals) with the owner, and do not rely on the guards to protect secrets on a shared
+  machine. Research into Claude Code's sandboxed Bash as the enforcing layer is #674.
+- **Writes into PATH directories are refused, for every session, the lead's included.** guard_bash and edit_guard
+  refuse writing into a directory on the session's PATH that lies outside the worktree (`~/.local/bin`,
+  `~/.cargo/bin`, ...), which could shadow `gh`, `git` or `uv` for the hooks and for the owner's own shells:
+  redirects, `tee`, `cp`, `ln`, `install`, `rsync`, `mv`, `chmod`, `touch`, `mkdir`, `dd of=`, `sed -i`, curl,
+  wget, tar and unzip outputs, and Python, perl, node or ruby code that writes. A recursive copy, a move or an
+  extraction onto a directory that holds a PATH directory (`~/.local`, say) is refused as well. Run such a step
+  yourself outside Claude Code. (#673, #678)
+- **Installing tools onto PATH is the lead's.** A subagent's `uv tool install`, `uv python install`, pipx, `cargo
+  install`, `go install`, `gem install`, brew, apt, dnf, yum, global npm, pnpm, bun or yarn installs, `make install`
+  and `cmake --install` are refused; the lead session can still run them. A builder that needs a tool hands back
+  and asks for it. An install into a staging directory inside the worktree (`make install DESTDIR=...`, `cargo
+  install --root ...`) is refused too; #679 tracks allowing it. (#673, #678)
+- **The guards fail closed.** guard_bash, edit_guard and file_guard used to let a command run when the guard itself
+  raised; now any internal error exits 2 with "guard error, refused". A command that hits a guard bug is refused
+  where it ran before: report the command, since the refusal is the bug. uv_add_guard stays fail-open. (#673, #678)
+- **PATH counts only as the owner set it.** guard_bash reads PATH through owner_env, like the other owner
+  overrides. A `.claude/settings*.json` `env` block that sets PATH, HOME or another settings locator puts the guard
+  in a strict mode: every write outside the worktree, the temp directory and the project's auto-memory is refused,
+  so a builder's write to the main checkout fails too. Remove such a setting rather than work around it. A bare `cd`
+  now moves to home, as the shell does. (#673, #678)
+
+### Added
+- `hooklib/paths.py`, the guards' PATH-directory rules. (#673, #678)
+- `DEVKIT_REVIEW_AGENTS`: the owner's extra agents allowed to post PR reviews and `Verdict:` lines, read only from
+  the environment Claude Code started in. (#662, #665)
+
+### Changed
+- The architect starts from `uv run dev arch`; the builder splits a module near the arch LOC ceiling in its own
+  issue and never raises the ceiling without the owner; the lead skill names `required_reviews` and the verdict
+  format; the research-auditor's review ends `Reviewed by harness-ops:research-auditor.`; the harness skill measures
+  research-skill changes with `dev eval research`. (#660, #663)
+- The template's `[tool.ty.src] exclude` skips `docs/research/_scratch/`, as ruff's per-file ignore does, so a
+  research probe script never fails a project's ty stage. (#661, #664)
+- guard_bash and edit_guard refuse writes into PATH directories outside the worktree for every session and leave
+  tool installers to the lead; the PATH rules moved to `plugins/harness-ops/scripts/hooklib/paths.py`. guard_bash
+  also checks perl, node and ruby `-e` code for writes. (#673, #678)
+- guard_bash, edit_guard and file_guard fail closed on an internal error. (#673, #678)
+
+### Fixed
+- v0.1.18's guard refused PR reviews and verdicts from every agent but the two harness-ops reviewers. (#662, #665)
+- Integrate and autopilot attributed a review to an agent whose name appeared anywhere in its body, even inside a
+  longer name. (#665)
+- The local-first CI stand-in could fire up to 1 ms before `actions_start_s` (and the checks wait before
+  `timeout_s`) when a jittered poll ended just short of the deadline; a pause landing that close is now stretched to
+  it. (#666, #668)
+- `test_integrate_wall_is_the_longer_of_gate_and_actions_not_their_sum` failed on a loaded CI runner; its bound now
+  separates max from sum with room for scheduler noise. (#671, #672)
+
 ## v0.1.18 (2026-11-20)
 
 The gate gains three stages: a ty type check held to a diagnostics ratchet, an architecture check (import contracts,
