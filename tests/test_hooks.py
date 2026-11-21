@@ -2372,3 +2372,328 @@ def test_a_file_tool_refusal_prints_exactly_its_fixed_message(hook, tool, path, 
     assert code == 2 and err == f"Blocked by project rule: {getattr(GUARD, rule)}\n", err
     assert GUARD.SECRETS is GUARD.KEYS_FILE  # the older name still names the same message
     assert "uv run dev lit" in GUARD.KEYS_FILE
+
+
+# #673: an agent wrote ~/.local/bin/gh and the next hook-run gh was the fake one. Writes into a directory on the
+# session's PATH outside the worktree are refused; the worktree's own .venv/bin stays writable.
+def _path_env(tmp_path) -> tuple[Path, Path, dict]:
+    home, wt = tmp_path / "home", tmp_path / "wt"
+    for d in (home / ".local/bin", home / ".cargo/bin", wt / ".venv/bin", tmp_path / "tmp", tmp_path / "elsewhere"):
+        d.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(wt)], check=True)
+    (tmp_path / "linked").symlink_to(home / ".local/bin")  # a name for a PATH directory that is not on PATH
+    path = os.pathsep.join([str(home / ".local/bin"), str(home / ".cargo/bin"), str(wt / ".venv/bin"), "."])
+    env = {**os.environ, "HOME": str(home), "TMPDIR": str(tmp_path / "tmp"), "CLAUDE_PROJECT_DIR": str(wt)}
+    env |= {"PATH": path + os.pathsep + os.environ["PATH"]}
+    env.pop("CLAUDE_CONFIG_DIR", None)
+    return home, wt, env
+
+
+def _bash_in(hook, cmd: str, wt: Path, env: dict, agent: str | None = "harness-ops:builder") -> tuple[int, str]:
+    payload = {"cwd": str(wt), "tool_input": {"command": cmd}, **({"agent_type": agent} if agent else {})}
+    code, _, err = hook("guard_bash.py", payload, env=env)
+    return code, err
+
+
+PATH_WRITES = [
+    "cp /tmp/x ~/.local/bin/gh",
+    "cp gh ~/.local/bin",
+    "cp -t ~/.local/bin gh",
+    "cp --target-directory=$HOME/.cargo/bin gh",
+    "mv fake ~/.cargo/bin/git",
+    "mv ~/.local/bin/gh ~/gh.bak",  # moving the real one away lets a later PATH entry win
+    "ln -s $PWD/fake ~/.local/bin/gh",
+    "ln -sf fake $HOME/.local/bin/uv",
+    "echo x | tee ~/.local/bin/gh",
+    "echo x | tee -a /dev/null ~/.local/bin/gh",
+    "printf '#!/bin/sh\\n' > ~/.local/bin/gh",
+    "echo x >> ~/.cargo/bin/python",
+    "cat > ~/.local/bin/uv <<'EOF'\n#!/bin/sh\nEOF",
+    "chmod +x ~/.local/bin/gh",
+    "chmod 755 ~/.cargo/bin/git",
+    "touch ~/.local/bin/gh",
+    "install -m 755 gh ~/.cargo/bin",
+    "cd ~/.local/bin && cp /tmp/gh .",
+    "cd ~/.local && ln -s ../gh bin/gh",
+    "bash -c 'cp gh ~/.local/bin/'",
+    "find . -name gh -exec cp {} ~/.local/bin \\;",
+    "ls gh | xargs cp -t ~/.local/bin",
+    "dd if=gh of=$HOME/.local/bin/gh",
+    "curl -fsSL -o ~/.local/bin/gh https://example.com/gh",
+    "sed -i s/a/b/ ~/.local/bin/gh",
+    "cp gh $NOT_SET_ANYWHERE/.local/bin/gh",  # a variable the guard cannot expand: the literal tail names it
+    "d=~/.local/bin; cp gh $d/gh",
+    "cp gh LINKED/gh",  # a symlink to a PATH directory resolves to it
+    "python3 -c \"open('HOMEDIR/.local/bin/gh', 'w').write('x')\"",
+    "python3 - <<'EOF'\nimport shutil\nshutil.copy('gh', 'HOMEDIR/.cargo/bin/git')\nEOF",
+    # round 1 of the #678 review: the install idiom's attached and clustered output options, the space form, a bare cd
+    "curl -fsSLo ~/.local/bin/gh https://example.com/gh",
+    "curl -o~/.local/bin/gh https://example.com/gh",
+    "curl --output ~/.local/bin/gh https://example.com/gh",
+    "wget --output-document ~/.local/bin/gh https://example.com/gh",
+    "cd && cp gh .local/bin/",
+    'perl -e \'open(F, ">", "HOMEDIR/.local/bin/gh")\'',
+    "perl -e 'open(F, \">HOMEDIR/.local/bin/gh\")'",
+    'node -e \'require("fs").writeFileSync("HOMEDIR/.local/bin/gh", "x")\'',
+    'ruby -e \'File.write("HOMEDIR/.cargo/bin/git", "x")\'',
+]
+# A tree copied, moved or extracted onto a directory that holds a PATH directory.
+PATH_TREES = [
+    "cp -r stage/. ~/.local/",
+    "cp -a stage ~/.local",
+    "rsync -a stage/ ~/.local/",
+    "tar -xf t.tar -C ~/.local",
+    "tar xzf t.tgz --directory ~/.local",
+    "cd ~/.local && tar -xf t.tar",
+    "unzip x.zip -d ~/.local",
+    "mv ~/.local ~/.local.old",
+    "ditto stage ~/.local",
+]
+
+
+@pytest.mark.parametrize("cmd", PATH_TREES)
+def test_guard_bash_refuses_a_tree_landing_on_a_parent_of_a_path_directory(hook, tmp_path, cmd):
+    _, wt, env = _path_env(tmp_path)
+    code, err = _bash_in(hook, cmd, wt, env)
+    assert code == 2 and "a directory on the session's PATH" in err, (cmd, err)
+
+
+def _checker(wt: str, dirs: list[str]):
+    checker = GUARD.Checker(wt)
+    checker.root, checker.dirs = wt, (dirs,)
+    return checker
+
+
+# Every output option of curl, wget, tar and unzip, in each spelling: never an exception (a crash used to exit 1 and
+# let the whole command through), always the refusal when the value is in a PATH directory.
+OUT_SPELLINGS = [
+    (cmd, form.format(opt=opt, x="{x}"))
+    for cmd, (letters, longs) in GUARD.OUT_OPTS.items()
+    for opt, forms in [
+        *((f"-{ch}", ["{opt} {x}", "{opt}{x}", "-q{ch}{x}", "-q{ch} {x}"]) for ch in letters),
+        *((o, ["{opt} {x}", "{opt}={x}"]) for o in sorted(longs)),
+    ]
+    for form in [f.replace("{ch}", opt[1:]) if "{ch}" in f else f for f in forms]
+]
+
+
+@pytest.mark.parametrize(("cmd", "spelling"), OUT_SPELLINGS)
+def test_guard_bash_reads_every_spelling_of_an_output_option(tmp_path, cmd, spelling):
+    bindir, wt = str(tmp_path / "bin"), str(tmp_path / "wt")
+    line = f"{cmd} {spelling} https://example.com/x"
+    assert _checker(wt, [bindir]).text(line.format(x=f"{bindir}/gh")) is not None, line
+    assert _checker(wt, [bindir]).text(line.format(x=f"{wt}/gh")) is None, line
+
+
+def test_guard_bash_a_space_form_output_option_no_longer_lets_the_rest_through(hook, tmp_path):
+    """The #678 review's probe: `--output X` raised IndexError, the hook exited 1 and the merge after it ran."""
+    _, wt, env = _path_env(tmp_path)
+    for cmd in ("curl --output /dev/null https://x; gh pr merge 1", "tar -x --directory build; gh pr merge 1"):
+        code, err = _bash_in(hook, cmd, wt, env)
+        assert code == 2 and "merge" in err, (cmd, err)
+
+
+@pytest.mark.parametrize(
+    ("args", "targets"),
+    [
+        (["-t", "D", "a"], ["D"]),
+        (["-tD", "a"], ["D"]),
+        (["--target-directory", "D", "a"], ["D"]),
+        (["--target-directory=D", "a"], ["D"]),
+        (["-rt", "D", "a"], ["D"]),
+        (["-t"], []),
+        (["--", "-t", "D"], []),
+    ],
+)
+def test_option_values_take_the_cluster_rest_or_the_next_word(args, targets):
+    assert GUARD.option_values(args, "t", {"--target-directory"}) == targets
+
+
+@pytest.mark.parametrize(
+    ("sub", "refused"),
+    [
+        ("bin", False),
+        ("sbin", False),
+        ("games", False),
+        ("local/bin", False),
+        (".local/bin", True),
+        (".cargo/bin", True),
+    ],
+)
+@pytest.mark.parametrize("var", ["$V", "${V}", "$(mktemp -d)"])
+def test_an_unknown_variable_counts_only_when_its_tail_names_a_path_directory_under_home(tmp_path, sub, refused, var):
+    home = os.path.realpath(os.path.expanduser("~"))
+    dirs = ["/usr/bin", "/bin", "/usr/games", f"{home}/.local/bin", f"{home}/.cargo/bin"]
+    why = _checker(str(tmp_path / "wt"), dirs).text(f"cp x {var}/{sub}/gh")
+    assert (why is not None) == refused, why
+
+
+@pytest.mark.parametrize("cmd", PATH_WRITES)
+@pytest.mark.parametrize("agent", ["harness-ops:builder", None])
+def test_guard_bash_refuses_writes_into_a_path_directory_outside_the_worktree(hook, tmp_path, cmd, agent):
+    home, wt, env = _path_env(tmp_path)
+    cmd = cmd.replace("HOMEDIR", str(home)).replace("LINKED", str(tmp_path / "linked"))
+    code, err = _bash_in(hook, cmd, wt, env, agent)
+    assert code == 2 and "is on the session's PATH outside your worktree" in err, (cmd, err)
+
+
+PATH_OK = [
+    "cp tool .venv/bin/tool",  # the worktree's own PATH entry
+    "ln -s ../../x .venv/bin/x && chmod +x .venv/bin/x",
+    "echo x > notes.txt",
+    "echo x > /dev/null 2>&1",
+    "cp ~/.local/bin/gh backup-gh",  # reading a tool out of PATH writes nothing there
+    "ls -la ~/.local/bin && cat ~/.local/bin/gh",
+    "cp gh ~/.local/gh",  # ~/.local is not on PATH
+    "cp gh $OUT",  # nothing literal to tell
+    "uvx ruff check .",
+    "uv tool run ruff --version",
+    "uv tool list",
+    "npm install left-pad",
+    "cargo build --release",
+    "python3 -c \"print(open('HOMEDIR/.local/bin/gh').read())\"",
+    "python3 -c \"import subprocess; subprocess.run(['HOMEDIR/.local/bin/gh', 'pr', 'list'])\"",
+    # round 1 of the #678 review: a fake gh on a temporary PATH is how a test builds one, not a write to /bin
+    "tmp=$(mktemp -d); mkdir -p $tmp/bin; printf '#!/bin/sh\\n' > $tmp/bin/gh; chmod +x $tmp/bin/gh",
+    'cp x "$DESTDIR/bin/x"',
+    "cp gh ~/",  # one file into home, not a tree onto ~/.local
+    "cp -r stage build/out && tar -xf t.tar -C build && unzip -q x.zip -d build",
+    "curl -fsSLo build/gh https://example.com/gh && wget -qO- https://example.com | head",
+    'perl -e \'open(F, "<", "HOMEDIR/.local/bin/gh")\'',
+    'node -e \'console.log(require("fs").readFileSync("HOMEDIR/.local/bin/gh"))\'',
+    "make test && cmake --build build",
+]
+
+
+@pytest.mark.parametrize("cmd", PATH_OK)
+def test_guard_bash_allows_worktree_writes_and_reads_of_path_directories(hook, tmp_path, cmd):
+    home, wt, env = _path_env(tmp_path)
+    code, err = _bash_in(hook, cmd.replace("HOMEDIR", str(home)), wt, env)
+    assert code == 0, (cmd, err)
+
+
+INSTALLS = [
+    "uv tool install ruff",
+    "uv tool upgrade --all",
+    "uv python install 3.13",
+    "pipx install black",
+    "cargo install ripgrep",
+    "go install example.com/x@latest",
+    "npm install -g left-pad",
+    "npm i --global left-pad",
+    "pnpm add -g x",
+    "yarn global add x",
+    "gem install rake",
+    "cargo +nightly install ripgrep",
+    "npm install --location=global x",
+    "npm install --location global x",
+    "make install PREFIX=~/.local",
+    "cmake --install build --prefix ~/.local",
+    "brew install jq",
+]
+
+
+@pytest.mark.parametrize("cmd", INSTALLS)
+def test_guard_bash_leaves_installing_tools_onto_path_to_the_lead(hook, tmp_path, cmd):
+    _, wt, env = _path_env(tmp_path)
+    code, err = _bash_in(hook, cmd, wt, env, "harness-ops:builder")
+    assert code == 2 and "installing a tool is the lead's" in err, (cmd, err)
+    assert _bash_in(hook, cmd, wt, env, None)[0] == 0, cmd
+
+
+def test_guard_bash_fails_closed_when_a_settings_env_sets_path(hook, tmp_path):
+    """A settings `env` block (agent-writable) reaches the hook ahead of the owner's shell: PATH could drop
+    ~/.local/bin. The guard then refuses every write outside the worktree and the temp dir."""
+    _, wt, env = _path_env(tmp_path)
+    outside = tmp_path / "elsewhere/gh"
+    assert _bash_in(hook, f"cp gh {outside}", wt, env)[0] == 0
+    (wt / ".claude").mkdir()
+    (wt / ".claude/settings.local.json").write_text(json.dumps({"env": {"PATH": "/usr/bin:/bin"}}))
+    code, err = _bash_in(hook, f"cp gh {outside}", wt, env)
+    assert code == 2 and "cannot tell which directories are on the owner's PATH" in err, err
+    assert _bash_in(hook, "cp gh ~/.local/bin/gh", wt, env)[0] == 2
+    assert _bash_in(hook, "cp gh $SOMEWHERE/gh", wt, env)[0] == 2
+    assert _bash_in(hook, f"cp gh {tmp_path / 'tmp/gh'} && cp gh .venv/bin/gh", wt, env)[0] == 0
+    edit = {"cwd": str(wt), "tool_name": "Write", "tool_input": {"file_path": str(outside), "content": "x"}}
+    assert hook("edit_guard.py", edit, env=env)[0] == 2
+    # the project's auto-memory and the scratchpad (in the temp dir) stay writable
+    for path in (GUARD.memory_dirs(os.path.realpath(wt))[0] + "/note.md", str(tmp_path / "tmp/scratch/x.txt")):
+        edit["tool_input"]["file_path"] = path
+        assert hook("edit_guard.py", edit, env=env)[0] == 0, path
+
+
+def test_memory_dirs_name_the_worktree_and_its_main_checkout(tmp_path):
+    main = _repo(tmp_path).rename(tmp_path / "my.repo")  # a commit with its own identity: CI has no git user
+    wt = tmp_path / "wt"
+    subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(wt)], check=True)
+    slugs = [Path(d).parent.name for d in GUARD.memory_dirs(os.path.realpath(wt))]
+    real = os.path.realpath(tmp_path)
+    assert slugs == [re.sub(r"[^A-Za-z0-9]", "-", f"{real}/wt"), re.sub(r"[^A-Za-z0-9]", "-", f"{real}/my.repo")]
+
+
+@pytest.mark.parametrize(
+    ("name", "payload"),
+    [
+        ("guard_bash.py", {"tool_input": {"command": "ls"}}),
+        ("edit_guard.py", {"tool_input": {"file_path": "x.py", "content": "x"}}),
+        ("file_guard.py", {"tool_name": "Read", "tool_input": {"file_path": "/x/.env"}}),
+    ],
+)
+def test_a_guard_that_raises_while_checking_refuses_with_exit_2(hook, tmp_path, name, payload):
+    """The #678 review: an exception inside a guard exited 1, which lets the call run where `onFailure: "block"`
+    is not honoured. A forced failure (json's readers raise) now refuses with a short guard-error message."""
+    (tmp_path / "sitecustomize.py").write_text(
+        "import json\n\ndef _boom(*a, **k):\n    raise RuntimeError('forced')\n\njson.load = json.loads = _boom\n"
+    )
+    code, _, err = hook(name, payload, {**os.environ, "PYTHONPATH": str(tmp_path)})
+    assert code == 2 and "guard error, refused" in err and "RuntimeError" in err, err
+    assert GUARD.fail_closed(lambda: 1 // 0) == 2
+    assert GUARD.fail_closed(lambda: 0) == 0
+
+
+@pytest.mark.parametrize(
+    ("where", "blocked"),
+    [
+        ("home/.local/bin/gh", True),
+        ("home/.cargo/bin/git", True),
+        ("linked/uv", True),
+        ("wt/.venv/bin/tool", False),
+        ("wt/src/x.py", False),
+        ("elsewhere/gh", False),
+    ],
+)
+@pytest.mark.parametrize("tool", ["Write", "Edit"])
+def test_edit_guard_refuses_files_in_a_path_directory_outside_the_worktree(hook, tmp_path, where, blocked, tool):
+    _, wt, env = _path_env(tmp_path)
+    inp = {"content": "#!/bin/sh\n"} if tool == "Write" else {"old_string": "a", "new_string": "b"}
+    payload = {"cwd": str(wt), "tool_name": tool, "tool_input": {"file_path": str(tmp_path / where), **inp}}
+    code, _, err = hook("edit_guard.py", payload, env=env)
+    assert (code == 2) == blocked, err
+    assert not blocked or "is on the session's PATH" in err
+
+
+def test_edit_guard_refuses_path_in_a_settings_env_block(hook, tmp_path):
+    payload = _settings_edit(
+        tmp_path / ".claude/settings.json", "Write", SETTINGS_BEFORE, content='{"env": {"PATH": "/usr/bin"}}'
+    )
+    code, _, err = hook("edit_guard.py", payload)
+    assert code == 2 and "PATH" in err
+
+
+@given(
+    st.sampled_from(["cp gh {}", "mv gh {}", "ln -s gh {}", "echo x > {}", "tee {} < gh", "chmod +x {}"]),
+    st.sampled_from(["gh", "sub/gh", "./gh", "a/../gh"]),
+)
+@settings(max_examples=24, deadline=None)
+def test_path_refusal_holds_for_every_writer_and_every_spelling(template, name):
+    """Through the Checker with a fixed PATH: a target in the PATH directory is refused, the same one in the worktree
+    is not."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        top = os.path.realpath(tmp)
+        bindir, wt = os.path.join(top, "bin"), os.path.join(top, "wt")
+        for target, why in ((bindir, GUARD.PATH_DIR.format(dir=bindir)), (wt, None)):
+            checker = GUARD.Checker(wt)
+            checker.root, checker.dirs = wt, ([bindir],)
+            assert checker.text(template.format(os.path.join(target, name))) == why

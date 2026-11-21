@@ -55,4 +55,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as exc:  # guard_bash.fail_closed, which may be what failed to import
+        print(f"Blocked by project rule: guard error, refused ({type(exc).__name__}).", file=sys.stderr)
+        sys.exit(2)
