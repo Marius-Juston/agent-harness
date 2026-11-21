@@ -110,6 +110,12 @@ CHECKS_CLOCK = time.monotonic
 DEADLINE_EPS_S = 1e-3
 
 
+def _to_deadline(pause: float, left: float) -> float:
+    """`pause`, cut to the `left` seconds before a deadline, and stretched to it when it would end within
+    DEADLINE_EPS_S short: that deadline counts as reached, so stopping short would decide early (#666)."""
+    return left if pause >= left - DEADLINE_EPS_S else pause
+
+
 def await_checks(
     pr_number: int,
     tip: str,
@@ -135,7 +141,7 @@ def await_checks(
         if (left := deadline - CHECKS_CLOCK()) <= DEADLINE_EPS_S:
             return "timeout", pending
         wait = backoff.wait(attempt, 0, CHECKS_RNG, CHECKS_BASE_S, CHECKS_CAP_S, CHECKS_FLOOR_S)
-        time.sleep(min(left, wait))
+        time.sleep(_to_deadline(wait, left))
     raise AssertionError("unreachable")
 
 
@@ -370,7 +376,7 @@ def await_actions(pr_number: int, tip: str, contexts: list[str]) -> tuple[str, d
             return "timeout", now
         pause = backoff.wait(attempt, 0, CHECKS_RNG, CHECKS_BASE_S, CHECKS_CAP_S, CHECKS_FLOOR_S)
         if queued and not ran and waited < cfg.actions_start_s - DEADLINE_EPS_S:
-            pause = min(pause, cfg.actions_start_s - waited)  # look for the head's runs as soon as that is due
+            pause = _to_deadline(pause, cfg.actions_start_s - waited)  # look for the head's runs once that is due
         time.sleep(pause)
     raise AssertionError("unreachable")
 

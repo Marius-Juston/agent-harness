@@ -50,3 +50,6 @@ Details and sources: [agent-harness.md](https://github.com/Marius-Juston/agent-h
 - **One skill in isolation**: use skill-creator. Its with-skill vs baseline benchmark, blind version comparison and
   description-trigger loop measure a skill. Use it to *evaluate* and to tune descriptions, not to write skill
   bodies: self-generated skills scored below no skill (SkillsBench).
+- **Research skill** (also the researcher, research-auditor and `dev lit`): run
+  `uv run dev eval research --label <name>` before and after the change, then `--compare A B`. It scores search
+  and snowball recall against known answers and audits sampled claims.
