@@ -187,14 +187,14 @@ def test_without_the_billing_annotation_a_check_that_never_registers_still_waits
     actions["commands"]["template"] = []
     fake_integrate["checks"] = [other]
     assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
-    assert sum(clock["sleeps"]) >= 600
+    assert clock["now"] >= 600
 
 
 def test_a_head_actions_made_no_run_for_is_stood_in_for_after_actions_start_s(fake_integrate, actions, clock):  # noqa: F811
     fake_integrate["checks"] = []
     actions["runs"] = 0
     assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
-    assert 20 <= sum(clock["sleeps"]) < 30
+    assert 20 <= clock["now"] < 30
     assert [s["context"] for s in actions["statuses"]] == ["check"]
 
 
@@ -214,7 +214,7 @@ def test_a_head_actions_runs_on_still_waits_for_its_checks(fake_integrate, actio
     fake_integrate["checks"] = [_run("check")]
     fake_integrate["after_push"] = [[], [], [], [], [_run("check", status="IN_PROGRESS")], [_run("check")]]
     assert workflow.integrate(7, harness_ok=True, dry_run=False, local_ci=True) == 0
-    assert actions["statuses"] == [] and sum(clock["sleeps"]) >= 20
+    assert actions["statuses"] == [] and clock["now"] >= 20
 
 
 # --- ci = "local": no wait, no Actions query -------------------------------------------------------------------------
@@ -371,3 +371,37 @@ def test_a_wait_cut_to_a_deadline_never_spins_on_a_float_remainder(fake_integrat
     clock["sleeps"].clear()
     assert ci_status.await_checks(7, HEAD, ["ci/check"], 37.3)[0] == "timeout"
     assert min(clock["sleeps"]) > ci_status.DEADLINE_EPS_S and sum(clock["sleeps"]) == pytest.approx(37.3)
+
+
+class _Draws:
+    """A poll-jitter source that draws `values` in turn (each clamped to its window), then the window's top."""
+
+    def __init__(self, *values: float):
+        self.values = list(values)
+
+    def uniform(self, lo: float, hi: float) -> float:
+        return min(hi, self.values.pop(0)) if self.values else hi
+
+
+def _short_of(deadline: float) -> _Draws:
+    """Draws whose second poll ends DEADLINE_EPS_S / 2 short of `deadline` (the first ends at floor + 2.3 s)."""
+    return _Draws(2.3, deadline - 2.3 - 2 * ci_status.CHECKS_FLOOR_S - ci_status.DEADLINE_EPS_S / 2)
+
+
+def test_a_pause_landing_just_short_of_actions_start_s_is_stretched_to_it(fake_integrate, actions, clock, monkeypatch):  # noqa: F811
+    """Regression (#666, a CI flake): a jitter draw ending a poll within DEADLINE_EPS_S short of `actions_start_s`
+    escaped the cut to that deadline, so the head was stood in for at 19.9992 s of a 20 s window. Real time never
+    entered: the fake clock moves only on sleeps, and the jitter was unseeded."""
+    monkeypatch.setattr(ci_status, "CHECKS_RNG", _short_of(20))
+    fake_integrate["checks"] = []
+    actions["runs"] = 0
+    assert ci_status.await_actions(7, HEAD, ["check"]) == ("ready", {"check": "never-ran"})
+    assert clock["now"] >= 20 and len(clock["sleeps"]) == 2
+
+
+def test_a_pause_landing_just_short_of_the_checks_deadline_is_stretched_to_it(fake_integrate, clock, monkeypatch):  # noqa: F811
+    """#666, the same class in await_checks: a draw ending within DEADLINE_EPS_S of `timeout_s` timed out early."""
+    monkeypatch.setattr(ci_status, "CHECKS_RNG", _short_of(19.3))
+    fake_integrate["checks"] = []
+    assert ci_status.await_checks(7, HEAD, ["ci/check"], 19.3)[0] == "timeout"
+    assert clock["now"] >= 19.3 and len(clock["sleeps"]) == 2
