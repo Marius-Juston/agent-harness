@@ -4,6 +4,7 @@ test below runs it too."""
 
 import json
 import re
+import shutil
 import subprocess
 import tomllib
 from pathlib import Path
@@ -101,6 +102,33 @@ def test_the_rendered_files_parse(rendered):
         yaml.safe_load(p.read_text())
     for p in rendered.rglob("*.toml"):
         tomllib.loads(p.read_text())
+
+
+def test_ty_skips_the_research_scratch_scripts_as_ruff_does(rendered):
+    py = tomllib.loads((rendered / "pyproject.toml").read_text())
+    assert "docs/research/_scratch/**" in py["tool"]["ruff"]["lint"]["per-file-ignores"]
+    assert "docs/research/_scratch/" in py["tool"]["ty"]["src"]["exclude"]
+
+
+def test_a_type_error_fails_the_rendered_ty_stage_in_the_package_not_in_research_scratch(rendered, tmp_path):
+    """Probe scripts under docs/research/_scratch/ are never imported or shipped, so the max_diagnostics = 0 budget
+    holds only the project's own code."""
+    from devkit import gate
+
+    proj = tmp_path / "proj"
+    shutil.copytree(rendered, proj)
+    assert gate.type_budget((proj / config.get().ratchets).read_text()) == 0  # the rendered project's own budget
+    error = 'X: int = "not an int"\n'
+    clean = gate.type_check(None, proj)
+    assert clean.ok, clean.problems
+    (proj / "docs/research/_scratch").mkdir(parents=True, exist_ok=True)
+    (proj / "docs/research/_scratch/probe.py").write_text(error)
+    scratch = gate.type_check(None, proj)
+    assert scratch.ok, scratch.problems
+    (proj / "demo_project").mkdir()
+    (proj / "demo_project/__init__.py").write_text(error)
+    package = gate.type_check(None, proj)
+    assert not package.ok and any("demo_project/__init__.py:1" in p for p in package.problems), package.problems
 
 
 def test_the_project_carries_no_copy_of_the_plugin_or_the_devkit(rendered):

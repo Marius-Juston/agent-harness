@@ -80,6 +80,11 @@ ignore = ["E501", "RUF001", "RUF002", "RUF003"]
 "tests/**" = ["S101"] # pytest asserts
 "docs/research/_scratch/**" = ["S"] # throwaway research probe scripts, never imported or shipped
 
+# The gate's ty stage counts diagnostics against [types] max_diagnostics of .devkit/ratchets.toml; the same probe
+# scripts are not type checked. Semgrep still scans them: they are run, sometimes with live keys.
+[tool.ty.src]
+exclude = ["docs/research/_scratch/"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers -p no:cacheprovider"
