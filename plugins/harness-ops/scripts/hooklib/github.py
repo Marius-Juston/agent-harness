@@ -5,13 +5,7 @@ variables). Defense in depth, not a security boundary: see guard_bash's docstrin
 import functools
 import os
 import re
-import subprocess
 from fnmatch import fnmatchcase
-
-try:  # 3.11+; hooks run under the host's python3, which may be older (guard_bash.MIN_PYTHON): then the defaults
-    import tomllib
-except ImportError:
-    tomllib = None
 
 from hooklib.shell import ASSIGN, GREPS, PY, SHELLS, Simple, Word, base, short_flag, unwrap, within
 
@@ -92,17 +86,18 @@ ISSUE_WRITE = (
     '(`uv run dev board block <issue> --reason "..."`) and say so in your hand-back.'
 )
 REVIEW = (
-    "only the agents [tool.devkit] review_agents lists (default harness-ops:reviewer and harness-ops:research-auditor) "
-    "or required_reviews names post PR reviews or `Verdict:` lines, each naming only itself: a verdict is what "
-    "integrate trusts, and every agent posts as the owner. Hand back; the lead dispatches the reviewer. A project's "
-    "own reviewer agent goes in review_agents, on the default branch on GitHub; setting it replaces the default "
-    "pair, so list harness-ops:reviewer and harness-ops:research-auditor too."
+    "only harness-ops:reviewer, harness-ops:research-auditor and the agents DEVKIT_REVIEW_AGENTS names post PR "
+    "reviews or `Verdict:` lines, each naming only itself: a verdict is what integrate trusts, and every agent posts "
+    "as the owner. Hand back; the lead dispatches the reviewer. A project's own reviewer agent is added by the owner: "
+    "DEVKIT_REVIEW_AGENTS=security-reviewer (comma-separated, bare or plugin:name) exported in the shell that starts "
+    "Claude Code, never in a settings file's env block, which an agent can write (the guard ignores it there)."
 )
 OWNER_MARK = (
     "`weakening-ok:` lines are the owner's approval and `<!-- devkit:` markers are devkit's own records: an agent "
     'never writes them. Ask the owner with `uv run dev board block <issue> --reason "..."`.'
 )
-DEFAULT_REVIEWERS = ("harness-ops:reviewer", "harness-ops:research-auditor")  # devkit/config.py review_agents (#662)
+DEFAULT_REVIEWERS = ("harness-ops:reviewer", "harness-ops:research-auditor")  # always allowed to post verdicts
+REVIEW_VAR = "DEVKIT_REVIEW_AGENTS"  # #662: the owner's extra reviewers, read through guard_bash.owner_env
 VERDICT_LINE = re.compile(r"(?im)^[\s>*_#`-]*verdict:[\s*_]*(merge|send back|reconsider)")  # looser than board.VERDICT
 WEAKENING_OK = re.compile(r"^\s*weakening-ok:\s*\S", re.M)  # devkit/weaken.py MARKER: must agree (a test checks)
 DEVKIT_MARK = re.compile(r"<!--\s*devkit:")
@@ -273,59 +268,11 @@ def api_write(name: str, args: list[str]) -> bool:
     return any(a.upper() in WRITE_METHODS for a in items) or any(re.match(r"^[\w.-]+(?::=|=|@)", a) for a in items)
 
 
-GITHUB_REMOTE = re.compile(
-    r"(?:https://(?:[^@/\s]+@)?github\.com/|ssh://git@github\.com/|git@github\.com:)([\w.-]+/[\w.-]+?)(?:\.git)?/?"
-)
-POLICY_TIMEOUT = 4  # seconds for the one `gh api` read; hooks.json gives guard_bash 10
-GH_REDIRECTS = {"GH_HOST", "GH_REPO", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"}  # would point gh elsewhere
-
-
-def origin_repo(project: str) -> str:
-    """`owner/name` of the github.com `origin` in `project`'s own `.git/config` (a directory, not a worktree's `.git`
-    file or a symlink), read as text: no git process, so no GIT_* variable or include redirects it. "" otherwise."""
-    git_dir = os.path.join(project, ".git") if project else ""
-    if not git_dir or os.path.islink(git_dir) or not os.path.isdir(git_dir):
-        return ""
-    try:
-        with open(os.path.join(git_dir, "config"), encoding="utf-8") as f:
-            text = f.read(1 << 20)
-    except (OSError, UnicodeDecodeError):
-        return ""
-    section = re.search(r'(?ms)^\s*\[remote\s+"origin"\]\s*$(.*?)(?=^\s*\[|\Z)', text)
-    url = re.search(r"(?m)^\s*url\s*=\s*(\S+)\s*$", section.group(1)) if section else None
-    m = GITHUB_REMOTE.fullmatch(url.group(1)) if url else None
-    return m.group(1) if m else ""
-
-
-@functools.cache
-def review_agents(project: str, path: str = "") -> frozenset[str]:
-    """#662: the agents that post verdict reviews, as [tool.devkit] names them: review_agents (DEFAULT_REVIEWERS when
-    unset; setting it replaces them) and every required_reviews value. Read from the pyproject.toml on GitHub's default
-    branch of `project`'s origin, which only integrate writes: no local git state counts (every worktree shares the
-    refs, the object store and refs/replace, so any agent can move them). `project` is the main checkout Claude Code
-    started in and `path` the PATH gh is found on, each as the owner set it (guard_bash.owner_env). Read only for a
-    review or verdict post, once per hook run, with no cache on disk. Anything else (either unset, a worktree, a
-    non-github origin, offline, a timeout, no pyproject, no tomllib, a malformed value) gives the defaults, never
-    more."""
-    names = frozenset(DEFAULT_REVIEWERS)
-    if tomllib is None or not path or not (repo := origin_repo(project)):
-        return names
-    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_") and k not in GH_REDIRECTS}
-    env["PATH"] = path
-    read = ["gh", "api", "-H", "Accept: application/vnd.github.raw", f"repos/{repo}/contents/pyproject.toml"]
-    try:
-        out = subprocess.run(read, capture_output=True, text=True, timeout=POLICY_TIMEOUT, check=False, env=env)
-        data = tomllib.loads(out.stdout).get("tool", {}).get("devkit", {}) if out.returncode == 0 else {}
-    except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
-        return names
-    if not isinstance(data, dict):
-        return names
-    listed, required = data.get("review_agents", list(names)), data.get("required_reviews", {})
-    if not (isinstance(listed, list) and all(isinstance(n, str) and n for n in listed)):
-        return names
-    if isinstance(required, dict):
-        listed = listed + [n for n in required.values() if isinstance(n, str) and n]
-    return frozenset(listed)
+def review_agents(extra: str) -> frozenset[str]:
+    """#662: the agents that post verdict reviews: DEFAULT_REVIEWERS plus the comma-separated names in `extra`, the
+    owner's DEVKIT_REVIEW_AGENTS. Nothing an agent can write extends it: no file, repository, git ref or settings
+    `env` block (owner_env reads the variable as unset when one sets it)."""
+    return frozenset(DEFAULT_REVIEWERS) | {n.strip() for n in extra.split(",") if n.strip()}
 
 
 def kind(name: str) -> str:
@@ -359,10 +306,9 @@ class GitHubRules:
     vars: dict[str, str]
     transforms: bool
 
-    def policy_anchor(self) -> tuple[str, str]:
-        """(main checkout, PATH) review_agents reads the policy through; Checker gives $CLAUDE_PROJECT_DIR and $PATH
-        as the owner set them. Unset (the defaults only) here."""
-        return "", ""
+    def review_env(self) -> str:
+        """The owner's DEVKIT_REVIEW_AGENTS; Checker reads it through owner_env. "" (the defaults only) here."""
+        return ""
 
     def feeds_cred_paths(self, c: Simple, earlier: list[Simple]) -> bool:
         """`du -a ~ | xargs grep x`: xargs runs a reader on paths listed from a directory holding a credential store."""
@@ -569,7 +515,7 @@ class GitHubRules:
             return None
         if not self.reviewer():
             return REVIEW
-        listed = review_agents(*self.policy_anchor())
+        listed = review_agents(self.review_env())
         named = set(AGENT_NAMED.findall(text))  # a listed name as written, not inside a longer one, counts too
         named |= {kind(n) for n in listed if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", text)}
         others = named & {kind(n) for n in listed} - {self.agent}  # a reviewer passing as another listed one
@@ -577,4 +523,4 @@ class GitHubRules:
 
     def reviewer(self) -> bool:
         """The agent is one review_agents (#662) lets post verdict reviews; the lead session never is."""
-        return self.agent is not None and self.agent in {kind(n) for n in review_agents(*self.policy_anchor())}
+        return self.agent is not None and self.agent in {kind(n) for n in review_agents(self.review_env())}

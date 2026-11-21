@@ -52,6 +52,7 @@ from hooklib.github import GH_UNKNOWN as GH_UNKNOWN
 from hooklib.github import ISSUE_WRITE as ISSUE_WRITE
 from hooklib.github import OWNER_MARK as OWNER_MARK
 from hooklib.github import REVIEW as REVIEW
+from hooklib.github import REVIEW_VAR as REVIEW_VAR
 from hooklib.github import VERDICT_LINE as VERDICT_LINE
 from hooklib.github import WEAKENING_OK as WEAKENING_OK
 from hooklib.github import cred_dirs as cred_dirs
@@ -138,7 +139,7 @@ LIT_VAR = re.compile(r"\$\{?(\w+)")  # a fetched argument that starts with a var
 LIT_RAW = "DEVKIT_LIT_RAW"
 # Environment the guards read (#191). The first two switch a guard off, so they count only from the environment
 # Claude Code started in (owner_env); edit_guard refuses agent edits that put any of them in a settings file.
-OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE")
+OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE", REVIEW_VAR)  # REVIEW_VAR widens a guard (#662)
 # Names that move where settings files are found: a settings `env` setting one could hide the file that sets an
 # override, so owner_env ignores every override while one is set, and edit_guard refuses adding them as well.
 LOCATORS = ("HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_PROJECT_DIR")
@@ -147,18 +148,8 @@ SLOTS = (
     "the gate slot count is the owner's: agents never change it. `uv run dev gate-slots` prints it; ask the owner to "
     "run `! uv run dev gate-slots <n>` (or to change [tool.devkit] gate_slots)."
 )
-REMOTE = (
-    "remote settings are the owner's: `git remote add|rename|remove|set-url`, remote.<name>.url / pushurl, "
-    "url.<base>.insteadOf / pushInsteadOf (in any scope, --global too) and the git config files decide where pushes "
-    "go and which repository guard_bash reads the review policy from (#662). Read them with `git remote -v` or "
-    "`git config --get <key>`; ask the lead to change one."
-)
-REMOTE_KEY = re.compile(r"(?i)^(?:remote|url)\.")  # a `git config` name or section in remote settings
-REMOTE_SUBS = {"add", "rename", "remove", "rm", "set-url"}  # `git remote` subcommands that write
-# The owner's machine-local overrides under the git common dir: the `dev` command that sets each ("": none), its
-# file, the denial. The config files hold the remote settings (#662): `cat` reads them, nothing else touches them.
+# The owner's machine-local overrides under the git common dir: the `dev` command that sets each, its file, the denial.
 OWNER_SETTINGS = (("quota-cap", "devkit/quota_cap", QUOTA), ("gate-slots", "devkit/gate_slots", SLOTS))
-OWNER_SETTINGS += (("", ".git/config", REMOTE), ("", "config.worktree", REMOTE))
 CAP_READERS = {"cat", "head", "tail", "ls", "stat", "wc", "test", "[", "[[", "file"}
 WHOLE_TREE = {".", "./", ":", ":/", ":/*", "*"}  # pathspecs that name every file
 HOOK_VAR = re.compile(r"^(SKIP|PRE_COMMIT\w*|GIT_CONFIG\w*)(=|$)")
@@ -320,11 +311,10 @@ class Checker(GitHubRules):
         self.lit_vars: set[str] = set()  # variables the command sets to a literature-API URL
         self.lit_raw = owner_env(LIT_RAW, cwd) == "1"
 
-    def policy_anchor(self) -> tuple[str, str]:
-        """#662: $CLAUDE_PROJECT_DIR (the main checkout whose origin review_agents reads) and $PATH (where it finds
-        gh), each unset when a settings `env` block (an agent can write one) sets it. Read only when a review is
-        checked."""
-        return owner_env("CLAUDE_PROJECT_DIR", self.start), owner_env("PATH", self.start)
+    def review_env(self) -> str:
+        """#662: DEVKIT_REVIEW_AGENTS as the owner set it; "" when a settings `env` block (an agent can write one)
+        sets it. Read only when a review or verdict post is checked."""
+        return owner_env(REVIEW_VAR, self.start)
 
     def text(self, text: str, depth: int = 0) -> str | None:
         """Check a shell command string; return the reason it is blocked, or None."""
@@ -502,8 +492,7 @@ class Checker(GitHubRules):
         quota_cap` too)."""
         name, args = (base(argv[0]), argv[1:]) if argv else ("", [])
         for command, path, why in OWNER_SETTINGS:
-            asks = command and args[:1] == [command] and not set(args[1:]) <= {"-h", "--help"}
-            if asks and name in ("dev", "devkit.cli"):
+            if name in ("dev", "devkit.cli") and args[:1] == [command] and not set(args[1:]) <= {"-h", "--help"}:
                 return why
 
             def owned(v: str, path: str = path) -> bool:
@@ -511,8 +500,7 @@ class Checker(GitHubRules):
 
             if any(owned(w) for w in writes):
                 return why
-            readers = CAP_READERS | (set() if command else {"git", "grep"})  # #662: Checker.git judges git config
-            if name not in readers and any(owned(w.value) for w in paths):
+            if name not in CAP_READERS and any(owned(w.value) for w in paths):
                 return why
         return None
 
@@ -540,11 +528,6 @@ class Checker(GitHubRules):
             return GH_CRED
         if sub == "config" and any("hookspath" in a.lower() for a in rest) and not config_reads_only(rest):
             return HOOKS
-        edits = any(REMOTE_KEY.match(a) for a in rest) or bool({"-e", "--edit", "edit"} & set(rest))
-        if sub == "config" and edits and not config_reads_only(rest):  # #662: remote settings, or an editor
-            return REMOTE
-        if sub == "remote" and next((a for a in rest if not a.startswith("-")), "") in REMOTE_SUBS:
-            return REMOTE
         if sub != "commit" and any(long_opt(a, "--no-verify", 9) for a in rest):  # commit: values are data (#605)
             return HOOKS
         if sub == "commit" and commit_skips_hooks(rest):

@@ -155,10 +155,6 @@ class Config:
     # `{ "src/math/" = "harness-ops:reviewer" }`. integrate refuses a PR touching such a path until the gh user posted a
     # `Verdict: merge` review (board.VERDICT) naming that agent on its head or an ancestor. {} requires none.
     required_reviews: dict[str, str] = field(default_factory=dict)
-    # #662: the agents guard_bash lets post PR reviews and `Verdict:` lines, each naming only itself (with every agent
-    # required_reviews names), e.g. ["harness-ops:reviewer", "security-reviewer"]; a bare name is a project agent. The
-    # hook reads it from the pyproject.toml committed at the main checkout's HEAD; setting it replaces the default.
-    review_agents: list[str] = field(default_factory=lambda: ["harness-ops:reviewer", "harness-ops:research-auditor"])
     # #499: the reviewer agent `dev autopilot` trusts, e.g. "harness-ops:reviewer": it integrates a harness PR (with
     # --harness-ok for that head only) when the gh user's latest Verdict review naming that agent (as required_reviews
     # matches it) says merge on the PR's current head, instead of waiting for the lead to read the diff. Every other
@@ -204,9 +200,6 @@ def parse(data: dict) -> Config:
             raise ConfigError(
                 f"[tool.devkit.required_reviews] {match!r} = {who!r}: expected a path glob -> reviewer name"
             )
-    for who in data.get("review_agents", []):
-        if not (isinstance(who, str) and who):
-            raise ConfigError(f"[tool.devkit] review_agents entry {who!r}: expected an agent name")
     for argv in data.get("regenerate", []):
         if not (isinstance(argv, list) and argv and all(isinstance(a, str) and a for a in argv)):
             raise ConfigError(f"[tool.devkit] regenerate entry {argv!r}: expected a command as a list of arguments")
