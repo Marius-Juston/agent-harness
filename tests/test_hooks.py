@@ -2426,7 +2426,106 @@ PATH_WRITES = [
     "cp gh LINKED/gh",  # a symlink to a PATH directory resolves to it
     "python3 -c \"open('HOMEDIR/.local/bin/gh', 'w').write('x')\"",
     "python3 - <<'EOF'\nimport shutil\nshutil.copy('gh', 'HOMEDIR/.cargo/bin/git')\nEOF",
+    # round 1 of the #678 review: the install idiom's attached and clustered output options, the space form, a bare cd
+    "curl -fsSLo ~/.local/bin/gh https://example.com/gh",
+    "curl -o~/.local/bin/gh https://example.com/gh",
+    "curl --output ~/.local/bin/gh https://example.com/gh",
+    "wget --output-document ~/.local/bin/gh https://example.com/gh",
+    "cd && cp gh .local/bin/",
+    'perl -e \'open(F, ">", "HOMEDIR/.local/bin/gh")\'',
+    "perl -e 'open(F, \">HOMEDIR/.local/bin/gh\")'",
+    'node -e \'require("fs").writeFileSync("HOMEDIR/.local/bin/gh", "x")\'',
+    'ruby -e \'File.write("HOMEDIR/.cargo/bin/git", "x")\'',
 ]
+# A tree copied, moved or extracted onto a directory that holds a PATH directory.
+PATH_TREES = [
+    "cp -r stage/. ~/.local/",
+    "cp -a stage ~/.local",
+    "rsync -a stage/ ~/.local/",
+    "tar -xf t.tar -C ~/.local",
+    "tar xzf t.tgz --directory ~/.local",
+    "cd ~/.local && tar -xf t.tar",
+    "unzip x.zip -d ~/.local",
+    "mv ~/.local ~/.local.old",
+    "ditto stage ~/.local",
+]
+
+
+@pytest.mark.parametrize("cmd", PATH_TREES)
+def test_guard_bash_refuses_a_tree_landing_on_a_parent_of_a_path_directory(hook, tmp_path, cmd):
+    _, wt, env = _path_env(tmp_path)
+    code, err = _bash_in(hook, cmd, wt, env)
+    assert code == 2 and "a directory on the session's PATH" in err, (cmd, err)
+
+
+def _checker(wt: str, dirs: list[str]):
+    checker = GUARD.Checker(wt)
+    checker.root, checker.dirs = wt, (dirs,)
+    return checker
+
+
+# Every output option of curl, wget, tar and unzip, in each spelling: never an exception (a crash used to exit 1 and
+# let the whole command through), always the refusal when the value is in a PATH directory.
+OUT_SPELLINGS = [
+    (cmd, form.format(opt=opt, x="{x}"))
+    for cmd, (letters, longs) in GUARD.OUT_OPTS.items()
+    for opt, forms in [
+        *((f"-{ch}", ["{opt} {x}", "{opt}{x}", "-q{ch}{x}", "-q{ch} {x}"]) for ch in letters),
+        *((o, ["{opt} {x}", "{opt}={x}"]) for o in sorted(longs)),
+    ]
+    for form in [f.replace("{ch}", opt[1:]) if "{ch}" in f else f for f in forms]
+]
+
+
+@pytest.mark.parametrize(("cmd", "spelling"), OUT_SPELLINGS)
+def test_guard_bash_reads_every_spelling_of_an_output_option(tmp_path, cmd, spelling):
+    bindir, wt = str(tmp_path / "bin"), str(tmp_path / "wt")
+    line = f"{cmd} {spelling} https://example.com/x"
+    assert _checker(wt, [bindir]).text(line.format(x=f"{bindir}/gh")) is not None, line
+    assert _checker(wt, [bindir]).text(line.format(x=f"{wt}/gh")) is None, line
+
+
+def test_guard_bash_a_space_form_output_option_no_longer_lets_the_rest_through(hook, tmp_path):
+    """The #678 review's probe: `--output X` raised IndexError, the hook exited 1 and the merge after it ran."""
+    _, wt, env = _path_env(tmp_path)
+    for cmd in ("curl --output /dev/null https://x; gh pr merge 1", "tar -x --directory build; gh pr merge 1"):
+        code, err = _bash_in(hook, cmd, wt, env)
+        assert code == 2 and "merge" in err, (cmd, err)
+
+
+@pytest.mark.parametrize(
+    ("args", "targets"),
+    [
+        (["-t", "D", "a"], ["D"]),
+        (["-tD", "a"], ["D"]),
+        (["--target-directory", "D", "a"], ["D"]),
+        (["--target-directory=D", "a"], ["D"]),
+        (["-rt", "D", "a"], ["D"]),
+        (["-t"], []),
+        (["--", "-t", "D"], []),
+    ],
+)
+def test_option_values_take_the_cluster_rest_or_the_next_word(args, targets):
+    assert GUARD.option_values(args, "t", {"--target-directory"}) == targets
+
+
+@pytest.mark.parametrize(
+    ("sub", "refused"),
+    [
+        ("bin", False),
+        ("sbin", False),
+        ("games", False),
+        ("local/bin", False),
+        (".local/bin", True),
+        (".cargo/bin", True),
+    ],
+)
+@pytest.mark.parametrize("var", ["$V", "${V}", "$(mktemp -d)"])
+def test_an_unknown_variable_counts_only_when_its_tail_names_a_path_directory_under_home(tmp_path, sub, refused, var):
+    home = os.path.realpath(os.path.expanduser("~"))
+    dirs = ["/usr/bin", "/bin", "/usr/games", f"{home}/.local/bin", f"{home}/.cargo/bin"]
+    why = _checker(str(tmp_path / "wt"), dirs).text(f"cp x {var}/{sub}/gh")
+    assert (why is not None) == refused, why
 
 
 @pytest.mark.parametrize("cmd", PATH_WRITES)
@@ -2454,6 +2553,15 @@ PATH_OK = [
     "cargo build --release",
     "python3 -c \"print(open('HOMEDIR/.local/bin/gh').read())\"",
     "python3 -c \"import subprocess; subprocess.run(['HOMEDIR/.local/bin/gh', 'pr', 'list'])\"",
+    # round 1 of the #678 review: a fake gh on a temporary PATH is how a test builds one, not a write to /bin
+    "tmp=$(mktemp -d); mkdir -p $tmp/bin; printf '#!/bin/sh\\n' > $tmp/bin/gh; chmod +x $tmp/bin/gh",
+    'cp x "$DESTDIR/bin/x"',
+    "cp gh ~/",  # one file into home, not a tree onto ~/.local
+    "cp -r stage build/out && tar -xf t.tar -C build && unzip -q x.zip -d build",
+    "curl -fsSLo build/gh https://example.com/gh && wget -qO- https://example.com | head",
+    'perl -e \'open(F, "<", "HOMEDIR/.local/bin/gh")\'',
+    'node -e \'console.log(require("fs").readFileSync("HOMEDIR/.local/bin/gh"))\'',
+    "make test && cmake --build build",
 ]
 
 
@@ -2476,6 +2584,12 @@ INSTALLS = [
     "pnpm add -g x",
     "yarn global add x",
     "gem install rake",
+    "cargo +nightly install ripgrep",
+    "npm install --location=global x",
+    "npm install --location global x",
+    "make install PREFIX=~/.local",
+    "cmake --install build --prefix ~/.local",
+    "brew install jq",
 ]
 
 
@@ -2502,6 +2616,41 @@ def test_guard_bash_fails_closed_when_a_settings_env_sets_path(hook, tmp_path):
     assert _bash_in(hook, f"cp gh {tmp_path / 'tmp/gh'} && cp gh .venv/bin/gh", wt, env)[0] == 0
     edit = {"cwd": str(wt), "tool_name": "Write", "tool_input": {"file_path": str(outside), "content": "x"}}
     assert hook("edit_guard.py", edit, env=env)[0] == 2
+    # the project's auto-memory and the scratchpad (in the temp dir) stay writable
+    for path in (GUARD.memory_dirs(os.path.realpath(wt))[0] + "/note.md", str(tmp_path / "tmp/scratch/x.txt")):
+        edit["tool_input"]["file_path"] = path
+        assert hook("edit_guard.py", edit, env=env)[0] == 0, path
+
+
+def test_memory_dirs_name_the_worktree_and_its_main_checkout(tmp_path):
+    main = tmp_path / "my.repo"
+    subprocess.run(["git", "init", "-q", str(main)], check=True)
+    subprocess.run(["git", "-C", str(main), "commit", "-q", "--allow-empty", "-m", "x"], check=True)
+    wt = tmp_path / "wt"
+    subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(wt)], check=True)
+    slugs = [Path(d).parent.name for d in GUARD.memory_dirs(os.path.realpath(wt))]
+    real = os.path.realpath(tmp_path)
+    assert slugs == [re.sub(r"[^A-Za-z0-9]", "-", f"{real}/wt"), re.sub(r"[^A-Za-z0-9]", "-", f"{real}/my.repo")]
+
+
+@pytest.mark.parametrize(
+    ("name", "payload"),
+    [
+        ("guard_bash.py", {"tool_input": {"command": "ls"}}),
+        ("edit_guard.py", {"tool_input": {"file_path": "x.py", "content": "x"}}),
+        ("file_guard.py", {"tool_name": "Read", "tool_input": {"file_path": "/x/.env"}}),
+    ],
+)
+def test_a_guard_that_raises_while_checking_refuses_with_exit_2(hook, tmp_path, name, payload):
+    """The #678 review: an exception inside a guard exited 1, which lets the call run where `onFailure: "block"`
+    is not honoured. A forced failure (json's readers raise) now refuses with a short guard-error message."""
+    (tmp_path / "sitecustomize.py").write_text(
+        "import json\n\ndef _boom(*a, **k):\n    raise RuntimeError('forced')\n\njson.load = json.loads = _boom\n"
+    )
+    code, _, err = hook(name, payload, {**os.environ, "PYTHONPATH": str(tmp_path)})
+    assert code == 2 and "guard error, refused" in err and "RuntimeError" in err, err
+    assert GUARD.fail_closed(lambda: 1 // 0) == 2
+    assert GUARD.fail_closed(lambda: 0) == 0
 
 
 @pytest.mark.parametrize(

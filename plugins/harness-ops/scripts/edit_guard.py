@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from guard_bash import LOCATORS, OWNER_ENV, env_keys, path_dirs, path_refusal, worktree_root
+from guard_bash import LOCATORS, OWNER_ENV, env_keys, fail_closed, path_dirs, path_refusal, worktree_root
 
 RULES = [
     (r"(^|/)docs/generated/", "docs/generated/ is generated: change the source, then `uv run dev docs`."),
@@ -102,4 +102,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(fail_closed(main))
