@@ -799,7 +799,7 @@ def _integrate_wall(world: dict, knobs: dict, **over) -> tuple[int, float]:
 
 
 @pytest.mark.parametrize("behind", [False, True], ids=["contains-main", "pushed"])
-@pytest.mark.parametrize(("actions_s", "gate_s"), [(1.0, 0.6), (0.6, 1.0)], ids=["actions-longer", "gate-longer"])
+@pytest.mark.parametrize(("actions_s", "gate_s"), [(1.0, 0.8), (0.8, 1.0)], ids=["actions-longer", "gate-longer"])
 def test_integrate_wall_is_the_longer_of_gate_and_actions_not_their_sum(
     fake_integrate,  # noqa: F811
     monkeypatch,
@@ -808,16 +808,19 @@ def test_integrate_wall_is_the_longer_of_gate_and_actions_not_their_sum(
     actions_s,
     gate_s,
 ):
-    """#541 DONE WHEN: with checks taking T_a and the gate T_g, integrate's wall is within 10 % of max(T_a, T_g) plus
-    the overhead measured with both instant, for a PR already containing main (checks on its own head) and for one
-    integrate must push (checks on the pushed merged tree)."""
+    """#541 DONE WHEN: with checks taking T_a and the gate T_g, integrate's wall is max(T_a, T_g), not their sum, for a
+    PR already containing main (checks on its own head) and for one integrate must push (checks on the pushed merged
+    tree). #671: the waits are real, so the bound is the midpoint between max and sum (plus the overhead measured
+    with both instant), not max plus 10 %: a loaded runner's scheduler noise stays well under the 0.4 s either side,
+    and a sequential integrate (at least the sum) still fails it."""
     knobs = _timed(fake_integrate, monkeypatch)
     code, overhead = _integrate_wall(fake_integrate, knobs, behind=behind)
     assert code == 0, capsys.readouterr().out
     code, wall = _integrate_wall(fake_integrate, knobs, actions_s=actions_s, gate_s=gate_s)
     res = _last_json(capsys.readouterr().out)
     assert code == 0 and res["outcome"] == "merged" and res["updated"] is behind
-    assert wall <= 1.1 * max(actions_s, gate_s) + overhead, (wall, overhead)
+    longer, total = max(actions_s, gate_s), actions_s + gate_s
+    assert longer <= wall < (longer + total) / 2 + overhead, (wall, overhead)
     if behind:  # the merged tree went up before the gate: Actions ran on it while the gate did
         ev = fake_integrate["events"]
         assert _index(ev, lambda e: e[:2] == ("git", "push")) < _index(ev, lambda e: e[:3] == ("gh", "pr", "merge"))
