@@ -10,7 +10,8 @@ prefix-only and this hook is best effort; server-side branch protection is the o
 
 GitHub writes that bypass integrate or widen access (gh pr merge, repository settings, refs, releases, gists) are
 refused to every session; issue housekeeping is the lead's, and PR reviews and `Verdict:` lines belong to the reviewer
-agents (#528), told apart by the input's `agent_type`.
+agents (#528), told apart by the input's `agent_type`. Writes into a directory on the session's PATH outside the
+worktree are refused to every session, and installing a tool onto PATH to subagents (#673, path_refusal).
 
 A command allowed through that can wait forever (a poll loop, `tail -f`, `watch`, `wait`, ...) is rewritten
 (updatedInput) to run under `timeout <[tool.devkit] wait_bound_s>`; see bound_waits.
@@ -26,6 +27,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Callable
 from fnmatch import fnmatchcase
 
 # The shared modules live beside this script; a test or another hook may load it by path.
@@ -56,6 +58,16 @@ from hooklib.github import REVIEW_VAR as REVIEW_VAR
 from hooklib.github import VERDICT_LINE as VERDICT_LINE
 from hooklib.github import WEAKENING_OK as WEAKENING_OK
 from hooklib.github import cred_dirs as cred_dirs
+from hooklib.paths import CODE_LANGS, CODE_WRITE, GUARD_ERROR, PY_WRITE, PathRules, path_list
+from hooklib.paths import OUT_OPTS as OUT_OPTS
+from hooklib.paths import PATH_DIR as PATH_DIR
+from hooklib.paths import PATH_HOLDS as PATH_HOLDS
+from hooklib.paths import PATH_UNKNOWN as PATH_UNKNOWN
+from hooklib.paths import SINKS as SINKS
+from hooklib.paths import memory_dirs as memory_dirs
+from hooklib.paths import option_values as option_values
+from hooklib.paths import path_refusal as path_refusal
+from hooklib.paths import worktree_root as worktree_root
 from hooklib.shell import (
     ASSIGN,
     GREPS,
@@ -68,6 +80,7 @@ from hooklib.shell import (
     base,
     lex,
     long_opt,
+    parse_opts,
     unwrap,
     within,
 )
@@ -139,7 +152,8 @@ LIT_VAR = re.compile(r"\$\{?(\w+)")  # a fetched argument that starts with a var
 LIT_RAW = "DEVKIT_LIT_RAW"
 # Environment the guards read (#191). The first two switch a guard off, so they count only from the environment
 # Claude Code started in (owner_env); edit_guard refuses agent edits that put any of them in a settings file.
-OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE", REVIEW_VAR)  # REVIEW_VAR widens a guard (#662)
+# PATH names the directories agents may not write into (#673): a settings `env` setting it could hide one.
+OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE", REVIEW_VAR, "PATH")  # REVIEW_VAR widens a guard
 # Names that move where settings files are found: a settings `env` setting one could hide the file that sets an
 # override, so owner_env ignores every override while one is set, and edit_guard refuses adding them as well.
 LOCATORS = ("HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_PROJECT_DIR")
@@ -248,6 +262,12 @@ def owner_env(name: str, cwd: str) -> str:
     return value
 
 
+def path_dirs(cwd: str) -> list[str] | None:
+    """The absolute directories on PATH as the owner set it (owner_env); None when a settings `env` block sets PATH or
+    a locator, so the real PATH is unknown. Relative entries ("", ".") follow the shell's cwd and cannot be guarded."""
+    return path_list(owner_env("PATH", cwd))
+
+
 def lit_vars(pipes: list[list[Simple]]) -> set[str]:
     """Names assigned a literature-API URL by a command: `u=<url>`, `export u=<url>`, `for u in ... <url> ...`."""
     names = set()
@@ -295,7 +315,7 @@ def is_secrets(w: Word) -> bool:
     return name == SECRETS_NAME or (bool(custom) and ((name == base(custom) and name != "") or path == custom))
 
 
-class Checker(GitHubRules):
+class Checker(GitHubRules, PathRules):
     def __init__(self, cwd: str, read_only: str = "", agent: str | None = None):
         # #528: the subagent's type, plugin prefix dropped; None in the main (lead) session. VERIFIED on a real
         # PreToolUse input: a subagent's carries agent_type "<plugin>:<name>", the main session's has none.
@@ -310,6 +330,11 @@ class Checker(GitHubRules):
         self.in_python = 0  # > 0 while checking a Python string literal as a shell command
         self.lit_vars: set[str] = set()  # variables the command sets to a literature-API URL
         self.lit_raw = owner_env(LIT_RAW, cwd) == "1"
+        self.root: str | None = None  # the worktree, read on the first write target
+        self.dirs: tuple[list[str] | None] | None = None  # (path_dirs,), read on the first write outside the worktree
+
+    def owner_path(self) -> list[str] | None:
+        return path_dirs(self.start)
 
     def review_env(self) -> str:
         """#662: DEVKIT_REVIEW_AGENTS as the owner set it; "" when a settings `env` block (an agent can write one)
@@ -358,6 +383,8 @@ class Checker(GitHubRules):
             parts = re.findall(r"'((?:[^'\\\n]|\\.)*)'|\"((?:[^\"\\\n]|\\.)*)\"", group)
             strings.append(" ".join(a or b for a, b in parts))
         if why := self.code_reaches(src, "py"):
+            return why
+        if why := self.code_writes(src, PY_WRITE):  # open("~/.local/bin/gh", "w"), shutil.copy(x, "~/.cargo/bin")
             return why
         self.in_python += 1
         try:
@@ -432,6 +459,13 @@ class Checker(GitHubRules):
                     return why
         if why := self.owner_setting(argv, c.writes, paths):
             return why
+        if why := self.path_write(name, argv[1:], c.writes):
+            return why
+        if name in CODE_LANGS:  # perl -e 'open(F, ">", "...")', node -e 'fs.writeFileSync("...")'
+            evals = {"-e", "-E", "--eval", "-p", "--print"}
+            code = [b for a, b in itertools.pairwise(argv[1:]) if a in evals or (a[:1] == "-" and a[-1:] in "eE")]
+            if why := next((w for src in code if (w := self.code_writes(src, CODE_WRITE[CODE_LANGS[name]]))), None):
+                return why
         if self.read_only and (why := read_only(argv, c.writes, self.read_only, tuple(assigns))):
             return why
         if not argv:
@@ -439,6 +473,8 @@ class Checker(GitHubRules):
         args = argv[1:]
         if name in ("cd", "pushd") and args:
             self.cwd = os.path.join(self.cwd, os.path.expanduser(args[-1]))
+        elif name == "cd":  # a bare cd goes home
+            self.cwd = os.path.expanduser("~")
         if name == "trap" and args:
             code = next((a for a in args if not a.startswith("-")), "")
             if why := self.text(code, depth + 1):
@@ -674,32 +710,6 @@ def commit_skips_hooks(rest: list[str]) -> bool:
     return False
 
 
-def parse_opts(args: list[str], valued: str = "") -> tuple[set[str], set[str], list[str]]:
-    """Split args into short flag letters, long option names and positionals (all of them after `--`).
-    `valued`: short options whose value is the rest of the cluster or the next word."""
-    shorts: set[str] = set()
-    longs: set[str] = set()
-    pos: list[str] = []
-    skip = False
-    for k, a in enumerate(args):
-        if skip:
-            skip = False
-        elif a == "--":
-            pos += args[k + 1 :]
-            break
-        elif a.startswith("--"):
-            longs.add(a.split("=", 1)[0])
-        elif a.startswith("-") and len(a) > 1:
-            for j, ch in enumerate(a[1:], 1):
-                shorts.add(ch)
-                if ch in valued:
-                    skip = j == len(a) - 1
-                    break
-        else:
-            pos.append(a)
-    return shorts, longs, pos
-
-
 def destructive_git(sub: str, rest: list[str], where: str) -> str | None:
     """The git subcommands that throw away uncommitted work, stashes, worktrees or unmerged branches."""
     shorts, longs, pos = parse_opts(rest, {"checkout": "bB", "switch": "cC", "restore": "s", "clean": "e"}.get(sub, ""))
@@ -727,19 +737,6 @@ def destructive_git(sub: str, rest: list[str], where: str) -> str | None:
     if sub == "branch" and ("D" in shorts or (has("d", "--delete", 4) and has("f", "--force", 3))):
         return BRANCH_D
     return None
-
-
-def worktree_root(cwd: str) -> str:
-    """The top of the worktree holding cwd, or cwd itself outside a repository."""
-    import subprocess
-
-    try:
-        out = subprocess.run(
-            ["git", "-C", cwd, "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=5, check=False
-        ).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        out = ""
-    return os.path.realpath(out or cwd)
 
 
 def current_branch(where: str) -> str | None:
@@ -801,7 +798,6 @@ RISKY_OPTS = {
 # code. A pager may only be turned off.
 SAFE_VARS = {"NO_COLOR", "TERM", "COLUMNS", "LINES", "LANG", "LC_ALL", "TZ"}
 SAFE_PAGERS = {"GIT_PAGER=", "GIT_PAGER=cat", "PAGER=", "PAGER=cat"}
-SINKS = {"/dev/null", "/dev/stdout", "/dev/stderr", "-"}
 
 
 def risky(name: str, args: list[str]) -> bool:
@@ -899,6 +895,16 @@ def file_tool_rule(data: dict, cwd: str) -> str:
     return ""
 
 
+def fail_closed(entry: Callable[[], int]) -> int:
+    """Run a guard's entry point; any exception it raises refuses the call (exit 2, GUARD_ERROR) instead of crashing
+    with exit 1, which an older Claude Code or a handler without `onFailure: "block"` lets run (the #673 review)."""
+    try:
+        return entry()
+    except Exception as exc:  # every failure must refuse, whatever raised it
+        print(f"Blocked by project rule: {GUARD_ERROR.format(kind=type(exc).__name__)}", file=sys.stderr)
+        return 2
+
+
 def main(raw: str | None = None) -> int:
     """`raw`: the hook input file_guard.py already read from stdin."""
     try:
@@ -937,4 +943,4 @@ def main(raw: str | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(fail_closed(main))

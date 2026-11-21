@@ -4,16 +4,18 @@
 A generated file is one under the default generated paths, or any file whose first line is devkit's generated
 marker (so a project that moves its generated directory is still covered). An edit that writes a name the guards
 read (guard_bash.OWNER_ENV), or one that moves where settings are found (LOCATORS), into a Claude Code settings
-file's `env` block is refused too: that block reaches every hook (#191).
+file's `env` block is refused too: that block reaches every hook (#191). So is a file written into a directory on the
+session's PATH outside the worktree (#673): it would shadow the owner's tools (guard_bash.path_refusal).
 """
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from guard_bash import LOCATORS, OWNER_ENV, env_keys
+from guard_bash import LOCATORS, OWNER_ENV, env_keys, fail_closed, path_dirs, path_refusal, worktree_root
 
 RULES = [
     (r"(^|/)docs/generated/", "docs/generated/ is generated: change the source, then `uv run dev docs`."),
@@ -79,6 +81,10 @@ def main() -> int:
     path = inp.get("file_path") or inp.get("notebook_path") or ""
     if not isinstance(path, str):
         return 0
+    cwd = data.get("cwd") if isinstance(data.get("cwd"), str) else os.getcwd()
+    if path and (why := path_refusal(path, cwd, worktree_root(cwd), lambda: path_dirs(cwd))):
+        print(f"Blocked by project rule: {why}", file=sys.stderr)
+        return 2
     if SETTINGS.search(path) and (name := override(path, inp)):
         print(f"Blocked by project rule: {OVERRIDE.format(name=name)}", file=sys.stderr)
         return 2
@@ -96,4 +102,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(fail_closed(main))
