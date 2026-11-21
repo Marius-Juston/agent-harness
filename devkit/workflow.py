@@ -305,7 +305,7 @@ def review_problem(
             for r in reviews
             if board.login(r) in trusted
             and (v := board.verdict_of(r.get("body") or ""))
-            and who in (r.get("body") or "")
+            and board.names_agent(r.get("body") or "", who)
             and (head.lower().startswith(v[3].lower()) or is_ancestor(v[3]))
         ]
         last = sorted(judged, key=lambda j: j[0])[-1] if judged else None  # stable: of equal times, the later listed

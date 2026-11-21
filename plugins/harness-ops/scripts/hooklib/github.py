@@ -86,15 +86,18 @@ ISSUE_WRITE = (
     '(`uv run dev board block <issue> --reason "..."`) and say so in your hand-back.'
 )
 REVIEW = (
-    "only harness-ops:reviewer and harness-ops:research-auditor post PR reviews or `Verdict:` lines, each naming only "
-    "itself: a verdict is what integrate trusts, and every agent posts as the owner. Hand back; the lead dispatches "
-    "the reviewer."
+    "only harness-ops:reviewer, harness-ops:research-auditor and the agents DEVKIT_REVIEW_AGENTS names post PR "
+    "reviews or `Verdict:` lines, each naming only itself: a verdict is what integrate trusts, and every agent posts "
+    "as the owner. Hand back; the lead dispatches the reviewer. A project's own reviewer agent is added by the owner: "
+    "DEVKIT_REVIEW_AGENTS=security-reviewer (comma-separated, bare or plugin:name) exported in the shell that starts "
+    "Claude Code, never in a settings file's env block, which an agent can write (the guard ignores it there)."
 )
 OWNER_MARK = (
     "`weakening-ok:` lines are the owner's approval and `<!-- devkit:` markers are devkit's own records: an agent "
     'never writes them. Ask the owner with `uv run dev board block <issue> --reason "..."`.'
 )
-REVIEWERS = {"reviewer", "research-auditor"}  # agent types (plugin prefix dropped) that post verdict reviews
+DEFAULT_REVIEWERS = ("harness-ops:reviewer", "harness-ops:research-auditor")  # always allowed to post verdicts
+REVIEW_VAR = "DEVKIT_REVIEW_AGENTS"  # #662: the owner's extra reviewers, read through guard_bash.owner_env
 VERDICT_LINE = re.compile(r"(?im)^[\s>*_#`-]*verdict:[\s*_]*(merge|send back|reconsider)")  # looser than board.VERDICT
 WEAKENING_OK = re.compile(r"^\s*weakening-ok:\s*\S", re.M)  # devkit/weaken.py MARKER: must agree (a test checks)
 DEVKIT_MARK = re.compile(r"<!--\s*devkit:")
@@ -265,6 +268,18 @@ def api_write(name: str, args: list[str]) -> bool:
     return any(a.upper() in WRITE_METHODS for a in items) or any(re.match(r"^[\w.-]+(?::=|=|@)", a) for a in items)
 
 
+def review_agents(extra: str) -> frozenset[str]:
+    """#662: the agents that post verdict reviews: DEFAULT_REVIEWERS plus the comma-separated names in `extra`, the
+    owner's DEVKIT_REVIEW_AGENTS. Nothing an agent can write extends it: no file, repository, git ref or settings
+    `env` block (owner_env reads the variable as unset when one sets it)."""
+    return frozenset(DEFAULT_REVIEWERS) | {n.strip() for n in extra.split(",") if n.strip()}
+
+
+def kind(name: str) -> str:
+    """An agent name as guard_bash holds the agent type: plugin prefix dropped."""
+    return name.rsplit(":", 1)[-1]
+
+
 def assigned(pipes: list[list[Simple]]) -> dict[str, str]:
     """NAME -> value for each literal assignment in the command (b=main, export M=-X): what `$b` expands to."""
     out: dict[str, str] = {}
@@ -290,6 +305,10 @@ class GitHubRules:
     later: list[str]
     vars: dict[str, str]
     transforms: bool
+
+    def review_env(self) -> str:
+        """The owner's DEVKIT_REVIEW_AGENTS; Checker reads it through owner_env. "" (the defaults only) here."""
+        return ""
 
     def feeds_cred_paths(self, c: Simple, earlier: list[Simple]) -> bool:
         """`du -a ~ | xargs grep x`: xargs runs a reader on paths listed from a directory holding a credential store."""
@@ -414,7 +433,7 @@ class GitHubRules:
         texts = self.gh_texts(rest, stdin)
         if group == "api" and (why := self.gh_api(rest, texts)):
             return why
-        if group == "pr" and sub == "review" and self.agent not in REVIEWERS:
+        if group == "pr" and sub == "review" and not self.reviewer():
             return REVIEW
         if group in ("pr", "issue", "api"):
             return self.forged(texts, verdicts=True)
@@ -449,7 +468,7 @@ class GitHubRules:
                 return REF_DELETE
             if GQL_OWNER.search(text):
                 return GH_ADMIN
-            if GQL_REVIEW.search(text) and self.agent not in REVIEWERS:
+            if GQL_REVIEW.search(text) and not self.reviewer():
                 return REVIEW
             return ISSUE_WRITE if GQL_ISSUE.search(text) and self.agent is not None else None
         if method in ("GET", "HEAD"):
@@ -462,7 +481,7 @@ class GitHubRules:
             return REF_DELETE
         if GH_OWNER_API.match(endpoint):
             return GH_ADMIN
-        if GH_REVIEW_API.match(endpoint) and self.agent not in REVIEWERS:
+        if GH_REVIEW_API.match(endpoint) and not self.reviewer():
             return REVIEW
         return ISSUE_WRITE if GH_ISSUE_API.match(endpoint) and self.agent is not None else None
 
@@ -494,5 +513,14 @@ class GitHubRules:
             return OWNER_MARK
         if not (verdicts and VERDICT_LINE.search(text)):
             return None
-        others = set(AGENT_NAMED.findall(text)) & REVIEWERS - {self.agent}  # a reviewer passing as the other one
-        return REVIEW if self.agent not in REVIEWERS or others else None
+        if not self.reviewer():
+            return REVIEW
+        listed = review_agents(self.review_env())
+        named = set(AGENT_NAMED.findall(text))  # a listed name as written, not inside a longer one, counts too
+        named |= {kind(n) for n in listed if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", text)}
+        others = named & {kind(n) for n in listed} - {self.agent}  # a reviewer passing as another listed one
+        return REVIEW if others else None
+
+    def reviewer(self) -> bool:
+        """The agent is one review_agents (#662) lets post verdict reviews; the lead session never is."""
+        return self.agent is not None and self.agent in {kind(n) for n in review_agents(self.review_env())}

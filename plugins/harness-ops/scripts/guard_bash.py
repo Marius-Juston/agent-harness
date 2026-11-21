@@ -52,6 +52,7 @@ from hooklib.github import GH_UNKNOWN as GH_UNKNOWN
 from hooklib.github import ISSUE_WRITE as ISSUE_WRITE
 from hooklib.github import OWNER_MARK as OWNER_MARK
 from hooklib.github import REVIEW as REVIEW
+from hooklib.github import REVIEW_VAR as REVIEW_VAR
 from hooklib.github import VERDICT_LINE as VERDICT_LINE
 from hooklib.github import WEAKENING_OK as WEAKENING_OK
 from hooklib.github import cred_dirs as cred_dirs
@@ -138,7 +139,7 @@ LIT_VAR = re.compile(r"\$\{?(\w+)")  # a fetched argument that starts with a var
 LIT_RAW = "DEVKIT_LIT_RAW"
 # Environment the guards read (#191). The first two switch a guard off, so they count only from the environment
 # Claude Code started in (owner_env); edit_guard refuses agent edits that put any of them in a settings file.
-OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE")
+OWNER_ENV = ("DEVKIT_ALLOW_COPYLEFT", LIT_RAW, "DEVKIT_SECRETS_FILE", REVIEW_VAR)  # REVIEW_VAR widens a guard (#662)
 # Names that move where settings files are found: a settings `env` setting one could hide the file that sets an
 # override, so owner_env ignores every override while one is set, and edit_guard refuses adding them as well.
 LOCATORS = ("HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_PROJECT_DIR")
@@ -309,6 +310,11 @@ class Checker(GitHubRules):
         self.in_python = 0  # > 0 while checking a Python string literal as a shell command
         self.lit_vars: set[str] = set()  # variables the command sets to a literature-API URL
         self.lit_raw = owner_env(LIT_RAW, cwd) == "1"
+
+    def review_env(self) -> str:
+        """#662: DEVKIT_REVIEW_AGENTS as the owner set it; "" when a settings `env` block (an agent can write one)
+        sets it. Read only when a review or verdict post is checked."""
+        return owner_env(REVIEW_VAR, self.start)
 
     def text(self, text: str, depth: int = 0) -> str | None:
         """Check a shell command string; return the reason it is blocked, or None."""
