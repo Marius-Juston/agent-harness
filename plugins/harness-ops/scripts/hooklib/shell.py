@@ -405,3 +405,29 @@ def short_flag(args: list[str], letters: str, longs: tuple[str, ...]) -> bool:
 
 
 GREPS = {"grep", "egrep", "fgrep", "rg"}
+
+
+def parse_opts(args: list[str], valued: str = "") -> tuple[set[str], set[str], list[str]]:
+    """Split args into short flag letters, long option names and positionals (all of them after `--`).
+    `valued`: short options whose value is the rest of the cluster or the next word."""
+    shorts: set[str] = set()
+    longs: set[str] = set()
+    pos: list[str] = []
+    skip = False
+    for k, a in enumerate(args):
+        if skip:
+            skip = False
+        elif a == "--":
+            pos += args[k + 1 :]
+            break
+        elif a.startswith("--"):
+            longs.add(a.split("=", 1)[0])
+        elif a.startswith("-") and len(a) > 1:
+            for j, ch in enumerate(a[1:], 1):
+                shorts.add(ch)
+                if ch in valued:
+                    skip = j == len(a) - 1
+                    break
+        else:
+            pos.append(a)
+    return shorts, longs, pos
