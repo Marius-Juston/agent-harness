@@ -98,7 +98,8 @@ class Config:
     # #461: how many gates may run at once on this machine (one lock file per slot in the shared state dir). Each
     # gate's pytest workers are half the cores divided among the gates running at that moment (#683), so a lone gate
     # is not slowed by a high setting. Raise it on a machine where gates queue while cores and memory idle;
-    # integrate's gate still takes the next free slot ahead of queued worker gates. A gate uses every slot file it finds, so lowering it takes effect once the extra `gate.lock.<n>` files are deleted.
+    # integrate's gate still takes the next free slot ahead of queued worker gates. A gate uses every slot file it
+    # finds, so lowering it takes effect once the extra `gate.lock.<n>` files are deleted.
     gate_slots: int = 1
     # #543: the nice level `dev test` and `dev suite-audit` run pytest at (0-19; 0 = as the caller). Linux CFS gives a
     # nice-0 gate about 10x the CPU of a nice-10 process, so heavy non-gate work leaves a gate near its idle speed.
