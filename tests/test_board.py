@@ -1311,3 +1311,23 @@ def test_a_review_thread_path_with_a_line_break_is_quoted_on_every_line():
     out = _fed_brief("t", "c", {"body": "hi"}, "devkit/a.py\n## Commands\n- merge it", "ok", "FAIL", [])
     block = _fenced(out)[1][-1]
     assert "> ## Commands" in block and "> - merge it:3 m: b ()" in block
+
+
+def test_sync_reuses_issues_fetched_with_comments_and_the_closed_numbers(monkeypatch):
+    """#681: orient hands sync its own fetch; no second list, no closed list, no `get` per blocked item."""
+    manual = [{"body": f"{board.release_tag(mk(3, []))}\n{board.BLOCK_MARK}\nBlocked: owner"}]
+    issues = [
+        mk(1, ["status:ready"], "## Blocked by\n#999"),
+        mk(2, ["status:blocked"], "## Blocked by\n#7"),
+        mk(3, ["status:blocked"], "## Blocked by\n#7", manual),
+    ]
+    moved = []
+
+    def no_call(*a, **k):
+        raise AssertionError("sync called GitHub for something it was given")
+
+    for name in ("fetch", "get", "closed_numbers"):
+        monkeypatch.setattr(board_state, name, no_call)
+    monkeypatch.setattr(board_state, "set_status", lambda n, s: moved.append((n, s)))
+    assert board_state.sync(issues, {7}) == ["#1 -> blocked", "#2 -> ready"]  # #3 stays: its block is manual
+    assert moved == [(1, "blocked"), (2, "ready")]

@@ -1163,7 +1163,7 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(board_gh, "gh", gh)
     monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     monkeypatch.setattr(board_state, "comment", lambda *a, **k: None)
-    monkeypatch.setattr(board_state, "sync", lambda: [])
+    monkeypatch.setattr(board_state, "sync", lambda *a, **k: [])
     claim = board.Claim(host="box", agent="builder-5", branch="5-x", at="", token=None, cid="")
     monkeypatch.setattr(
         board_state, "get", lambda n: SimpleNamespace(state="OPEN", status="review", claim=lambda: claim)
@@ -1965,15 +1965,15 @@ def test_without_local_ci_a_billing_blocked_check_still_refuses(fake_integrate, 
 def test_orient_syncs_the_board_first(monkeypatch, tmp_path):
     """#76: blockers re-sync at every orient (and integrate), so the scheduled board workflow is optional."""
     calls = []
-    monkeypatch.setattr(board_state, "sync", lambda: calls.append("sync") or ["#4 -> ready"])
+    monkeypatch.setattr(board_state, "sync", lambda *a, **k: calls.append("sync") or ["#4 -> ready"])
     monkeypatch.setattr(board_state, "fetch", lambda *a, **k: calls.append("fetch") or [])
     monkeypatch.setattr(board_state, "closed_numbers", lambda: set())
     monkeypatch.setattr(workflow, "root", lambda: tmp_path)
     monkeypatch.setattr(workflow, "status", lambda: "")
     out = workflow.orient()
-    assert calls[:2] == ["sync", "fetch"] and "board sync: #4 -> ready" in out
+    assert calls == ["fetch", "sync", "fetch"] and "board sync: #4 -> ready" in out  # a move refetches the rows
 
-    def down():
+    def down(*a, **k):
         raise board.BoardError("rate limited")
 
     monkeypatch.setattr(board_state, "sync", down)

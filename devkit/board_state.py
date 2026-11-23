@@ -9,6 +9,7 @@ import secrets
 import socket
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import NamedTuple
@@ -31,6 +32,28 @@ def fetch(
     fields = board_issue.FIELDS + (",comments" if with_comments else "")
     args = ("issue", "list", "-R", board_gh.repo(), "--state", state, "--limit", str(board_issue.ISSUE_LIMIT))
     return [board_issue._issue(d) for d in board_gh.gh_json(*args, fields=fields, links=links)]
+
+
+def fetch_with_closed(
+    with_comments: bool = False, links: str = board_issue.LINK_FIELDS
+) -> tuple[list[board_issue.Issue], set[int]]:
+    """fetch() and closed_numbers() read concurrently: each is one network wait of seconds (#681)."""
+    with ThreadPoolExecutor(2) as pool:
+        closed = pool.submit(closed_numbers)
+        return fetch(with_comments=with_comments, links=links), closed.result()
+
+
+def synced_board() -> tuple[list[board_issue.Issue], set[int], list[str]]:
+    """`dev orient`'s board: the open issues (comments, every link), the closed numbers, and what sync moved. One
+    read of each list serves both the sync and the rows; a refetch follows only a move, so rows show new statuses."""
+    issues, closed = fetch_with_closed(with_comments=True, links=board_issue.ALL_LINK_FIELDS)
+    try:  # blockers re-synced here and in integrate, so no scheduled Actions job is needed (#76)
+        moved = sync(issues, closed)
+    except board_gh.BoardError as exc:
+        moved = [f"failed ({exc})"]
+    if any(not m.startswith(("cycle:", "failed (")) for m in moved):
+        issues = fetch(with_comments=True, links=board_issue.ALL_LINK_FIELDS)
+    return issues, closed, moved
 
 
 def closed_numbers() -> set[int]:
@@ -59,10 +82,10 @@ def get(number: int) -> board_issue.Issue:
     )
 
 
-def resolved(issues: list[board_issue.Issue]) -> set[board_issue.Ref]:
-    """Blockers known done: issues of this repository closed as done, and other repositories' blockers closed as
-    done (asked by GraphQL; one that cannot be read stays waiting)."""
-    done: set[board_issue.Ref] = set(closed_numbers())
+def resolved(issues: list[board_issue.Issue], closed: set[int] | None = None) -> set[board_issue.Ref]:
+    """Blockers known done: issues of this repository closed as done (`closed`, else closed_numbers()), and other
+    repositories' blockers closed as done (asked by GraphQL; one that cannot be read stays waiting)."""
+    done: set[board_issue.Ref] = set(closed_numbers() if closed is None else closed)
     for ref in {b for i in issues for b in i.blockers if isinstance(b, str)}:
         try:
             r = board_issue.remote(ref)
@@ -328,8 +351,8 @@ def _line(i: board_issue.Issue, done: set[board_issue.Ref]) -> str:
 
 
 def listing(status: str | None = None, kind: str | None = None, as_json: bool = False) -> str:
-    issues = fetch(with_comments=True)
-    done = resolved(issues)
+    issues, closed = fetch_with_closed(with_comments=True)
+    done = resolved(issues, closed)
 
     def wanted(i: board_issue.Issue) -> bool:
         if kind:
@@ -431,8 +454,8 @@ def _ranked_lines(rows: list[board_issue.Issue], issues: list[board_issue.Issue]
 
 
 def next_items(kind: str | None, count: int) -> str:
-    issues = fetch()
-    done = resolved(issues)
+    issues, closed = fetch_with_closed()
+    done = resolved(issues, closed)
     rows = startable(issues, kind, done)[:count]
     return _ranked_lines(rows, issues, done) or "nothing startable (check `uv run dev board list`)"
 
@@ -508,11 +531,13 @@ def block(number: int, reason: str) -> None:
     set_status(number, "blocked")
 
 
-def sync() -> list[str]:
+def sync(issues: list[board_issue.Issue] | None = None, closed: set[int] | None = None) -> list[str]:
     """Native links first: backfill what bodies still declare (refusing cycles), render bodies from native links,
     and name any cycle already there. Then blocked <-> ready from the blockers. Manual blocks (`board block`) stay
-    until a release or claim."""
-    issues = fetch()
+    until a release or claim. A caller that already holds the open issues fetched with comments, and the closed
+    numbers, passes them (#681: `dev orient` fetched both twice, and read each manual block with one more call)."""
+    with_comments = issues is not None
+    issues = fetch() if issues is None else issues
     deps = board_issue.Graph(issues)
     moved = [m for i in issues for m in settle(i, deps)]
     open_ = {i.number for i in issues}  # a deadlock is a cycle among open items; closed ones cost a call each
@@ -521,13 +546,18 @@ def sync() -> list[str]:
         return deps(r) if r in open_ else []
 
     moved += [f"cycle: {board_issue.cycle_text(c)}" for c in board_issue.cycles(sorted(open_), open_deps)]
-    done = resolved(issues)
+    done = resolved(issues, closed)
     for i in issues:
         waiting = any(n not in done for n in i.blockers)
         if i.status == "ready" and waiting:
             set_status(i.number, "blocked")
             moved.append(f"#{i.number} -> blocked")
-        elif i.status == "blocked" and i.blockers and not waiting and not get(i.number).manually_blocked:
+        elif (
+            i.status == "blocked"
+            and i.blockers
+            and not waiting
+            and not (i if with_comments else get(i.number)).manually_blocked
+        ):
             set_status(i.number, "ready")
             moved.append(f"#{i.number} -> ready")
     return moved
