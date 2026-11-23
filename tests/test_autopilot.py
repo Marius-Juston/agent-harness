@@ -61,7 +61,7 @@ def pilot(world, monkeypatch):  # noqa: F811 - the imported fixture
         lambda n: {"since": "", "comments": [], "threads": [], "reviews": w["prs"][n].get("reviews", [])},
     )
     monkeypatch.setattr(quota, "quota_reading", lambda: (10, 80))
-    monkeypatch.setattr(board_state, "sync", lambda: [])
+    monkeypatch.setattr(board_state, "sync", lambda *a, **k: [])
     monkeypatch.setattr(board_state, "fetch", lambda *a, **k: [])
     monkeypatch.setattr(board_state, "closed_numbers", set)
     return w
@@ -101,7 +101,7 @@ def test_several_ready_prs_go_through_one_train(pilot, capsys):
 
 
 def test_a_dry_run_merges_nothing_and_syncs_nothing(pilot, capsys, monkeypatch):
-    monkeypatch.setattr(board_state, "sync", lambda: pytest.fail("a dry run syncs nothing"))
+    monkeypatch.setattr(board_state, "sync", lambda *a, **k: pytest.fail("a dry run syncs nothing"))
     pr_with(pilot, 1, note(pilot["clone"], "n1"))
     before = main_log(pilot)
     code, lines = tick(capsys, "--dry-run")

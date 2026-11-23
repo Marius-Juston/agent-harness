@@ -308,7 +308,7 @@ def test_dev_orient_shows_a_due_audit_with_what_the_lead_runs(monkeypatch, repo)
     monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     monkeypatch.setattr(board_gh, "gh", lambda *a, input=None: runs if a[:2] == ("run", "list") else "[]")
     monkeypatch.setattr(suite_audit, "state_dir", lambda *a: repo.path / ".git")  # not this machine's test history
-    monkeypatch.setattr(board_state, "sync", lambda: [])
+    monkeypatch.setattr(board_state, "sync", lambda *a, **k: [])
     monkeypatch.setattr(board_state, "fetch", lambda *a, **k: [])
     monkeypatch.setattr(board_state, "closed_numbers", lambda: set())
     monkeypatch.setattr(workflow, "root", lambda: repo.path)

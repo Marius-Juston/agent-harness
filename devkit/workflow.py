@@ -18,6 +18,7 @@ import threading
 import time
 import traceback
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
@@ -190,37 +191,30 @@ def status(as_json: bool = False, resume: bool = False) -> str:
     return "\n".join(out)
 
 
-def orient() -> str:
-    """Session start (also after /clear and compaction): where things are, in at most board.ORIENT_LINES lines."""
-    # Board and machine first, so their rows (and the 5 next startable) are always kept; the handoff gets the rest.
-    try:  # blockers re-synced here and in integrate, so no scheduled Actions job is needed (#76)
-        synced = board.sync()
-    except board.BoardError as exc:
-        synced = [f"failed ({exc})"]
-    try:
-        issues, done = board.fetch(with_comments=True, links=board.ALL_LINK_FIELDS), board.closed_numbers()
-        active = [i for i in issues if i.status in ("in-progress", "review", "blocked") and i.kind != "epic"]
-        rows = [board._line(i, done) for i in active] or ["nothing in progress, review or blocked"]
-        nxt = [board._line(i, done) for i in board.startable(issues, done=done)[:5]] or ["  (none)"]
-        bad = [f for f in board.lint(issues, done, {}) if not f.warn]
-        board_part = [
-            "",
-            "## Board (GitHub issues; `uv run dev board list` for all)",
-            *([f"board sync: {'; '.join(synced)}"[:200]] if synced else []),
-            *board.cap(rows, 12, "`uv run dev board list`"),
-            "next startable:",
-            *nxt,
-        ]
-        if bad:
-            n = len({f.number for f in bad})
-            board_part.append(f"board lint: {len(bad)} problem(s) on {n} item(s); `uv run dev board lint`")
-        board_part += orient_lines(root())  # the suite audit (#114): due, red CI on main, a stale floor; never raises
-    except board.BoardError as exc:
-        board_part = ["", f"## Board unavailable: {exc}"]
+def _consolidation_lines() -> list[str]:
     try:  # a rare architecture review (#113): one line, only when due
-        review = ["", line] if (line := consolidation.orient_line(root())) else []
+        return ["", line] if (line := consolidation.orient_line(root())) else []
     except Exception as exc:  # orientation is a convenience: report, never fail
-        review = ["", f"consolidation trigger failed: {exc}"[:200]]
+        return ["", f"consolidation trigger failed: {exc}"[:200]]
+
+
+def orient() -> str:
+    """Session start (also after /clear and compaction): where things are, in at most board.ORIENT_LINES lines.
+    The board, the suite-audit trigger and the consolidation trigger wait on GitHub or git independently, so they
+    run concurrently (#681: in series, SessionStart took 18-40 s)."""
+    # Board and machine first, so their rows (and the 5 next startable) are always kept; the handoff gets the rest.
+    with ThreadPoolExecutor(3) as pool:
+        board_f = pool.submit(board.synced_board)
+        suite_f = pool.submit(orient_lines, root())  # the suite audit (#114): due, red CI, a stale floor; never raises
+        review_f = pool.submit(_consolidation_lines)
+        try:
+            issues, done, synced = board_f.result()
+        except board.BoardError as exc:
+            issues = None
+            board_part = ["", f"## Board unavailable: {exc}"]
+        suite, review = suite_f.result(), review_f.result()
+    if issues is not None:
+        board_part = board.orient_rows(issues, done, synced) + suite
     tail = [*review, "", "## This machine", *board.cap(status().splitlines(), 10, "`uv run dev status`")]
     head = []
     name = config.get().handoff
