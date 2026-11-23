@@ -67,7 +67,7 @@ def workers(slots: int | None = None, cores: int | None = None, gb: float | None
     """pytest-xdist workers: half the cores shared among `slots` gates (#461), by default the gates running now
     (#683: dividing by every configured slot left a lone gate 2 workers on a 16-core machine with 3 slots); a gate
     that starts later takes cores//2//k as the k-th running. Started one after another they sum within the cores up
-    to 3 slots; above that, on 32 cores or fewer, up to 1.35x until the earlier gates end (accepted). At most one
+    to 3 slots; above that, on 16-32 cores with up to 8 slots, up to 1.35x until the earlier gates end (accepted). At most one
     per 2 GB free (already net of the gates running now, so not divided); at least 1, at most 16."""
     slots = running_gates() if slots is None else slots
     cores = (os.cpu_count() or 2) if cores is None else cores
