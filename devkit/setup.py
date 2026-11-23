@@ -519,6 +519,11 @@ def git_steps() -> list[tuple[str, list[str]]]:
     ]
 
 
+# #687: prek from the venv (a pinned devkit dependency), never uvx: the hook embeds the binary's absolute path, and a
+# uvx copy lives in uv's cache, so a cache prune broke every commit with "prek: not found". -f repairs such a hook.
+PREK_HOOK = ("pre-commit hooks (prek, from the venv)", ["uv", "run", "--quiet", "prek", "install", "-f"])
+
+
 def setup(repin_all: bool = False) -> int:
     inside = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False)
     if inside.returncode != 0:
@@ -530,7 +535,7 @@ def setup(repin_all: bool = False) -> int:
         ("uv sync", ["uv", "sync"]),
         ("generated references (dev docs)", ["uv", "run", "--quiet", "dev", "docs"]),
         *git_steps(),
-        ("pre-commit hooks (prek)", ["uvx", "prek", "install"]),
+        PREK_HOOK,
         *plugin_steps(),
     ]
     run_steps(steps)
