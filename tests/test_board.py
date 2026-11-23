@@ -1331,3 +1331,26 @@ def test_sync_reuses_issues_fetched_with_comments_and_the_closed_numbers(monkeyp
     monkeypatch.setattr(board_state, "set_status", lambda n, s: moved.append((n, s)))
     assert board_state.sync(issues, {7}) == ["#1 -> blocked", "#2 -> ready"]  # #3 stays: its block is manual
     assert moved == [(1, "blocked"), (2, "ready")]
+
+
+def test_orient_keeps_a_manual_block_whose_blockers_closed(monkeypatch):
+    """#681 review: orient's sync reads manual blocks from the comments of its own fetch, so that fetch must carry
+    them; without comments every session start would move a `board block`ed item (#262, #269) back to ready."""
+    manual = [{"body": f"{board.release_tag(mk(3, []))}\n{board.BLOCK_MARK}\nBlocked: owner"}]
+    item = {"number": 3, "title": "t3", "labels": [{"name": "status:blocked"}], "body": "## Blocked by\n#7"}
+    sent = []
+
+    def gh(*args, input=None):  # GitHub itself: comments only when the --json fields ask for them
+        sent.append(args[:2])
+        if args[:2] == ("issue", "list") and "closed" in args:
+            return json.dumps([{"number": 7, "stateReason": "COMPLETED"}])
+        if args[:2] == ("issue", "list"):
+            fields = args[args.index("--json") + 1]
+            return json.dumps([{**item, "comments": manual} if "comments" in fields else item])
+        raise AssertionError(f"orient's sync sent {args[:3]}: a manual block is read from its fetch")
+
+    monkeypatch.setattr(board_gh, "gh", gh)
+    issues, closed, synced = board.synced_board()
+    assert (synced, closed) == ([], {7})
+    assert sorted(sent) == [("issue", "list")] * 2  # the open and closed lists, nothing else
+    assert issues[0].comments == manual
