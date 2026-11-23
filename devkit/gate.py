@@ -58,11 +58,18 @@ def free_gb() -> float:
     return 8.0
 
 
+def running_gates() -> int:
+    """Gates holding a slot of this machine's gate lock now (a gate counts itself), at least 1."""
+    return max(1, len(holders(state_dir() / "gate.lock")))
+
+
 def workers(slots: int | None = None, cores: int | None = None, gb: float | None = None) -> int:
-    """pytest-xdist workers: half the cores shared among the gate slots (#461), so `slots` gates running at once take
-    the cores one did, and at most one per 2 GB free (already net of the gates running now, so not divided); at least
-    1, at most 16."""
-    slots = gate_slots() if slots is None else slots
+    """pytest-xdist workers: half the cores shared among `slots` gates (#461), by default the gates running now
+    (#683: dividing by every configured slot left a lone gate 2 workers on a 16-core machine with 3 slots); a gate
+    that starts later takes cores//2//k as the k-th running. Started one after another they sum within the cores up
+    to 3 slots; above that, on 16-32 cores with up to 8 slots, up to 1.35x until the earlier gates end (accepted).
+    At most one per 2 GB free (already net of the gates running now, so not divided); at least 1, at most 16."""
+    slots = running_gates() if slots is None else slots
     cores = (os.cpu_count() or 2) if cores is None else cores
     gb = free_gb() if gb is None else gb
     return max(1, min(cores // 2 // slots, int(gb // 2), 16))
