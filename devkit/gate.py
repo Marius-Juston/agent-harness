@@ -3,7 +3,9 @@
 - One gate per machine at a time (a lock in the shared git dir), so parallel agents queue instead of thrashing memory;
   integrate's gate goes ahead of the queued worker gates.
 - A pass is cached by tree_key: re-gating an unchanged clean tree is free; a dirty tree is never cached. The pass
-  also records the test selection, so a conftest that narrows collection by branch cannot lend its pass to another.
+  also records the test selection (collected while the stages run), so a conftest that narrows collection by branch
+  cannot lend its pass to another.
+- No stage reads the board (`dev board lint` does), and the one gh read a stage makes is bounded by gh_timeout_s.
   recorded_pass is the one test of a recorded pass, for this cache and for `dev pr` alike.
 - The first line names the worktree, interpreter and devkit the gate runs; a devkit from elsewhere is a warning.
 - Each stage prints one line with its wall time; a failing stage prints at most FAIL_LINES of its output and saves the rest in a log of
@@ -41,7 +43,7 @@ from typing import IO
 from xml.etree import ElementTree
 
 import devkit
-from devkit import arch, board, checks, config, docs, rules, weaken
+from devkit import arch, checks, config, docs, rules, weaken
 from devkit.paths import git, root, state_dir
 from devkit.ran import Ran
 
@@ -534,12 +536,42 @@ def selection(full: bool, cwd: Path | None = None) -> str | None:
     the same tree selects other tests on a feature branch than on main, so a pass records this and a cached pass is
     reused only while it matches (#462). None when collection fails. `--verbosity=-1` comes last, so it overrides
     any -q or -v in the project's addopts and pytest lists one node id per line."""
-    cmd = [*pytest_cmd(["tests"], slow=full, n=1), "--collect-only", "--verbosity=-1"]
-    out = subprocess.run(cmd, cwd=cwd or root(), capture_output=True, text=True, check=False)
-    if out.returncode != 0:
+    out = subprocess.run(collect_cmd(full), cwd=cwd or root(), capture_output=True, text=True, check=False)
+    return fingerprint(out.returncode, out.stdout)
+
+
+def collect_cmd(full: bool) -> list[str]:
+    return [*pytest_cmd(["tests"], slow=full, n=1), "--collect-only", "--verbosity=-1"]
+
+
+def fingerprint(code: int, stdout: str) -> str | None:
+    """selection's value from its collection's exit code and output."""
+    if code != 0:
         return None
-    ids = sorted(itertools.takewhile(bool, (line.strip() for line in out.stdout.splitlines())))
+    ids = sorted(itertools.takewhile(bool, (line.strip() for line in stdout.splitlines())))
     return hashlib.sha256("\n".join(ids).encode()).hexdigest()[:40]
+
+
+@contextlib.contextmanager
+def selection_meanwhile(full: bool) -> Generator[Callable[[], str | None]]:
+    """selection(full), collected while the gate's stages run instead of after them (2.6-9.8 s of wall per passing
+    gate, #542). Yields a function that waits for the fingerprint; leaving the block without it kills the collection
+    (a failed gate records nothing). Its output goes to a file, so a full pipe never stalls it."""
+    with (
+        tempfile.TemporaryFile("w+") as out,
+        subprocess.Popen(collect_cmd(full), cwd=root(), stdout=out, stderr=subprocess.DEVNULL, text=True) as proc,
+    ):
+
+        def result() -> str | None:
+            code = proc.wait()
+            out.seek(0)
+            return fingerprint(code, out.read())
+
+        try:
+            yield result
+        finally:
+            if proc.poll() is None:
+                proc.kill()
 
 
 def cached_pass(record: Path, full: bool, cwd: Path | None = None) -> dict | None:
@@ -808,7 +840,6 @@ def stages(
         checks.check_research_notes,
         checks.check_decisions,
         lambda: rules.check_rules(base),
-        board.check_board,
         lambda: checks.check_ratchets(base),
         arch.check_arch,
         lambda: weaken.check_weakening(base, issue),
@@ -902,7 +933,10 @@ def check(
     def waiting() -> None:
         print("gate: every gate slot on this machine is busy; waiting for one ...", flush=True)
 
-    with gate_lock(state_dir() / "gate.lock", on_wait=waiting, slots=gate_slots(), **role):
+    with (
+        gate_lock(state_dir() / "gate.lock", on_wait=waiting, slots=gate_slots(), **role),
+        selection_meanwhile(full) as selected,
+    ):
         start = time.time()
         failed = 0
         seconds: dict[str, float] = {}
@@ -927,13 +961,13 @@ def check(
         took = time.time() - start
         if results is not None:  # the stage timings beside the tests' in one record of the machine's history
             append_run(state_dir() / HISTORY_FILE, {"at": int(HISTORY_CLOCK()), "tests": results, "stages": seconds})
+        tests = None if failed else selected()
     if failed:
         print(f"RESULT: failed ({failed} stage(s), {took:.0f} s)")
         return 1
     # The run may have written ignored importable files (a build dir's generated modules), which changes tree_key:
     # the pass is recorded for the tree it started from and the one it left, so `dev pr` and the next gate, which
     # compute the key afterwards, find it (#485). A run that dirtied the tree records only the key it started from.
-    tests = selection(full)
     for record in dict.fromkeys(r for r in (before, pass_record(base, full)) if r):
         save_pass(record, took, tests)
     print(f"RESULT: passed ({took:.0f} s)")

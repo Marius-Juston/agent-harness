@@ -16,7 +16,7 @@ from collections import Counter
 from collections.abc import Callable
 from pathlib import PurePosixPath
 
-from devkit import board
+from devkit import board, config
 from devkit.checks import repo_owner
 from devkit.diffparse import FileDiff, parse
 from devkit.paths import git, root
@@ -248,11 +248,13 @@ def spans(value: str) -> list[tuple[int | None, str | None, str | None]]:
 
 
 def _approval(number: int | None) -> tuple[bool, str]:
-    """(approved, why not): whether issue `number` carries the owner's `weakening-ok:` line."""
+    """(approved, why not): whether issue `number` carries the owner's `weakening-ok:` line. The read waits at most
+    [tool.devkit] gh_timeout_s: this is a gate stage, holding the machine's gate slot (#542)."""
     if number is None:
         return False, "no `<n>-slug` branch names the issue"
+    args = ("issue", "view", str(number), "-R", board.repo(), "--json", "body,author,comments")
     try:
-        issue = json.loads(board.gh("issue", "view", str(number), "-R", board.repo(), "--json", "body,author,comments"))
+        issue = json.loads(board.gh(*args, timeout=config.get().gh_timeout_s))
     except (board.BoardError, json.JSONDecodeError) as e:
         return False, f"#{number} could not be read ({e})"
     if approved(issue, repo_owner()):
