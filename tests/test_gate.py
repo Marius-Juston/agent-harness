@@ -2375,8 +2375,9 @@ def test_the_selection_fingerprint_is_collected_while_the_stages_run(repo, tmp_p
     _gating(repo, tmp_path, monkeypatch, [stage])
     assert gate.check({}) == 0
     assert seen == [True]
-    saved = json.loads(gate.pass_record(gate.checks.merge_base(), False).read_text())
-    assert saved["tests"] == gate.fingerprint(0, "tests/test_a.py::test_a\n")
+    record = gate.pass_record(gate.checks.merge_base(), False)
+    assert record is not None
+    assert json.loads(record.read_text())["tests"] == gate.fingerprint(0, "tests/test_a.py::test_a\n")
 
 
 def test_a_failed_gate_does_not_wait_for_the_selection_fingerprint(repo, tmp_path, monkeypatch):
@@ -2385,7 +2386,8 @@ def test_a_failed_gate_does_not_wait_for_the_selection_fingerprint(repo, tmp_pat
     began = time.monotonic()
     assert gate.check({}) == 1
     assert time.monotonic() - began < 30  # the collection was killed, not awaited
-    assert not gate.pass_record(gate.checks.merge_base(), False).exists()
+    record = gate.pass_record(gate.checks.merge_base(), False)
+    assert record is not None and not record.exists()
 
 
 def test_the_pass_record_is_byte_identical_to_a_serial_fingerprint(repo, tmp_path, monkeypatch):
@@ -2395,6 +2397,7 @@ def test_the_pass_record_is_byte_identical_to_a_serial_fingerprint(repo, tmp_pat
     _gating(repo, tmp_path, monkeypatch, [lambda: Ran("build", checked=1)])
     assert gate.check({}) == 0
     record = gate.pass_record(gate.checks.merge_base(), False)
+    assert record is not None
     saved = json.loads(record.read_text())
     serial = tmp_path / "serial.json"
     gate.save_pass(serial, saved["seconds"], gate.selection(False))  # what the gate recorded before #542
@@ -2414,8 +2417,8 @@ def _weakening_repo(tmp_path, monkeypatch):
     _sh(r, "git", "checkout", "-qb", "55-x")
     (r / "tests/test_x.py").write_text("def test_f():\n    pass\n")
     base = _sh_out(r, "git", "rev-parse", "HEAD")
-    monkeypatch.setattr(weaken, "root", lambda: r)
-    monkeypatch.setattr(paths, "root", lambda: r)
+    monkeypatch.chdir(r)
+    paths.root.cache_clear()
     monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
     monkeypatch.setattr(weaken, "repo_owner", lambda: "octo")
     monkeypatch.setattr(board_gh, "repo", lambda: "octo/r")

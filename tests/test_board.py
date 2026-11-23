@@ -1316,14 +1316,14 @@ def test_a_review_thread_path_with_a_line_break_is_quoted_on_every_line():
 def test_board_lint_reports_every_finding_the_gate_stage_warned_about(monkeypatch):
     """#542: the gate reads no board; `dev board lint` reports the same findings its board stage warned about."""
     done, owns = "## DONE WHEN\n- [ ] a test passes\n", "## Owns\n- `devkit/x.py`\n"
+    rest = {"state": "OPEN", "updatedAt": T0, "comments": [], "blockedBy": {"nodes": []}, "parent": None}
+    rest |= {"blocking": {"nodes": []}, "subIssues": {"nodes": []}}
     issues = [
-        {"number": 1, "title": "Epic: x", "labels": [{"name": "type:build"}, {"name": "P1"}], "body": done},
-        {"number": 2, "title": "devkit: y", "labels": [{"name": "type:build"}, {"name": "P2"}], "body": done + owns},
-        {"number": 3, "title": "no labels and no sections", "labels": [], "body": ""},
+        {"number": 1, "title": "Epic: x", "labels": [{"name": "type:build"}, {"name": "P1"}], "body": done, **rest},
+        {"number": 2, "title": "devkit: y", "labels": [{"name": "type:build"}, {"name": "P2"}], "body": done + owns}
+        | rest,
+        {"number": 3, "title": "no labels and no sections", "labels": [], "body": "", **rest},
     ]
-    for d in issues:
-        d |= {"state": "OPEN", "updatedAt": T0, "comments": [], "blockedBy": {"nodes": []}, "parent": None}
-        d |= {"blocking": {"nodes": []}, "subIssues": {"nodes": []}}
 
     def gh(*args, input=None, timeout=None):
         if args[:2] == ("issue", "list"):
