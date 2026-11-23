@@ -2311,25 +2311,39 @@ def test_diagnostics_that_depend_on_installed_packages_are_reported_not_counted(
 
 def test_a_lone_gate_takes_half_the_cores_whatever_gate_slots_says(monkeypatch, tmp_path):
     """#683: a lone gate on a 16-core machine with gate_slots 3 ran 2 workers; the share follows the gates running
-    now, so it gets 8, and a second gate starting beside it gets half of that."""
+    now, so it gets 8, a second gate starting beside it 4, and a third 2."""
     state = _shared_state(monkeypatch, tmp_path / "common")
     monkeypatch.setattr(gate.config, "get", lambda: config.Config(gate_slots=3))
     lock = state / "gate.lock"
+    done = threading.Event()
+
+    def hold(inside: threading.Event) -> None:
+        with gate.gate_lock(lock, slots=3):
+            inside.set()
+            done.wait(10)
+
     with gate.gate_lock(lock, slots=3):
-        assert gate.running_gates() == 1
-        assert gate.workers(cores=16, gb=64) == 8
-        done = threading.Event()
-        inside = threading.Event()
-
-        def second() -> None:
-            with gate.gate_lock(lock, slots=3):
-                inside.set()
-                done.wait(10)
-
-        t = threading.Thread(target=second)
-        t.start()
-        assert inside.wait(10)
-        assert gate.running_gates() == 2 and gate.workers(cores=16, gb=64) == 4
+        assert gate.running_gates() == 1 and gate.workers(cores=16, gb=64) == 8
+        threads = []
+        for running, want in ((2, 4), (3, 2)):
+            inside = threading.Event()
+            threads.append(threading.Thread(target=hold, args=(inside,)))
+            threads[-1].start()
+            assert inside.wait(10)
+            assert gate.running_gates() == running and gate.workers(cores=16, gb=64) == want
         done.set()
-        t.join(10)
+        for t in threads:
+            t.join(10)
     assert gate.running_gates() == 1  # none held: never below 1
+
+
+@given(cores=st.integers(16, 512), gb=st.floats(0, 4096), slots=st.integers(1, 8))
+def test_gates_starting_one_after_another_stay_near_the_cores(cores, gb, slots):
+    """#683 review: the k-th gate to start takes cores//2//k, so `slots` gates started one after another sum to about
+    cores/2 x H(slots). Up to 3 slots that is within the cores; more slots on a machine of 32 cores or fewer (where the
+    cap of 16 does not bind) may exceed them, at most 1.35x, until the earlier gates finish (accepted, #683)."""
+    started = [gate.workers(k, cores=cores, gb=gb) for k in range(1, slots + 1)]
+    assert all(n <= max(1, cores // 2 // k) for k, n in enumerate(started, 1))
+    if slots <= 3:
+        assert sum(started) <= cores
+    assert sum(started) <= 1.35 * cores
