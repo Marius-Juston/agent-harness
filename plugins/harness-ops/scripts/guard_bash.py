@@ -33,6 +33,7 @@ from fnmatch import fnmatchcase
 # The shared modules live beside this script; a test or another hook may load it by path.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # Read through guard_bash by the tests and by uv_add_guard.
+from hooklib import pycode
 from hooklib.github import COMMIT_API as COMMIT_API
 from hooklib.github import (
     CRED_OK,
@@ -386,7 +387,9 @@ class Checker(GitHubRules, PathRules):
             return why
         if why := self.code_writes(src, PY_WRITE):  # open("~/.local/bin/gh", "w"), shutil.copy(x, "~/.cargo/bin")
             return why
+        runs = pycode.spawns(src)  # #690: code that cannot start a process only edits its literals' text
         self.in_python += 1
+        outer = self.transforms
         try:
             for s in strings:
                 if is_env(Word(s)):
@@ -395,11 +398,13 @@ class Checker(GitHubRules, PathRules):
                     return KEYS_FILE
                 if s in TOKEN_NAMES or cred_path(s, self.cwd):  # os.environ["GH_TOKEN"], open(".../hosts.yml")
                     return GH_CRED
-                if why := self.text(s, depth + 1):
+                self.transforms = False  # #690: each literal is its own command; a rewrite elsewhere is not its input
+                if runs and (why := self.text(s, depth + 1)):
                     return why
             return None
         finally:
             self.in_python -= 1
+            self.transforms = outer
 
     def stdin_lang(self, c: Simple) -> str | None:
         """'sh' or 'py' when this command runs code read from stdin."""

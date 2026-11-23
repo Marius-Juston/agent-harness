@@ -7,6 +7,7 @@ import os
 import re
 from fnmatch import fnmatchcase
 
+from hooklib import pycode
 from hooklib.shell import ASSIGN, GREPS, PY, SHELLS, Simple, Word, base, short_flag, unwrap, within
 
 # #601: gh's credential: its hosts file (under $GH_CONFIG_DIR, $XDG_CONFIG_HOME/gh or ~/.config/gh) and the token
@@ -389,6 +390,8 @@ class GitHubRules:
             return GH_CRED
         if self.agent is not None and GITHUB_API.search(code) and CODE_WRITE.search(code):
             return GH_DIRECT
+        if lang == "py":  # #690: read as a tree, so text it only edits is not decoded code
+            return OPAQUE if pycode.runs_decoded(code, CODE_DECODE, CODE_RUN) else None
         if CODE_DECODE.search(code) and CODE_RUN.search(code):
             return OPAQUE
         return None
