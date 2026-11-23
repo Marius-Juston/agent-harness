@@ -913,7 +913,7 @@ def test_dev_gate_slots_sets_a_machine_local_value_that_wins_and_clear_drops_it(
     assert "gate slots 6 (local:" in capsys.readouterr().out
     assert gate.slots_setting() == (6, "local") and gate.gate_slots() == 6
     assert gate.effective_slots(slots_repo / "gate.lock") == 6
-    assert gate.workers(cores=32, gb=64) == 32 // 2 // 6
+    assert gate.workers(cores=32, gb=64) == 16  # #683: workers follow the gates running (none here), not the setting
     assert (slots_repo / gate.SLOTS_FILE).read_text().strip() == "6"
     assert _sh_out(repo, "git", "status", "--porcelain") == ""  # nothing to commit
     data = json.loads(workflow.status(as_json=True))
@@ -2307,3 +2307,29 @@ def test_diagnostics_that_depend_on_installed_packages_are_reported_not_counted(
     assert ran.notes == [
         "1 more depend on installed packages (" + ", ".join(sorted(gate.TYPE_ENV_RULES)) + "): not counted"
     ]
+
+
+def test_a_lone_gate_takes_half_the_cores_whatever_gate_slots_says(monkeypatch, tmp_path):
+    """#683: a lone gate on a 16-core machine with gate_slots 3 ran 2 workers; the share follows the gates running
+    now, so it gets 8, and a second gate starting beside it gets half of that."""
+    state = _shared_state(monkeypatch, tmp_path / "common")
+    monkeypatch.setattr(gate.config, "get", lambda: config.Config(gate_slots=3))
+    lock = state / "gate.lock"
+    with gate.gate_lock(lock, slots=3):
+        assert gate.running_gates() == 1
+        assert gate.workers(cores=16, gb=64) == 8
+        done = threading.Event()
+        inside = threading.Event()
+
+        def second() -> None:
+            with gate.gate_lock(lock, slots=3):
+                inside.set()
+                done.wait(10)
+
+        t = threading.Thread(target=second)
+        t.start()
+        assert inside.wait(10)
+        assert gate.running_gates() == 2 and gate.workers(cores=16, gb=64) == 4
+        done.set()
+        t.join(10)
+    assert gate.running_gates() == 1  # none held: never below 1
