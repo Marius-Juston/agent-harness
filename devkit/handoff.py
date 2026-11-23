@@ -91,7 +91,7 @@ def refresh() -> str:
     if not path.is_file():
         return f"no handoff file at {name} ([tool.devkit] handoff): nothing written"
     try:
-        issues, done = board.fetch(with_comments=True, links=board.ALL_LINK_FIELDS), board.closed_numbers()
+        issues, done = board.fetch_with_closed(with_comments=True, links=board.ALL_LINK_FIELDS)
     except board.BoardError as exc:
         return f"handoff not refreshed: board unavailable ({exc})"
     old = path.read_text()
