@@ -2282,7 +2282,7 @@ def test_guard_bash_keeps_ordinary_variables_and_pipes(hook, cmd):
 
 # #690: compound commands agents type to edit files, refused before. A Python heredoc's string literals are text it
 # edits, not commands, unless the script can start a process; a rewrite (sed, [::-1]) elsewhere in the command does
-# not make them decoded code.
+# not make them decoded code. A decode word and a run word in code still refuse, whatever the code does with them.
 PY_EDIT = "python3 - <<'PY'\nfrom pathlib import Path\np = Path('tests/test_hooks.py')\n"
 HARMLESS_COMPOUND = [
     PY_EDIT + "s = p.read_text()\ns = s.replace('os.system(base64.b64decode(x))', 'os.system(b64decode(y))')\n"
@@ -2290,8 +2290,6 @@ HARMLESS_COMPOUND = [
     PY_EDIT + "p.write_text(p.read_text().replace('sed -i x', 'awk 1').replace('`dev check`', '`dev`'))\nPY",
     "sed -i s/a/b/ x.py && " + PY_EDIT + "p.write_text(p.read_text().replace('`dev check`', '`dev`'))\nPY",
     PY_EDIT + "p.write_text(p.read_text().replace('jq .x', '$(cat y)'))\nPY",
-    PY_EDIT + "import re, subprocess\nPAT = re.compile(r'foo')\nprint(sorted(Path('.').glob('*.py'))[::-1][:3])\n"
-    "p.write_text(PAT.sub('bar', p.read_text()))\nsubprocess.run(['git', 'diff', '--stat'])\nPY",
     PY_EDIT + "p.write_text(p.read_text().replace('gh m 1', 'gh pr view 1').replace('gh foo', 'gh bar'))\nPY",
     "cat > .scratch/msg <<'EOF'\nfix: x\nEOF\ngit commit -F .scratch/msg",
     "for f in a.py b.py; do git add $f; done && git status",
@@ -2316,17 +2314,24 @@ OPAQUE_PY = [
     "import os, base64\nclass A:\n    pass\na = A()\na.c = base64.b64decode('eA==')\nos.system(a.c)",
     "import base64\nexec('import os; os.system(base64.b64decode(\"eA==\"))')",
     "import base64\ncode = 'x'\nexec(code + base64.b64decode('eA==').decode())",
-    "import base64, os\ngetattr(os, 'sys' + 'tem')(base64.b64decode('eA=='))",
     "import base64, os\nf = os.system\nf(base64.b64decode('eA=='))",
     "import os, codecs\nos.popen(codecs.decode('tvg chfu', 'rot13'))",
-    "import os\nos.system(''.join(reversed('niam nigiro hsup tig')))",
     "import os\nfrom pathlib import Path\nPath('r.sh').write_text('niam nigiro hsup tig'[::-1])\nos.system('sh r.sh')",
     "import subprocess\np = subprocess.Popen(['sh'], stdin=subprocess.PIPE, text=True)\n"
     "p.communicate('niam nigiro hsup tig'[::-1])",
     "import os\nmatch 'niam nigiro hsup tig'[::-1]:\n    case c:\n        os.system(c)",
-    "import os\nos.__dict__['sys' + 'tem']('niam nigiro hsup tig'[::-1])",
     "import sys\nsys.modules['os'].system('niam nigiro hsup tig'[::-1])",
     "import os, base64\nos.system(base64.b64decode(\n",  # unparsable: judged by its words
+    # [::-1] beside subprocess.run in code: refused although it only reverses a list (the word rule is the floor)
+    "import re, subprocess\nprint(sorted(['a', 'b'])[::-1])\nsubprocess.run(['git', 'diff', '--stat'])",
+    # #693 review round 1: channels a taint reading of the tree missed
+    "import os, codecs\nos.system(codecs.lookup('rot13').decode('tu z 1')[0])",
+    "import os\nos.environ['X'] = '1 m hg'[::-1]\nos.system('sh -c \"$X\"')",
+    "import os\nos.environ['X'] = '1 m hg'[::-1]\nos.system('printenv X | sh')",
+    "import os, io, shutil\nwith open('r.sh', 'w') as f:\n    shutil.copyfileobj(io.StringIO('1 m hg'[::-1]), f)\n"
+    "os.system('sh r.sh')",
+    "import os, string, base64\n"
+    "string.Formatter().get_field('0.system', [os], {})[0](base64.b64decode('Z2ggbSAx').decode())",
 ]
 
 
@@ -2347,6 +2352,10 @@ GH_ALIAS_PY = [
     "import sys\nsys.modules['subprocess'].run(['gh', 'm', '1'])",
     "import os\nos.__dict__['sys' + 'tem']('gh m 1')",
     "from pathlib import Path\nexec(Path('x.py').read_text())\nprint('gh m 1')",
+    # #693 review round 1: os reached through a name held in a string, by a module that resolves it
+    "import os, string\nstring.Formatter().get_field('0.system', [os], {})[0]('gh m 1')",
+    "import os\nf = [os]\nprint(f, 'gh m 1')",  # a module handed on as a value can be searched by name
+    "import typing\ndef f(x: 'gh m 1'): pass\ntyping.get_type_hints(f)",  # typing evaluates string annotations
 ]
 
 

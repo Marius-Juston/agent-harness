@@ -390,7 +390,7 @@ class GitHubRules:
             return GH_CRED
         if self.agent is not None and GITHUB_API.search(code) and CODE_WRITE.search(code):
             return GH_DIRECT
-        if lang == "py":  # #690: read as a tree, so text it only edits is not decoded code
+        if lang == "py":  # #690: words only inside its string literals or comments are text it edits, not code
             return OPAQUE if pycode.runs_decoded(code, CODE_DECODE, CODE_RUN) else None
         if CODE_DECODE.search(code) and CODE_RUN.search(code):
             return OPAQUE
