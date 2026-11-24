@@ -4,6 +4,46 @@ Notable changes of each release (a `vX.Y.Z` tag), newest first. A project moves 
 `uvx copier update`; read the entries between its pinned tag and the new one first. v0.1.0 to v0.1.4 predate this
 file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness/releases).
 
+## v0.1.20 (2026-11-23)
+
+A speed release. Session start (`dev orient`, run by the SessionStart hook) takes 6-8 s instead of 18-40 s. A lone
+gate runs its tests on half the machine whatever `gate_slots` says. The gate no longer reads the board, and its
+GitHub calls time out. On this repository's 32-core machine `dev check` went from 86-89 s to about 47-63 s. The
+pre-commit hook no longer breaks when uv prunes its cache.
+
+### Upgrading a project
+Run `uvx copier update`, then `uv sync && uv run dev setup && uv run dev docs && uv run dev check`. These can need
+attention:
+- **Run `uv run dev setup` once after `uv sync`.** devkit now depends on `prek==0.5.3`. `dev setup` installs the
+  pre-commit hook with `uv run prek install -f`, so the hook points at the project's `.venv/bin/prek`. A hook
+  written by the old `uvx prek install` pointed into uv's cache, and after a cache prune every commit failed with
+  `exec: prek: not found`. `-f` repairs such a hook. (#687, #688)
+- **`dev check` no longer reports board conventions.** The "board conventions (warnings only)" stage spent 10-30 s
+  of network reads holding the gate slot, and it could never fail a gate, so it left the gate. `uv run dev board
+  lint` reports the same findings, and `dev orient` still shows their count. (#542, #686)
+- **New `[tool.devkit] gh_timeout_s` (default 60).** A gate stage's `gh` call now gives up after this many seconds,
+  and the stage reports the failure instead of holding the gate slot (one hung read once held it through a
+  918 s gate). Raise it only on a very slow link. (#542, #686)
+- **pytest workers follow the gates running, not `gate_slots`.** A gate's workers were half the cores divided by
+  `gate_slots`, so with 3 slots a lone gate got 2 workers on a 16-core machine. Now the divisor is the number of
+  gates holding a slot when the test stage starts: a lone gate gets half the cores (at most 16, and at most one per
+  2 GB free). The k-th gate to start gets half the cores divided by k. With up to 3 slots the gates together stay
+  within the cores. On 16-32 cores with 4 or more slots, gates started one after another can use up to 1.35x the
+  cores until the earlier ones finish; this was accepted rather than adding a cross-gate ledger. (#683, #684)
+
+### Changed
+- `dev orient` reads the open and closed issue lists once each, and runs the board, the suite-audit trigger and the
+  consolidation trigger concurrently. Sync reads manual blocks from the fetched comments instead of one `gh issue
+  view` per blocked item. Measured: 22 s -> 6-8 s. `board next` 6.8 -> 2.7 s, `board lint` 9.9 -> 6.0 s, `board
+  list` 6.7 -> 4.9 s. (#681, #682)
+- The gate's selection fingerprint (`pytest --collect-only`) is collected while the other stages run, not after
+  them. The pass record is byte-identical. (#542, #686)
+- `gate.workers()` divides by the gates running (`gate.running_gates()`). Test stage here: 75-80 s -> 48 s.
+  (#683, #684)
+
+### Fixed
+- The pre-commit hook pointed into uv's cache. (#687, #688)
+
 ## v0.1.19 (2026-11-20)
 
 A fix release for v0.1.18's Bash guard. A project's own reviewer agent can post PR reviews and `Verdict:` lines
