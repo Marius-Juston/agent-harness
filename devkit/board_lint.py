@@ -1,8 +1,9 @@
-"""`board lint` and the gate's board stage: the conventions every open item meets."""
+"""`board lint` and the gate's board stage: the conventions every open item meets; `dev orient`'s board rows."""
 
 import json
 import re
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from typing import NamedTuple
 
 from devkit import board_gh, board_issue, board_state, paths
@@ -161,8 +162,11 @@ def merged_closes() -> dict[int, list[int]]:
 
 
 def _findings() -> tuple[list[board_issue.Issue], list[Finding]]:
-    issues = board_state.fetch(with_comments=True, links=board_issue.ALL_LINK_FIELDS)
-    return issues, lint(issues, board_state.resolved(issues), merged_closes(), board_state.path_history())
+    with ThreadPoolExecutor(2) as pool:  # three network reads of seconds each, independent (#681)
+        merged = pool.submit(merged_closes)
+        issues, closed = board_state.fetch_with_closed(with_comments=True, links=board_issue.ALL_LINK_FIELDS)
+        merged_ = merged.result()
+    return issues, lint(issues, board_state.resolved(issues, closed), merged_, board_state.path_history())
 
 
 def lint_board(fix: bool = False) -> tuple[str, int]:
@@ -211,3 +215,24 @@ def check_board() -> Ran:
         ran.warnings.append("`uv run dev board lint --fix` makes the label edits; titles and bodies need a person")
     ran.warnings += [f"#{f.number} {f.problem}" for f in found]
     return ran
+
+
+def orient_rows(issues: list[board_issue.Issue], done: set[int], synced: list[str]) -> list[str]:
+    """`dev orient`'s board section: what sync moved, items in progress, review or blocked, the 5 next startable
+    (always kept by the cap), and a lint count."""
+    active = [i for i in issues if i.status in ("in-progress", "review", "blocked") and i.kind != "epic"]
+    rows = [board_state._line(i, done) for i in active] or ["nothing in progress, review or blocked"]
+    nxt = [board_state._line(i, done) for i in board_state.startable(issues, done=done)[:5]] or ["  (none)"]
+    out = [
+        "",
+        "## Board (GitHub issues; `uv run dev board list` for all)",
+        *([f"board sync: {'; '.join(synced)}"[:200]] if synced else []),
+        *board_issue.cap(rows, 12, "`uv run dev board list`"),
+        "next startable:",
+        *nxt,
+    ]
+    if bad := [f for f in lint(issues, done, {}) if not f.warn]:
+        out.append(
+            f"board lint: {len(bad)} problem(s) on {len({f.number for f in bad})} item(s); `uv run dev board lint`"
+        )
+    return out
