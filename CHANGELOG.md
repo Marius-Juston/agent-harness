@@ -8,7 +8,7 @@ file: see [their GitHub releases](https://github.com/Marius-Juston/agent-harness
 
 A speed release. Session start (`dev orient`, run by the SessionStart hook) takes 6-8 s instead of 18-40 s. A lone
 gate runs its tests on half the machine whatever `gate_slots` says. The gate no longer reads the board, and its
-GitHub calls time out. On this repository's 32-core machine `dev check` went from 86-89 s to about 47-63 s. The
+GitHub calls time out. On this repository's 32-core machine `dev check` went from 86-89 s to about 42-50 s. The
 pre-commit hook no longer breaks when uv prunes its cache.
 
 ### Upgrading a project
@@ -22,14 +22,15 @@ attention:
   of network reads holding the gate slot, and it could never fail a gate, so it left the gate. `uv run dev board
   lint` reports the same findings, and `dev orient` still shows their count. (#542, #686)
 - **New `[tool.devkit] gh_timeout_s` (default 60).** A gate stage's `gh` call now gives up after this many seconds,
-  and the stage reports the failure instead of holding the gate slot (one hung read once held it through a
-  918 s gate). Raise it only on a very slow link. (#542, #686)
+  and the stage reports the failure instead of holding the gate slot (a gh call with no timeout is the
+  believed cause of one 918 s gate). Raise it only on a very slow link. (#542, #686)
 - **pytest workers follow the gates running, not `gate_slots`.** A gate's workers were half the cores divided by
   `gate_slots`, so with 3 slots a lone gate got 2 workers on a 16-core machine. Now the divisor is the number of
   gates holding a slot when the test stage starts: a lone gate gets half the cores (at most 16, and at most one per
   2 GB free). The k-th gate to start gets half the cores divided by k. With up to 3 slots the gates together stay
-  within the cores. On 16-32 cores with 4 or more slots, gates started one after another can use up to 1.35x the
-  cores until the earlier ones finish; this was accepted rather than adding a cross-gate ledger. (#683, #684)
+  within the cores. On 16-32 cores with 4 to 8 slots, gates started one after another can use up to 1.35x the
+  cores (more with more slots) until the earlier ones finish; this was accepted rather than adding a cross-gate
+  ledger. (#683, #684)
 
 ### Changed
 - `dev orient` reads the open and closed issue lists once each, and runs the board, the suite-audit trigger and the
