@@ -66,7 +66,7 @@ def test_a_patch_of_the_defining_part_reaches_the_other_parts(monkeypatch):
         1, "x: y", ["type:build", "P2", "status:ready"], "## DONE WHEN\n- a\n## Owns\n- `x`", "OPEN", ""
     )
     monkeypatch.setattr(board_state, "fetch", lambda **k: [issue])
-    monkeypatch.setattr(board_state, "resolved", lambda issues: set())
+    monkeypatch.setattr(board_state, "resolved", lambda issues, closed=None: set())
     monkeypatch.setattr(board_lint, "merged_closes", lambda: {})
     monkeypatch.setattr(board_state, "path_history", lambda: None)
     issues, _ = board_lint._findings()

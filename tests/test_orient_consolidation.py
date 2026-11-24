@@ -15,7 +15,7 @@ def repo(tmp_path) -> Repo:
 
 
 def test_orient_shows_the_review_line(monkeypatch, tmp_path):
-    monkeypatch.setattr(board_state, "sync", lambda: [])
+    monkeypatch.setattr(board_state, "sync", lambda *a, **k: [])
     monkeypatch.setattr(board_state, "fetch", lambda *a, **k: [])
     monkeypatch.setattr(board_state, "closed_numbers", lambda: set())
     monkeypatch.setattr(workflow, "root", lambda: tmp_path)
@@ -50,3 +50,30 @@ def test_orient_line_reraises_a_trigger_error(monkeypatch, repo):
     monkeypatch.setattr(consolidation, "due", boom)
     with pytest.raises(consolidation.GitError, match="bad object"):
         consolidation.orient_line(repo.path, cfg())
+
+
+def test_orient_fetches_each_list_once_and_overlaps_its_waits(monkeypatch, tmp_path):
+    """#681: in series the board lists, the suite-audit and consolidation triggers made SessionStart take 18-40 s.
+    Each waits 0.3 s here; concurrently orient takes well under their 1.2 s sum, and nothing is fetched twice."""
+    calls = []
+
+    def slow(name, value):
+        def f(*a, **k):
+            calls.append(name)
+            time.sleep(0.3)
+            return value
+
+        return f
+
+    monkeypatch.setattr(board_state, "fetch", slow("fetch", []))
+    monkeypatch.setattr(board_state, "closed_numbers", slow("closed", set()))
+    monkeypatch.setattr(board_state, "sync", lambda *a, **k: calls.append("sync") or [])
+    monkeypatch.setattr(workflow, "orient_lines", slow("suite", ["CI on main: red"]))
+    monkeypatch.setattr(consolidation, "orient_line", slow("consolidation", None))
+    monkeypatch.setattr(workflow, "root", lambda: tmp_path)
+    monkeypatch.setattr(workflow, "status", lambda: "")
+    start = time.perf_counter()
+    out = workflow.orient()
+    assert time.perf_counter() - start < 0.9
+    assert sorted(calls) == ["closed", "consolidation", "fetch", "suite", "sync"]
+    assert "CI on main: red" in out
