@@ -92,6 +92,9 @@ class Config:
     # docs/research/test-suite-design.md §6: the slowest passing test seen was 75 s.
     test_timeout_s: int = 300
     gate_deadline_s: int = 3600
+    # #542: how long a gate stage waits on one `gh` call (the weakening stage reading the issue) before it reports
+    # the call failed and the gate goes on; a hung read once held the gate slot through a 918 s gate.
+    gh_timeout_s: int = 60
     # #385: gate_deadline_s counts from when integrate's gate holds the machine's gate lock; the wait for it (behind
     # at most the running gate, since integrate's goes ahead of queued worker gates) has this bound of its own.
     gate_lock_wait_s: int = 7200
@@ -190,6 +193,8 @@ def parse(data: dict) -> Config:
         raise ConfigError(f"[tool.devkit] background_nice = {data['background_nice']!r}: expected 0 to 19")
     if data.get("wait_bound_s", 0) < 0:
         raise ConfigError(f"[tool.devkit] wait_bound_s = {data['wait_bound_s']!r}: expected seconds, or 0 for no bound")
+    if data.get("gh_timeout_s", 60) < 1:
+        raise ConfigError(f"[tool.devkit] gh_timeout_s = {data['gh_timeout_s']!r}: expected seconds, at least 1")
     for match, tools in data.get("mcp_prereqs", {}).items():
         if not (isinstance(tools, list) and all(isinstance(t, str) and t for t in tools)):
             raise ConfigError(f"[tool.devkit.mcp_prereqs] {match} = {tools!r}: expected a list of binary names")

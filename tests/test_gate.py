@@ -2347,3 +2347,117 @@ def test_gates_starting_one_after_another_stay_near_the_cores(cores, gb, slots):
     if slots <= 3:
         assert sum(started) <= cores
     assert sum(started) <= 1.35 * cores
+
+
+# #542: no board read in the gate, bounded gh calls, the selection fingerprint collected beside the stages
+
+
+def test_the_gate_runs_no_board_read():
+    """#542: the board stage (18-30 s of network reads holding the gate slot, never able to fail a gate) left the gate;
+    `dev board lint` reports its findings (tests/test_board.py)."""
+    assert not hasattr(gate, "board")  # gate.py imports no board module
+    for s in gate.stages(False, {}, None):
+        code = getattr(s, "__code__", None)
+        assert getattr(s, "__name__", "") != "check_board"
+        assert code is None or "check_board" not in code.co_names
+
+
+def _gating(repo, tmp_path, monkeypatch, stages):
+    """`repo` as cwd, a shared state dir under tmp_path, no lock and no re-run, and `stages` as the gate's stages."""
+    monkeypatch.chdir(repo)
+    paths.root.cache_clear()
+    config.get.cache_clear()
+    _shared_state(monkeypatch, tmp_path / "common")
+    monkeypatch.setattr(gate, "clean_bytecode", lambda: True)
+    monkeypatch.setattr(gate, "gate_lock", lambda *a, **k: contextlib.nullcontext())
+    monkeypatch.setattr(gate, "stages", lambda *a: stages)
+
+
+def test_the_selection_fingerprint_is_collected_while_the_stages_run(repo, tmp_path, monkeypatch):
+    marker = tmp_path / "collecting"
+    script = f"import pathlib; pathlib.Path({str(marker)!r}).touch(); print('tests/test_a.py::test_a')"
+    monkeypatch.setattr(gate, "collect_cmd", lambda full: [sys.executable, "-c", script])
+    seen = []
+
+    def stage():
+        deadline = time.monotonic() + 30
+        while not marker.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        seen.append(marker.exists())  # the collection started before this stage ended
+        return Ran("build", checked=1)
+
+    _gating(repo, tmp_path, monkeypatch, [stage])
+    assert gate.check({}) == 0
+    assert seen == [True]
+    record = gate.pass_record(gate.checks.merge_base(), False)
+    assert record is not None
+    assert json.loads(record.read_text())["tests"] == gate.fingerprint(0, "tests/test_a.py::test_a\n")
+
+
+def test_a_failed_gate_does_not_wait_for_the_selection_fingerprint(repo, tmp_path, monkeypatch):
+    monkeypatch.setattr(gate, "collect_cmd", lambda full: [sys.executable, "-c", "import time; time.sleep(60)"])
+    _gating(repo, tmp_path, monkeypatch, [lambda: Ran("build", problems=["boom"])])
+    began = time.monotonic()
+    assert gate.check({}) == 1
+    assert time.monotonic() - began < 30  # the collection was killed, not awaited
+    record = gate.pass_record(gate.checks.merge_base(), False)
+    assert record is not None and not record.exists()
+
+
+def test_the_pass_record_is_byte_identical_to_a_serial_fingerprint(repo, tmp_path, monkeypatch):
+    """#542: collecting beside the stages records the very bytes collecting after them did, for the same tree."""
+    _worktrees(repo, tmp_path, CHAPTERS)
+    monkeypatch.setattr(gate.time, "strftime", lambda *a: "2026-11-23 10:00")
+    _gating(repo, tmp_path, monkeypatch, [lambda: Ran("build", checked=1)])
+    assert gate.check({}) == 0
+    record = gate.pass_record(gate.checks.merge_base(), False)
+    assert record is not None
+    saved = json.loads(record.read_text())
+    serial = tmp_path / "serial.json"
+    gate.save_pass(serial, saved["seconds"], gate.selection(False))  # what the gate recorded before #542
+    assert record.read_bytes() == serial.read_bytes()
+
+
+def _weakening_repo(tmp_path, monkeypatch):
+    """A repository on branch `55-x` whose diff against its base removes an assert: the weakening stage reads #55."""
+    r = tmp_path / "weak"
+    (r / "tests").mkdir(parents=True)
+    _sh(r, "git", "init", "-q", "-b", "main")
+    _sh(r, "git", "config", "user.email", "t@t")
+    _sh(r, "git", "config", "user.name", "t")
+    (r / "tests/test_x.py").write_text("def test_f():\n    assert 1 + 1 == 2\n")
+    _sh(r, "git", "add", ".")
+    _sh(r, "git", "commit", "-q", "-m", "base")
+    _sh(r, "git", "checkout", "-qb", "55-x")
+    (r / "tests/test_x.py").write_text("def test_f():\n    pass\n")
+    base = _sh_out(r, "git", "rev-parse", "HEAD")
+    monkeypatch.chdir(r)
+    paths.root.cache_clear()
+    monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+    monkeypatch.setattr(weaken, "repo_owner", lambda: "octo")
+    monkeypatch.setattr(board_gh, "repo", lambda: "octo/r")
+    return base
+
+
+def test_a_hung_gh_fails_the_weakening_stage_within_the_gh_timeout(tmp_path, monkeypatch):
+    """#542: every gh call a gate stage makes is bounded by [tool.devkit] gh_timeout_s; a gh that never answers makes
+    the stage report it and the gate go on, instead of holding the gate slot (PR #493's 918 s gate)."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "gh").write_text("#!/bin/sh\nsleep 120\n")
+    (bin_dir / "gh").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    base = _weakening_repo(tmp_path, monkeypatch)
+    monkeypatch.setattr(weaken.config, "get", lambda: config.Config(gh_timeout_s=1))
+    began = time.monotonic()
+    ran = weaken.check_weakening(base)
+    took = time.monotonic() - began
+    assert not ran.ok
+    assert "#55 could not be read" in ran.problems[-1] and "no answer in 1 s" in ran.problems[-1]
+    assert took < 10  # one bounded try, no retry past the bound
+
+
+def test_gh_timeout_s_defaults_to_a_minute_and_must_be_positive():
+    assert config.Config().gh_timeout_s == 60
+    with pytest.raises(config.ConfigError):
+        config.parse({"gh_timeout_s": 0})

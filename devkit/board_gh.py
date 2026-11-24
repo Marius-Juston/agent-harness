@@ -148,7 +148,10 @@ def _recheck(args: tuple[str, ...], input: str | None) -> Callable[[float], str 
     return None
 
 
-def gh(*args: str, input: str | None = None) -> str:
+def gh(*args: str, input: str | None = None, timeout: float | None = None) -> str:
+    """`gh args`, retried as the module says. With `timeout`, a try that has not answered in that many seconds is
+    killed and raises BoardError at once, with no retry: a caller that bounds its wait (a gate stage, #542) gets the
+    bound it asked for."""
     kind, since = gh_kind(args), GH_CLOCK()
     recheck = RECHECKS.get(tuple(args[:2]), _recheck)(args, input) if kind == "write" else None
     sent = args  # what the next try sends: a recheck may drop a part that already landed
@@ -168,7 +171,19 @@ def gh(*args: str, input: str | None = None) -> str:
             if isinstance(again, str):
                 return subprocess.CompletedProcess(["gh", *sent], 0, again, "")
             sent = again
-        out = subprocess.run(["gh", *sent], cwd=paths.root(), capture_output=True, text=True, input=input, check=False)
+        try:
+            out = subprocess.run(
+                ["gh", *sent],
+                cwd=paths.root(),
+                capture_output=True,
+                text=True,
+                input=input,
+                check=False,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as e:
+            unsure = "; the outcome is unknown: check GitHub before rerunning" if kind == "write" else ""
+            raise BoardError(f"gh {' '.join(args[:3])}: no answer in {timeout:g} s{unsure}") from e
         unknown = out.returncode != 0 and bool(TRANSIENT.search(out.stderr))
         dropped = (out.stderr.strip().splitlines() or [""])[-1][:200]
         return out
