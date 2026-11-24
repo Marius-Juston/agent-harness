@@ -2332,6 +2332,12 @@ OPAQUE_PY = [
     "os.system('sh r.sh')",
     "import os, string, base64\n"
     "string.Formatter().get_field('0.system', [os], {})[0](base64.b64decode('Z2ggbSAx').decode())",
+    # #693 review round 2: literal text Python runs as code with no run word in code, and f-string code
+    "import timeit\ntimeit.timeit(\"import os,base64; os.system(base64.b64decode('Z2ggbSAx'))\", number=1)",
+    "import code\ncode.InteractiveInterpreter().runsource(\"import os,base64; os.system(base64.b64decode('Z2ggbSAx'))\")",
+    "import pdb\npdb.run(\"import os,base64; os.system(base64.b64decode('Z2ggbSAx'))\")",
+    "__builtins__.__dict__['exec'](\"import os,base64; os.system(base64.b64decode('Z2ggbSAx'))\")",
+    "import os, base64\nf\"{os.system(base64.b64decode('Z2ggbSAx'))}\"",
 ]
 
 
@@ -2356,7 +2362,36 @@ GH_ALIAS_PY = [
     "import os, string\nstring.Formatter().get_field('0.system', [os], {})[0]('gh m 1')",
     "import os\nf = [os]\nprint(f, 'gh m 1')",  # a module handed on as a value can be searched by name
     "import typing\ndef f(x: 'gh m 1'): pass\ntyping.get_type_hints(f)",  # typing evaluates string annotations
+    # #693 review round 2
+    "import timeit\ntimeit.timeit(\"__import__('os').system('gh m 1')\", number=1)",
+    "import os\nf\"{os.system('gh m 1')}\"",
+    "import sys\nm = sys.modules\nm['os'].system('gh m 1')",
+    "import copy, os\nclass A:\n    def __reduce__(self):\n        return (os.system, ('gh m 1',))\ncopy.copy(A())",
+    # modules or classes the reader cannot vouch for: refused when unsure
+    "import dataclasses\ndataclasses.make_dataclass('A', [('x', int, dataclasses.field(default_factory=lambda: 0))])\n"
+    "print('gh m 1')",
+    "import argparse\nprint('gh m 1')",
+    "import pathlib\nclass P(type(pathlib.Path())):\n    pass\nprint('gh m 1')",
 ]
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        "x = f'os.system({y}) b64decode'",  # 3.12+: FSTRING_MIDDLE; before: one STRING token with an f prefix
+        "x = rf'os.system({y})' + Rf\"b64decode\"",
+        'x = f\'{y.replace("os.system", "b64decode")}\'',  # a plain string nested in f-string code
+    ],
+)
+def test_an_f_string_is_code_on_every_python(src):
+    """#693 round 2: the hook runs under the owner's python3, which may tokenize f-strings either way."""
+    code = GUARD.pycode.code_only(src)
+    assert "os.system" in code and "b64decode" in code, code
+
+
+def test_plain_literals_and_comments_are_blanked():
+    code = GUARD.pycode.code_only("s = 'os.system(x)'  # b64decode\nt = rb'y'\n")
+    assert "os.system" not in code and "b64decode" not in code and code.count("\n") == 2, code
 
 
 @pytest.mark.parametrize("src", GH_ALIAS_PY)

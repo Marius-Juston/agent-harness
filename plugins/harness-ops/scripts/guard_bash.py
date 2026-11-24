@@ -383,6 +383,9 @@ class Checker(GitHubRules, PathRules):
         for group in re.findall(r"\[([^\]]*)\]", src):  # list-form argv: ["pip", "install", "x"]
             parts = re.findall(r"'((?:[^'\\\n]|\\.)*)'|\"((?:[^\"\\\n]|\\.)*)\"", group)
             strings.append(" ".join(a or b for a, b in parts))
+        strings += pycode.literals(src)  # #693: strings nested in f-string code, which the regex above reads whole
+        if depth > MAX_DEPTH:
+            return DEEP
         if why := self.code_reaches(src, "py"):
             return why
         if why := self.code_writes(src, PY_WRITE):  # open("~/.local/bin/gh", "w"), shutil.copy(x, "~/.cargo/bin")
@@ -400,6 +403,9 @@ class Checker(GitHubRules, PathRules):
                     return GH_CRED
                 self.transforms = False  # #690: each literal is its own command; a rewrite elsewhere is not its input
                 if runs and (why := self.text(s, depth + 1)):
+                    return why
+                # #693: Python runs literal text as code (timeit, pdb, code.InteractiveInterpreter): read it as code too
+                if runs and pycode.is_code(s) and (why := self.python(s, depth + 1)):
                     return why
             return None
         finally:
