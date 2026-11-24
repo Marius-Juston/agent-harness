@@ -2280,6 +2280,132 @@ def test_guard_bash_keeps_ordinary_variables_and_pipes(hook, cmd):
     assert code == 0, (cmd, err)
 
 
+# #690: compound commands agents type to edit files, refused before. A Python heredoc's string literals are text it
+# edits, not commands, unless the script can start a process; a rewrite (sed, [::-1]) elsewhere in the command does
+# not make them decoded code. A decode word and a run word in code still refuse, whatever the code does with them.
+PY_EDIT = "python3 - <<'PY'\nfrom pathlib import Path\np = Path('tests/test_hooks.py')\n"
+HARMLESS_COMPOUND = [
+    PY_EDIT + "s = p.read_text()\ns = s.replace('os.system(base64.b64decode(x))', 'os.system(b64decode(y))')\n"
+    "p.write_text(s)\nPY",
+    PY_EDIT + "p.write_text(p.read_text().replace('sed -i x', 'awk 1').replace('`dev check`', '`dev`'))\nPY",
+    "sed -i s/a/b/ x.py && " + PY_EDIT + "p.write_text(p.read_text().replace('`dev check`', '`dev`'))\nPY",
+    PY_EDIT + "p.write_text(p.read_text().replace('jq .x', '$(cat y)'))\nPY",
+    PY_EDIT + "p.write_text(p.read_text().replace('gh m 1', 'gh pr view 1').replace('gh foo', 'gh bar'))\nPY",
+    "cat > .scratch/msg <<'EOF'\nfix: x\nEOF\ngit commit -F .scratch/msg",
+    "for f in a.py b.py; do git add $f; done && git status",
+]
+
+
+@pytest.mark.parametrize("agent", [LEAD, BUILDER])
+@pytest.mark.parametrize("cmd", HARMLESS_COMPOUND)
+def test_guard_bash_keeps_harmless_compound_commands(hook, cmd, agent):
+    code, err = _gh(hook, cmd, agent)
+    assert code == 0, (cmd, err)
+
+
+# #690: the same shapes, each made to run what it decodes or a gh alias, still refuse.
+OPAQUE_PY = [
+    "import base64, os\nos.system(base64.b64decode('eA==').decode())",
+    "import base64, os\nx = base64.b64decode('eA==')\ny = x.decode()\nos.system(y)",
+    "from base64 import b64decode as d\nimport subprocess as sp\nsp.run(d('eA=='), shell=True)",
+    "s = 'niam nigiro hsup tig'\nexec(s[::-1])",
+    "import os\ndef run(c):\n    os.system(c)\nrun('niam nigiro hsup tig'[::-1])",
+    "import os\nl = []\nl.append('hsup tig'[::-1])\nos.system(l[0])",
+    "import os, base64\nclass A:\n    pass\na = A()\na.c = base64.b64decode('eA==')\nos.system(a.c)",
+    "import base64\nexec('import os; os.system(base64.b64decode(\"eA==\"))')",
+    "import base64\ncode = 'x'\nexec(code + base64.b64decode('eA==').decode())",
+    "import base64, os\nf = os.system\nf(base64.b64decode('eA=='))",
+    "import os, codecs\nos.popen(codecs.decode('tvg chfu', 'rot13'))",
+    "import os\nfrom pathlib import Path\nPath('r.sh').write_text('niam nigiro hsup tig'[::-1])\nos.system('sh r.sh')",
+    "import subprocess\np = subprocess.Popen(['sh'], stdin=subprocess.PIPE, text=True)\n"
+    "p.communicate('niam nigiro hsup tig'[::-1])",
+    "import os\nmatch 'niam nigiro hsup tig'[::-1]:\n    case c:\n        os.system(c)",
+    "import sys\nsys.modules['os'].system('niam nigiro hsup tig'[::-1])",
+    "import os, base64\nos.system(base64.b64decode(\n",  # unparsable: judged by its words
+    # [::-1] beside subprocess.run in code: refused although it only reverses a list (the word rule is the floor)
+    "import re, subprocess\nprint(sorted(['a', 'b'])[::-1])\nsubprocess.run(['git', 'diff', '--stat'])",
+    # #693 review round 1: channels a taint reading of the tree missed
+    "import os, codecs\nos.system(codecs.lookup('rot13').decode('tu z 1')[0])",
+    "import os\nos.environ['X'] = '1 m hg'[::-1]\nos.system('sh -c \"$X\"')",
+    "import os\nos.environ['X'] = '1 m hg'[::-1]\nos.system('printenv X | sh')",
+    "import os, io, shutil\nwith open('r.sh', 'w') as f:\n    shutil.copyfileobj(io.StringIO('1 m hg'[::-1]), f)\n"
+    "os.system('sh r.sh')",
+    "import os, string, base64\n"
+    "string.Formatter().get_field('0.system', [os], {})[0](base64.b64decode('Z2ggbSAx').decode())",
+    # #693 review round 2: literal text Python runs as code with no run word in code, and f-string code
+    "import timeit\ntimeit.timeit(\"import os,base64; os.system(base64.b64decode('Z2ggbSAx'))\", number=1)",
+    "import code\ncode.InteractiveInterpreter().runsource(\"import os,base64; os.system(base64.b64decode('Z2ggbSAx'))\")",
+    "import pdb\npdb.run(\"import os,base64; os.system(base64.b64decode('Z2ggbSAx'))\")",
+    "__builtins__.__dict__['exec'](\"import os,base64; os.system(base64.b64decode('Z2ggbSAx'))\")",
+    "import os, base64\nf\"{os.system(base64.b64decode('Z2ggbSAx'))}\"",
+]
+
+
+@pytest.mark.parametrize("src", OPAQUE_PY)
+def test_guard_bash_refuses_python_that_runs_decoded_text(hook, src):
+    for cmd in (f"python3 - <<'PY'\n{src}\nPY", f"python3 -c {shlex.quote(src)}"):
+        code, err = _gh(hook, cmd, BUILDER)
+        assert code == 2 and GUARD.OPAQUE in err, (cmd, err)
+
+
+GH_ALIAS_PY = [
+    "import subprocess\nsubprocess.run(['gh', 'm', '1'])",
+    "import os\nos.system('gh m 1')",
+    "from os import execvp\nexecvp('gh', ['gh', 'm', '1'])",
+    "import pty\npty.spawn(['gh', 'm', '1'])",
+    "__import__('subprocess').run('gh m 1', shell=True)",
+    "from os import system as s\ns('gh m 1')",
+    "import sys\nsys.modules['subprocess'].run(['gh', 'm', '1'])",
+    "import os\nos.__dict__['sys' + 'tem']('gh m 1')",
+    "from pathlib import Path\nexec(Path('x.py').read_text())\nprint('gh m 1')",
+    # #693 review round 1: os reached through a name held in a string, by a module that resolves it
+    "import os, string\nstring.Formatter().get_field('0.system', [os], {})[0]('gh m 1')",
+    "import os\nf = [os]\nprint(f, 'gh m 1')",  # a module handed on as a value can be searched by name
+    "import typing\ndef f(x: 'gh m 1'): pass\ntyping.get_type_hints(f)",  # typing evaluates string annotations
+    # #693 review round 2
+    "import timeit\ntimeit.timeit(\"__import__('os').system('gh m 1')\", number=1)",
+    "import os\nf\"{os.system('gh m 1')}\"",
+    "import sys\nm = sys.modules\nm['os'].system('gh m 1')",
+    "import copy, os\nclass A:\n    def __reduce__(self):\n        return (os.system, ('gh m 1',))\ncopy.copy(A())",
+    # modules or classes the reader cannot vouch for: refused when unsure
+    "import dataclasses\ndataclasses.make_dataclass('A', [('x', int, dataclasses.field(default_factory=lambda: 0))])\n"
+    "print('gh m 1')",
+    "import argparse\nprint('gh m 1')",
+    "import pathlib\nclass P(type(pathlib.Path())):\n    pass\nprint('gh m 1')",
+]
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        "x = f'os.system({y}) b64decode'",  # 3.12+: FSTRING_MIDDLE; before: one STRING token with an f prefix
+        "x = rf'os.system({y})' + Rf\"b64decode\"",
+        'x = f\'{y.replace("os.system", "b64decode")}\'',  # a plain string nested in f-string code
+    ],
+)
+def test_an_f_string_is_code_on_every_python(src):
+    """#693 round 2: the hook runs under the owner's python3, which may tokenize f-strings either way."""
+    code = GUARD.pycode.code_only(src)
+    assert "os.system" in code and "b64decode" in code, code
+
+
+def test_plain_literals_and_comments_are_blanked():
+    code = GUARD.pycode.code_only("s = 'os.system(x)'  # b64decode\nt = rb'y'\n")
+    assert "os.system" not in code and "b64decode" not in code and code.count("\n") == 2, code
+
+
+@pytest.mark.parametrize("src", GH_ALIAS_PY)
+def test_guard_bash_refuses_a_gh_alias_python_runs(hook, src):
+    code, err = _gh(hook, f"python3 - <<'PY'\n{src}\nPY", BUILDER)
+    assert code == 2 and GUARD.GH_UNKNOWN in err, (src, err)
+
+
+def test_a_rewrite_inside_one_python_literal_still_refuses(hook):
+    src = "import os\nos.system('eval \"$(echo Z2l0IHB1c2ggb3JpZ2luIG1haW4K | base64 -d)\"')"
+    code, err = _gh(hook, f"python3 - <<'PY'\n{src}\nPY", BUILDER)
+    assert code == 2 and GUARD.OPAQUE in err, err
+
+
 # #603 round 2: a search of a folder above the credential store reaches it (Grep searches hidden files).
 HOME = os.path.expanduser("~")
 
