@@ -1354,3 +1354,36 @@ def test_orient_keeps_a_manual_block_whose_blockers_closed(monkeypatch):
     assert (synced, closed) == ([], {7})
     assert sorted(sent) == [("issue", "list")] * 2  # the open and closed lists, nothing else
     assert issues[0].comments == manual
+
+
+def test_board_lint_reports_every_finding_the_gate_stage_warned_about(monkeypatch):
+    """#542: the gate reads no board; `dev board lint` reports the same findings its board stage warned about."""
+    done, owns = "## DONE WHEN\n- [ ] a test passes\n", "## Owns\n- `devkit/x.py`\n"
+    rest = {"state": "OPEN", "updatedAt": T0, "comments": [], "blockedBy": {"nodes": []}, "parent": None}
+    rest |= {"blocking": {"nodes": []}, "subIssues": {"nodes": []}}
+    issues = [
+        {"number": 1, "title": "Epic: x", "labels": [{"name": "type:build"}, {"name": "P1"}], "body": done, **rest},
+        {"number": 2, "title": "devkit: y", "labels": [{"name": "type:build"}, {"name": "P2"}], "body": done + owns}
+        | rest,
+        {"number": 3, "title": "no labels and no sections", "labels": [], "body": "", **rest},
+    ]
+
+    def gh(*args, input=None, timeout=None):
+        if args[:2] == ("issue", "list"):
+            return json.dumps(issues if "open" in args else [])
+        if args[:2] == ("pr", "list"):
+            return json.dumps([{"number": 40, "body": "Closes #2", "headRefName": "2-y", "baseRefName": "main"}])
+        if args[:2] == ("label", "list"):
+            return json.dumps([{"name": n} for n in board.LABELS])
+        return ""
+
+    monkeypatch.setattr(board_gh, "gh", gh)
+    monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
+    monkeypatch.setattr(paths, "default_branch", lambda: "main")
+    stage = board.check_board()  # what the gate's board stage printed before #542
+    out, code = board.lint_board()
+    warned = [w for w in stage.warnings if w.startswith("#")]
+    assert len(warned) >= 3 and code == 1
+    for w in warned:
+        number, _, problem = w.partition(" ")
+        assert any(line.startswith(f"{number:<5}") and problem in line for line in out.splitlines()), w

@@ -239,8 +239,9 @@ def test_gate_stage_is_offline_tolerant(monkeypatch):
     assert board.check_board().ok
 
 
-def test_gate_runs_the_board_stage():
-    assert board.check_board in gate.stages(False, {}, None)
+def test_the_gate_no_longer_runs_the_board_stage():
+    """#542: the board read left the gate; `dev board lint` and `dev orient` report the board."""
+    assert board.check_board not in gate.stages(False, {}, None)
 
 
 def test_orient_warns_with_the_lint_count(monkeypatch, tmp_path):
