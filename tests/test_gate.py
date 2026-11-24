@@ -913,7 +913,7 @@ def test_dev_gate_slots_sets_a_machine_local_value_that_wins_and_clear_drops_it(
     assert "gate slots 6 (local:" in capsys.readouterr().out
     assert gate.slots_setting() == (6, "local") and gate.gate_slots() == 6
     assert gate.effective_slots(slots_repo / "gate.lock") == 6
-    assert gate.workers(cores=32, gb=64) == 32 // 2 // 6
+    assert gate.workers(cores=32, gb=64) == 16  # #683: workers follow the gates running (none here), not the setting
     assert (slots_repo / gate.SLOTS_FILE).read_text().strip() == "6"
     assert _sh_out(repo, "git", "status", "--porcelain") == ""  # nothing to commit
     data = json.loads(workflow.status(as_json=True))
@@ -1163,7 +1163,7 @@ def fake_integrate(monkeypatch, tmp_path):
     monkeypatch.setattr(board_gh, "gh", gh)
     monkeypatch.setattr(board_gh, "repo", lambda: "o/r")
     monkeypatch.setattr(board_state, "comment", lambda *a, **k: None)
-    monkeypatch.setattr(board_state, "sync", lambda: [])
+    monkeypatch.setattr(board_state, "sync", lambda *a, **k: [])
     claim = board.Claim(host="box", agent="builder-5", branch="5-x", at="", token=None, cid="")
     monkeypatch.setattr(
         board_state, "get", lambda n: SimpleNamespace(state="OPEN", status="review", claim=lambda: claim)
@@ -1965,15 +1965,15 @@ def test_without_local_ci_a_billing_blocked_check_still_refuses(fake_integrate, 
 def test_orient_syncs_the_board_first(monkeypatch, tmp_path):
     """#76: blockers re-sync at every orient (and integrate), so the scheduled board workflow is optional."""
     calls = []
-    monkeypatch.setattr(board_state, "sync", lambda: calls.append("sync") or ["#4 -> ready"])
+    monkeypatch.setattr(board_state, "sync", lambda *a, **k: calls.append("sync") or ["#4 -> ready"])
     monkeypatch.setattr(board_state, "fetch", lambda *a, **k: calls.append("fetch") or [])
     monkeypatch.setattr(board_state, "closed_numbers", lambda: set())
     monkeypatch.setattr(workflow, "root", lambda: tmp_path)
     monkeypatch.setattr(workflow, "status", lambda: "")
     out = workflow.orient()
-    assert calls[:2] == ["sync", "fetch"] and "board sync: #4 -> ready" in out
+    assert calls == ["fetch", "sync", "fetch"] and "board sync: #4 -> ready" in out  # a move refetches the rows
 
-    def down():
+    def down(*a, **k):
         raise board.BoardError("rate limited")
 
     monkeypatch.setattr(board_state, "sync", down)
@@ -2307,3 +2307,43 @@ def test_diagnostics_that_depend_on_installed_packages_are_reported_not_counted(
     assert ran.notes == [
         "1 more depend on installed packages (" + ", ".join(sorted(gate.TYPE_ENV_RULES)) + "): not counted"
     ]
+
+
+def test_a_lone_gate_takes_half_the_cores_whatever_gate_slots_says(monkeypatch, tmp_path):
+    """#683: a lone gate on a 16-core machine with gate_slots 3 ran 2 workers; the share follows the gates running
+    now, so it gets 8, a second gate starting beside it 4, and a third 2."""
+    state = _shared_state(monkeypatch, tmp_path / "common")
+    monkeypatch.setattr(gate.config, "get", lambda: config.Config(gate_slots=3))
+    lock = state / "gate.lock"
+    done = threading.Event()
+
+    def hold(inside: threading.Event) -> None:
+        with gate.gate_lock(lock, slots=3):
+            inside.set()
+            done.wait(10)
+
+    with gate.gate_lock(lock, slots=3):
+        assert gate.running_gates() == 1 and gate.workers(cores=16, gb=64) == 8
+        threads = []
+        for running, want in ((2, 4), (3, 2)):
+            inside = threading.Event()
+            threads.append(threading.Thread(target=hold, args=(inside,)))
+            threads[-1].start()
+            assert inside.wait(10)
+            assert gate.running_gates() == running and gate.workers(cores=16, gb=64) == want
+        done.set()
+        for t in threads:
+            t.join(10)
+    assert gate.running_gates() == 1  # none held: never below 1
+
+
+@given(cores=st.integers(16, 512), gb=st.floats(0, 4096), slots=st.integers(1, 8))
+def test_gates_starting_one_after_another_stay_near_the_cores(cores, gb, slots):
+    """#683 review: the k-th gate to start takes cores//2//k, so `slots` gates started one after another sum to about
+    cores/2 x H(slots). Up to 3 slots that is within the cores; more slots on a machine of 32 cores or fewer (where the
+    cap of 16 does not bind) may exceed them, at most 1.35x, until the earlier gates finish (accepted, #683)."""
+    started = [gate.workers(k, cores=cores, gb=gb) for k in range(1, slots + 1)]
+    assert all(n <= max(1, cores // 2 // k) for k, n in enumerate(started, 1))
+    if slots <= 3:
+        assert sum(started) <= cores
+    assert sum(started) <= 1.35 * cores

@@ -717,3 +717,18 @@ def test_mcp_servers_merge_user_project_and_this_projects_local_scope(tmp_path, 
     assert set(setup._mcp_servers()) == {"a"}
     (home / ".claude.json").write_text("not json")
     assert set(setup._mcp_servers()) == {"a"}
+
+
+def test_setup_installs_the_hook_with_the_venvs_pinned_prek_never_uvx():
+    """#687: `uvx prek install` wrote a hook pointing into uv's cache, and a prune broke every commit. The hook comes
+    from the venv's prek, pinned at the version the template's `prek@` commands use; -f repairs a stale hook."""
+    import re
+    import tomllib
+    from pathlib import Path
+
+    assert setup.PREK_HOOK[1] == ["uv", "run", "--quiet", "prek", "install", "-f"]
+    root = Path(__file__).resolve().parents[1]
+    deps = tomllib.loads((root / "pyproject.toml").read_text())["project"]["dependencies"]
+    pinned = {d.split("==")[1] for d in deps if d.startswith("prek==")}
+    used = set(re.findall(r"prek@([\d.]+)", (root / "template/pyproject.toml.jinja").read_text()))
+    assert pinned and used and pinned == used
