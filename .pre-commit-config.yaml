@@ -1,4 +1,4 @@
-# Run with prek (fast, reads this format): `uvx prek install` once per clone (`uv run dev setup` does it).
+# Run with prek (fast, reads this format): `uv run prek install -f` once per clone (`uv run dev setup` does it).
 # Fast checks only; the full gate is `uv run dev check`.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
